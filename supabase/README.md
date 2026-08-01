@@ -74,7 +74,11 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 
 2. Supabase → **Authentication → Providers → GitHub** → enable → paste Client ID + Secret.
 
-### 4) Shared models on Netlify
+### 4) Mac vault (optional, large files + local brain)
+
+On your Mac: `npm run storage:sync` + a public tunnel. On Netlify set `MAC_SYNC_URL`, `MAC_SYNC_SECRET`, `NEXT_PUBLIC_MAC_UPLOAD_URL`, and `BRAIN_PRIMARY=mac`. See root README «Mac vault».
+
+### 5) Shared models on Netlify
 
 Set at least one (Site → Environment variables), then redeploy:
 
