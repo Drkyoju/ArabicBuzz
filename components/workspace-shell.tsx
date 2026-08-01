@@ -13,6 +13,7 @@ import { ProviderKeysPanel } from '@/components/provider-keys-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
+import { AuthButtons } from '@/components/auth-buttons'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
@@ -177,12 +178,17 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
 
             <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
-              <h3 className="mb-2 font-semibold">الوصول</h3>
-              <p className="text-xs text-stone-600">
-                تسجيل الدخول معطّل حالياً — المنصة مفتوحة للاستخدام الشخصي.
-                لإعادة تفعيل المصادقة لاحقاً اضبط{' '}
-                <code dir="ltr">AUTH_REQUIRED=true</code>.
+              <h3 className="mb-2 font-semibold">الوصول والحساب</h3>
+              <p className="mb-3 text-xs text-stone-600">
+                الوضع الشخصي مفتوح افتراضياً. لتفعيل غرف متعددة المستخدمين اضبط{' '}
+                <code dir="ltr">AUTH_REQUIRED=true</code> على Netlify ثم سجّل
+                الدخول هنا أو من{' '}
+                <a href="/auth/login" className="text-ab-accent underline">
+                  /auth/login
+                </a>
+                .
               </p>
+              <AuthButtons compact />
             </div>
             <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4">
               <ProviderKeysPanel />

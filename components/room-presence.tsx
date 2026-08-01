@@ -8,7 +8,12 @@ import {
 } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
-type Peer = { key: string; name: string; typing?: boolean }
+type Peer = {
+  key: string
+  name: string
+  typing?: boolean
+  surface?: string
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -21,10 +26,13 @@ export function RoomPresenceBar({
   scopeId,
   typing,
   displayName,
+  surface = 'feed',
 }: {
   scopeId: string
   typing: boolean
   displayName?: string
+  /** Where the local user is focused: feed | canvas | composer */
+  surface?: string
 }) {
   const [peers, setPeers] = useState<Peer[]>([])
   const channelRef = useRef<{
@@ -45,7 +53,7 @@ export function RoomPresenceBar({
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setPeers([{ key: 'local', name: nameRef.current, typing }])
+      setPeers([{ key: 'local', name: nameRef.current, typing, surface }])
       return
     }
     let cancelled = false
@@ -76,12 +84,13 @@ export function RoomPresenceBar({
         if (cancelled) return
         const state = channel!.presenceState() as Record<
           string,
-          Array<{ name?: string; typing?: boolean }>
+          Array<{ name?: string; typing?: boolean; surface?: string }>
         >
         const list: Peer[] = Object.entries(state).map(([key, rows]) => ({
           key,
           name: rows[0]?.name || 'مستخدم',
           typing: Boolean(rows[0]?.typing),
+          surface: rows[0]?.surface,
         }))
         setPeers(list)
       })
@@ -91,6 +100,7 @@ export function RoomPresenceBar({
           await channel!.track({
             name: nameRef.current,
             typing: false,
+            surface,
             at: Date.now(),
           })
         }
@@ -106,17 +116,24 @@ export function RoomPresenceBar({
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setPeers([{ key: 'local', name: nameRef.current, typing }])
+      setPeers([{ key: 'local', name: nameRef.current, typing, surface }])
       return
     }
     const ch = channelRef.current
     if (!ch) return
-    void ch.track({ name: nameRef.current, typing, at: Date.now() })
-  }, [typing])
+    void ch.track({
+      name: nameRef.current,
+      typing,
+      surface,
+      at: Date.now(),
+    })
+  }, [typing, surface])
 
   const typingNames = peers.filter((p) => p.typing).map((p) => p.name)
   const online =
-    peers.length > 0 ? peers : [{ key: 'self', name: nameRef.current }]
+    peers.length > 0 ? peers : [{ key: 'self', name: nameRef.current, surface }]
+  const surfaceLabel = (s?: string) =>
+    s === 'canvas' ? 'اللوحة' : s === 'composer' ? 'الكتابة' : 'المحادثة'
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500" dir="rtl">
@@ -151,6 +168,15 @@ export function RoomPresenceBar({
       {typingNames.length > 0 && (
         <span className="text-ab-accent">
           — {typingNames.join('، ')} يكتب…
+        </span>
+      )}
+      {online.some((p) => p.surface && p.surface !== 'feed') && (
+        <span className="text-stone-400">
+          ·{' '}
+          {online
+            .filter((p) => p.surface && p.surface !== 'feed')
+            .map((p) => `${p.name} في ${surfaceLabel(p.surface)}`)
+            .join(' · ')}
         </span>
       )}
     </div>

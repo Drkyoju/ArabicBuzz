@@ -55,9 +55,22 @@ function SidebarBody({
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
   const createPersonalDesk = useWorkspaceStore((s) => s.createPersonalDesk)
+  const renameScope = useWorkspaceStore((s) => s.renameScope)
+  const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
-  const personal = useMemo(() => scopes.filter(isPersonalScope), [scopes])
-  const shared = useMemo(() => scopes.filter(isSharedScope), [scopes])
+  const personal = useMemo(
+    () => scopes.filter((s): s is typeof s & { userId: string } => isPersonalScope(s) && !s.archived),
+    [scopes]
+  )
+  const shared = useMemo(
+    () =>
+      scopes.filter(
+        (s): s is Extract<typeof s, { members: string[] }> =>
+          isSharedScope(s) && !s.archived
+      ),
+    [scopes]
+  )
+  const [menuId, setMenuId] = useState<string | null>(null)
 
   return (
     <div className="flex h-full flex-col" dir="rtl">
@@ -126,7 +139,7 @@ function SidebarBody({
             const active =
               activeSection === 'chats' && activeScopeId === scope.id
             return (
-              <li key={scope.id}>
+              <li key={scope.id} className="group relative">
                 <button
                   type="button"
                   onClick={() => {
@@ -155,6 +168,42 @@ function SidebarBody({
                     </span>
                   )}
                 </button>
+                <button
+                  type="button"
+                  className="absolute left-1 top-1 rounded px-1 text-[10px] text-stone-400 opacity-0 hover:bg-stone-200 hover:text-ab-ink group-hover:opacity-100"
+                  aria-label="خيارات الجلسة"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMenuId((v) => (v === scope.id ? null : scope.id))
+                  }}
+                >
+                  ⋯
+                </button>
+                {menuId === scope.id && (
+                  <div className="absolute left-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md">
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1.5 text-right text-[11px] hover:bg-stone-50"
+                      onClick={() => {
+                        const name = window.prompt('اسم الجلسة', scope.nameAr)
+                        if (name) renameScope(scope.id, name)
+                        setMenuId(null)
+                      }}
+                    >
+                      إعادة تسمية
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1.5 text-right text-[11px] text-ab-warn hover:bg-stone-50"
+                      onClick={() => {
+                        archiveScope(scope.id, true)
+                        setMenuId(null)
+                      }}
+                    >
+                      أرشفة
+                    </button>
+                  </div>
+                )}
               </li>
             )
           })}

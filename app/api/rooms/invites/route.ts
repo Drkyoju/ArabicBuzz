@@ -5,6 +5,9 @@ import {
   listRoomInvites,
   revokeInvite,
 } from '@/lib/rooms/persist'
+import { sendInviteEmail } from '@/lib/email/resend'
+import { emitNotification } from '@/lib/notifications/emit'
+import { DEMO_SCOPES } from '@/lib/scopes/manager'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +31,7 @@ export async function POST(req: Request) {
     email?: string
     kind?: 'email' | 'link'
     displayNameAr?: string
+    notifyChannels?: Array<'telegram' | 'whatsapp'>
   }
   const scopeId = body.scopeId || 'shared-demo'
   const gate = await assertRoomOwner(scopeId, auth.user.id, auth.user.email)
@@ -46,25 +50,71 @@ export async function POST(req: Request) {
     return Response.json({ error: result.error }, { status: 400 })
   }
 
-  const inviteUrl = result.invite.inviteUrl
+  const inviteUrl = result.invite.inviteUrl || ''
+  const roomNameAr =
+    DEMO_SCOPES.find((s) => s.id === scopeId)?.nameAr || scopeId
+  const inviterNameAr = String(
+    auth.user.user_metadata?.full_name || auth.user.email || 'زميل'
+  )
+
   const mailto =
     kind === 'email' && body.email
       ? `mailto:${encodeURIComponent(body.email)}?subject=${encodeURIComponent(
-          'دعوة إلى غرفة Arabic Buzz'
+          `دعوة إلى ${roomNameAr} على Arabic Buzz`
         )}&body=${encodeURIComponent(
-          `مرحباً،\n\nتمت دعوتك إلى غرفة عمل على Arabic Buzz.\nافتح الرابط للانضمام:\n${inviteUrl}\n`
+          `مرحباً،\n\n${inviterNameAr} دعاك إلى «${roomNameAr}» على Arabic Buzz.\nافتح الرابط للانضمام:\n${inviteUrl}\n`
         )}`
       : null
+
+  let emailSent = false
+  let emailNote: string | undefined
+  if (kind === 'email' && body.email) {
+    const sent = await sendInviteEmail({
+      to: body.email,
+      inviteUrl,
+      roomNameAr,
+      inviterNameAr,
+    })
+    emailSent = sent.ok
+    emailNote = sent.skipped
+      ? 'Resend غير مضبوط — استخدم mailto أو انسخ الرابط.'
+      : sent.error
+  }
+
+  const channels = Array.isArray(body.notifyChannels)
+    ? body.notifyChannels
+    : []
+  const channelResults: Record<string, boolean> = {}
+  const inviteText = `دعوة إلى «${roomNameAr}» على Arabic Buzz\n${inviteUrl}`
+  for (const ch of channels) {
+    if (ch !== 'telegram' && ch !== 'whatsapp') continue
+    const r = await emitNotification({
+      channel: ch,
+      textAr: inviteText,
+      meta: { kind: 'invite', scopeId, inviteUrl },
+    })
+    channelResults[ch] = r.ok
+  }
+
+  const channelHint =
+    channels.length > 0
+      ? Object.entries(channelResults)
+          .map(([k, ok]) => `${k}: ${ok ? 'أُرسل' : 'فشل/غير مضبوط'}`)
+          .join(' · ')
+      : ''
 
   return Response.json({
     invite: result.invite,
     inviteUrl,
     mailto,
-    emailSent: false,
+    emailSent,
+    channelResults,
     messageAr:
       kind === 'link'
-        ? 'رابط الدعوة جاهز — انسخه وأرسله لمن تريد.'
-        : 'سُجّلت الدعوة. لا يوجد مُرسل بريد آلي بعد — انسخ الرابط أو افتح بريدك لإرسال الدعوة يدوياً.',
+        ? `رابط الدعوة جاهز — انسخه وأرسله لمن تريد.${channelHint ? ` (${channelHint})` : ''}`
+        : emailSent
+          ? `أُرسلت الدعوة بالبريد إلى ${body.email}.${channelHint ? ` (${channelHint})` : ''}`
+          : `سُجّلت الدعوة.${emailNote ? ` ${emailNote}` : ' انسخ الرابط أو افتح بريدك.'}${channelHint ? ` (${channelHint})` : ''}`,
   })
 }
 

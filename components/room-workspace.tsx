@@ -38,8 +38,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
     isCanvasFullscreen,
     toggleCanvasFullscreen,
     upsertArtifact,
+    splitRatio,
+    setSplitRatio,
   } = useCanvasStore()
   const feedRef = useRef<HTMLDivElement>(null)
+  const dragSplit = useRef(false)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
@@ -67,6 +70,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showCanvas, setShowCanvas] = useState(true)
   const [showMore, setShowMore] = useState(true)
   const [micNote, setMicNote] = useState('')
+  const [presenceSurface, setPresenceSurface] = useState('feed')
+  const [canvasAudit, setCanvasAudit] = useState<
+    Array<{ id: string; titleAr: string; actorAr: string; at: string }>
+  >([])
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -90,6 +97,30 @@ export function RoomWorkspace({ className }: { className?: string }) {
       setShowMore(true)
     }
   }, [activeScopeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const headers = await authHeaders()
+      const res = await fetch(
+        `/api/rooms/canvas?scopeId=${encodeURIComponent(activeScopeId)}&audit=1`,
+        { headers }
+      )
+      if (!res.ok || cancelled) return
+      const data = (await res.json()) as {
+        audit?: Array<{
+          id: string
+          titleAr: string
+          actorAr: string
+          at: string
+        }>
+      }
+      setCanvasAudit(data.audit || [])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeScopeId, artifacts.length])
 
   useEffect(() => {
     void getBrowserSession().then((session) => {
@@ -355,6 +386,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 result?: unknown
                 toolName?: string
                 toolCallId?: string
+                citationBlockAr?: string
               }
               if (
                 event.type === 'text-delta' ||
@@ -370,19 +402,37 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 })
               }
 
-              const toolOut = event.output ?? event.result
-              if (toolOut && typeof toolOut === 'object') {
-                const out = toolOut as Record<string, unknown>
+              const toolOut =
+                event.output ??
+                event.result ??
+                (event.type === 'tool-output-available'
+                  ? event.output
+                  : undefined) ??
+                (event.type === 'tool-result' ? event.result : undefined)
+
+              const absorbTool = (raw: unknown) => {
+                if (!raw || typeof raw !== 'object') return
+                const out = raw as Record<string, unknown>
+                // Nested intercept wrapper
+                const nested =
+                  out.output && typeof out.output === 'object'
+                    ? (out.output as Record<string, unknown>)
+                    : out
+                if (
+                  nested.status === 'paused' &&
+                  typeof nested.approvalId === 'string'
+                ) {
+                  pendingApprovalId = nested.approvalId
+                }
                 if (out.status === 'paused' && typeof out.approvalId === 'string') {
                   pendingApprovalId = out.approvalId
-                  updatePost(activeScopeId, agentId, {
-                    content: assembled,
-                    streaming: true,
-                    pendingApprovalId,
-                  })
                 }
-                const docs = out.documents as
-                  | Array<{ citation?: string; titleAr?: string; excerpt?: string }>
+                const docs = (nested.documents || out.documents) as
+                  | Array<{
+                      citation?: string
+                      titleAr?: string
+                      excerpt?: string
+                    }>
                   | undefined
                 if (Array.isArray(docs)) {
                   for (const d of docs) {
@@ -400,13 +450,36 @@ export function RoomWorkspace({ className }: { className?: string }) {
                       })
                     }
                   }
-                  updatePost(activeScopeId, agentId, {
-                    content: assembled,
-                    streaming: true,
-                    citations: [...citations],
-                    pendingApprovalId,
-                  })
                 }
+                const block = String(
+                  nested.citationBlockAr || out.citationBlockAr || ''
+                )
+                if (block && !citations.some((c) => c.labelAr === block.slice(0, 40))) {
+                  const lines = block
+                    .split('\n')
+                    .map((l) => l.trim())
+                    .filter((l) => l.startsWith('[مصدر'))
+                  for (const line of lines) {
+                    if (!citations.some((c) => c.labelAr === line)) {
+                      citations.push({ labelAr: line })
+                    }
+                  }
+                }
+                updatePost(activeScopeId, agentId, {
+                  content: assembled,
+                  streaming: true,
+                  citations: citations.length ? [...citations] : undefined,
+                  pendingApprovalId,
+                })
+              }
+
+              if (toolOut) absorbTool(toolOut)
+              if (
+                event.type === 'tool-output-available' ||
+                event.type === 'tool-result' ||
+                event.type === 'tool-call-result'
+              ) {
+                absorbTool(event.output ?? event.result ?? event)
               }
             } catch {
               /* ignore */
@@ -487,17 +560,26 @@ export function RoomWorkspace({ className }: { className?: string }) {
     <div
       dir="rtl"
       className={cn(
-        'flex h-[calc(100dvh-2.75rem)] w-full gap-3 ab-stage p-3 md:h-dvh',
+        'flex h-[calc(100dvh-2.75rem)] w-full ab-stage p-3 md:h-dvh',
         className
       )}
     >
       {!isCanvasFullscreen && (
         <section
           className={cn(
-            'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm',
-            canvasOpen ? 'w-full md:w-[min(42%,28rem)] md:shrink-0' : 'w-full flex-1'
+            'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
+            canvasOpen ? 'md:shrink-0' : 'w-full flex-1'
           )}
+          style={
+            canvasOpen
+              ? {
+                  width: `${Math.round((1 - splitRatio) * 100)}%`,
+                  flexBasis: `${Math.round((1 - splitRatio) * 100)}%`,
+                }
+              : undefined
+          }
           aria-label="غرفة العمل"
+          onFocusCapture={() => setPresenceSurface('feed')}
         >
           {showOnboarding && (
             <div className="border-b border-ab-accent/20 bg-ab-accent/5 px-4 py-2.5 text-sm">
@@ -544,8 +626,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     scopeId={activeScopeId}
                     typing={typing}
                     displayName={displayName}
+                    surface={presenceSurface}
                   />
                 </div>
+                {canvasAudit.length > 0 && (
+                  <p className="mt-1 line-clamp-1 text-[10px] text-stone-400">
+                    آخر تعديل لوحة:{' '}
+                    {canvasAudit[0].titleAr} · {canvasAudit[0].actorAr}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {hasArtifacts && (
@@ -663,6 +752,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 e.preventDefault()
                 void sendPrompt()
               }}
+              onFocusCapture={() => setPresenceSurface('composer')}
             >
               <LocalUploadPanel scopeId={activeScopeId} compact />
               <ComposerMicButton
@@ -729,15 +819,54 @@ export function RoomWorkspace({ className }: { className?: string }) {
         </section>
       )}
 
+      {canvasOpen && !isCanvasFullscreen && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="تغيير عرض اللوحة"
+          className="mx-1 hidden w-1.5 shrink-0 cursor-col-resize rounded-full bg-ab-border hover:bg-ab-accent md:block"
+          onMouseDown={() => {
+            dragSplit.current = true
+            const onMove = (e: MouseEvent) => {
+              if (!dragSplit.current) return
+              // RTL stage: canvas is on the left visually in flex after chat
+              const stage = feedRef.current?.closest('.ab-stage') as HTMLElement | null
+              const rect = stage?.getBoundingClientRect()
+              if (!rect) return
+              const x = e.clientX - rect.left
+              // In RTL flex, first child is chat (right side). ratio = canvas share.
+              const canvasShare = x / rect.width
+              setSplitRatio(Math.min(0.85, Math.max(0.35, canvasShare)))
+            }
+            const onUp = () => {
+              dragSplit.current = false
+              window.removeEventListener('mousemove', onMove)
+              window.removeEventListener('mouseup', onUp)
+            }
+            window.addEventListener('mousemove', onMove)
+            window.addEventListener('mouseup', onUp)
+          }}
+        />
+      )}
+
       {canvasOpen && (
         <section
           className={cn(
-            'min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm',
+            'min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!basis-full',
             isCanvasFullscreen
               ? 'flex flex-1 flex-col'
-              : 'hidden flex-1 md:flex md:flex-col'
+              : 'hidden md:flex md:flex-col md:shrink-0'
           )}
+          style={
+            !isCanvasFullscreen
+              ? {
+                  width: `${Math.round(splitRatio * 100)}%`,
+                  flexBasis: `${Math.round(splitRatio * 100)}%`,
+                }
+              : undefined
+          }
           aria-label="لوحة المخرجات"
+          onFocusCapture={() => setPresenceSurface('canvas')}
         >
           <CanvasViewer
             onClose={() => {

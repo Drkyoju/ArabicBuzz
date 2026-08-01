@@ -135,6 +135,8 @@ type WorkspaceState = {
   mergePost: (post: RoomPost) => void
   /** Create a fresh personal desk and activate it. Returns the new scope id. */
   createPersonalDesk: (opts?: { nameAr?: string }) => string
+  renameScope: (id: string, nameAr: string) => void
+  archiveScope: (id: string, archived?: boolean) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -154,9 +156,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   activeScope: () => get().scopes.find((s) => s.id === get().activeScopeId),
 
-  personalScopes: () => get().scopes.filter(isPersonalScope),
+  personalScopes: () =>
+    get().scopes.filter((s) => isPersonalScope(s) && !s.archived),
 
-  sharedScopes: () => get().scopes.filter(isSharedScope),
+  sharedScopes: () =>
+    get().scopes.filter((s) => isSharedScope(s) && !s.archived),
 
   appendPost: (post) =>
     set((state) => ({
@@ -249,5 +253,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       /* ignore */
     }
     return id
+  },
+
+  renameScope: (id, nameAr) => {
+    const trimmed = nameAr.trim()
+    if (!trimmed) return
+    set((state) => ({
+      scopes: state.scopes.map((s) =>
+        s.id === id ? { ...s, nameAr: trimmed } : s
+      ),
+    }))
+  },
+
+  archiveScope: (id, archived = true) => {
+    set((state) => {
+      const scopes = state.scopes.map((s) =>
+        s.id === id ? { ...s, archived } : s
+      )
+      let activeScopeId = state.activeScopeId
+      if (archived && activeScopeId === id) {
+        const next = scopes.find((s) => !s.archived)
+        if (next) activeScopeId = next.id
+      }
+      return { scopes, activeScopeId }
+    })
   },
 }))

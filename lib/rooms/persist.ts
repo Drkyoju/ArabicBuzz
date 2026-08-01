@@ -91,6 +91,7 @@ export async function upsertCanvasArtifact(opts: {
   content: string
   language?: string
   updatedBy?: string
+  updatedByAr?: string
 }) {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false as const, error: 'no supabase' }
@@ -105,7 +106,52 @@ export async function upsertCanvasArtifact(opts: {
     updated_at: new Date().toISOString(),
   })
   if (error) return { ok: false as const, error: error.message }
+
+  // Best-effort audit row (table may not exist until migration 012)
+  void sb.from('room_canvas_audit').insert({
+    scope_id: opts.scopeId,
+    artifact_id: opts.id,
+    title_ar: opts.titleAr,
+    actor_id: opts.updatedBy ?? null,
+    actor_ar: opts.updatedByAr ?? opts.updatedBy ?? null,
+    action: 'update',
+  })
+
   return { ok: true as const }
+}
+
+export async function listCanvasAudit(
+  scopeId: string,
+  limit = 20
+): Promise<{
+  ok: boolean
+  rows: Array<{
+    id: string
+    artifactId: string
+    titleAr: string
+    actorAr: string
+    at: string
+  }>
+}> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return { ok: false, rows: [] }
+  const { data, error } = await sb
+    .from('room_canvas_audit')
+    .select('*')
+    .eq('scope_id', scopeId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error || !data) return { ok: false, rows: [] }
+  return {
+    ok: true,
+    rows: data.map((r: Record<string, string>) => ({
+      id: r.id,
+      artifactId: r.artifact_id,
+      titleAr: r.title_ar || '',
+      actorAr: r.actor_ar || r.actor_id || '—',
+      at: r.created_at,
+    })),
+  }
 }
 
 export async function listCanvasArtifacts(scopeId: string) {
@@ -120,13 +166,15 @@ export async function listCanvasArtifacts(scopeId: string) {
   return { ok: true as const, rows: data || [] }
 }
 
+export type RoomMemberRole = 'owner' | 'editor' | 'member' | 'viewer' | 'guest'
+
 export type RoomMember = {
   id: string
   scopeId: string
   userId: string | null
   email: string | null
   displayNameAr: string
-  role: 'owner' | 'member' | 'guest'
+  role: RoomMemberRole
   createdAt: string
 }
 
@@ -225,7 +273,7 @@ export async function getActorRoomRole(
   scopeId: string,
   userId: string,
   email?: string | null
-): Promise<'owner' | 'member' | 'guest' | null> {
+): Promise<RoomMemberRole | null> {
   const { members } = await listRoomMembers(scopeId)
   const byUser = members.find((m) => m.userId && m.userId === userId)
   if (byUser) return byUser.role
@@ -249,6 +297,47 @@ export async function assertRoomOwner(
     ok: false,
     error: 'هذا الإجراء للمالك فقط.',
   }
+}
+
+/** Canvas / content edits: owner, editor, member. */
+export async function assertRoomCanEdit(
+  scopeId: string,
+  userId: string,
+  email?: string | null
+): Promise<{ ok: true; role: RoomMemberRole | null } | { ok: false; error: string }> {
+  const role = await getActorRoomRole(scopeId, userId, email)
+  if (role === 'owner' || role === 'editor' || role === 'member') {
+    return { ok: true, role }
+  }
+  // Personal mode / unlisted scope: local owner may not be in members yet
+  if (!role && userId === 'local-owner') {
+    return { ok: true, role: 'owner' }
+  }
+  return {
+    ok: false,
+    error: 'هذه المساحة للعرض فقط — يلزم دور محرّر أو عضو.',
+  }
+}
+
+export async function assertRoomCanPost(
+  scopeId: string,
+  userId: string,
+  email?: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const role = await getActorRoomRole(scopeId, userId, email)
+  if (
+    role === 'owner' ||
+    role === 'editor' ||
+    role === 'member' ||
+    role === 'guest'
+  ) {
+    return { ok: true }
+  }
+  if (!role && userId === 'local-owner') return { ok: true }
+  if (role === 'viewer') {
+    return { ok: false, error: 'دور المشاهد لا يسمح بالنشر.' }
+  }
+  return { ok: true }
 }
 
 export async function listRoomMembers(scopeId: string): Promise<{

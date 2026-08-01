@@ -182,6 +182,36 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
     }
   }
 
+  async function inviteViaChannel(channel: 'telegram' | 'whatsapp') {
+    setBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const res = await fetch('/api/rooms/invites', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId,
+          kind: 'link',
+          notifyChannels: [channel],
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        inviteUrl?: string
+        messageAr?: string
+      }
+      if (!res.ok) throw new Error(data.error || 'فشل')
+      setLinkUrl(data.inviteUrl || '')
+      setMsg(data.messageAr || 'تم')
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function inviteByEmail() {
     if (!email.trim().includes('@')) {
       setErr('أدخل بريداً صالحاً')
@@ -349,6 +379,24 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               >
                 <Link2 className="h-3 w-3" />
                 رابط دعوة
+              </button>
+              <button
+                type="button"
+                disabled={busy || !canManage || !linkUrl}
+                onClick={() => void inviteViaChannel('telegram')}
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
+                title="يرسل رابط الدعوة لشات تيليجرام التجريبي"
+              >
+                تيليجرام · دعوة
+              </button>
+              <button
+                type="button"
+                disabled={busy || !canManage || !linkUrl}
+                onClick={() => void inviteViaChannel('whatsapp')}
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
+                title="يرسل رابط الدعوة لرقم واتساب التجريبي"
+              >
+                واتساب · دعوة
               </button>
             </div>
             <p className="text-[10px] leading-relaxed text-stone-500">

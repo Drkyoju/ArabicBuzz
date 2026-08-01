@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Download, FileText, RefreshCw } from 'lucide-react'
+import { Brain, Download, FileText, RefreshCw } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -31,6 +31,8 @@ export function FilesPanel() {
   const [source, setSource] = useState<string>('none')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [brainBusy, setBrainBusy] = useState<string | null>(null)
+  const [brainMsg, setBrainMsg] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,6 +62,38 @@ export function FilesPanel() {
     void load()
   }, [load])
 
+  async function sendToBrain(f: ListedFile) {
+    const fileId = f.id || ''
+    if (!fileId) {
+      setBrainMsg('معرّف الملف غير متاح — أعد الرفع ثم حاول.')
+      return
+    }
+    setBrainBusy(fileId)
+    setBrainMsg('')
+    try {
+      const res = await fetch('/api/brain/ingest', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId,
+          localFileId: fileId,
+          titleAr: f.originalName || f.name || fileId,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        ok?: boolean
+      }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setBrainMsg(data.messageAr || 'أُرسل إلى عقل الشركة')
+    } catch (e) {
+      setBrainMsg(e instanceof Error ? e.message : 'فشل الإرسال للعقل')
+    } finally {
+      setBrainBusy(null)
+    }
+  }
+
   return (
     <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -87,11 +121,19 @@ export function FilesPanel() {
       <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
         <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
         <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
+        <p className="mt-2 text-[10px] text-stone-500">
+          بعد الرفع يمكنك إرسال الملف إلى «عقل الشركة» للفهرسة والبحث.
+        </p>
       </div>
 
       {error && (
         <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {error}
+        </p>
+      )}
+      {brainMsg && (
+        <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          {brainMsg}
         </p>
       )}
 
@@ -105,14 +147,15 @@ export function FilesPanel() {
           />
           <p className="text-base font-semibold text-ab-ink">لا ملفات بعد</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
-            ارفع مستنداً من الأعلى أو من شريط الكتابة في الغرفة — سيظهر هنا للمعاينة
-            والتنزيل.
+            ارفع مستنداً من الأعلى ثم أرسله لعقل الشركة ليظهر في إجابات الوكيل
+            مع مصادر.
           </p>
         </div>
       ) : (
         <ul className="space-y-2">
           {files.map((f, i) => {
-            const name = f.originalName || f.name || f.relativePath || `ملف ${i + 1}`
+            const name =
+              f.originalName || f.name || f.relativePath || `ملف ${i + 1}`
             const path = f.relativePath || f.id || ''
             const href = path
               ? `/api/storage/file?path=${encodeURIComponent(path)}&scopeId=${encodeURIComponent(scopeId)}`
@@ -131,16 +174,27 @@ export function FilesPanel() {
                     {f.mimeType ? ` · ${f.mimeType}` : ''}
                   </p>
                 </div>
-                {href && (
-                  <a
-                    href={href}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-50"
-                    download
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={!f.id || brainBusy === f.id}
+                    onClick={() => void sendToBrain(f)}
+                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] hover:bg-stone-50 disabled:opacity-40"
                   >
-                    <Download className="h-3 w-3" />
-                    تنزيل
-                  </a>
-                )}
+                    <Brain className="h-3 w-3" />
+                    عقل الشركة
+                  </button>
+                  {href && (
+                    <a
+                      href={href}
+                      className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-50"
+                      download
+                    >
+                      <Download className="h-3 w-3" />
+                      تنزيل
+                    </a>
+                  )}
+                </div>
               </li>
             )
           })}

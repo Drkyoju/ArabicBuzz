@@ -5,6 +5,7 @@ export type PersonalScope = {
   descriptionAr?: string
   keychain: Record<string, string>
   privateMemory: string[]
+  archived?: boolean
 }
 
 export type SharedScope = {
@@ -16,6 +17,7 @@ export type SharedScope = {
   agentLabelsAr: string[]
   sharedMemory: string[]
   skills: string[]
+  archived?: boolean
 }
 
 export type Scope = PersonalScope | SharedScope

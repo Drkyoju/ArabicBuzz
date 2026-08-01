@@ -30,6 +30,11 @@ const MIGRATIONS = [
   'supabase/migrations/005_whatsapp_and_auth.sql',
   'supabase/migrations/006_rooms_realtime.sql',
   'supabase/migrations/007_company_brain.sql',
+  'supabase/migrations/008_provider_api_keys.sql',
+  'supabase/migrations/009_workspace_skills.sql',
+  'supabase/migrations/010_room_members_invites.sql',
+  'supabase/migrations/011_workspace_files.sql',
+  'supabase/migrations/012_roles_canvas_audit.sql',
 ]
 
 function present(v?: string): boolean {
@@ -151,9 +156,17 @@ function applyMigration(file: string): boolean {
     ['prisma', 'db', 'execute', '--file', abs, '--schema', 'prisma/schema.prisma'],
     { cwd: ROOT, encoding: 'utf8', env: process.env }
   )
-  if (r.stdout?.trim()) console.log(r.stdout.trim())
+  const out = `${r.stdout || ''}\n${r.stderr || ''}`.trim()
+  if (out) console.log(out)
   if (r.status !== 0) {
-    console.error(r.stderr || r.stdout || 'prisma db execute failed')
+    const soft =
+      /already exists|duplicate|does not exist/i.test(out) ||
+      /ERROR:\s+type .* already exists/i.test(out)
+    if (soft) {
+      console.log('  · skipped (already applied / idempotent conflict)')
+      return true
+    }
+    console.error(out || 'prisma db execute failed')
     return false
   }
   return true

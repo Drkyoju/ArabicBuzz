@@ -1,6 +1,8 @@
 import { requireUser } from '@/lib/auth/session'
 import {
+  assertRoomCanEdit,
   listCanvasArtifacts,
+  listCanvasAudit,
   upsertCanvasArtifact,
 } from '@/lib/rooms/persist'
 
@@ -9,8 +11,12 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   const auth = await requireUser(req)
   if (!auth.ok) return auth.response
-  const scopeId =
-    new URL(req.url).searchParams.get('scopeId') || 'shared-demo'
+  const url = new URL(req.url)
+  const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+  if (url.searchParams.get('audit') === '1') {
+    const audit = await listCanvasAudit(scopeId, 30)
+    return Response.json({ audit: audit.rows, ok: audit.ok })
+  }
   const result = await listCanvasArtifacts(scopeId)
   if (!result.ok) {
     return Response.json({ artifacts: [], warning: result.error })
@@ -44,14 +50,26 @@ export async function POST(req: Request) {
   if (!body.id || !body.content) {
     return Response.json({ error: 'id و content مطلوبان' }, { status: 400 })
   }
+  const scopeId = body.scopeId || 'shared-demo'
+  const gate = await assertRoomCanEdit(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error }, { status: 403 })
+  }
   const result = await upsertCanvasArtifact({
     id: body.id,
-    scopeId: body.scopeId || 'shared-demo',
+    scopeId,
     type: body.type || 'markdown',
     titleAr: body.titleAr || body.id,
     content: body.content,
     language: body.language,
     updatedBy: auth.user.id,
+    updatedByAr: String(
+      auth.user.user_metadata?.full_name || auth.user.email || auth.user.id
+    ),
   })
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 500 })
