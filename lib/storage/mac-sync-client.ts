@@ -163,3 +163,110 @@ export function directMacUploadInfo() {
     maxBytes: Number(process.env.MAC_MAX_UPLOAD_BYTES || 8 * 1024 * 1024 * 1024),
   }
 }
+
+export async function macReadFile(scopeId: string, id: string) {
+  const res = await macFetch(
+    `/files/${encodeURIComponent(id)}?scopeId=${encodeURIComponent(scopeId)}`,
+    { timeoutMs: 120_000 }
+  )
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(err.error || `Mac read HTTP ${res.status}`)
+  }
+  const buf = Buffer.from(await res.arrayBuffer())
+  const originalName = decodeURIComponent(
+    res.headers.get('X-Original-Name') || 'file.bin'
+  )
+  const mimeType =
+    res.headers.get('Content-Type') || 'application/octet-stream'
+  return {
+    buffer: buf,
+    meta: { id, originalName, mimeType, scopeId },
+  }
+}
+
+export async function macDeleteFile(scopeId: string, id: string) {
+  const res = await macFetch(
+    `/files/${encodeURIComponent(id)}?scopeId=${encodeURIComponent(scopeId)}`,
+    { method: 'DELETE', timeoutMs: 30_000 }
+  )
+  const data = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    messageAr?: string
+    file?: unknown
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'فشل الحذف على الماك')
+  }
+  return data
+}
+
+export async function macRenameFile(
+  scopeId: string,
+  id: string,
+  originalName: string
+) {
+  const res = await macFetch(`/files/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scopeId, originalName }),
+    timeoutMs: 20_000,
+  })
+  const data = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    messageAr?: string
+    file?: unknown
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'فشل إعادة التسمية')
+  }
+  return data
+}
+
+export async function macReplaceFile(opts: {
+  scopeId: string
+  id: string
+  buffer: Buffer
+  originalName?: string
+  mimeType?: string
+}) {
+  const res = await macFetch(
+    `/files/${encodeURIComponent(opts.id)}?scopeId=${encodeURIComponent(opts.scopeId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': opts.mimeType || 'application/octet-stream',
+        'X-Scope-Id': opts.scopeId,
+        ...(opts.originalName
+          ? { 'X-Original-Name': encodeURIComponent(opts.originalName) }
+          : {}),
+        ...(opts.mimeType ? { 'X-Mime-Type': opts.mimeType } : {}),
+      },
+      body: new Uint8Array(opts.buffer),
+      timeoutMs: 120_000,
+    }
+  )
+  const data = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    messageAr?: string
+    file?: unknown
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'فشل استبدال الملف')
+  }
+  return data
+}
+
+/** Direct replace URL for large files (browser → Mac). */
+export function directMacReplaceInfo(id: string) {
+  const base = directMacUploadInfo()
+  if (!base) return null
+  const { publicUploadUrl } = getMacSyncConfig()
+  return {
+    ...base,
+    replaceUrl: `${publicUploadUrl}/files/${encodeURIComponent(id)}`,
+  }
+}

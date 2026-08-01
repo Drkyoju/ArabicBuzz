@@ -6,6 +6,7 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  unlinkSync,
 } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -173,23 +174,106 @@ export function listLocalFiles(scopeId: string): StoredFileMeta[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
+function resolveLocalFilePath(
+  scopeId: string,
+  meta: StoredFileMeta
+): string | null {
+  const { files } = ensureVault(scopeId)
+  const abs = path.join(getLocalStorageRoot(), meta.relativePath)
+  const fallback = path.join(files, path.basename(meta.relativePath))
+  if (existsSync(abs)) return abs
+  if (existsSync(fallback)) return fallback
+  return null
+}
+
 export function readLocalFile(
   scopeId: string,
   id: string
 ): { meta: StoredFileMeta; buffer: Buffer } | null {
   assertLocalStorageAvailable()
-  const { metaDir, files } = ensureVault(scopeId)
+  const { metaDir } = ensureVault(scopeId)
   const metaPath = path.join(metaDir, `${id}.json`)
   if (!existsSync(metaPath)) return null
   const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StoredFileMeta
-  const abs = path.join(getLocalStorageRoot(), meta.relativePath)
-  const fallback = path.join(
-    files,
-    path.basename(meta.relativePath)
-  )
-  const filePath = existsSync(abs) ? abs : fallback
-  if (!existsSync(filePath)) return null
+  const filePath = resolveLocalFilePath(scopeId, meta)
+  if (!filePath) return null
   return { meta, buffer: readFileSync(filePath) }
+}
+
+export function deleteLocalFile(
+  scopeId: string,
+  id: string
+): { ok: true; meta: StoredFileMeta } | { ok: false; error: string } {
+  assertLocalStorageAvailable()
+  const { metaDir } = ensureVault(scopeId)
+  const metaPath = path.join(metaDir, `${id}.json`)
+  if (!existsSync(metaPath)) {
+    return { ok: false, error: 'الملف غير موجود' }
+  }
+  const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StoredFileMeta
+  const filePath = resolveLocalFilePath(scopeId, meta)
+  try {
+    if (filePath && existsSync(filePath)) unlinkSync(filePath)
+    unlinkSync(metaPath)
+    return { ok: true, meta }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'فشل الحذف',
+    }
+  }
+}
+
+export function renameLocalFile(
+  scopeId: string,
+  id: string,
+  originalName: string
+): { ok: true; meta: StoredFileMeta } | { ok: false; error: string } {
+  assertLocalStorageAvailable()
+  const name = originalName.trim()
+  if (!name) return { ok: false, error: 'الاسم مطلوب' }
+  const { metaDir } = ensureVault(scopeId)
+  const metaPath = path.join(metaDir, `${id}.json`)
+  if (!existsSync(metaPath)) {
+    return { ok: false, error: 'الملف غير موجود' }
+  }
+  const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StoredFileMeta
+  meta.originalName = name
+  writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+  return { ok: true, meta }
+}
+
+/** Replace file bytes in place (same id). */
+export function replaceLocalFile(
+  scopeId: string,
+  id: string,
+  buffer: Buffer,
+  opts?: { originalName?: string; mimeType?: string }
+): { ok: true; meta: StoredFileMeta } | { ok: false; error: string } {
+  assertLocalStorageAvailable()
+  const { metaDir } = ensureVault(scopeId)
+  const metaPath = path.join(metaDir, `${id}.json`)
+  if (!existsSync(metaPath)) {
+    return { ok: false, error: 'الملف غير موجود' }
+  }
+  const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StoredFileMeta
+  const filePath = resolveLocalFilePath(scopeId, meta)
+  if (!filePath) return { ok: false, error: 'مسار الملف مفقود' }
+  try {
+    writeFileSync(filePath, buffer)
+    meta.size = buffer.length
+    meta.sha256 = createHash('sha256').update(buffer).digest('hex')
+    meta.createdAt = new Date().toISOString()
+    if (opts?.originalName) meta.originalName = opts.originalName
+    if (opts?.mimeType) meta.mimeType = opts.mimeType
+    writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+    return { ok: true, meta }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'فشل الاستبدال',
+    }
+  }
 }
 
 export function getStorageStatus() {

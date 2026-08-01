@@ -60,6 +60,8 @@ npx ngrok http 7420
 
 3. Uploads above ~32MB go **direct** to Mac `/upload` (up to `MAC_MAX_UPLOAD_BYTES`, default 8GB). Search/ingest proxy to the Mac while it is online. Settings → «خزنة الماك» shows agent status.
 
+4. **Shared Mac drive:** coworkers use **ملفات** to upload, download, rename, replace, and delete — all operations hit your Mac vault through the tunnel (`GET|PUT|PATCH|DELETE /files/:id`). Keep `npm run storage:sync` running.
+
 ## Verify secrets
 
 ```bash

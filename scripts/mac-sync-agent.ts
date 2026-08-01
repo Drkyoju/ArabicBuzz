@@ -20,6 +20,9 @@ import {
   ensureVault,
   readLocalFile,
   listLocalFiles,
+  deleteLocalFile,
+  renameLocalFile,
+  replaceLocalFile,
 } from '../lib/storage/local'
 import {
   ensureMacBrain,
@@ -72,7 +75,7 @@ function json(
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin || '*'
   res.setHeader('Access-Control-Allow-Origin', origin)
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Sync-Secret, X-Scope-Id, X-Original-Name, X-Mime-Type, X-Title-Ar'
@@ -120,6 +123,142 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       json(res, 500, {
         error: e instanceof Error ? e.message : 'list failed',
+      })
+    }
+    return
+  }
+
+  // GET /files/:id — download binary
+  const fileGet = url.pathname.match(/^\/files\/([^/]+)$/)
+  if (req.method === 'GET' && fileGet) {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    const id = decodeURIComponent(fileGet[1]!)
+    const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+    try {
+      const hit = readLocalFile(scopeId, id)
+      if (!hit) {
+        json(res, 404, { error: 'الملف غير موجود' })
+        return
+      }
+      res.writeHead(200, {
+        'Content-Type': hit.meta.mimeType || 'application/octet-stream',
+        'Content-Length': hit.buffer.length,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(hit.meta.originalName)}`,
+        'X-File-Id': hit.meta.id,
+        'X-Original-Name': encodeURIComponent(hit.meta.originalName),
+      })
+      res.end(hit.buffer)
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'read failed',
+      })
+    }
+    return
+  }
+
+  // DELETE /files/:id
+  if (req.method === 'DELETE' && fileGet) {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    const id = decodeURIComponent(fileGet[1]!)
+    const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+    const result = deleteLocalFile(scopeId, id)
+    if (!result.ok) {
+      json(res, 404, { error: result.error })
+      return
+    }
+    json(res, 200, {
+      ok: true,
+      deleted: true,
+      file: result.meta,
+      messageAr: `حُذف «${result.meta.originalName}» من خزنة الماك`,
+    })
+    return
+  }
+
+  // PATCH /files/:id — rename { originalName }
+  if (req.method === 'PATCH' && fileGet) {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    const id = decodeURIComponent(fileGet[1]!)
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8')) as {
+        scopeId?: string
+        originalName?: string
+      }
+      const scopeId = body.scopeId || url.searchParams.get('scopeId') || 'shared-demo'
+      const result = renameLocalFile(
+        scopeId,
+        id,
+        String(body.originalName || '')
+      )
+      if (!result.ok) {
+        json(res, 400, { error: result.error })
+        return
+      }
+      json(res, 200, {
+        ok: true,
+        file: result.meta,
+        messageAr: `أُعيدت تسمية الملف إلى «${result.meta.originalName}»`,
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'rename failed',
+      })
+    }
+    return
+  }
+
+  // PUT /files/:id — replace content (raw body)
+  if (req.method === 'PUT' && fileGet) {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    const id = decodeURIComponent(fileGet[1]!)
+    const scopeId = String(
+      req.headers['x-scope-id'] || url.searchParams.get('scopeId') || 'shared-demo'
+    )
+    try {
+      const buffer = await readBody(req)
+      if (buffer.length === 0) {
+        json(res, 400, { error: 'جسم فارغ' })
+        return
+      }
+      if (buffer.length > MAX_BYTES) {
+        json(res, 413, { error: 'file too large' })
+        return
+      }
+      const originalName = req.headers['x-original-name']
+        ? decodeURIComponent(String(req.headers['x-original-name']))
+        : undefined
+      const mimeType = req.headers['x-mime-type']
+        ? String(req.headers['x-mime-type'])
+        : undefined
+      const result = replaceLocalFile(scopeId, id, buffer, {
+        originalName,
+        mimeType,
+      })
+      if (!result.ok) {
+        json(res, 404, { error: result.error })
+        return
+      }
+      json(res, 200, {
+        ok: true,
+        file: result.meta,
+        messageAr: `استُبدل محتوى «${result.meta.originalName}» على الماك`,
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'replace failed',
       })
     }
     return
@@ -331,6 +470,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Arabic Buzz Mac sync agent on http://127.0.0.1:${PORT}`)
   console.log(`  GET  /health`)
   console.log(`  POST /upload  (raw body, up to ${MAX_BYTES} bytes)`)
+  console.log(`  GET|PUT|PATCH|DELETE /files/:id  (shared Mac drive)`)
   console.log(`  POST /sync    (JSON base64)`)
   console.log(`  POST /brain/ingest | /brain/search`)
   console.log(`  vault: ${status.root}`)

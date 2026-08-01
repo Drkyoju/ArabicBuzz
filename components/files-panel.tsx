@@ -1,7 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Brain, Download, FileText, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Brain,
+  Download,
+  FileText,
+  Pencil,
+  RefreshCw,
+  Replace,
+  Trash2,
+} from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -12,6 +20,7 @@ type ListedFile = {
   name?: string
   relativePath?: string
   mimeType?: string
+  size?: number
   sizeBytes?: number
   createdAt?: string
 }
@@ -20,7 +29,8 @@ function fmtSize(n?: number) {
   if (!n || n <= 0) return '—'
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 export function FilesPanel() {
@@ -31,8 +41,10 @@ export function FilesPanel() {
   const [source, setSource] = useState<string>('none')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [brainBusy, setBrainBusy] = useState<string | null>(null)
-  const [brainMsg, setBrainMsg] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const replaceRef = useRef<HTMLInputElement>(null)
+  const replaceTargetId = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -65,11 +77,11 @@ export function FilesPanel() {
   async function sendToBrain(f: ListedFile) {
     const fileId = f.id || ''
     if (!fileId) {
-      setBrainMsg('معرّف الملف غير متاح — أعد الرفع ثم حاول.')
+      setNote('معرّف الملف غير متاح — أعد الرفع ثم حاول.')
       return
     }
-    setBrainBusy(fileId)
-    setBrainMsg('')
+    setBusyId(fileId)
+    setNote('')
     try {
       const res = await fetch('/api/brain/ingest', {
         method: 'POST',
@@ -83,29 +95,165 @@ export function FilesPanel() {
       const data = (await res.json()) as {
         error?: string
         messageAr?: string
-        ok?: boolean
       }
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setBrainMsg(data.messageAr || 'أُرسل إلى عقل الشركة')
+      setNote(data.messageAr || 'أُرسل إلى عقل الشركة')
     } catch (e) {
-      setBrainMsg(e instanceof Error ? e.message : 'فشل الإرسال للعقل')
+      setNote(e instanceof Error ? e.message : 'فشل الإرسال للعقل')
     } finally {
-      setBrainBusy(null)
+      setBusyId(null)
     }
   }
 
+  async function renameFile(f: ListedFile) {
+    const id = f.id
+    if (!id) return
+    const current = f.originalName || f.name || ''
+    const next = window.prompt('الاسم الجديد للملف', current)
+    if (!next || next.trim() === current) return
+    setBusyId(id)
+    setNote('')
+    try {
+      const res = await fetch('/api/storage/file', {
+        method: 'PATCH',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId,
+          id,
+          originalName: next.trim(),
+        }),
+      })
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل إعادة التسمية')
+      setNote(data.messageAr || 'تمت إعادة التسمية')
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل إعادة التسمية')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function deleteFile(f: ListedFile) {
+    const id = f.id
+    if (!id) return
+    const name = f.originalName || f.name || id
+    if (!window.confirm(`حذف «${name}» من خزنة الماك نهائياً؟`)) return
+    setBusyId(id)
+    setNote('')
+    try {
+      const res = await fetch(
+        `/api/storage/file?scopeId=${encodeURIComponent(scopeId)}&id=${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: await authHeaders() }
+      )
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل الحذف')
+      setNote(data.messageAr || 'تم الحذف')
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل الحذف')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function startReplace(f: ListedFile) {
+    if (!f.id) return
+    replaceTargetId.current = f.id
+    replaceRef.current?.click()
+  }
+
+  async function onReplaceSelected(fileList: FileList | null) {
+    const id = replaceTargetId.current
+    const file = fileList?.[0]
+    replaceTargetId.current = null
+    if (!id || !file) return
+    setBusyId(id)
+    setNote('جاري استبدال الملف…')
+    try {
+      const body = new FormData()
+      body.append('scopeId', scopeId)
+      body.append('id', id)
+      body.append('file', file)
+      const res = await fetch('/api/storage/file', {
+        method: 'PUT',
+        headers: await authHeaders(),
+        body,
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        messageAr?: string
+        directUploadRequired?: boolean
+        directUpload?: {
+          replaceUrl: string
+          secretHeader?: string | null
+          secretValue?: string | null
+        }
+      }
+      if (data.directUploadRequired && data.directUpload?.replaceUrl) {
+        const headers: Record<string, string> = {
+          'X-Scope-Id': scopeId,
+          'X-Original-Name': encodeURIComponent(file.name),
+          'X-Mime-Type': file.type || 'application/octet-stream',
+          'Content-Type': file.type || 'application/octet-stream',
+        }
+        if (
+          data.directUpload.secretHeader &&
+          data.directUpload.secretValue
+        ) {
+          headers[data.directUpload.secretHeader] =
+            data.directUpload.secretValue
+        }
+        const put = await fetch(data.directUpload.replaceUrl, {
+          method: 'PUT',
+          headers,
+          body: file,
+        })
+        const putData = (await put.json()) as {
+          ok?: boolean
+          error?: string
+          messageAr?: string
+        }
+        if (!put.ok || !putData.ok) {
+          throw new Error(putData.error || 'فشل الاستبدال المباشر')
+        }
+        setNote(putData.messageAr || 'استُبدل على الماك')
+      } else if (!res.ok || data.ok === false) {
+        throw new Error(data.error || data.messageAr || 'فشل الاستبدال')
+      } else {
+        setNote(data.messageAr || 'تم الاستبدال')
+      }
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل الاستبدال')
+    } finally {
+      setBusyId(null)
+      if (replaceRef.current) replaceRef.current.value = ''
+    }
+  }
+
+  const sourceLabel =
+    source === 'local' || source === 'mac'
+      ? 'خزنة الماك المشتركة — الجميع يضيف ويعدّل ويحذف'
+      : source === 'cloud'
+        ? 'تخزين سحابي'
+        : 'لا مصدر بعد'
+
   return (
     <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+      <input
+        ref={replaceRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => void onReplaceSelected(e.target.files)}
+      />
+
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">ملفات المساحة</h2>
           <p className="mt-1 text-sm text-stone-500">
-            {scope?.nameAr || scopeId} —{' '}
-            {source === 'local'
-              ? 'خزنة محلية'
-              : source === 'cloud'
-                ? 'تخزين سحابي'
-                : 'لا مصدر بعد'}
+            {scope?.nameAr || scopeId} — {sourceLabel}
           </p>
         </div>
         <button
@@ -121,9 +269,9 @@ export function FilesPanel() {
       <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
         <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
         <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
-          <p className="mt-2 text-[11px] text-stone-500">
-          الملفات الكبيرة تُرفع مباشرة لخزنة الماك. بعد الرفع: «عقل الشركة»
-          للفهرسة (على الماك إذا كان BRAIN_PRIMARY=mac).
+        <p className="mt-2 text-[11px] text-stone-500">
+          زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة
+          مشتركة طالما وكيل المزامنة يعمل.
         </p>
       </div>
 
@@ -132,9 +280,9 @@ export function FilesPanel() {
           {error}
         </p>
       )}
-      {brainMsg && (
+      {note && (
         <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          {brainMsg}
+          {note}
         </p>
       )}
 
@@ -148,8 +296,7 @@ export function FilesPanel() {
           />
           <p className="text-base font-semibold text-ab-ink">لا ملفات بعد</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
-            ارفع مستنداً من الأعلى ثم أرسله لعقل الشركة ليظهر في إجابات الوكيل
-            مع مصادر.
+            ارفع أول ملف — يظهر فوراً لجميع أعضاء المساحة عبر خزنة الماك.
           </p>
         </div>
       ) : (
@@ -157,33 +304,35 @@ export function FilesPanel() {
           {files.map((f, i) => {
             const name =
               f.originalName || f.name || f.relativePath || `ملف ${i + 1}`
-            const path = f.relativePath || f.id || ''
-            const href = path
-              ? `/api/storage/file?path=${encodeURIComponent(path)}&scopeId=${encodeURIComponent(scopeId)}`
+            const id = f.id || ''
+            const size = f.sizeBytes ?? f.size
+            const href = id
+              ? `/api/storage/file?id=${encodeURIComponent(id)}&scopeId=${encodeURIComponent(scopeId)}`
               : undefined
+            const busy = busyId === id
             return (
               <li
-                key={f.id || path || String(i)}
-                className="flex items-center justify-between gap-3 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5"
+                key={id || String(i)}
+                className="flex flex-col gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ab-ink">
                     {name}
                   </p>
                   <p className="text-[11px] text-stone-400">
-                    {fmtSize(f.sizeBytes)}
+                    {fmtSize(size)}
                     {f.mimeType ? ` · ${f.mimeType}` : ''}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex flex-wrap shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    disabled={!f.id || brainBusy === f.id}
+                    disabled={!id || busy}
                     onClick={() => void sendToBrain(f)}
                     className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] hover:bg-stone-50 disabled:opacity-40"
                   >
                     <Brain className="h-3 w-3" />
-                    عقل الشركة
+                    عقل
                   </button>
                   {href && (
                     <a
@@ -195,6 +344,33 @@ export function FilesPanel() {
                       تنزيل
                     </a>
                   )}
+                  <button
+                    type="button"
+                    disabled={!id || busy}
+                    onClick={() => void renameFile(f)}
+                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] hover:bg-stone-50 disabled:opacity-40"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    إعادة تسمية
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!id || busy}
+                    onClick={() => startReplace(f)}
+                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] hover:bg-stone-50 disabled:opacity-40"
+                  >
+                    <Replace className="h-3 w-3" />
+                    استبدال
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!id || busy}
+                    onClick={() => void deleteFile(f)}
+                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-warn hover:bg-stone-50 disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    حذف
+                  </button>
                 </div>
               </li>
             )
