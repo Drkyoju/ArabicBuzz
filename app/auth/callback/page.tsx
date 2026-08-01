@@ -10,6 +10,7 @@ import {
 /**
  * Client-side OAuth callback (PKCE).
  * Exchanges `?code=` for a browser session after Google / Apple redirect.
+ * When `?calendar=1`, persists Google provider tokens for Calendar APIs.
  */
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -26,6 +27,9 @@ export default function AuthCallbackPage() {
         const supabase = createBrowserSupabaseClient()
         const url = new URL(window.location.href)
         const code = url.searchParams.get('code')
+        const wantCalendar =
+          url.searchParams.get('calendar') === '1' ||
+          url.searchParams.get('calendar') === 'true'
         const err = url.searchParams.get('error_description')
         if (err) {
           router.replace(`/auth/login?error=${encodeURIComponent(err)}`)
@@ -40,10 +44,38 @@ export default function AuthCallbackPage() {
             return
           }
         } else {
-          // Implicit / hash fragment flows
           await supabase.auth.getSession()
         }
-        router.replace('/')
+
+        const { data } = await supabase.auth.getSession()
+        const session = data.session
+        const providerToken = (
+          session as { provider_token?: string } | null
+        )?.provider_token
+        const refresh = (
+          session as { provider_refresh_token?: string } | null
+        )?.provider_refresh_token
+
+        if (session?.access_token && providerToken) {
+          setMessage('جاري حفظ صلاحيات التقويم…')
+          await fetch('/api/google/calendar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              action: 'save-tokens',
+              accessToken: providerToken,
+              refreshToken: refresh || null,
+              email: session.user.email,
+              expiresAt: new Date(Date.now() + 3500_000).toISOString(),
+              scopes: wantCalendar ? 'calendar,gmail.readonly' : 'login',
+            }),
+          })
+        }
+
+        router.replace(wantCalendar ? '/?calendar=connected' : '/')
       } catch (e) {
         router.replace(
           `/auth/login?error=${encodeURIComponent(

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { authCallbackUrl } from '@/lib/app-url'
+import { GOOGLE_CALENDAR_SCOPES } from '@/lib/google/scopes'
 
 function publicSupabaseConfig() {
   const url =
@@ -140,6 +141,26 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
         provider === 'google'
           ? { access_type: 'offline', prompt: 'select_account' }
           : undefined,
+    },
+  })
+  if (error) throw error
+  return data
+}
+
+/** Google OAuth with Calendar + Gmail readonly for invites / Zoom reminders. */
+export async function connectGoogleCalendar() {
+  const supabase = createBrowserSupabaseClient()
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${getAuthRedirectTo()}?calendar=1`,
+      skipBrowserRedirect: false,
+      scopes: GOOGLE_CALENDAR_SCOPES,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+      },
     },
   })
   if (error) throw error

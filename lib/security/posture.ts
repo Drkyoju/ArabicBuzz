@@ -26,6 +26,8 @@ const LOW_RISK_TOOLS = new Set([
   'memory_search',
   'search_knowledge_base',
   'ingest_knowledge',
+  'calendar_list_events',
+  'calendar_scan_email',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
@@ -40,6 +42,9 @@ const HIGH_RISK_TOOLS = new Set([
   'delete_database',
   'transfer_funds',
   'change_user_roles',
+  'calendar_create_event',
+  'calendar_update_event',
+  'calendar_delete_event',
 ])
 
 export function evaluateActionRisk(

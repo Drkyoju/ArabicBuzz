@@ -10,6 +10,7 @@ import { CronRegisterForm } from '@/components/cron-register-form'
 import { SdaiaAuditViewer } from '@/components/sdaia-audit-viewer'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ProviderKeysPanel } from '@/components/provider-keys-panel'
+import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -208,6 +209,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <ProviderKeysPanel />
+            </div>
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <GoogleCalendarPanel />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>

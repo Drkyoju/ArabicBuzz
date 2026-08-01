@@ -1,4 +1,11 @@
 import { executeSearchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
+import {
+  executeCalendarCreate,
+  executeCalendarDelete,
+  executeCalendarList,
+  executeCalendarScanEmail,
+  executeCalendarUpdate,
+} from '@/lib/agents/tools/calendar-tools'
 
 export type ToolExecutor = (
   toolName: string,
@@ -32,6 +39,11 @@ export const toolRegistry: Record<string, ToolExecutor> = {
     ])
   ),
   search_knowledge_base: executeSearchKnowledgeBase,
+  calendar_list_events: executeCalendarList,
+  calendar_create_event: executeCalendarCreate,
+  calendar_update_event: executeCalendarUpdate,
+  calendar_delete_event: executeCalendarDelete,
+  calendar_scan_email: executeCalendarScanEmail,
 }
 
 export function getToolExecutor(toolName: string): ToolExecutor {

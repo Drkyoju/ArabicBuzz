@@ -126,6 +126,104 @@ export function getNativeAiTools(opts?: {
             }),
         }),
     }),
+    calendar_list_events: tool({
+      description: 'عرض المواعيد القادمة من تقويم Google الأساسي.',
+      inputSchema: z.object({
+        query: z.string().optional().describe('بحث اختياري في العنوان'),
+        maxResults: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_list_events',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_list_events'),
+        }),
+    }),
+    calendar_scan_email: tool({
+      description:
+        'مسح بريد Gmail لدعوات الاجتماع وZoom/Meet ثم اقتراح إضافتها للتقويم.',
+      inputSchema: z.object({
+        maxResults: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_scan_email',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_scan_email'),
+        }),
+    }),
+    calendar_create_event: tool({
+      description:
+        'إضافة موعد إلى تقويم Google مع تذكيرات بريد/منبثقة وروابط Zoom عند توفرها. استخدمه عندما يذكر المستخدم موعداً أو جلسة Zoom في الدردشة.',
+      inputSchema: z.object({
+        summary: z.string().describe('عنوان الموعد'),
+        startIso: z.string().describe('بداية ISO-8601 مع المنطقة إن أمكن'),
+        endIso: z.string().describe('نهاية ISO-8601'),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        conferenceUrl: z.string().optional().describe('رابط Zoom أو Meet'),
+        zoomUrl: z.string().optional(),
+        timeZone: z.string().optional().describe('افتراضي Asia/Riyadh'),
+        reminderMinutes: z
+          .array(z.number())
+          .optional()
+          .describe('دقائق قبل الموعد للتذكير'),
+        attendeeEmails: z.array(z.string()).optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_create_event',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_create_event'),
+        }),
+    }),
+    calendar_update_event: tool({
+      description: 'تعديل موعد موجود في تقويم Google عبر eventId.',
+      inputSchema: z.object({
+        eventId: z.string(),
+        summary: z.string().optional(),
+        startIso: z.string().optional(),
+        endIso: z.string().optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        conferenceUrl: z.string().optional(),
+        timeZone: z.string().optional(),
+        reminderMinutes: z.array(z.number()).optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_update_event',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_update_event'),
+        }),
+    }),
+    calendar_delete_event: tool({
+      description: 'حذف موعد من تقويم Google عبر eventId.',
+      inputSchema: z.object({
+        eventId: z.string(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_delete_event',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_delete_event'),
+        }),
+    }),
   }
 
   // Ensure registry stays the source of truth for known local names

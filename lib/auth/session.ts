@@ -40,45 +40,41 @@ function adminOrAnonClient() {
 
 /**
  * Resolve the signed-in Supabase user from `Authorization: Bearer <access_token>`.
- * Returns null if missing/invalid (caller decides 401).
+ * Prefers a real session when present (needed for Google Calendar even if AUTH_REQUIRED=false).
  */
 export async function getUserFromRequest(req: Request): Promise<User | null> {
-  if (!isAuthRequired()) return localOwnerUser()
-
   const header = req.headers.get('authorization') || ''
   const match = header.match(/^Bearer\s+(.+)$/i)
   const token = match?.[1]?.trim()
-  if (!token) return null
 
-  const supabase = adminOrAnonClient()
-  if (!supabase) return null
+  if (token) {
+    const supabase = adminOrAnonClient()
+    if (supabase) {
+      const { data, error } = await supabase.auth.getUser(token)
+      if (!error && data.user) return data.user
+    }
+  }
 
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
+  if (!isAuthRequired()) return localOwnerUser()
+  return null
 }
 
 export async function requireUser(req: Request): Promise<
   | { ok: true; user: User }
   | { ok: false; response: Response }
 > {
-  if (!isAuthRequired()) {
-    return { ok: true, user: localOwnerUser() }
-  }
-
   const user = await getUserFromRequest(req)
-  if (!user) {
-    return {
-      ok: false,
-      response: Response.json(
-        {
-          error: 'يلزم تسجيل الدخول لاستخدام النماذج.',
-          code: 'AUTH_REQUIRED',
-          loginUrl: '/auth/login',
-        },
-        { status: 401 }
-      ),
-    }
+  if (user) return { ok: true, user }
+
+  return {
+    ok: false,
+    response: Response.json(
+      {
+        error: 'يلزم تسجيل الدخول لاستخدام النماذج.',
+        code: 'AUTH_REQUIRED',
+        loginUrl: '/auth/login',
+      },
+      { status: 401 }
+    ),
   }
-  return { ok: true, user }
 }
