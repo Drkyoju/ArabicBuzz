@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import {
   getBrowserSession,
   isSupabaseConfigured,
-  signInWithEmail,
+  sendEmailOtp,
   signInWithOAuthProvider,
   signOutSupabase,
-  signUpWithEmail,
+  verifyEmailOtp,
   type OAuthProvider,
 } from '@/lib/supabase/browser'
 import type { User } from '@supabase/supabase-js'
@@ -19,9 +19,9 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
   const [showOauth, setShowOauth] = useState(false)
   const configured = isSupabaseConfigured()
 
@@ -32,31 +32,41 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       .catch(() => setUser(null))
   }, [configured])
 
-  async function submitEmail(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setInfo('')
-    if (!email.trim() || password.length < 6) {
-      setError('أدخل بريداً صالحاً وكلمة مرور من 6 أحرف على الأقل.')
+    if (!email.trim().includes('@')) {
+      setError('أدخل بريداً إلكترونياً صالحاً.')
       return
     }
-    setBusy('email')
+    setBusy('send')
     try {
-      if (mode === 'signin') {
-        await signInWithEmail(email, password)
-        setUser((await getBrowserSession())?.user ?? null)
-        router.replace('/')
-        router.refresh()
-      } else {
-        await signUpWithEmail(email, password)
-        setUser((await getBrowserSession())?.user ?? null)
-        router.replace('/')
-        router.refresh()
-      }
+      const result = await sendEmailOtp(email)
+      setInfo(result.messageAr || 'تم إرسال الرمز إلى بريدك.')
+      setStep('code')
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'تعذّر تسجيل الدخول بالبريد'
-      )
+      setError(err instanceof Error ? err.message : 'تعذّر إرسال الرمز')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function confirmCode(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (code.trim().length < 4) {
+      setError('أدخل الرمز الذي وصلك في البريد.')
+      return
+    }
+    setBusy('verify')
+    try {
+      await verifyEmailOtp(email, code)
+      setUser((await getBrowserSession())?.user ?? null)
+      router.replace('/')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'الرمز غير صحيح')
     } finally {
       setBusy(null)
     }
@@ -90,8 +100,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     return (
       <p className="text-xs text-stone-500">
         فعّل Supabase عبر NEXT_PUBLIC_SUPABASE_URL و
-        NEXT_PUBLIC_SUPABASE_ANON_KEY، وتأكد أن مزوّد Email مفعّل في لوحة
-        Authentication.
+        NEXT_PUBLIC_SUPABASE_ANON_KEY.
       </p>
     )
   }
@@ -116,73 +125,97 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
-      <div className="mb-1 flex gap-2 text-xs">
-        <button
-          type="button"
-          className={
-            mode === 'signin'
-              ? 'font-semibold text-ab-accent'
-              : 'text-stone-500'
-          }
-          onClick={() => setMode('signin')}
-        >
-          تسجيل الدخول
-        </button>
-        <span className="text-stone-300">|</span>
-        <button
-          type="button"
-          className={
-            mode === 'signup'
-              ? 'font-semibold text-ab-accent'
-              : 'text-stone-500'
-          }
-          onClick={() => setMode('signup')}
-        >
-          إنشاء حساب
-        </button>
-      </div>
+      <p className="text-xs text-stone-500">
+        أدخل بريدك → يصلك رمز في الرسالة → أدخله هنا للدخول.
+      </p>
 
-      <form className="space-y-2" onSubmit={(e) => void submitEmail(e)}>
-        <input
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="البريد الإلكتروني"
-          className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
-          dir="ltr"
-        />
-        <input
-          type="password"
-          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-          required
-          minLength={6}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="كلمة المرور (٦ أحرف على الأقل)"
-          className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
-          dir="ltr"
-        />
-        <button
-          type="submit"
-          disabled={Boolean(busy)}
-          className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-        >
-          {busy === 'email'
-            ? 'جاري…'
-            : mode === 'signin'
-              ? 'دخول بالبريد'
-              : 'إنشاء حساب بالبريد'}
-        </button>
-      </form>
+      {step === 'email' ? (
+        <form className="space-y-2" onSubmit={(e) => void sendCode(e)}>
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
+            dir="ltr"
+          />
+          <button
+            type="submit"
+            disabled={Boolean(busy)}
+            className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {busy === 'send' ? 'جاري الإرسال…' : 'أرسل رمز الدخول إلى بريدي'}
+          </button>
+        </form>
+      ) : (
+        <form className="space-y-2" onSubmit={(e) => void confirmCode(e)}>
+          <p className="text-xs text-stone-600" dir="ltr">
+            {email}
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="الرمز من البريد (مثل 123456)"
+            className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-center text-lg tracking-widest outline-none ring-ab-accent focus:ring-2"
+            dir="ltr"
+          />
+          <button
+            type="submit"
+            disabled={Boolean(busy)}
+            className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {busy === 'verify' ? 'جاري التحقق…' : 'تأكيد والدخول'}
+          </button>
+          <button
+            type="button"
+            className="w-full text-xs text-stone-500 underline"
+            onClick={() => {
+              setStep('email')
+              setCode('')
+              setInfo('')
+              setError('')
+            }}
+          >
+            تغيير البريد أو إعادة الإرسال
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            className="w-full text-xs text-ab-accent"
+            onClick={() => {
+              void (async () => {
+                setError('')
+                setBusy('send')
+                try {
+                  const result = await sendEmailOtp(email)
+                  setInfo(result.messageAr || 'أُعيد إرسال الرمز.')
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : 'تعذّر إعادة الإرسال'
+                  )
+                } finally {
+                  setBusy(null)
+                }
+              })()
+            }}
+          >
+            إعادة إرسال الرمز
+          </button>
+        </form>
+      )}
 
       <button
         type="button"
         className="text-xs text-stone-500 underline"
         onClick={() => setShowOauth((v) => !v)}
       >
-        {showOauth ? 'إخفاء خيارات أخرى' : 'أو استخدم Google / GitHub'}
+        {showOauth ? 'إخفاء' : 'أو Google / GitHub'}
       </button>
 
       {showOauth && (
@@ -191,17 +224,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void startOauth('google')}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm font-medium text-ab-ink disabled:opacity-40"
+            className="flex w-full items-center justify-center rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm disabled:opacity-40"
           >
-            {busy === 'google' ? 'جاري التحويل…' : 'Google'}
+            Google
           </button>
           <button
             type="button"
             disabled={Boolean(busy)}
             onClick={() => void startOauth('github')}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm font-medium text-ab-ink disabled:opacity-40"
+            className="flex w-full items-center justify-center rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm disabled:opacity-40"
           >
-            {busy === 'github' ? 'جاري التحويل…' : 'GitHub'}
+            GitHub
           </button>
         </div>
       )}

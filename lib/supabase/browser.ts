@@ -42,6 +42,41 @@ export function getAuthRedirectTo() {
   return `${base.replace(/\/$/, '')}/auth/callback`
 }
 
+/** Send passwordless login code to email. */
+export async function sendEmailOtp(email: string) {
+  const res = await fetch('/api/auth/otp/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim() }),
+  })
+  const payload = (await res.json()) as { error?: string; messageAr?: string }
+  if (!res.ok) throw new Error(payload.error || 'تعذّر إرسال الرمز')
+  return payload
+}
+
+/** Verify email OTP and establish browser session. */
+export async function verifyEmailOtp(email: string, token: string) {
+  const res = await fetch('/api/auth/otp/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), token: token.trim() }),
+  })
+  const payload = (await res.json()) as {
+    error?: string
+    session?: { access_token: string; refresh_token: string }
+  }
+  if (!res.ok || !payload.session) {
+    throw new Error(payload.error || 'تعذّر التحقق من الرمز')
+  }
+  const supabase = createBrowserSupabaseClient()
+  const { data, error } = await supabase.auth.setSession({
+    access_token: payload.session.access_token,
+    refresh_token: payload.session.refresh_token,
+  })
+  if (error) throw error
+  return data
+}
+
 /** Email + password registration (uses server admin → instant confirm). */
 export async function signUpWithEmail(email: string, password: string) {
   const res = await fetch('/api/auth/signup', {
