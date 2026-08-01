@@ -46,6 +46,7 @@ const HIGH_RISK_TOOLS = new Set([
   'calendar_create_event',
   'calendar_update_event',
   'calendar_delete_event',
+  'drive_sync_brain',
 ])
 
 export function evaluateActionRisk(

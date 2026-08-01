@@ -244,6 +244,30 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('calendar_delete_event'),
         }),
     }),
+    drive_sync_brain: tool({
+      description:
+        'مزامنة مجلد Google Drive (ملفات الجمعية / عقل الشركة) إلى قاعدة المعرفة. استخدمه عندما يطلب المستخدم تحديث المعرفة من Drive.',
+      inputSchema: z.object({
+        folderId: z
+          .string()
+          .optional()
+          .describe('معرّف المجلد — افتراضي ملفات الجمعية'),
+        maxFiles: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'drive_sync_brain',
+          params: {
+            ...params,
+            userId: requesterId,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('drive_sync_brain'),
+        }),
+    }),
   }
 
   // Ensure registry stays the source of truth for known local names

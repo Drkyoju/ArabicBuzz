@@ -12,6 +12,7 @@ import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ProviderKeysPanel } from '@/components/provider-keys-panel'
 import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
 import { MacBrainPanel } from '@/components/mac-brain-panel'
+import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -213,6 +214,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleCalendarPanel />
+            </div>
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <GoogleDriveBrainPanel />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <MacBrainPanel />

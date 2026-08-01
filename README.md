@@ -62,6 +62,8 @@ npx ngrok http 7420
 
 4. **Shared Mac drive:** coworkers use **ملفات** to upload, download, rename, replace, and delete — all operations hit your Mac vault through the tunnel (`GET|PUT|PATCH|DELETE /files/:id`). Keep `npm run storage:sync` running.
 
+5. **Google Drive company brain:** set `GOOGLE_DRIVE_BRAIN_FOLDER_ID` (default: [ملفات الجمعية](https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW?usp=sharing)). Connect Google in Settings (includes `drive.readonly`), then **مزامنة المجلد → عقل الشركة**. Enable Drive API in Google Cloud. Sync is HITL-gated via `drive_sync_brain`.
+
 ## Verify secrets
 
 ```bash

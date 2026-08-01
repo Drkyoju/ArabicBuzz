@@ -7,6 +7,7 @@ import {
   executeCalendarScanEmail,
   executeCalendarUpdate,
 } from '@/lib/agents/tools/calendar-tools'
+import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 
 export type ToolExecutor = (
   toolName: string,
@@ -46,6 +47,21 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_delete_event: executeCalendarDelete,
   calendar_scan_email: executeCalendarScanEmail,
   calendar_find_duplicates: executeCalendarFindDuplicates,
+  drive_sync_brain: async (_n, params) => {
+    const userId = String(params.userId || '')
+    if (!userId || userId === 'local-owner') {
+      throw new Error(
+        'يلزم ربط Google من الإعدادات لمزامنة مجلد Drive إلى عقل الشركة.'
+      )
+    }
+    return syncDriveFolderToBrain({
+      userId,
+      scopeId: String(params.scopeId || 'shared-demo'),
+      folderId: params.folderId ? String(params.folderId) : undefined,
+      maxFiles:
+        typeof params.maxFiles === 'number' ? params.maxFiles : undefined,
+    })
+  },
 }
 
 export function getToolExecutor(toolName: string): ToolExecutor {
