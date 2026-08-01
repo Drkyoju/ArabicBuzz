@@ -5,9 +5,11 @@ export type RoomAgent = {
   slug: string
   systemPromptAr: string
   avatarHue: number
+  /** User-created agent (can be deleted). */
+  custom?: boolean
 }
 
-export const ROOM_AGENTS: RoomAgent[] = [
+export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
   {
     id: 'agent-reports',
     nameAr: 'وكيل التقارير',
@@ -57,6 +59,9 @@ export const ROOM_AGENTS: RoomAgent[] = [
   },
 ]
 
+/** @deprecated use BUILTIN_ROOM_AGENTS — kept for server routes without roster store */
+export const ROOM_AGENTS = BUILTIN_ROOM_AGENTS
+
 export const SCOPE_AGENT_IDS: Record<string, string[]> = {
   'shared-demo': ['agent-reports', 'agent-compliance'],
   'shared-ops': ['agent-cron', 'agent-channels'],
@@ -64,19 +69,23 @@ export const SCOPE_AGENT_IDS: Record<string, string[]> = {
   'personal-research': ['agent-research'],
 }
 
+/** Built-in default seating (no custom roster). */
 export function agentsForScope(scopeId: string): RoomAgent[] {
   const ids = SCOPE_AGENT_IDS[scopeId] || ['agent-desk']
   return ids
-    .map((id) => ROOM_AGENTS.find((a) => a.id === id))
+    .map((id) => BUILTIN_ROOM_AGENTS.find((a) => a.id === id))
     .filter((a): a is RoomAgent => Boolean(a))
 }
 
-export function findAgentByMention(text: string): RoomAgent | null {
+export function findAgentByMention(
+  text: string,
+  catalog: RoomAgent[] = BUILTIN_ROOM_AGENTS
+): RoomAgent | null {
   const mention = text.match(/@([\u0600-\u06FFa-zA-Z0-9_\-]+)/)
   if (!mention) return null
   const token = mention[1]
   return (
-    ROOM_AGENTS.find(
+    catalog.find(
       (a) =>
         a.slug === token ||
         a.nameAr.replace(/\s+/g, '') === token ||
@@ -86,7 +95,10 @@ export function findAgentByMention(text: string): RoomAgent | null {
 }
 
 /** Parse leading @mention; returns agent + prompt without the mention token. */
-export function resolveMentionHandoff(prompt: string): {
+export function resolveMentionHandoff(
+  prompt: string,
+  catalog: RoomAgent[] = BUILTIN_ROOM_AGENTS
+): {
   agent: RoomAgent | null
   cleanPrompt: string
 } {
@@ -95,7 +107,7 @@ export function resolveMentionHandoff(prompt: string): {
   if (!m) return { agent: null, cleanPrompt: trimmed }
   const token = m[1]
   const agent =
-    ROOM_AGENTS.find(
+    catalog.find(
       (a) =>
         a.slug === token ||
         a.nameAr === token ||

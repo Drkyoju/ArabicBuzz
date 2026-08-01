@@ -44,6 +44,13 @@ type ChatBody = {
   modelSlug?: string
   scopeId?: string
   agentId?: string
+  /** Custom / roster agent profile from the client (overrides built-ins). */
+  agentProfile?: {
+    id: string
+    nameAr: string
+    slug: string
+    systemPromptAr: string
+  }
   persist?: boolean
   authorNameAr?: string
   securityPosture?: SecurityPostureMode | string
@@ -108,7 +115,17 @@ export async function POST(req: Request) {
     }
 
     const handoff = resolveMentionHandoff(rawPrompt || '')
+    const profile = body.agentProfile
     const mentioned =
+      (profile?.id && profile.nameAr && profile.systemPromptAr
+        ? {
+            id: profile.id,
+            nameAr: profile.nameAr,
+            slug: profile.slug || profile.id,
+            systemPromptAr: profile.systemPromptAr,
+            avatarHue: 160,
+          }
+        : null) ||
       (body.agentId && ROOM_AGENTS.find((a) => a.id === body.agentId)) ||
       handoff.agent ||
       agentsForScope(scopeId)[0] ||

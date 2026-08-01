@@ -22,7 +22,8 @@ import { RoomTeamPanel } from '@/components/room-team-panel'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ModelPicker } from '@/components/model-picker'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
-import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
+import { resolveMentionHandoff } from '@/lib/rooms/agents'
+import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import type {
   RoomCitation,
   RoomFileAttachment,
@@ -82,7 +83,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const hasArtifacts = artifacts.length > 0
   const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
 
-  const roomAgents = agentsForScope(activeScopeId)
+  const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
+  const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
+  const roomAgents = agentsForScopeFn(activeScopeId)
+  const agentCatalog = allAgentsFn()
 
   // Auto-open canvas when a new artifact appears
   useEffect(() => {
@@ -270,7 +274,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }
 
   const shared = isSharedScope(activeScope)
-  const { agent: mentionPreview } = resolveMentionHandoff(input)
+  const { agent: mentionPreview } = resolveMentionHandoff(input, agentCatalog)
   const agentNameAr =
     mentionPreview?.nameAr || roomAgents[0]?.nameAr || 'وكيل الغرفة'
 
@@ -283,7 +287,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       'Content-Type': 'application/json',
     })
 
-    const handoff = resolveMentionHandoff(prompt)
+    const handoff = resolveMentionHandoff(prompt, agentCatalog)
     const agent = handoff.agent || roomAgents[0]
     const humanId = `h-${Date.now()}`
     const agentId = `a-${Date.now()}`
@@ -330,6 +334,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
           modelId: selectedModel,
           scopeId: activeScopeId,
           agentId: agent?.id,
+          agentProfile: agent
+            ? {
+                id: agent.id,
+                nameAr: agent.nameAr,
+                slug: agent.slug,
+                systemPromptAr: agent.systemPromptAr,
+              }
+            : undefined,
           persist: false,
           authorNameAr: displayName,
           securityPosture: posture,
@@ -720,17 +732,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          {roomAgents.length > 0 && (
-            <div className="border-b border-ab-border/70 px-3 py-1.5">
-              <AgentSeatsPanel
-                scopeId={activeScopeId}
-                activeAgentId={mentionPreview?.id}
-                onSeatClick={(a) =>
-                  setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
-                }
-              />
-            </div>
-          )}
+          <div className="border-b border-ab-border/70 px-3 py-1.5">
+            <AgentSeatsPanel
+              scopeId={activeScopeId}
+              activeAgentId={mentionPreview?.id}
+              onSeatClick={(a) =>
+                setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
+              }
+            />
+          </div>
 
           <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
             <div className="mx-auto w-full max-w-2xl">
