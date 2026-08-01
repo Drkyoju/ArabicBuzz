@@ -1,3 +1,4 @@
+import { authCallbackUrl } from '@/lib/app-url'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -20,11 +21,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Supabase غير مُعدّ.' }, { status: 500 })
   }
 
-  const redirectTo =
-    (process.env.NEXT_PUBLIC_APP_URL || 'https://arabicbuzz.netlify.app').replace(
-      /\/$/,
-      ''
-    ) + '/auth/callback'
+  const redirectTo = authCallbackUrl()
 
   const { error } = await admin.auth.signInWithOtp({
     email,

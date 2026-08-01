@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/lib/app-url'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import type { RoomPost } from '@/lib/scopes/types'
 
@@ -543,20 +544,6 @@ export async function removeRoomMember(opts: {
     content: `أُزيل «${existing.display_name_ar}» من الغرفة.`,
   })
   return { ok: true }
-}
-
-function appBaseUrl() {
-  const raw = (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.URL ||
-    process.env.DEPLOY_PRIME_URL ||
-    'https://arabicbuzz.netlify.app'
-  ).replace(/\/$/, '')
-  // Reject placeholder from .env.example leftovers
-  if (!raw || /your-site\.netlify\.app/i.test(raw)) {
-    return 'https://arabicbuzz.netlify.app'
-  }
-  return raw
 }
 
 export async function createRoomInvite(opts: {

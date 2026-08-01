@@ -76,7 +76,7 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelAr: 'Ollama (محلي)',
     labelEn: 'Ollama',
     kind: 'local',
-    hintAr: 'عنوان خادم Ollama — افتراضي localhost',
+    hintAr: 'عنوان خادم Ollama اختياري (وضع معزول فقط) — اضبطه صراحة في Netlify',
     docsUrl: 'https://ollama.com',
   },
 ]

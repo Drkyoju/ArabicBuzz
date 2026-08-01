@@ -14,15 +14,35 @@ export const AIRGAP_ALLOWED_MODELS = (
   .filter(Boolean)
 
 export function getOllamaBaseUrl() {
-  return (
+  const raw =
     resolveProviderKeySync('OLLAMA_BASE_URL') ||
     process.env.OLLAMA_BASE_URL ||
-    'http://localhost:11434/v1'
-  )
+    ''
+  if (!raw.trim()) return ''
+  try {
+    const host = new URL(raw).hostname
+    // Public site never falls back to a machine-local Ollama
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === '0.0.0.0'
+    ) {
+      return ''
+    }
+  } catch {
+    return ''
+  }
+  return raw
 }
 
 export function createOllamaProvider() {
   const baseURL = getOllamaBaseUrl()
+  if (!baseURL) {
+    throw new Error(
+      'Ollama غير مُعدّ. اضبط OLLAMA_BASE_URL صراحةً (الموقع العام يستخدم نماذج السحابة فقط).'
+    )
+  }
   validateNetworkAccess(baseURL)
   return createOpenAI({
     baseURL,

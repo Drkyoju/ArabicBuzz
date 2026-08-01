@@ -57,7 +57,7 @@ export function ChatMessage({ role, content, qualityWarning }: Props) {
           a: ({ href, children }) => {
             const isData =
               href?.startsWith('http') &&
-              (href.includes('localhost') || href.includes('api'))
+              (href.includes('/api/') || href.includes('arabicbuzz.netlify.app'))
             if (isData) {
               return (
                 <LtrData>

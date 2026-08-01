@@ -84,9 +84,7 @@ function syncPublicEnvFile() {
 }
 
 function printAuthChecklist() {
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
-    'https://your-site.netlify.app'
+  const appUrl = 'https://arabicbuzz.netlify.app'
 
   console.log(`
 Auth (Google + Apple) — Supabase Dashboard
@@ -94,7 +92,6 @@ Auth (Google + Apple) — Supabase Dashboard
 2. Authentication → URL Configuration:
    - Site URL: ${appUrl}
    - Redirect URLs: ${appUrl}/auth/callback
-     (+ http://localhost:3000/auth/callback for local)
 3. Netlify / .env.local must include:
    NEXT_PUBLIC_SUPABASE_URL
    NEXT_PUBLIC_SUPABASE_ANON_KEY

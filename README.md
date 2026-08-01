@@ -38,7 +38,7 @@ npm run setup:supabase
 ```
 
 4. Dashboard → Authentication → enable **Google** + **Apple**, redirect  
-   `https://your-site.netlify.app/auth/callback` (and localhost for dev).
+   `https://arabicbuzz.netlify.app/auth/callback` only.
 
 ## Verify secrets
 
@@ -48,22 +48,16 @@ npm run verify:env
 npx tsx scripts/verify-env.ts --offline
 ```
 
-## Local app + webhooks
+## Production site
 
-```bash
-npm run dev
-```
+Live app: [https://arabicbuzz.netlify.app](https://arabicbuzz.netlify.app)
 
-في طرفية أخرى:
-
-```bash
-npx ngrok http 3000
-```
+Set `NEXT_PUBLIC_APP_URL=https://arabicbuzz.netlify.app` on Netlify. Invites, auth, and emails always use this origin (never a local URL).
 
 وجّه Telegram / Meta إلى:
 
-- `https://<ngrok-host>/api/webhooks/telegram`
-- `https://<ngrok-host>/api/webhooks/whatsapp`
+- `https://arabicbuzz.netlify.app/api/webhooks/telegram`
+- `https://arabicbuzz.netlify.app/api/webhooks/whatsapp`
 
 ## Multiplayer simulation
 
@@ -73,10 +67,10 @@ npm run test:multiplayer
 
 ## Cron
 
-اضغط على المسار كل دقيقة (أو Vercel Cron):
+جدولة Netlify أو طلب موقّع:
 
 ```bash
-curl -X POST http://localhost:3000/api/crons/runner \
+curl -X POST https://arabicbuzz.netlify.app/api/crons/runner \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
@@ -125,10 +119,10 @@ Connect external MCP servers (stdio or SSE/HTTP) and expose their tools to the a
 
 ```bash
 # List connected servers + tools
-curl http://localhost:3000/api/mcp/servers
+curl https://arabicbuzz.netlify.app/api/mcp/servers
 
 # Connect GitHub MCP (stdio example)
-curl -X POST http://localhost:3000/api/mcp/servers \
+curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "github",
@@ -139,15 +133,15 @@ curl -X POST http://localhost:3000/api/mcp/servers \
     "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..." }
   }'
 
-# Connect PostgreSQL MCP
-curl -X POST http://localhost:3000/api/mcp/servers \
+# Connect PostgreSQL MCP (use your Supabase DATABASE_URL)
+curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "postgres",
     "name": "PostgreSQL",
     "transport": "stdio",
     "commandOrUrl": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5432/arabic_buzz"]
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "'"$DATABASE_URL"'"]
   }'
 ```
 

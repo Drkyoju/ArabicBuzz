@@ -34,7 +34,7 @@ export function checkBrowserRecordSupport(): BrowserRecordSupport {
     return {
       ok: false,
       reasonAr:
-        'الميكروفون يتطلب اتصالًا آمنًا (HTTPS أو localhost).',
+        'الميكروفون يتطلب اتصالًا آمنًا (HTTPS).',
     }
   }
   if (!navigator.mediaDevices?.getUserMedia) {

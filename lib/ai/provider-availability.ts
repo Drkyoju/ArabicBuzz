@@ -29,7 +29,7 @@ async function configuredEnvNames(): Promise<Set<string>> {
     const def = PROVIDER_DEFS.find((p) => p.envName === s.envName)
     for (const a of def?.aliases || []) set.add(a)
   }
-  // Ollama is available when URL is set OR default localhost is assumed offline-safe
+  // Ollama only when an explicit non-local URL/key is configured
   const ollama = await resolveProviderKey('OLLAMA_BASE_URL')
   if (ollama || process.env.OLLAMA_BASE_URL) {
     set.add('OLLAMA_BASE_URL')
@@ -45,9 +45,6 @@ export function modelServiceable(
   if (airGapped) {
     return meta.airGapSafe && configured.has(meta.requiresKey)
   }
-  if (meta.provider === 'ollama') {
-    return true
-  }
   return configured.has(meta.requiresKey)
 }
 
@@ -56,11 +53,6 @@ export async function getProvidersSnapshot(
 ): Promise<ProvidersSnapshot> {
   const providers = await listProviderKeyStatuses()
   const configured = await configuredEnvNames()
-
-  // Local Ollama always selectable when air-gapped or as optional local target
-  if (!configured.has('OLLAMA_BASE_URL')) {
-    configured.add('OLLAMA_BASE_URL')
-  }
 
   const catalog = airGapped
     ? HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)

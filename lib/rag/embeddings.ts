@@ -82,10 +82,12 @@ async function embedWithCohere(
  * (Ollama, TEI, Infinity, HuggingFace routers, etc.)
  */
 async function embedWithBgeM3(texts: string[]): Promise<number[][]> {
-  const base =
-    process.env.BGE_M3_BASE_URL ||
-    process.env.OLLAMA_BASE_URL ||
-    'http://localhost:11434/v1'
+  const base = process.env.BGE_M3_BASE_URL || process.env.OLLAMA_BASE_URL || ''
+  if (!base) {
+    throw new Error(
+      'BGE-M3 غير مُعدّ. اضبط BGE_M3_BASE_URL على Netlify (لا يُستخدم عنوان محلي).'
+    )
+  }
   const model = process.env.BGE_M3_MODEL || 'bge-m3'
   const apiKey = process.env.BGE_M3_API_KEY || process.env.OPENAI_API_KEY || ''
 

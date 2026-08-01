@@ -47,7 +47,6 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 - **Site URL:** `https://arabicbuzz.netlify.app`
 - **Redirect URLs:**
   - `https://arabicbuzz.netlify.app/auth/callback`
-  - `http://localhost:3000/auth/callback`
 
 ### 2) Google (Gmail)
 

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { authCallbackUrl } from '@/lib/app-url'
 
 function publicSupabaseConfig() {
   const url =
@@ -36,10 +37,7 @@ export function createBrowserSupabaseClient(): SupabaseClient {
 export type OAuthProvider = 'google' | 'github'
 
 export function getAuthRedirectTo() {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
-  return `${base.replace(/\/$/, '')}/auth/callback`
+  return authCallbackUrl()
 }
 
 /** Send passwordless login code to email. */
