@@ -7,6 +7,7 @@ import {
 import {
   createCalendarEvent,
   deleteCalendarEvent,
+  findDuplicateAppointments,
   listUpcomingEvents,
   scanEmailForMeetings,
 } from '@/lib/google/calendar'
@@ -49,6 +50,12 @@ export async function GET(req: Request) {
     if (action === 'scan-email') {
       const meetings = await scanEmailForMeetings(auth.user.id)
       return Response.json({ connected: true, meetings })
+    }
+    if (action === 'duplicates') {
+      const report = await findDuplicateAppointments(auth.user.id, {
+        maxResults: Number(url.searchParams.get('max') || 40),
+      })
+      return Response.json({ connected: true, ...report })
     }
     return Response.json({ error: 'إجراء غير معروف' }, { status: 400 })
   } catch (e) {

@@ -29,6 +29,198 @@ export type CalendarEventSummary = {
   status?: string
 }
 
+export type DuplicateKind =
+  | 'exact_copy'
+  | 'same_title_near_time'
+  | 'time_overlap'
+  | 'same_conference_link'
+
+export type DuplicateGroup = {
+  kind: DuplicateKind
+  labelAr: string
+  events: CalendarEventSummary[]
+}
+
+function normalizeTitle(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[\u064B-\u065F]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+function eventStartMs(e: CalendarEventSummary) {
+  if (!e.start) return NaN
+  const t = Date.parse(e.start)
+  return Number.isFinite(t) ? t : NaN
+}
+
+function eventEndMs(e: CalendarEventSummary) {
+  if (!e.end) {
+    const s = eventStartMs(e)
+    return Number.isFinite(s) ? s + 60 * 60 * 1000 : NaN
+  }
+  const t = Date.parse(e.end)
+  return Number.isFinite(t) ? t : NaN
+}
+
+function conferenceKey(e: CalendarEventSummary) {
+  const blob = `${e.location || ''} ${e.description || ''} ${e.hangoutLink || ''}`
+  const zoom = blob.match(/https?:\/\/[\w.-]*zoom\.us\/[^\s<>"']+/i)
+  if (zoom) return zoom[0].replace(/[?#].*$/, '').toLowerCase()
+  const meet = blob.match(/https?:\/\/meet\.google\.com\/[^\s<>"']+/i)
+  if (meet) return meet[0].replace(/[?#].*$/, '').toLowerCase()
+  return ''
+}
+
+/**
+ * Find replicated / overlapping upcoming appointments.
+ * - exact_copy: same title + same start minute
+ * - same_title_near_time: same normalized title within ±2h
+ * - time_overlap: overlapping time ranges (double-booking)
+ * - same_conference_link: same Zoom/Meet URL on different events
+ */
+export function findDuplicateGroups(
+  events: CalendarEventSummary[]
+): DuplicateGroup[] {
+  const groups: DuplicateGroup[] = []
+  const seenPair = new Set<string>()
+
+  const pushGroup = (
+    kind: DuplicateKind,
+    labelAr: string,
+    a: CalendarEventSummary,
+    b: CalendarEventSummary
+  ) => {
+    const key = [kind, a.id, b.id].sort().join('|')
+    if (seenPair.has(key)) return
+    seenPair.add(key)
+    const existing = groups.find(
+      (g) =>
+        g.kind === kind &&
+        g.events.some((e) => e.id === a.id || e.id === b.id)
+    )
+    if (existing) {
+      for (const e of [a, b]) {
+        if (!existing.events.some((x) => x.id === e.id)) existing.events.push(e)
+      }
+      return
+    }
+    groups.push({ kind, labelAr, events: [a, b] })
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    for (let j = i + 1; j < events.length; j++) {
+      const a = events[i]
+      const b = events[j]
+      const ta = normalizeTitle(a.summary)
+      const tb = normalizeTitle(b.summary)
+      const sa = eventStartMs(a)
+      const sb = eventStartMs(b)
+      const ea = eventEndMs(a)
+      const eb = eventEndMs(b)
+
+      if (
+        ta &&
+        ta === tb &&
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Math.abs(sa - sb) < 60_000
+      ) {
+        pushGroup(
+          'exact_copy',
+          'نسخة مكررة بنفس العنوان والوقت',
+          a,
+          b
+        )
+        continue
+      }
+
+      if (
+        ta &&
+        ta === tb &&
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Math.abs(sa - sb) <= 2 * 60 * 60 * 1000
+      ) {
+        pushGroup(
+          'same_title_near_time',
+          'نفس العنوان بوقت قريب (± ساعتين)',
+          a,
+          b
+        )
+      }
+
+      if (
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Number.isFinite(ea) &&
+        Number.isFinite(eb) &&
+        sa < eb &&
+        sb < ea
+      ) {
+        pushGroup('time_overlap', 'تعارض زمني (حجز مزدوج)', a, b)
+      }
+
+      const ca = conferenceKey(a)
+      const cb = conferenceKey(b)
+      if (ca && ca === cb && a.id !== b.id) {
+        pushGroup(
+          'same_conference_link',
+          'نفس رابط Zoom/Meet على موعدين',
+          a,
+          b
+        )
+      }
+    }
+  }
+
+  return groups
+}
+
+export async function findDuplicateAppointments(
+  userId: string,
+  opts?: { maxResults?: number }
+): Promise<{
+  eventsScanned: number
+  duplicateCount: number
+  groups: DuplicateGroup[]
+  messageAr: string
+}> {
+  const events = await listUpcomingEvents(userId, {
+    maxResults: opts?.maxResults || 40,
+  })
+  const groups = findDuplicateGroups(events)
+  const duplicateCount = groups.reduce((n, g) => n + g.events.length, 0)
+  return {
+    eventsScanned: events.length,
+    duplicateCount: groups.length,
+    groups,
+    messageAr:
+      groups.length === 0
+        ? `لا تكرار ظاهر بين ${events.length} موعداً قادماً.`
+        : `تحذير: وُجدت ${groups.length} مجموعة تكرار/تعارض بين ${events.length} موعداً — راجعها قبل إضافة مواعيد جديدة.`,
+  }
+}
+
+/** Events that would collide with a proposed new appointment. */
+export function findConflictsForProposal(
+  events: CalendarEventSummary[],
+  proposal: { summary: string; startIso: string; endIso: string; conferenceUrl?: string }
+): DuplicateGroup[] {
+  const phantom: CalendarEventSummary = {
+    id: '__proposed__',
+    summary: proposal.summary,
+    start: proposal.startIso,
+    end: proposal.endIso,
+    location: proposal.conferenceUrl,
+    description: proposal.conferenceUrl,
+  }
+  return findDuplicateGroups([...events, phantom]).filter((g) =>
+    g.events.some((e) => e.id === '__proposed__')
+  )
+}
+
 async function googleFetch(
   userId: string,
   url: string,

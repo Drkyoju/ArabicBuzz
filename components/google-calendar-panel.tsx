@@ -1,7 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays, Link2, Loader2, Mail, Unlink } from 'lucide-react'
+import {
+  CalendarDays,
+  Copy,
+  Link2,
+  Loader2,
+  Mail,
+  Unlink,
+} from 'lucide-react'
 import {
   authHeaders,
   connectGoogleCalendar,
@@ -33,10 +40,17 @@ type MeetingRow = {
   dateHint?: string
 }
 
+type DupeGroup = {
+  kind: string
+  labelAr: string
+  events: EventRow[]
+}
+
 export function GoogleCalendarPanel() {
   const [status, setStatus] = useState<CalStatus | null>(null)
   const [events, setEvents] = useState<EventRow[]>([])
   const [meetings, setMeetings] = useState<MeetingRow[]>([])
+  const [dupes, setDupes] = useState<DupeGroup[]>([])
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
 
@@ -55,8 +69,24 @@ export function GoogleCalendarPanel() {
         const payload = (await ev.json()) as { events?: EventRow[]; error?: string }
         if (ev.ok) setEvents(payload.events || [])
         else setNote(payload.error || 'تعذّر جلب المواعيد')
+
+        const du = await fetch('/api/google/calendar?action=duplicates&max=40', {
+          headers,
+        })
+        const duPayload = (await du.json()) as {
+          groups?: DupeGroup[]
+          messageAr?: string
+          error?: string
+        }
+        if (du.ok) {
+          setDupes(duPayload.groups || [])
+          if (duPayload.groups && duPayload.groups.length > 0) {
+            setNote(duPayload.messageAr || 'وُجدت مواعيد مكررة أو متعارضة.')
+          }
+        }
       } else {
         setEvents([])
+        setDupes([])
       }
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'خطأ في التقويم')
@@ -98,6 +128,7 @@ export function GoogleCalendarPanel() {
       setStatus({ connected: false })
       setEvents([])
       setMeetings([])
+      setDupes([])
       setNote('تم فصل تقويم Google.')
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'فشل الفصل')
@@ -207,9 +238,10 @@ export function GoogleCalendarPanel() {
               type="button"
               onClick={() => void refresh()}
               disabled={busy}
-              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
             >
-              تحديث المواعيد
+              <Copy className="h-3.5 w-3.5" />
+              تحديث وفحص التكرار
             </button>
             <button
               type="button"
@@ -226,6 +258,40 @@ export function GoogleCalendarPanel() {
 
       {note && (
         <p className="mb-3 text-[11px] leading-snug text-stone-600">{note}</p>
+      )}
+
+      {dupes.length > 0 && (
+        <div className="mb-3 rounded-md border border-ab-warn/40 bg-ab-warn/10 px-2.5 py-2">
+          <p className="mb-1.5 text-[11px] font-semibold text-ab-warn">
+            تكرار / تعارض ({dupes.length})
+          </p>
+          <ul className="space-y-2">
+            {dupes.map((g, i) => (
+              <li key={`${g.kind}-${i}`} className="text-[11px] text-stone-700">
+                <p className="font-medium">{g.labelAr}</p>
+                <ul className="mt-0.5 list-disc pr-4 text-stone-600">
+                  {g.events.map((e) => (
+                    <li key={e.id}>
+                      {e.summary}
+                      {e.start ? (
+                        <span className="text-stone-400" dir="ltr">
+                          {' '}
+                          · {e.start}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {status?.connected && dupes.length === 0 && events.length > 0 && (
+        <p className="mb-3 text-[11px] text-emerald-800">
+          لا تكرار ظاهر بين المواعيد القادمة المعروضة.
+        </p>
       )}
 
       {events.length > 0 && (

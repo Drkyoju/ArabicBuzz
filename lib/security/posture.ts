@@ -28,6 +28,7 @@ const LOW_RISK_TOOLS = new Set([
   'ingest_knowledge',
   'calendar_list_events',
   'calendar_scan_email',
+  'calendar_find_duplicates',
 ])
 
 const HIGH_RISK_TOOLS = new Set([

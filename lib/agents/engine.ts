@@ -158,9 +158,25 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('calendar_scan_email'),
         }),
     }),
+    calendar_find_duplicates: tool({
+      description:
+        'كشف المواعيد المكررة أو المتعارضة في تقويم Google (نفس الوقت، نفس العنوان، تداخل زمني، نفس رابط Zoom).',
+      inputSchema: z.object({
+        maxResults: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_find_duplicates',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_find_duplicates'),
+        }),
+    }),
     calendar_create_event: tool({
       description:
-        'إضافة موعد إلى تقويم Google مع تذكيرات بريد/منبثقة وروابط Zoom عند توفرها. استخدمه عندما يذكر المستخدم موعداً أو جلسة Zoom في الدردشة.',
+        'إضافة موعد إلى تقويم Google مع تذكيرات بريد/منبثقة وروابط Zoom عند توفرها. يتوقف إن وُجد تكرار/تعارض ما لم يُمرَّر allowDuplicate=true.',
       inputSchema: z.object({
         summary: z.string().describe('عنوان الموعد'),
         startIso: z.string().describe('بداية ISO-8601 مع المنطقة إن أمكن'),
@@ -175,6 +191,10 @@ export function getNativeAiTools(opts?: {
           .optional()
           .describe('دقائق قبل الموعد للتذكير'),
         attendeeEmails: z.array(z.string()).optional(),
+        allowDuplicate: z
+          .boolean()
+          .optional()
+          .describe('اسمح بالإضافة رغم تعارض محتمل'),
       }),
       execute: async (params) =>
         interceptToolExecution({

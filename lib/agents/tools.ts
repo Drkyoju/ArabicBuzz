@@ -2,6 +2,7 @@ import { executeSearchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import {
   executeCalendarCreate,
   executeCalendarDelete,
+  executeCalendarFindDuplicates,
   executeCalendarList,
   executeCalendarScanEmail,
   executeCalendarUpdate,
@@ -44,6 +45,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_update_event: executeCalendarUpdate,
   calendar_delete_event: executeCalendarDelete,
   calendar_scan_email: executeCalendarScanEmail,
+  calendar_find_duplicates: executeCalendarFindDuplicates,
 }
 
 export function getToolExecutor(toolName: string): ToolExecutor {
