@@ -26,6 +26,30 @@ export type HarnessModelMeta = {
 
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
+    slug: 'gemini-2.0-flash',
+    labelAr: 'Gemini 2.0 Flash',
+    labelEn: 'Gemini 2.0 Flash',
+    provider: 'google',
+    requiresKey: 'GEMINI_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'gemini-2.5-pro',
+    labelAr: 'Gemini 2.5 Pro',
+    labelEn: 'Gemini 2.5 Pro',
+    provider: 'google',
+    requiresKey: 'GEMINI_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'glm-4.5',
+    labelAr: 'GLM-4.5',
+    labelEn: 'Zhipu GLM-4.5',
+    provider: 'glm',
+    requiresKey: 'GLM_API_KEY',
+    airGapSafe: false,
+  },
+  {
     slug: 'openai-gpt-4o',
     labelAr: 'OpenAI GPT-4o',
     labelEn: 'GPT-4o',
@@ -74,35 +98,11 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     airGapSafe: true,
   },
   {
-    slug: 'gemini-2.0-flash',
-    labelAr: 'Gemini 2.0 Flash',
-    labelEn: 'Gemini 2.0 Flash',
-    provider: 'google',
-    requiresKey: 'GEMINI_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'gemini-2.5-pro',
-    labelAr: 'Gemini 2.5 Pro',
-    labelEn: 'Gemini 2.5 Pro',
-    provider: 'google',
-    requiresKey: 'GEMINI_API_KEY',
-    airGapSafe: false,
-  },
-  {
     slug: 'kimi-k2',
     labelAr: 'Kimi K2',
     labelEn: 'Moonshot Kimi K2',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'glm-4.5',
-    labelAr: 'GLM-4.5',
-    labelEn: 'Zhipu GLM-4.5',
-    provider: 'glm',
-    requiresKey: 'GLM_API_KEY',
     airGapSafe: false,
   },
   {

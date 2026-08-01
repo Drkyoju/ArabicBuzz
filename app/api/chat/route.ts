@@ -25,15 +25,16 @@ import {
 import { getNativeAiTools } from '@/lib/agents/engine'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 30
+export const maxDuration = 60
 
 const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
 - أجب دائماً بالعربية الفصحى المهنية (MSA).
 - أنت مشارك في غرفة عمل مع بشر ووكلاء آخرين — لا تتصرف كمساعد منعزل.
 - كن موجزاً وواضحاً، واذكر عدم اليقين عند غياب المصادر.
 - لا تختلق أرقاماً قانونية أو ضريبية أو أرقام سجلات.
-- المواعيد والاجتماعات: إذا ذكر المستخدم موعداً أو جلسة Zoom/Meet أو رابط zoom.us أو طلب إضافة/تعديل/حذف من التقويم، استخدم أدوات calendar_* (أنشئ/حدّث/احذف مع تذكيرات، وامسح البريد بـ calendar_scan_email، وافحص التكرار بـ calendar_find_duplicates). إن سأل عن مواعيد مكررة أو تعارض أخبره بنتيجة الفحص. الأوقات افترض Asia/Riyadh ما لم يُحدد غير ذلك، واستخدم ISO-8601. لا تخترع eventId — اجلبه من calendar_list_events أولاً.
-- عقل الشركة من Drive: إذا طلب تحديث المعرفة من مجلد Google Drive أو «ملفات الجمعية»، استخدم drive_sync_brain ثم search_knowledge_base.`
+- المواعيد والاجتماعات: يمكن ربط عدة بريدات Google. لعرض الكل استخدم calendar_list_events؛ للمقارنة وإيجاد وقت يناسب الجميع استخدم calendar_find_alignment (FreeBusy عبر كل الحسابات). عند الإنشاء مرّر accountEmail إن لزم. أيضاً: calendar_scan_email، calendar_find_duplicates، create/update/delete مع تذكيرات. الأوقات افترض Asia/Riyadh وISO-8601. لا تخترع eventId — اجلبه من القائمة أولاً.
+- عقل الشركة من Drive: إذا طلب تحديث المعرفة من مجلد Google Drive أو «ملفات الجمعية»، استخدم drive_sync_brain ثم search_knowledge_base.
+- تعديل المستندات: إذا طلب المستخدم تعديل Word/Excel/PowerPoint/نص مرفوع أو إنشاء ملف للتنزيل: 1) list_workspace_files أو list_files 2) read_document/read_file لاستخراج المحتوى 3) طبّق التعديلات ثم edit_document بالمحتوى الكامل المعدّل (body/paragraphs أو sheets أو slides) وformat المناسب. افتراضياً أنشئ نسخة جديدة (replaceSource=false) واذكر اسم الملف ومعرّفه. لا تختلق محتوى الملف دون قراءته أولاً إن وُجد مصدر.`
 
 type ChatBody = {
   messages?: UIMessage[]

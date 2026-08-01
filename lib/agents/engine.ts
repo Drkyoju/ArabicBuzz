@@ -49,14 +49,17 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     read_file: tool({
-      description: 'قراءة ملف من مساحة العمل.',
+      description:
+        'قراءة ملف من مساحة العمل (Word/Excel/PowerPoint/PDF/نص) واستخراج نصه. مرّر fileId أو اسم الملف.',
       inputSchema: z.object({
-        path: z.string(),
+        path: z.string().optional().describe('معرّف الملف أو اسمه'),
+        fileId: z.string().optional(),
+        name: z.string().optional(),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'read_file',
-          params,
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
           mode,
           requesterId,
           scopeId,
@@ -64,16 +67,100 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     list_files: tool({
-      description: 'سرد الملفات المتاحة في النطاق.',
+      description: 'سرد ملفات مساحة العمل المرفوعة (قسم الملفات).',
       inputSchema: z.object({}),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'list_files',
-          params,
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
           mode,
           requesterId,
           scopeId,
           execute: getToolExecutor('list_files'),
+        }),
+    }),
+    list_workspace_files: tool({
+      description: 'سرد ملفات الغرفة الجاهزة للتعديل (docx/xlsx/pptx…).',
+      inputSchema: z.object({}),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'list_workspace_files',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('list_workspace_files'),
+        }),
+    }),
+    read_document: tool({
+      description:
+        'استخراج نص مستند مكتبي مرفوع (Word، Excel، PowerPoint، PDF) قبل تعديله.',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف الملف أو اسمه كما في list_workspace_files'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'read_document',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('read_document'),
+        }),
+    }),
+    edit_document: tool({
+      description:
+        'إنشاء أو استبدال ملف مكتبي بعد التعديل (Word/Excel/PowerPoint/نص) ليعيده المستخدم بالتنزيل. اقرأ الملف أولاً، طبّق طلب المستخدم، ثم مرّر المحتوى الكامل المعدّل.',
+      inputSchema: z.object({
+        fileId: z
+          .string()
+          .optional()
+          .describe('الملف المصدر (اختياري إن أنشأت ملفاً جديداً)'),
+        outputName: z
+          .string()
+          .optional()
+          .describe('اسم الملف الناتج مثل تقرير-معدّل.docx'),
+        format: z
+          .enum(['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv'])
+          .describe('صيغة الملف الناتج'),
+        title: z.string().optional(),
+        body: z
+          .string()
+          .optional()
+          .describe('نص Word/Markdown الكامل بعد التعديل'),
+        paragraphs: z.array(z.string()).optional(),
+        sheets: z
+          .array(
+            z.object({
+              name: z.string().optional(),
+              rows: z.array(z.array(z.union([z.string(), z.number(), z.boolean()]))),
+            })
+          )
+          .optional()
+          .describe('جداول Excel: كل صف مصفوفة خلايا'),
+        slides: z
+          .array(
+            z.object({
+              title: z.string(),
+              bullets: z.array(z.string()).optional(),
+              notes: z.string().optional(),
+            })
+          )
+          .optional()
+          .describe('شرائح PowerPoint'),
+        replaceSource: z
+          .boolean()
+          .optional()
+          .describe('true لاستبدال الملف الأصلي (يحتاج موافقة HITL)'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'edit_document',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('edit_document'),
         }),
     }),
     memory_search: tool({
@@ -127,10 +214,16 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     calendar_list_events: tool({
-      description: 'عرض المواعيد القادمة من تقويم Google الأساسي.',
+      description:
+        'عرض المواعيد القادمة من كل حسابات Google المربوطة (أو بريد محدد). كل موعد يحمل accountEmail.',
       inputSchema: z.object({
         query: z.string().optional().describe('بحث اختياري في العنوان'),
         maxResults: z.number().optional(),
+        emails: z
+          .array(z.string())
+          .optional()
+          .describe('تصفية حسب بريد واحد أو أكثر'),
+        email: z.string().optional(),
       }),
       execute: async (params) =>
         interceptToolExecution({
@@ -140,6 +233,32 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('calendar_list_events'),
+        }),
+    }),
+    calendar_find_alignment: tool({
+      description:
+        ' إيجاد أوقات مشتركة متاحة عبر عدة بريدات Google مربوطة (FreeBusy). استخدمه عندما يطلب المستخدم موعداً يناسب الجميع أو مقارنة تقاويم عدة حسابات.',
+      inputSchema: z.object({
+        emails: z
+          .array(z.string())
+          .optional()
+          .describe('الحسابات للمقارنة — افتراضي كل المربوطة'),
+        durationMinutes: z.number().optional().describe('مدة الاجتماع بالدقائق'),
+        timeMinIso: z.string().optional(),
+        timeMaxIso: z.string().optional(),
+        timeZone: z.string().optional(),
+        workdayStartHour: z.number().optional(),
+        workdayEndHour: z.number().optional(),
+        maxSlots: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'calendar_find_alignment',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('calendar_find_alignment'),
         }),
     }),
     calendar_scan_email: tool({
@@ -191,6 +310,11 @@ export function getNativeAiTools(opts?: {
           .optional()
           .describe('دقائق قبل الموعد للتذكير'),
         attendeeEmails: z.array(z.string()).optional(),
+        accountEmail: z
+          .string()
+          .optional()
+          .describe('أي بريد مربوط يُنشأ عليه الموعد'),
+        email: z.string().optional(),
         allowDuplicate: z
           .boolean()
           .optional()

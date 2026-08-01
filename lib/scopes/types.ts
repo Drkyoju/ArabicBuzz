@@ -39,6 +39,15 @@ export type RoomCitation = {
   excerpt?: string
 }
 
+/** Downloadable file produced by agent tools (edit_document, etc.). */
+export type RoomFileAttachment = {
+  fileId: string
+  name: string
+  mimeType?: string
+  scopeId: string
+  downloadPath?: string
+}
+
 export type RoomPost = {
   id: string
   scopeId: string
@@ -51,6 +60,8 @@ export type RoomPost = {
   qualityWarning?: boolean
   /** Brain / RAG source chips under agent replies. */
   citations?: RoomCitation[]
+  /** Edited/created workspace files ready to download. */
+  attachments?: RoomFileAttachment[]
   /** When a tool paused for HITL during this reply. */
   pendingApprovalId?: string
 }

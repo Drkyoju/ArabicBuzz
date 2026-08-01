@@ -22,6 +22,8 @@ const LOW_RISK_TOOLS = new Set([
   'web_fetch',
   'read_file',
   'list_files',
+  'list_workspace_files',
+  'read_document',
   'query_db_readonly',
   'memory_search',
   'search_knowledge_base',
@@ -29,11 +31,13 @@ const LOW_RISK_TOOLS = new Set([
   'calendar_list_events',
   'calendar_scan_email',
   'calendar_find_duplicates',
+  'calendar_find_alignment',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
   'write_file',
   'delete_file',
+  'edit_document',
   'db_update',
   'db_insert',
   'db_delete',
@@ -51,10 +55,18 @@ const HIGH_RISK_TOOLS = new Set([
 
 export function evaluateActionRisk(
   toolName: string,
-  _params: Record<string, unknown>,
+  params: Record<string, unknown>,
   mode: SecurityPostureMode
 ): ActionRiskResult {
   if (TEXT_GENERATION_TOOLS.has(toolName)) {
+    return { riskLevel: 'LOW', requiresApproval: false }
+  }
+
+  // New edited copies are additive (safe); overwriting the source needs HITL.
+  if (toolName === 'edit_document' && !params.replaceSource) {
+    if (mode === 'STRICT') {
+      return { riskLevel: 'LOW', requiresApproval: true }
+    }
     return { riskLevel: 'LOW', requiresApproval: false }
   }
 

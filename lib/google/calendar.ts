@@ -1,4 +1,8 @@
-import { getValidGoogleAccessToken } from '@/lib/google/tokens'
+import {
+  getValidGoogleAccessToken,
+  getValidGoogleAccessTokens,
+  listGoogleAccounts,
+} from '@/lib/google/tokens'
 
 const CAL_BASE = 'https://www.googleapis.com/calendar/v3'
 const GMAIL_BASE = 'https://gmail.googleapis.com/gmail/v1'
@@ -27,6 +31,20 @@ export type CalendarEventSummary = {
   htmlLink?: string
   hangoutLink?: string
   status?: string
+  /** Which linked Google email owns this event. */
+  accountEmail?: string
+}
+
+export type FreeSlot = {
+  startIso: string
+  endIso: string
+  durationMinutes: number
+}
+
+export type AccountBusyBlock = {
+  email: string
+  start: string
+  end: string
 }
 
 export type DuplicateKind =
@@ -224,16 +242,36 @@ export function findConflictsForProposal(
 async function googleFetch(
   userId: string,
   url: string,
-  init?: RequestInit
+  init?: RequestInit & { accountEmail?: string | null }
 ): Promise<Response> {
-  const tok = await getValidGoogleAccessToken(userId)
+  const tok = await getValidGoogleAccessToken(userId, init?.accountEmail)
   if (!tok.ok) throw new Error(tok.error)
   const headers = new Headers(init?.headers)
   headers.set('Authorization', `Bearer ${tok.accessToken}`)
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  return fetch(url, { ...init, headers })
+  const { accountEmail: _a, ...rest } = init || {}
+  return fetch(url, { ...rest, headers })
+}
+
+function parseScopedEventId(eventId: string): {
+  accountEmail?: string
+  rawId: string
+} {
+  const idx = eventId.indexOf('::')
+  if (idx > 0 && eventId.includes('@')) {
+    return {
+      accountEmail: eventId.slice(0, idx).toLowerCase(),
+      rawId: eventId.slice(idx + 2),
+    }
+  }
+  return { rawId: eventId }
+}
+
+function scopeEventId(email: string | undefined, id: string) {
+  if (!email) return id
+  return `${email}::${id}`
 }
 
 function toEventBody(input: CalendarEventInput) {
@@ -272,11 +310,15 @@ function toEventBody(input: CalendarEventInput) {
   }
 }
 
-function mapEvent(e: Record<string, unknown>): CalendarEventSummary {
+function mapEvent(
+  e: Record<string, unknown>,
+  accountEmail?: string
+): CalendarEventSummary {
   const start = e.start as { dateTime?: string; date?: string } | undefined
   const end = e.end as { dateTime?: string; date?: string } | undefined
+  const rawId = String(e.id || '')
   return {
-    id: String(e.id || ''),
+    id: scopeEventId(accountEmail, rawId),
     summary: String(e.summary || '(بدون عنوان)'),
     description: e.description ? String(e.description) : undefined,
     location: e.location ? String(e.location) : undefined,
@@ -285,11 +327,13 @@ function mapEvent(e: Record<string, unknown>): CalendarEventSummary {
     htmlLink: e.htmlLink ? String(e.htmlLink) : undefined,
     hangoutLink: e.hangoutLink ? String(e.hangoutLink) : undefined,
     status: e.status ? String(e.status) : undefined,
+    accountEmail,
   }
 }
 
-export async function listUpcomingEvents(
+async function listUpcomingForAccount(
   userId: string,
+  accountEmail: string,
   opts?: { maxResults?: number; query?: string }
 ): Promise<CalendarEventSummary[]> {
   const params = new URLSearchParams({
@@ -302,26 +346,84 @@ export async function listUpcomingEvents(
   if (opts?.query) params.set('q', opts.query)
   const res = await googleFetch(
     userId,
-    `${CAL_BASE}/calendars/primary/events?${params}`
+    `${CAL_BASE}/calendars/primary/events?${params}`,
+    { accountEmail }
   )
   const data = (await res.json()) as {
     items?: Record<string, unknown>[]
     error?: { message?: string }
   }
   if (!res.ok) {
-    throw new Error(data.error?.message || `Calendar list HTTP ${res.status}`)
+    throw new Error(
+      data.error?.message ||
+        `Calendar list HTTP ${res.status} (${accountEmail})`
+    )
   }
-  return (data.items || []).map(mapEvent)
+  return (data.items || []).map((e) => mapEvent(e, accountEmail))
+}
+
+/**
+ * List upcoming events from one or all linked Google emails.
+ */
+export async function listUpcomingEvents(
+  userId: string,
+  opts?: {
+    maxResults?: number
+    query?: string
+    /** Limit to these emails; default = all linked accounts. */
+    emails?: string[]
+  }
+): Promise<CalendarEventSummary[]> {
+  const tokens = await getValidGoogleAccessTokens(userId, opts?.emails)
+  if (tokens.length === 0) {
+    // Legacy single-token path
+    const tok = await getValidGoogleAccessToken(userId)
+    if (!tok.ok) throw new Error(tok.error)
+    return listUpcomingForAccount(userId, tok.email || 'primary', opts)
+  }
+
+  const perAccount = Math.max(
+    5,
+    Math.ceil((opts?.maxResults || 20) / tokens.length)
+  )
+  const batches = await Promise.all(
+    tokens.map(async (t) => {
+      try {
+        return await listUpcomingForAccount(userId, t.email, {
+          ...opts,
+          maxResults: perAccount,
+        })
+      } catch (e) {
+        console.warn(
+          '[calendar] list failed for',
+          t.email,
+          e instanceof Error ? e.message : e
+        )
+        return [] as CalendarEventSummary[]
+      }
+    })
+  )
+  const merged = batches.flat().sort((a, b) => {
+    const sa = a.start ? Date.parse(a.start) : 0
+    const sb = b.start ? Date.parse(b.start) : 0
+    return sa - sb
+  })
+  return merged.slice(0, opts?.maxResults || 40)
 }
 
 export async function createCalendarEvent(
   userId: string,
-  input: CalendarEventInput
+  input: CalendarEventInput & { accountEmail?: string }
 ): Promise<CalendarEventSummary> {
+  const accountEmail = input.accountEmail
   const res = await googleFetch(
     userId,
     `${CAL_BASE}/calendars/primary/events?sendUpdates=all`,
-    { method: 'POST', body: JSON.stringify(toEventBody(input)) }
+    {
+      method: 'POST',
+      body: JSON.stringify(toEventBody(input)),
+      accountEmail,
+    }
   )
   const data = (await res.json()) as Record<string, unknown> & {
     error?: { message?: string }
@@ -329,17 +431,22 @@ export async function createCalendarEvent(
   if (!res.ok) {
     throw new Error(data.error?.message || `Calendar create HTTP ${res.status}`)
   }
-  return mapEvent(data)
+  const tok = await getValidGoogleAccessToken(userId, accountEmail)
+  return mapEvent(data, tok.ok ? tok.email || undefined : accountEmail)
 }
 
 export async function updateCalendarEvent(
   userId: string,
   eventId: string,
-  patch: Partial<CalendarEventInput>
+  patch: Partial<CalendarEventInput> & { accountEmail?: string }
 ): Promise<CalendarEventSummary> {
+  const scoped = parseScopedEventId(eventId)
+  const accountEmail = patch.accountEmail || scoped.accountEmail
+  const rawId = scoped.rawId
   const getRes = await googleFetch(
     userId,
-    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}`
+    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(rawId)}`,
+    { accountEmail }
   )
   const existing = (await getRes.json()) as Record<string, unknown> & {
     error?: { message?: string }
@@ -374,8 +481,12 @@ export async function updateCalendarEvent(
 
   const res = await googleFetch(
     userId,
-    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-    { method: 'PUT', body: JSON.stringify({ ...existing, ...merged }) }
+    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(rawId)}?sendUpdates=all`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ ...existing, ...merged }),
+      accountEmail,
+    }
   )
   const data = (await res.json()) as Record<string, unknown> & {
     error?: { message?: string }
@@ -383,17 +494,21 @@ export async function updateCalendarEvent(
   if (!res.ok) {
     throw new Error(data.error?.message || `Calendar update HTTP ${res.status}`)
   }
-  return mapEvent(data)
+  return mapEvent(data, accountEmail)
 }
 
 export async function deleteCalendarEvent(
   userId: string,
-  eventId: string
+  eventId: string,
+  accountEmail?: string
 ): Promise<{ deleted: true; eventId: string }> {
+  const scoped = parseScopedEventId(eventId)
+  const email = accountEmail || scoped.accountEmail
+  const rawId = scoped.rawId
   const res = await googleFetch(
     userId,
-    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
-    { method: 'DELETE' }
+    `${CAL_BASE}/calendars/primary/events/${encodeURIComponent(rawId)}?sendUpdates=all`,
+    { method: 'DELETE', accountEmail: email }
   )
   if (!res.ok && res.status !== 204) {
     const data = (await res.json().catch(() => ({}))) as {
@@ -402,6 +517,224 @@ export async function deleteCalendarEvent(
     throw new Error(data.error?.message || `Calendar delete HTTP ${res.status}`)
   }
   return { deleted: true, eventId }
+}
+
+/**
+ * Query FreeBusy for each linked Google email, then find slots where ALL are free.
+ */
+export async function findMutualFreeSlots(
+  userId: string,
+  opts: {
+    emails?: string[]
+    /** Window start (default: now). */
+    timeMinIso?: string
+    /** Window end (default: +7 days). */
+    timeMaxIso?: string
+    durationMinutes?: number
+    timeZone?: string
+    /** Working hours local to timeZone */
+    workdayStartHour?: number
+    workdayEndHour?: number
+    maxSlots?: number
+  } = {}
+): Promise<{
+  accounts: string[]
+  busy: AccountBusyBlock[]
+  slots: FreeSlot[]
+  window: { start: string; end: string }
+  messageAr: string
+}> {
+  const duration = Math.max(15, opts.durationMinutes || 60)
+  const tz = opts.timeZone || 'Asia/Riyadh'
+  const timeMin = opts.timeMinIso
+    ? new Date(opts.timeMinIso)
+    : new Date()
+  const timeMax = opts.timeMaxIso
+    ? new Date(opts.timeMaxIso)
+    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const workStart = opts.workdayStartHour ?? 9
+  const workEnd = opts.workdayEndHour ?? 17
+  const maxSlots = opts.maxSlots || 12
+
+  const tokens = await getValidGoogleAccessTokens(userId, opts.emails)
+  if (tokens.length === 0) {
+    throw new Error(
+      'لا حسابات Google مربوطة. اربط بريداً أو أكثر من الإعدادات → تقويم Google.'
+    )
+  }
+
+  const busy: AccountBusyBlock[] = []
+  const accounts: string[] = []
+
+  await Promise.all(
+    tokens.map(async (t) => {
+      accounts.push(t.email)
+      const res = await fetch(`${CAL_BASE}/freeBusy`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${t.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          timeZone: tz,
+          items: [{ id: 'primary' }],
+        }),
+      })
+      const data = (await res.json()) as {
+        calendars?: Record<
+          string,
+          { busy?: Array<{ start: string; end: string }>; errors?: unknown[] }
+        >
+        error?: { message?: string }
+      }
+      if (!res.ok) {
+        throw new Error(
+          data.error?.message || `FreeBusy HTTP ${res.status} (${t.email})`
+        )
+      }
+      const blocks = data.calendars?.primary?.busy || []
+      for (const b of blocks) {
+        busy.push({ email: t.email, start: b.start, end: b.end })
+      }
+    })
+  )
+
+  // Merge all busy intervals (anyone busy ⇒ slot blocked for mutual meeting)
+  const mergedBusy = mergeIntervals(
+    busy.map((b) => ({
+      start: Date.parse(b.start),
+      end: Date.parse(b.end),
+    }))
+  )
+
+  const slots = findOpenSlots({
+    windowStart: timeMin.getTime(),
+    windowEnd: timeMax.getTime(),
+    busy: mergedBusy,
+    durationMs: duration * 60_000,
+    workStartHour: workStart,
+    workEndHour: workEnd,
+    timeZone: tz,
+    maxSlots,
+  })
+
+  return {
+    accounts,
+    busy,
+    slots,
+    window: { start: timeMin.toISOString(), end: timeMax.toISOString() },
+    messageAr:
+      tokens.length < 2
+        ? `حُسب التفرّغ لحساب واحد (${tokens[0].email}). اربط بريداً ثانياً لمقارنة الجميع.`
+        : slots.length === 0
+          ? `لا فترات مشتركة متاحة لـ ${tokens.length} حسابات خلال النافذة (مدة ${duration} د).`
+          : `وُجد ${slots.length} فترة مشتركة حيث كل الحسابات (${tokens.length}) متفرغون.`,
+  }
+}
+
+function mergeIntervals(
+  intervals: Array<{ start: number; end: number }>
+): Array<{ start: number; end: number }> {
+  const sorted = intervals
+    .filter((i) => Number.isFinite(i.start) && Number.isFinite(i.end) && i.end > i.start)
+    .sort((a, b) => a.start - b.start)
+  if (!sorted.length) return []
+  const out = [{ ...sorted[0] }]
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i]
+    const last = out[out.length - 1]
+    if (cur.start <= last.end) {
+      last.end = Math.max(last.end, cur.end)
+    } else {
+      out.push({ ...cur })
+    }
+  }
+  return out
+}
+
+/** Local hour helpers for Asia/Riyadh-style zones via Intl. */
+function localParts(ms: number, timeZone: string) {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date(ms)).map((p) => [p.type, p.value])
+  )
+  return {
+    y: Number(parts.year),
+    m: Number(parts.month),
+    d: Number(parts.day),
+    h: Number(parts.hour === '24' ? '0' : parts.hour),
+    min: Number(parts.minute),
+  }
+}
+
+function findOpenSlots(opts: {
+  windowStart: number
+  windowEnd: number
+  busy: Array<{ start: number; end: number }>
+  durationMs: number
+  workStartHour: number
+  workEndHour: number
+  timeZone: string
+  maxSlots: number
+}): FreeSlot[] {
+  const slots: FreeSlot[] = []
+  const step = 15 * 60_000
+  let cursor = opts.windowStart
+  // Snap to next 15m
+  cursor = Math.ceil(cursor / step) * step
+
+  while (cursor + opts.durationMs <= opts.windowEnd && slots.length < opts.maxSlots) {
+    const end = cursor + opts.durationMs
+    const startLocal = localParts(cursor, opts.timeZone)
+    const endLocal = localParts(end - 1, opts.timeZone)
+    const inWorkHours =
+      startLocal.h >= opts.workStartHour &&
+      endLocal.h < opts.workEndHour &&
+      startLocal.d === endLocal.d &&
+      startLocal.h < opts.workEndHour
+
+    // Skip Fri/Sat in Saudi week (5=Fri, 6=Sat in JS if we map via weekday)
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      timeZone: opts.timeZone,
+      weekday: 'short',
+    }).format(new Date(cursor))
+    const weekend = weekday === 'Fri' || weekday === 'Sat'
+
+    const overlapsBusy = opts.busy.some(
+      (b) => cursor < b.end && end > b.start
+    )
+
+    if (inWorkHours && !weekend && !overlapsBusy) {
+      slots.push({
+        startIso: new Date(cursor).toISOString(),
+        endIso: new Date(end).toISOString(),
+        durationMinutes: Math.round(opts.durationMs / 60_000),
+      })
+      cursor = end
+    } else {
+      cursor += step
+    }
+  }
+  return slots
+}
+
+export async function listLinkedCalendarEmails(userId: string) {
+  const rows = await listGoogleAccounts(userId)
+  return rows.map((r) => ({
+    email: r.email,
+    scopes: r.scopes,
+    updatedAt: r.updated_at,
+  }))
 }
 
 /**

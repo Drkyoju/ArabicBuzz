@@ -13,6 +13,8 @@ type ProviderStatus = {
   source: 'override' | 'environment' | 'absent'
   configured: boolean
   maskedHint: string | null
+  liveOk?: boolean | null
+  liveDetail?: string
 }
 
 type ModelAvail = {
@@ -22,6 +24,7 @@ type ModelAvail = {
   requiresKey: string
   available: boolean
   missingKey: string | null
+  blockedReasonAr?: string | null
 }
 
 type Snapshot = {
@@ -60,7 +63,7 @@ export function ProviderKeysPanel({
     setLoading(true)
     setErr(null)
     try {
-      const res = await fetch('/api/settings/providers')
+      const res = await fetch('/api/settings/providers?fresh=1')
       const data = (await res.json()) as Snapshot & { error?: string }
       if (!res.ok) throw new Error(data.error || 'تعذر التحميل')
       applySnap(data)
@@ -141,8 +144,9 @@ export function ProviderKeysPanel({
           مفاتيح المزوّدين
         </h3>
         <p className="text-xs text-stone-500">
-          مثل YC QM: أدخل المفتاح هنا (لن يُعرض مرة أخرى). النماذج في الشريط
-          الجانبي تعمل فقط إن وُجد مفتاح المزوّد.
+          الصق المفتاح هنا ثم احفظ — نتحقق مباشرة من المزوّد. النماذج تظهر في
+          قائمة الغرفة فقط بعد نجاح التحقق (Gemini و GLM جاهزان إن كانت مفاتيحهما
+          صالحة).
         </p>
       </div>
 
@@ -189,7 +193,7 @@ export function ProviderKeysPanel({
           </h4>
           {readyModels.length === 0 ? (
             <p className="text-xs text-amber-800">
-              لا يوجد نموذج جاهز — أضف مفتاح Gemini أو OpenRouter على الأقل.
+              لا يوجد نموذج جاهز — أضف مفتاح Gemini أو GLM على الأقل وتحقق منه.
             </p>
           ) : (
             <ul className="mb-3 flex flex-wrap gap-1.5">
@@ -206,17 +210,18 @@ export function ProviderKeysPanel({
           {blockedModels.length > 0 && (
             <>
               <p className="mb-1 text-[11px] font-medium text-stone-400">
-                يحتاج مفتاحاً
+                محظور حتى يُضاف مفتاح صالح
               </p>
               <ul className="space-y-1">
                 {blockedModels.map((m) => (
                   <li
                     key={m.slug}
-                    className="flex justify-between gap-2 text-[11px] text-stone-500"
-                    dir="ltr"
+                    className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-500"
                   >
-                    <span>{m.labelAr}</span>
-                    <code className="text-[10px]">{m.missingKey}</code>
+                    <span dir="ltr">{m.labelAr}</span>
+                    <span className="text-[10px] text-stone-400">
+                      {m.blockedReasonAr || m.missingKey}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -265,12 +270,20 @@ function ProviderGroup({
               </div>
               <span
                 className={
-                  p.configured
+                  p.configured && p.liveOk !== false
                     ? 'rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800'
-                    : 'rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800'
+                    : p.configured && p.liveOk === false
+                      ? 'rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700'
+                      : 'rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800'
                 }
               >
-                {p.configured ? 'جاهز' : 'يحتاج مفتاحاً'}
+                {!p.configured
+                  ? 'يحتاج مفتاحاً'
+                  : p.liveOk === false
+                    ? 'مرفوض'
+                    : p.liveOk === true
+                      ? 'يعمل'
+                      : 'جاهز'}
               </span>
             </div>
             <p className="mb-2 text-[11px] text-stone-500">
@@ -279,6 +292,9 @@ function ProviderGroup({
                 <span className="ms-2 font-mono" dir="ltr">
                   {p.maskedHint}
                 </span>
+              ) : null}
+              {p.liveDetail ? (
+                <span className="ms-2 text-stone-400">· {p.liveDetail}</span>
               ) : null}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

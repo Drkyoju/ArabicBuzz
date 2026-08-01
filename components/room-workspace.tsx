@@ -23,7 +23,11 @@ import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ModelPicker } from '@/components/model-picker'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
-import type { RoomCitation, RoomPost } from '@/lib/scopes/types'
+import type {
+  RoomCitation,
+  RoomFileAttachment,
+  RoomPost,
+} from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
@@ -346,6 +350,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       let buffer = ''
       let assembled = ''
       const citations: RoomCitation[] = []
+      const attachments: RoomFileAttachment[] = []
       let pendingApprovalId: string | undefined
       while (true) {
         const { done, value } = await reader.read()
@@ -380,6 +385,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   content: assembled,
                   streaming: true,
                   citations: citations.length ? [...citations] : undefined,
+                  attachments: attachments.length ? [...attachments] : undefined,
                   pendingApprovalId,
                 })
               }
@@ -447,10 +453,49 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     }
                   }
                 }
+                const attachList = (nested.attachments || out.attachments) as
+                  | RoomFileAttachment[]
+                  | undefined
+                if (Array.isArray(attachList)) {
+                  for (const a of attachList) {
+                    if (!a?.fileId || !a?.name) continue
+                    if (attachments.some((x) => x.fileId === a.fileId)) continue
+                    attachments.push({
+                      fileId: String(a.fileId),
+                      name: String(a.name),
+                      mimeType: a.mimeType ? String(a.mimeType) : undefined,
+                      scopeId: String(a.scopeId || activeScopeId),
+                      downloadPath: a.downloadPath
+                        ? String(a.downloadPath)
+                        : undefined,
+                    })
+                  }
+                } else if (
+                  typeof nested.fileId === 'string' &&
+                  typeof nested.name === 'string' &&
+                  (nested.downloadPath || nested.downloadUrl || nested.ok)
+                ) {
+                  const fileId = nested.fileId
+                  if (!attachments.some((x) => x.fileId === fileId)) {
+                    attachments.push({
+                      fileId,
+                      name: nested.name,
+                      mimeType:
+                        typeof nested.mimeType === 'string'
+                          ? nested.mimeType
+                          : undefined,
+                      scopeId: activeScopeId,
+                      downloadPath: String(
+                        nested.downloadPath || nested.downloadUrl || ''
+                      ),
+                    })
+                  }
+                }
                 updatePost(activeScopeId, agentId, {
                   content: assembled,
                   streaming: true,
                   citations: citations.length ? [...citations] : undefined,
+                  attachments: attachments.length ? [...attachments] : undefined,
                   pendingApprovalId,
                 })
               }
@@ -469,26 +514,39 @@ export function RoomWorkspace({ className }: { className?: string }) {
           }
         }
       }
-      updatePost(activeScopeId, agentId, {
-        content:
-          assembled ||
+      const fileFooter =
+        attachments.length > 0
+          ? `\n\n${attachments
+              .map(
+                (a) =>
+                  `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`
+              )
+              .join('\n')}`
+          : ''
+      const finalContent =
+        (assembled ||
           (pendingApprovalId
             ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
-            : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.'),
+            : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.')) +
+        (assembled ? fileFooter : '')
+
+      updatePost(activeScopeId, agentId, {
+        content: finalContent,
         streaming: false,
         citations: citations.length ? citations : undefined,
+        attachments: attachments.length ? attachments : undefined,
         pendingApprovalId,
       })
 
       // Persist agent reply (chat onFinish also runs when persist!==false —
       // we used persist:false so save here)
-      if (assembled) {
+      if (assembled || attachments.length) {
         await fetch('/api/rooms/posts', {
           method: 'POST',
           headers: await authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             scopeId: activeScopeId,
-            content: assembled,
+            content: finalContent,
             authorKind: 'agent',
             authorId: agent?.id || 'agent-desk',
             authorNameAr: agent?.nameAr || agentNameAr,

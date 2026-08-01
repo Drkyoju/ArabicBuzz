@@ -5,6 +5,8 @@ import {
   findConflictsForProposal,
   findDuplicateAppointments,
   findDuplicateGroups,
+  findMutualFreeSlots,
+  listLinkedCalendarEmails,
   listUpcomingEvents,
   scanEmailForMeetings,
   updateCalendarEvent,
@@ -24,30 +26,67 @@ function requireUser(params: Record<string, unknown>) {
   return userId
 }
 
+function emailsOf(params: Record<string, unknown>): string[] | undefined {
+  if (Array.isArray(params.emails)) {
+    return params.emails.map(String).filter(Boolean)
+  }
+  if (params.email || params.accountEmail) {
+    return [String(params.email || params.accountEmail)]
+  }
+  return undefined
+}
+
 export async function executeCalendarList(
   _name: string,
   params: Record<string, unknown>
 ) {
   const userId = requireUser(params)
   const max = Number(params.maxResults || 40)
+  const emails = emailsOf(params)
+  const accounts = await listLinkedCalendarEmails(userId)
   const events = await listUpcomingEvents(userId, {
     maxResults: max,
     query: params.query ? String(params.query) : undefined,
+    emails,
   })
   const groups = findDuplicateGroups(events)
   return {
     ok: true,
     count: events.length,
+    accounts: accounts.map((a) => a.email),
     events,
     duplicates: groups,
     duplicateGroups: groups.length,
     messageAr:
       events.length === 0
-        ? 'لا مواعيد قادمة في التقويم الأساسي.'
+        ? `لا مواعيد قادمة عبر ${accounts.length || 0} حساب مربوط.`
         : groups.length > 0
-          ? `وُجد ${events.length} موعداً قادماً — و${groups.length} مجموعة تكرار/تعارض.`
-          : `وُجد ${events.length} موعداً قادماً بدون تكرار ظاهر.`,
+          ? `وُجد ${events.length} موعداً من ${accounts.length} بريد — و${groups.length} مجموعة تكرار/تعارض.`
+          : `وُجد ${events.length} موعداً من ${accounts.length} بريد مربوط.`,
   }
+}
+
+export async function executeCalendarFindAlignment(
+  _name: string,
+  params: Record<string, unknown>
+) {
+  const userId = requireUser(params)
+  const emails = emailsOf(params)
+  const result = await findMutualFreeSlots(userId, {
+    emails,
+    timeMinIso: params.timeMinIso ? String(params.timeMinIso) : undefined,
+    timeMaxIso: params.timeMaxIso ? String(params.timeMaxIso) : undefined,
+    durationMinutes: Number(params.durationMinutes || 60),
+    timeZone: params.timeZone ? String(params.timeZone) : 'Asia/Riyadh',
+    workdayStartHour:
+      typeof params.workdayStartHour === 'number'
+        ? params.workdayStartHour
+        : 9,
+    workdayEndHour:
+      typeof params.workdayEndHour === 'number' ? params.workdayEndHour : 17,
+    maxSlots: Number(params.maxSlots || 12),
+  })
+  return { ok: true, ...result }
 }
 
 export async function executeCalendarFindDuplicates(
@@ -104,6 +143,12 @@ export async function executeCalendarCreate(
     }
   }
 
+  const accountEmail = params.accountEmail
+    ? String(params.accountEmail)
+    : params.email
+      ? String(params.email)
+      : undefined
+
   const event = await createCalendarEvent(userId, {
     summary,
     description: params.description ? String(params.description) : undefined,
@@ -116,12 +161,13 @@ export async function executeCalendarCreate(
       ? params.attendeeEmails.map(String)
       : undefined,
     reminderMinutes,
+    accountEmail,
   })
   return {
     ok: true,
     event,
     conflictsIgnored: force ? conflicts : [],
-    messageAr: `أُضيف «${event.summary}» إلى تقويم Google${conf ? ' مع رابط الاجتماع' : ''}${
+    messageAr: `أُضيف «${event.summary}» إلى تقويم ${event.accountEmail || 'Google'}${conf ? ' مع رابط الاجتماع' : ''}${
       force && conflicts.length
         ? ' (تم التجاهل رغم تعارض محتمل)'
         : ''

@@ -1,12 +1,52 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export type GoogleTokenRow = {
+  id?: string
   user_id: string
   email: string | null
   access_token: string
   refresh_token: string | null
   expires_at: string | null
   scopes: string | null
+  updated_at?: string | null
+}
+
+function normalizeEmail(email?: string | null): string | null {
+  const e = (email || '').trim().toLowerCase()
+  return e || null
+}
+
+/** Resolve the Google account email from the OAuth access token. */
+export async function fetchGoogleAccountEmail(
+  accessToken: string
+): Promise<string | null> {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { email?: string }
+    return normalizeEmail(data.email)
+  } catch {
+    return null
+  }
+}
+
+export async function listGoogleAccounts(
+  userId: string
+): Promise<GoogleTokenRow[]> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return []
+  const { data, error } = await sb
+    .from('google_oauth_tokens')
+    .select(
+      'id, user_id, email, access_token, refresh_token, expires_at, scopes, updated_at'
+    )
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+  if (error || !data) return []
+  return data as GoogleTokenRow[]
 }
 
 export async function upsertGoogleTokens(opts: {
@@ -16,17 +56,24 @@ export async function upsertGoogleTokens(opts: {
   refreshToken?: string | null
   expiresAt?: Date | null
   scopes?: string | null
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; email?: string }> {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false, error: 'Supabase غير مُعدّ' }
 
-  // Keep prior refresh_token if Google omits it on re-consent
+  let email =
+    normalizeEmail(opts.email) ||
+    (await fetchGoogleAccountEmail(opts.accessToken))
+  if (!email) {
+    email = `unknown+${opts.userId.slice(0, 8)}@local.invalid`
+  }
+
   let refresh = opts.refreshToken || null
   if (!refresh) {
     const { data: prev } = await sb
       .from('google_oauth_tokens')
       .select('refresh_token')
       .eq('user_id', opts.userId)
+      .eq('email', email)
       .maybeSingle()
     refresh = (prev?.refresh_token as string | null) || null
   }
@@ -34,42 +81,76 @@ export async function upsertGoogleTokens(opts: {
   const { error } = await sb.from('google_oauth_tokens').upsert(
     {
       user_id: opts.userId,
-      email: opts.email || null,
+      email,
       access_token: opts.accessToken,
       refresh_token: refresh,
       expires_at: opts.expiresAt?.toISOString() || null,
       scopes: opts.scopes || null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'user_id' }
+    { onConflict: 'user_id,email' }
   )
-  if (error) return { ok: false, error: error.message }
-  return { ok: true }
+  if (error) {
+    // Fallback for DBs that still have old PK (user_id only)
+    if (
+      error.message.includes('no unique') ||
+      error.message.includes('onConflict') ||
+      error.code === '42P10'
+    ) {
+      const { error: e2 } = await sb.from('google_oauth_tokens').upsert(
+        {
+          user_id: opts.userId,
+          email,
+          access_token: opts.accessToken,
+          refresh_token: refresh,
+          expires_at: opts.expiresAt?.toISOString() || null,
+          scopes: opts.scopes || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      )
+      if (e2) return { ok: false, error: e2.message }
+      return { ok: true, email }
+    }
+    return { ok: false, error: error.message }
+  }
+  return { ok: true, email }
 }
 
+/** Most recently updated account, or a specific email. */
 export async function getGoogleTokenRow(
-  userId: string
+  userId: string,
+  email?: string | null
 ): Promise<GoogleTokenRow | null> {
   const sb = getSupabaseAdmin()
   if (!sb) return null
-  const { data, error } = await sb
-    .from('google_oauth_tokens')
-    .select('user_id, email, access_token, refresh_token, expires_at, scopes')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (error || !data) return null
-  return data as GoogleTokenRow
+  const want = normalizeEmail(email)
+  if (want) {
+    const { data, error } = await sb
+      .from('google_oauth_tokens')
+      .select(
+        'id, user_id, email, access_token, refresh_token, expires_at, scopes, updated_at'
+      )
+      .eq('user_id', userId)
+      .eq('email', want)
+      .maybeSingle()
+    if (error || !data) return null
+    return data as GoogleTokenRow
+  }
+  const rows = await listGoogleAccounts(userId)
+  return rows[0] || null
 }
 
 export async function deleteGoogleTokens(
-  userId: string
+  userId: string,
+  email?: string | null
 ): Promise<{ ok: boolean; error?: string }> {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false, error: 'Supabase غير مُعدّ' }
-  const { error } = await sb
-    .from('google_oauth_tokens')
-    .delete()
-    .eq('user_id', userId)
+  const want = normalizeEmail(email)
+  let q = sb.from('google_oauth_tokens').delete().eq('user_id', userId)
+  if (want) q = q.eq('email', want)
+  const { error } = await q
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -78,7 +159,8 @@ async function refreshAccessToken(
   refreshToken: string
 ): Promise<{ accessToken: string; expiresAt: Date } | null> {
   const clientId =
-    process.env.GOOGLE_CLIENT_ID || process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID
+    process.env.GOOGLE_CLIENT_ID ||
+    process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID
   const clientSecret =
     process.env.GOOGLE_CLIENT_SECRET ||
     process.env.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET
@@ -106,25 +188,13 @@ async function refreshAccessToken(
   }
 }
 
-/** Valid access token for Calendar/Gmail APIs, refreshing when needed. */
-export async function getValidGoogleAccessToken(
-  userId: string
+async function tokenFromRow(
+  row: GoogleTokenRow
 ): Promise<
   | { ok: true; accessToken: string; email: string | null }
   | { ok: false; error: string }
 > {
-  const row = await getGoogleTokenRow(userId)
-  if (!row?.access_token) {
-    return {
-      ok: false,
-      error:
-        'تقويم Google غير مربوط. اربط الحساب من الإعدادات → تقويم Google.',
-    }
-  }
-
-  const expiresMs = row.expires_at
-    ? new Date(row.expires_at).getTime()
-    : 0
+  const expiresMs = row.expires_at ? new Date(row.expires_at).getTime() : 0
   const stillFresh = expiresMs > Date.now() + 60_000
 
   if (stillFresh) {
@@ -134,7 +204,7 @@ export async function getValidGoogleAccessToken(
   if (!row.refresh_token) {
     return {
       ok: false,
-      error: 'انتهت صلاحية الربط. أعد ربط تقويم Google من الإعدادات.',
+      error: `انتهت صلاحية الربط لـ ${row.email || 'الحساب'}. أعد الربط من الإعدادات.`,
     }
   }
 
@@ -148,7 +218,7 @@ export async function getValidGoogleAccessToken(
   }
 
   await upsertGoogleTokens({
-    userId,
+    userId: row.user_id,
     email: row.email,
     accessToken: refreshed.accessToken,
     refreshToken: row.refresh_token,
@@ -161,4 +231,47 @@ export async function getValidGoogleAccessToken(
     accessToken: refreshed.accessToken,
     email: row.email,
   }
+}
+
+/** Valid access token for one Google email (or the latest linked account). */
+export async function getValidGoogleAccessToken(
+  userId: string,
+  email?: string | null
+): Promise<
+  | { ok: true; accessToken: string; email: string | null }
+  | { ok: false; error: string }
+> {
+  const row = await getGoogleTokenRow(userId, email)
+  if (!row?.access_token) {
+    return {
+      ok: false,
+      error:
+        'تقويم Google غير مربوط. اربط حساب بريد من الإعدادات → تقويم Google.',
+    }
+  }
+  return tokenFromRow(row)
+}
+
+/** Valid tokens for all linked emails (or a subset). */
+export async function getValidGoogleAccessTokens(
+  userId: string,
+  emails?: string[] | null
+): Promise<Array<{ email: string; accessToken: string }>> {
+  const rows = await listGoogleAccounts(userId)
+  const want = (emails || [])
+    .map((e) => normalizeEmail(e))
+    .filter((e): e is string => Boolean(e))
+  const selected =
+    want.length > 0
+      ? rows.filter((r) => r.email && want.includes(r.email.toLowerCase()))
+      : rows
+
+  const out: Array<{ email: string; accessToken: string }> = []
+  for (const row of selected) {
+    const tok = await tokenFromRow(row)
+    if (tok.ok && tok.email) {
+      out.push({ email: tok.email, accessToken: tok.accessToken })
+    }
+  }
+  return out
 }

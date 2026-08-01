@@ -57,7 +57,11 @@ export default function AuthCallbackPage() {
         )?.provider_refresh_token
 
         if (session?.access_token && providerToken) {
-          setMessage('جاري حفظ صلاحيات التقويم…')
+          setMessage(
+            wantCalendar
+              ? 'جاري حفظ صلاحيات Google (تقويم / Drive)…'
+              : 'جاري حفظ جلسة Google…'
+          )
           await fetch('/api/google/calendar', {
             method: 'POST',
             headers: {
@@ -70,7 +74,9 @@ export default function AuthCallbackPage() {
               refreshToken: refresh || null,
               email: session.user.email,
               expiresAt: new Date(Date.now() + 3500_000).toISOString(),
-              scopes: wantCalendar ? 'calendar,gmail.readonly' : 'login',
+              scopes: wantCalendar
+                ? 'calendar,gmail.readonly,drive.readonly'
+                : 'login',
             }),
           })
         }

@@ -147,7 +147,10 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
   return data
 }
 
-/** Google OAuth with Calendar + Gmail readonly for invites / Zoom reminders. */
+/**
+ * Google OAuth with Calendar + Gmail + Drive.
+ * Uses select_account so you can link additional emails without overwriting login.
+ */
 export async function connectGoogleCalendar() {
   const supabase = createBrowserSupabaseClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -158,7 +161,7 @@ export async function connectGoogleCalendar() {
       scopes: GOOGLE_CALENDAR_SCOPES,
       queryParams: {
         access_type: 'offline',
-        prompt: 'consent',
+        prompt: 'consent select_account',
         include_granted_scopes: 'true',
       },
     },

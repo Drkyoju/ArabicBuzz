@@ -14,28 +14,12 @@ export type ProviderDef = {
 
 export const PROVIDER_DEFS: ProviderDef[] = [
   {
-    envName: 'OPENROUTER_API_KEY',
-    labelAr: 'OpenRouter',
-    labelEn: 'OpenRouter',
-    kind: 'llm',
-    hintAr: 'Claude · DeepSeek · Qwen · Kimi · Hermes',
-    docsUrl: 'https://openrouter.ai/keys',
-  },
-  {
     envName: 'GEMINI_API_KEY',
     labelAr: 'Google Gemini',
     labelEn: 'Gemini',
     kind: 'llm',
-    hintAr: 'Gemini 2.0 Flash · 2.5 Pro',
+    hintAr: 'Gemini 2.0 Flash · 2.5 Pro — يعمل الآن إن وُجد مفتاح صالح',
     docsUrl: 'https://aistudio.google.com/apikey',
-  },
-  {
-    envName: 'OPENAI_API_KEY',
-    labelAr: 'OpenAI',
-    labelEn: 'OpenAI',
-    kind: 'llm',
-    hintAr: 'GPT-4o · نسخ احتياطي للصوت',
-    docsUrl: 'https://platform.openai.com/api-keys',
   },
   {
     envName: 'GLM_API_KEY',
@@ -43,15 +27,31 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelAr: 'GLM / Zhipu',
     labelEn: 'GLM',
     kind: 'llm',
-    hintAr: 'GLM-4.5 عبر Z.AI',
+    hintAr: 'GLM-4.5 عبر Z.AI — يعمل الآن إن وُجد مفتاح صالح',
     docsUrl: 'https://z.ai/',
+  },
+  {
+    envName: 'OPENROUTER_API_KEY',
+    labelAr: 'OpenRouter',
+    labelEn: 'OpenRouter',
+    kind: 'llm',
+    hintAr: 'يفتح Claude · DeepSeek · Qwen · Kimi · Hermes بعد التحقق',
+    docsUrl: 'https://openrouter.ai/keys',
+  },
+  {
+    envName: 'OPENAI_API_KEY',
+    labelAr: 'OpenAI',
+    labelEn: 'OpenAI',
+    kind: 'llm',
+    hintAr: 'يفتح GPT-4o بعد التحقق',
+    docsUrl: 'https://platform.openai.com/api-keys',
   },
   {
     envName: 'PERPLEXITY_API_KEY',
     labelAr: 'Perplexity',
     labelEn: 'Perplexity',
     kind: 'llm',
-    hintAr: 'Sonar للبحث',
+    hintAr: 'يفتح Sonar بعد التحقق',
     docsUrl: 'https://www.perplexity.ai/settings/api',
   },
   {

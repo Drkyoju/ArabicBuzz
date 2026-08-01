@@ -2,11 +2,19 @@ import { executeSearchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import {
   executeCalendarCreate,
   executeCalendarDelete,
+  executeCalendarFindAlignment,
   executeCalendarFindDuplicates,
   executeCalendarList,
   executeCalendarScanEmail,
   executeCalendarUpdate,
 } from '@/lib/agents/tools/calendar-tools'
+import {
+  executeEditDocument,
+  executeListFiles,
+  executeListWorkspaceFiles,
+  executeReadDocument,
+  executeReadFile,
+} from '@/lib/agents/tools/document-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 
 export type ToolExecutor = (
@@ -17,8 +25,6 @@ export type ToolExecutor = (
 const stubResults: Record<string, (params: Record<string, unknown>) => unknown> = {
   web_search: (p) => ({ results: [`نتائج بحث عن: ${String(p.query || '')}`] }),
   web_fetch: (p) => ({ url: p.url, content: 'محتوى مقروء (تجريبي)' }),
-  read_file: (p) => ({ path: p.path, content: '// file contents' }),
-  list_files: () => ({ files: ['README.md', 'HEARTBEAT.md'] }),
   query_db_readonly: () => ({ rows: [] }),
   memory_search: () => ({ hits: [] }),
   write_file: (p) => ({ written: true, path: p.path }),
@@ -40,6 +46,11 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       async (_n, params) => fn(params),
     ])
   ),
+  list_files: executeListFiles,
+  read_file: executeReadFile,
+  list_workspace_files: executeListWorkspaceFiles,
+  read_document: executeReadDocument,
+  edit_document: executeEditDocument,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,
@@ -47,6 +58,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_delete_event: executeCalendarDelete,
   calendar_scan_email: executeCalendarScanEmail,
   calendar_find_duplicates: executeCalendarFindDuplicates,
+  calendar_find_alignment: executeCalendarFindAlignment,
   drive_sync_brain: async (_n, params) => {
     const userId = String(params.userId || '')
     if (!userId || userId === 'local-owner') {

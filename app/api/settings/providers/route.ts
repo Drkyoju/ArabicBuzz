@@ -6,14 +6,16 @@ import {
   setProviderKey,
 } from '@/lib/ai/provider-key-store'
 import {
+  clearProviderProbeCache,
   getProvidersSnapshot,
   validateProviderKey,
 } from '@/lib/ai/provider-availability'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE)
+export async function GET(req: NextRequest) {
+  const fresh = req.nextUrl.searchParams.get('fresh') === '1'
+  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE, { fresh })
   return NextResponse.json(snap)
 }
 
@@ -43,6 +45,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     await setProviderKey(envName, apiKey)
+    clearProviderProbeCache(envName)
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'تعذر الحفظ' },
@@ -50,10 +53,10 @@ export async function PUT(req: NextRequest) {
     )
   }
 
-  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE)
+  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE, { fresh: true })
   return NextResponse.json({
     ok: true,
-    message: 'تم حفظ المفتاح',
+    message: 'تم حفظ المفتاح والتحقق منه',
     ...snap,
   })
 }
@@ -68,7 +71,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   await deleteProviderKey(envName)
-  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE)
+  clearProviderProbeCache(envName)
+  const snap = await getProvidersSnapshot(IS_AIR_GAPPED_MODE, { fresh: true })
   return NextResponse.json({
     ok: true,
     message: 'حُذف المفتاح المحفوظ — سيعتمد على متغيرات البيئة إن وُجدت',

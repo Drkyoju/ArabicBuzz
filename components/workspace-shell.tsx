@@ -178,6 +178,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </div>
         )}
 
+        {section === 'api-keys' && (
+          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+            <h2 className="mb-1 text-xl font-bold">مفاتيح API والنماذج</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              قائمة النماذج في الغرفة تعرض فقط المزوّدين الذين لديهم مفتاح صالح
+              ويستجيبون. أضف مفتاحاً هنا لفتح نماذجه تلقائياً.
+            </p>
+            <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+              <ProviderKeysPanel />
+            </div>
+          </section>
+        )}
+
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>

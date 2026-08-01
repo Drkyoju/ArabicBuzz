@@ -3,10 +3,46 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, User } from 'lucide-react'
+import { Bot, Download, User } from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
-import type { RoomPost } from '@/lib/scopes/types'
+import { authHeaders } from '@/lib/supabase/browser'
+import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
+
+function parseFileMarkers(content: string, scopeId: string): RoomFileAttachment[] {
+  const out: RoomFileAttachment[] = []
+  const re = /📎\s*ملف جاهز للتنزيل:\s*(.+?)\s*\(id:([^\)]+)\)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content))) {
+    out.push({
+      name: m[1].trim(),
+      fileId: m[2].trim(),
+      scopeId,
+    })
+  }
+  return out
+}
+
+async function downloadAttachment(a: RoomFileAttachment) {
+  const path =
+    a.downloadPath ||
+    `/api/storage/file?id=${encodeURIComponent(a.fileId)}&scopeId=${encodeURIComponent(a.scopeId)}`
+  const res = await fetch(path, { headers: await authHeaders() })
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(err.error || `تعذّر التنزيل (${res.status})`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const el = document.createElement('a')
+  el.href = url
+  el.download = a.name || 'file'
+  el.rel = 'noopener'
+  document.body.appendChild(el)
+  el.click()
+  el.remove()
+  URL.revokeObjectURL(url)
+}
 
 function LtrData({ children }: { children: React.ReactNode }) {
   return (
@@ -51,6 +87,18 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const isAgent = post.authorKind === 'agent'
   const isChannel =
     post.authorKind === 'channel' || post.authorKind === 'system'
+  const [dlError, setDlError] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const attachments = (() => {
+    const fromPost = post.attachments || []
+    const fromText = parseFileMarkers(post.content || '', post.scopeId)
+    const map = new Map<string, RoomFileAttachment>()
+    for (const a of [...fromPost, ...fromText]) {
+      if (a.fileId) map.set(a.fileId, a)
+    }
+    return [...map.values()]
+  })()
 
   return (
     <article
@@ -143,6 +191,38 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
             </span>
           ))}
         </div>
+      )}
+      {attachments.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
+          {attachments.map((a) => (
+            <button
+              key={a.fileId}
+              type="button"
+              dir="ltr"
+              disabled={busyId === a.fileId}
+              onClick={() => {
+                setDlError('')
+                setBusyId(a.fileId)
+                void downloadAttachment(a)
+                  .catch((e) =>
+                    setDlError(e instanceof Error ? e.message : 'فشل التنزيل')
+                  )
+                  .finally(() => setBusyId(null))
+              }}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+            >
+              <Download className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">
+                {busyId === a.fileId ? 'جاري التنزيل…' : a.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {dlError && (
+        <p className="mt-1 text-[11px] text-red-600" dir="rtl">
+          {dlError}
+        </p>
       )}
       {post.pendingApprovalId && (
         <p className="mt-2 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-2 py-1.5 text-[11px] text-ab-warn">

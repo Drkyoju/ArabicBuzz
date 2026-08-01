@@ -14,6 +14,7 @@ import {
   Sparkles,
   Brain,
   MoreHorizontal,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -27,6 +28,7 @@ export type SidebarSection =
   | 'memory'
   | 'approvals'
   | 'skills'
+  | 'api-keys'
   | 'settings'
 
 const NAV: Array<{
@@ -39,6 +41,7 @@ const NAV: Array<{
   { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
+  { id: 'api-keys', labelAr: 'مفاتيح API', icon: KeyRound },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
 

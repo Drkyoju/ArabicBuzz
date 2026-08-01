@@ -7,6 +7,12 @@ import {
 } from '@/lib/ai/harness-catalog'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 
+type ModelAvailRow = { slug: string; available: boolean; labelAr?: string }
+
+/**
+ * Shows only models whose provider key is present AND live-verified.
+ * Blocked models stay out of the list until an API key is added in «مفاتيح API».
+ */
 export function ModelPicker({
   airGapped = false,
   compact,
@@ -17,30 +23,44 @@ export function ModelPicker({
   const { selectedModel, setSelectedModel } = useModelPickerStore()
   const catalog = listAvailableHarnessModels(airGapped)
   const [availableSlugs, setAvailableSlugs] = useState<Set<string> | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     void fetch('/api/settings/providers')
       .then((r) => r.json())
-      .then((d: { models?: Array<{ slug: string; available: boolean }> }) => {
+      .then((d: { models?: ModelAvailRow[] }) => {
         if (cancelled || !Array.isArray(d.models)) return
-        setAvailableSlugs(
-          new Set(d.models.filter((m) => m.available).map((m) => m.slug))
+        const ok = new Set(
+          d.models.filter((m) => m.available).map((m) => m.slug)
         )
+        setAvailableSlugs(ok)
+        setLoaded(true)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) setLoaded(true)
+      })
     return () => {
       cancelled = true
     }
   }, [airGapped])
 
-  const models = useMemo(() => {
-    if (!availableSlugs) return catalog
-    return [
-      ...catalog.filter((m) => availableSlugs.has(m.slug)),
-      ...catalog.filter((m) => !availableSlugs.has(m.slug)),
-    ]
+  const readyModels = useMemo(() => {
+    if (!availableSlugs) {
+      // Before probe finishes: prefer Gemini/GLM only (known env keys on this site)
+      return catalog.filter(
+        (m) => m.provider === 'google' || m.provider === 'glm'
+      )
+    }
+    return catalog.filter((m) => availableSlugs.has(m.slug))
   }, [catalog, availableSlugs])
+
+  useEffect(() => {
+    if (!loaded || !availableSlugs) return
+    if (availableSlugs.has(selectedModel)) return
+    const fallback = readyModels[0]?.slug
+    if (fallback) setSelectedModel(fallback as HarnessModelSlug)
+  }, [loaded, availableSlugs, selectedModel, readyModels, setSelectedModel])
 
   return (
     <label
@@ -58,25 +78,27 @@ export function ModelPicker({
             ? 'max-w-[9.5rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
             : 'max-w-[220px] rounded-md border border-ab-border bg-white px-3 py-1.5'
         }
-        value={selectedModel}
+        value={
+          readyModels.some((m) => m.slug === selectedModel)
+            ? selectedModel
+            : readyModels[0]?.slug || ''
+        }
         onChange={(e) =>
           setSelectedModel(e.target.value as HarnessModelSlug)
         }
+        disabled={readyModels.length === 0}
       >
-        {models.map((m) => {
-          const ok = !availableSlugs || availableSlugs.has(m.slug)
-          return (
-            <option key={m.slug} value={m.slug} disabled={!ok}>
-              {compact
-                ? ok
-                  ? m.labelAr
-                  : `${m.labelAr} · مفتاح`
-                : ok
-                  ? `${m.labelAr} · ${m.provider}`
-                  : `${m.labelAr} · يحتاج مفتاحاً`}
+        {readyModels.length === 0 ? (
+          <option value="">
+            {loaded ? 'لا نموذج جاهز — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
+          </option>
+        ) : (
+          readyModels.map((m) => (
+            <option key={m.slug} value={m.slug}>
+              {compact ? m.labelAr : `${m.labelAr} · ${m.provider}`}
             </option>
-          )
-        })}
+          ))
+        )}
       </select>
     </label>
   )
