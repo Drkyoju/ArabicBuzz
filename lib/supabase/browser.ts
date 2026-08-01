@@ -15,7 +15,7 @@ export function isSupabaseConfigured() {
   return Boolean(url && anonKey)
 }
 
-/** Browser Supabase client (Google / GitHub OAuth). */
+/** Browser Supabase client (email + optional OAuth). */
 export function createBrowserSupabaseClient(): SupabaseClient {
   const { url, anonKey } = publicSupabaseConfig()
   if (!url || !anonKey) {
@@ -42,7 +42,32 @@ export function getAuthRedirectTo() {
   return `${base.replace(/\/$/, '')}/auth/callback`
 }
 
-/** Start Google or GitHub OAuth via Supabase. */
+/** Email + password sign-in. */
+export async function signInWithEmail(email: string, password: string) {
+  const supabase = createBrowserSupabaseClient()
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  })
+  if (error) throw error
+  return data
+}
+
+/** Email + password registration. */
+export async function signUpWithEmail(email: string, password: string) {
+  const supabase = createBrowserSupabaseClient()
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      emailRedirectTo: getAuthRedirectTo(),
+    },
+  })
+  if (error) throw error
+  return data
+}
+
+/** Start Google or GitHub OAuth via Supabase (optional). */
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
   const supabase = createBrowserSupabaseClient()
   const { data, error } = await supabase.auth.signInWithOAuth({

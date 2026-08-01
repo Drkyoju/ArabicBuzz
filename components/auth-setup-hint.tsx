@@ -1,34 +1,33 @@
 'use client'
 
 /**
- * Lightweight Auth setup checklist (Google + GitHub) for team access.
- * OAuth client secrets must be pasted in Supabase Dashboard — cannot be automated.
+ * Auth setup checklist — email is primary; OAuth optional.
  */
 export function AuthSetupHint() {
   return (
-    <div className="rounded-lg border border-ab-border bg-ab-surface p-4 text-sm" dir="rtl">
-      <h3 className="mb-2 font-semibold">تفعيل دخول الفريق (Google / GitHub)</h3>
+    <div
+      className="rounded-lg border border-ab-border bg-ab-surface p-4 text-sm"
+      dir="rtl"
+    >
+      <h3 className="mb-2 font-semibold">تسجيل الدخول بالبريد</h3>
       <ol className="list-decimal space-y-1 pr-5 text-xs text-stone-600">
         <li>
-          Supabase → Authentication → URL Configuration:
+          Supabase → Authentication → Providers → <strong>Email</strong> يجب أن
+          يكون مفعّلاً (افتراضي).
+        </li>
+        <li>
+          للتجربة السريعة: عطّل «Confirm email» تحت Email حتى يدخل الزملاء فوراً
+          بعد إنشاء الحساب.
+        </li>
+        <li>
+          URL Configuration:
           <br />
           Site URL = <code dir="ltr">https://arabicbuzz.netlify.app</code>
           <br />
           Redirect ={' '}
           <code dir="ltr">https://arabicbuzz.netlify.app/auth/callback</code>
         </li>
-        <li>
-          Google Cloud OAuth + GitHub OAuth App → callback:
-          <br />
-          <code dir="ltr">
-            https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback
-          </code>
-        </li>
-        <li>فعّل المزودين في Supabase → Authentication → Providers</li>
-        <li>
-          (اختياري) أضف OPENROUTER_API_KEY على Netlify لـ Claude / DeepSeek /
-          Qwen
-        </li>
+        <li>Google / GitHub اختياري من زر «أو استخدم Google / GitHub».</li>
       </ol>
     </div>
   )

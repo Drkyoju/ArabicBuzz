@@ -81,7 +81,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">الحساب وتسجيل الدخول</h3>
               <p className="mb-3 text-sm text-stone-600">
-                Google أو GitHub — النماذج مشتركة للفريق عبر مفاتيح Netlify.
+                Google أو GitHub اختياري — الافتراضي: بريد وكلمة مرور.
               </p>
               <AuthButtons />
             </div>
