@@ -42,26 +42,54 @@ export function getAuthRedirectTo() {
   return `${base.replace(/\/$/, '')}/auth/callback`
 }
 
-/** Email + password sign-in. */
-export async function signInWithEmail(email: string, password: string) {
+/** Email + password registration (uses server admin → instant confirm). */
+export async function signUpWithEmail(email: string, password: string) {
+  const res = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), password }),
+  })
+  const payload = (await res.json()) as {
+    error?: string
+    session?: {
+      access_token: string
+      refresh_token: string
+    }
+    user?: unknown
+  }
+  if (!res.ok || !payload.session) {
+    throw new Error(payload.error || 'تعذّر إنشاء الحساب')
+  }
   const supabase = createBrowserSupabaseClient()
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
+  const { data, error } = await supabase.auth.setSession({
+    access_token: payload.session.access_token,
+    refresh_token: payload.session.refresh_token,
   })
   if (error) throw error
   return data
 }
 
-/** Email + password registration. */
-export async function signUpWithEmail(email: string, password: string) {
+/** Email + password sign-in (server-backed, then browser session). */
+export async function signInWithEmail(email: string, password: string) {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim(), password }),
+  })
+  const payload = (await res.json()) as {
+    error?: string
+    session?: {
+      access_token: string
+      refresh_token: string
+    }
+  }
+  if (!res.ok || !payload.session) {
+    throw new Error(payload.error || 'تعذّر تسجيل الدخول')
+  }
   const supabase = createBrowserSupabaseClient()
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
-    options: {
-      emailRedirectTo: getAuthRedirectTo(),
-    },
+  const { data, error } = await supabase.auth.setSession({
+    access_token: payload.session.access_token,
+    refresh_token: payload.session.refresh_token,
   })
   if (error) throw error
   return data

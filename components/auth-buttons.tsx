@@ -48,17 +48,10 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         router.replace('/')
         router.refresh()
       } else {
-        const data = await signUpWithEmail(email, password)
-        if (data.session) {
-          setUser(data.session.user)
-          router.replace('/')
-          router.refresh()
-        } else {
-          setInfo(
-            'تم إنشاء الحساب. إن كان تأكيد البريد مفعّلاً في Supabase، افتح رابط التأكيد ثم سجّل الدخول.'
-          )
-          setMode('signin')
-        }
+        await signUpWithEmail(email, password)
+        setUser((await getBrowserSession())?.user ?? null)
+        router.replace('/')
+        router.refresh()
       }
     } catch (err) {
       setError(

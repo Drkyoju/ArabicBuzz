@@ -1,8 +1,6 @@
 'use client'
 
-/**
- * Auth setup checklist — email is primary; OAuth optional.
- */
+/** Auth setup notes — email works via service_role admin APIs. */
 export function AuthSetupHint() {
   return (
     <div
@@ -10,24 +8,24 @@ export function AuthSetupHint() {
       dir="rtl"
     >
       <h3 className="mb-2 font-semibold">تسجيل الدخول بالبريد</h3>
+      <p className="mb-2 text-xs text-stone-600">
+        إنشاء الحساب يتم عبر الخادم بمفتاح service_role مع تأكيد فوري — لا حاجة
+        لتعطيل Confirm email يدوياً.
+      </p>
       <ol className="list-decimal space-y-1 pr-5 text-xs text-stone-600">
         <li>
-          Supabase → Authentication → Providers → <strong>Email</strong> يجب أن
-          يكون مفعّلاً (افتراضي).
-        </li>
-        <li>
-          للتجربة السريعة: عطّل «Confirm email» تحت Email حتى يدخل الزملاء فوراً
-          بعد إنشاء الحساب.
-        </li>
-        <li>
-          URL Configuration:
+          Site URL / Redirect في Authentication → URL Configuration:
           <br />
-          Site URL = <code dir="ltr">https://arabicbuzz.netlify.app</code>
+          <code dir="ltr">https://arabicbuzz.netlify.app</code>
           <br />
-          Redirect ={' '}
           <code dir="ltr">https://arabicbuzz.netlify.app/auth/callback</code>
         </li>
-        <li>Google / GitHub اختياري من زر «أو استخدم Google / GitHub».</li>
+        <li>
+          لتغيير إعدادات المزودين من لوحة التحكم برمجياً يلزم{' '}
+          <strong>Personal Access Token</strong> من حساب Supabase (ليس مفتاح
+          المشروع anon/service_role).
+        </li>
+        <li>Google / GitHub اختياري من الواجهة.</li>
       </ol>
     </div>
   )
