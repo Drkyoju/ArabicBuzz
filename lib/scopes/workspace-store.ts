@@ -17,9 +17,9 @@ function seedPosts(): Record<string, RoomPost[]> {
         scopeId: 'personal-demo',
         authorKind: 'agent',
         authorId: 'agent-desk',
-        authorNameAr: 'وكيلك الشخصي',
+        authorNameAr: 'الوكيل الشخصي',
         content:
-          'مرحباً. هذه مساحتك الشخصية — الذاكرة والملفات هنا خاصة بك. اكتب أي مهمة وسأعمل معك.',
+          'هذه مساحتك الشخصية اليومية — خاصة بك فقط (لا زملاء ولا دعوات). الذاكرة والملفات هنا منفصلة عن «مكتب البحث» وعن غرف الفريق. اكتب مهمة سريعة وسأساعدك.',
         createdAt: now - 60_000,
       },
     ],
@@ -31,7 +31,7 @@ function seedPosts(): Record<string, RoomPost[]> {
         authorId: 'agent-research',
         authorNameAr: 'وكيل البحث',
         content:
-          'مساحة البحث جاهزة. يمكنك صياغة مسودات هنا قبل نقلها إلى غرفة الفريق.',
+          'مرحباً في مكتب البحث. هنا للمسودات والتحليل قبل المشاركة مع الفريق — جرب أفكاراً، قارن خيارات، وصِغ مسودة. عندما تصبح جاهزة، انقلها يدوياً إلى «غرفة الفريق».',
         createdAt: now - 50_000,
       },
     ],
@@ -80,15 +80,25 @@ function seedPosts(): Record<string, RoomPost[]> {
       {
         id: 'o-seed-1',
         scopeId: 'shared-ops',
+        authorKind: 'system',
+        authorId: 'system',
+        authorNameAr: 'النظام',
+        content:
+          'مرحباً في غرفة العمليات. هنا تتابع التشغيل: الـ Cron، تنبيهات القنوات، وحالة الإرسال — القرارات والاجتماعات تكون في «غرفة الفريق».',
+        createdAt: now - 100_000,
+      },
+      {
+        id: 'o-seed-2',
+        scopeId: 'shared-ops',
         authorKind: 'agent',
         authorId: 'agent-cron',
         authorNameAr: 'وكيل الجدولة',
         content:
-          'آخر تشغيل للـ Cron نجح. الملخص الصباحي مجدول الساعة 09:00 بتوقيت الرياض.',
+          'آخر تشغيل للـ Cron نجح. الملخص الصباحي مجدول الساعة 09:00 بتوقيت الرياض. اسألني عن سجل التشغيل أو أعد الجدولة.',
         createdAt: now - 80_000,
       },
       {
-        id: 'o-seed-2',
+        id: 'o-seed-3',
         scopeId: 'shared-ops',
         authorKind: 'human',
         authorId: 'user-2',
@@ -97,13 +107,13 @@ function seedPosts(): Record<string, RoomPost[]> {
         createdAt: now - 55_000,
       },
       {
-        id: 'o-seed-3',
+        id: 'o-seed-4',
         scopeId: 'shared-ops',
         authorKind: 'agent',
         authorId: 'agent-channels',
         authorNameAr: 'وكيل القنوات',
         content:
-          'نعم — تيليجرام وواتساب مربوطان بمساحة العمليات. الموافقات عالية المخاطر تصل كأزرار مضمنة.',
+          'نعم — تيليجرام وواتساب للتنبيه فقط (مو دعوة أعضاء). الموافقات عالية المخاطر تصل كأزرار مضمنة إن وُجدت.',
         createdAt: now - 30_000,
       },
     ],
@@ -123,6 +133,8 @@ type WorkspaceState = {
   updatePost: (scopeId: string, postId: string, patch: Partial<RoomPost>) => void
   setPostsForScope: (scopeId: string, posts: RoomPost[]) => void
   mergePost: (post: RoomPost) => void
+  /** Create a fresh personal desk and activate it. Returns the new scope id. */
+  createPersonalDesk: (opts?: { nameAr?: string }) => string
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -195,4 +207,47 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         },
       }
     }),
+
+  createPersonalDesk: (opts) => {
+    const n =
+      get().scopes.filter((s) => 'userId' in s && s.id.startsWith('personal-')).length +
+      1
+    const id = `personal-${Date.now().toString(36)}`
+    const nameAr = opts?.nameAr?.trim() || `جلسة ${n}`
+    const scope: Scope = {
+      id,
+      nameAr,
+      descriptionAr: 'مساحة شخصية جديدة — مهام وملفات وذاكرة خاصة بك.',
+      userId: 'user-1',
+      keychain: {},
+      privateMemory: [
+        'مساحة شخصية جديدة أنشأها المستخدم من «جلسة جديدة».',
+      ],
+    }
+    set((state) => ({
+      scopes: [scope, ...state.scopes],
+      activeScopeId: id,
+      postsByScope: {
+        ...state.postsByScope,
+        [id]: [
+          {
+            id: `welcome-${id}`,
+            scopeId: id,
+            authorKind: 'agent',
+            authorId: 'agent-desk',
+            authorNameAr: 'الوكيل الشخصي',
+            content:
+              'جلسة جديدة جاهزة. اكتب مهمتك أو تكلم بالميكروفون — هذه المساحة خاصة بك.',
+            createdAt: Date.now(),
+          },
+        ],
+      },
+    }))
+    try {
+      localStorage.setItem('ab-active-scope', id)
+    } catch {
+      /* ignore */
+    }
+    return id
+  },
 }))

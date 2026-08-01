@@ -5,6 +5,10 @@ import {
   listLocalFiles,
   saveLocalFile,
 } from '@/lib/storage/local'
+import {
+  listCloudFiles,
+  saveCloudFile,
+} from '@/lib/storage/cloud'
 import { insertRoomPost } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
@@ -72,20 +76,36 @@ export async function GET(req: Request) {
   }
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
   try {
-    if (!isLocalStorageEnabled()) {
-      return Response.json({
-        files: [],
-        storage: getStorageStatus(),
-        macSyncConfigured: Boolean(process.env.MAC_SYNC_URL),
-        error:
-          'التخزين المحلي غير متاح على هذا الخادم. شغّل npm run storage:sync على الماك أو npm run dev محلياً.',
-      })
+    let files: unknown[] = []
+    let source: 'local' | 'cloud' | 'none' = 'none'
+    let listError: string | undefined
+
+    if (isLocalStorageEnabled()) {
+      try {
+        files = listLocalFiles(scopeId)
+        source = 'local'
+      } catch (e) {
+        listError = e instanceof Error ? e.message : 'local list failed'
+      }
     }
-    const files = listLocalFiles(scopeId)
+
+    if (files.length === 0) {
+      const cloud = await listCloudFiles(scopeId)
+      if (cloud.length > 0) {
+        files = cloud
+        source = 'cloud'
+      }
+    }
+
     return Response.json({
       files,
+      source,
       storage: getStorageStatus(),
       macSyncConfigured: Boolean(process.env.MAC_SYNC_URL),
+      error:
+        files.length === 0 && !isLocalStorageEnabled() && !process.env.MAC_SYNC_URL
+          ? 'التخزين المحلي غير متاح هنا — الرفع يحفظ سحابياً (حتى 4MB) أو استخدم «عقل الشركة» للمستندات.'
+          : listError,
     })
   } catch (e) {
     return Response.json(
@@ -149,24 +169,37 @@ export async function POST(req: Request) {
         originalName: file.name || 'upload.bin',
         mimeType: file.type || 'application/octet-stream',
       })
-      if (!forwarded.ok || !forwarded.file) {
+      if (forwarded.ok && forwarded.file) {
+        meta = forwarded.file as {
+          id: string
+          kind: string
+          originalName: string
+          size: number
+          [k: string]: unknown
+        }
+        messageAr = forwarded.messageAr || messageAr
+      }
+    }
+
+    if (!meta) {
+      const cloud = await saveCloudFile({
+        scopeId,
+        buffer: buf,
+        originalName: file.name || 'upload.bin',
+        mimeType: file.type || 'application/octet-stream',
+      })
+      if (!cloud.ok) {
         return Response.json(
           {
             error:
-              forwarded.error ||
-              'التخزين على الماك غير مفعّل هنا. شغّل npm run dev محلياً أو npm run storage:sync مع MAC_SYNC_URL.',
+              cloud.error ||
+              'تعذّر الحفظ. جرّب «عقل الشركة» للمستندات أو شغّل التخزين المحلي على الماك.',
           },
           { status: 503 }
         )
       }
-      meta = forwarded.file as {
-        id: string
-        kind: string
-        originalName: string
-        size: number
-        [k: string]: unknown
-      }
-      messageAr = forwarded.messageAr || messageAr
+      meta = cloud.file
+      messageAr = 'حُفظ الملف في التخزين السحابي للغرفة (احتياطي Netlify)'
     }
 
     const kindAr =
@@ -192,7 +225,7 @@ export async function POST(req: Request) {
         auth.user.email ||
         auth.user.user_metadata?.full_name ||
         'مستخدم',
-      content: `📎 تم حفظ ${kindAr} على جهاز الماك: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)\nالمعرّف: ${meta!.id}`,
+      content: `📎 تم حفظ ${kindAr}: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)\nالمعرّف: ${meta!.id}`,
     })
 
     return Response.json({

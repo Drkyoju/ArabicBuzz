@@ -22,6 +22,8 @@ export async function GET(req: Request) {
       titleAr: r.title_ar,
       content: r.content,
       language: r.language,
+      updatedBy: r.updated_by || null,
+      updatedAt: r.updated_at || null,
       isEditing: false,
     })
   )

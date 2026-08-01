@@ -219,3 +219,26 @@ model ScopePermission {
   @@index([orgId])
   @@map("scope_permissions")
 }
+
+/// Runtime API keys saved from الإعدادات (overrides env).
+model ProviderApiKey {
+  envName   String   @id @map("env_name")
+  valueEnc  String   @map("value_enc")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("provider_api_keys")
+}
+
+/// User-created skills with custom Arabic names.
+model WorkspaceSkill {
+  id                  String   @id
+  name                String
+  description         String
+  scope               String
+  author              String?
+  systemInstructions  String   @map("system_instructions")
+  toolsRequired       Json?    @map("tools_required")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("workspace_skills")
+}

@@ -4,6 +4,7 @@ import {
   ingestArabicDocument,
 } from '@/lib/rag/ingest'
 import { readLocalFile } from '@/lib/storage/local'
+import { readCloudFile } from '@/lib/storage/cloud'
 import { insertRoomPost } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
@@ -61,10 +62,18 @@ export async function POST(req: Request) {
         text = body.text
         extractMethod = 'plain'
       } else if (body.localFileId) {
-        const local = readLocalFile(scopeId, body.localFileId)
+        let local: Awaited<ReturnType<typeof readCloudFile>> = null
+        try {
+          local = readLocalFile(scopeId, body.localFileId)
+        } catch {
+          local = null
+        }
+        if (!local) {
+          local = await readCloudFile(scopeId, body.localFileId)
+        }
         if (!local) {
           return Response.json(
-            { error: 'الملف غير موجود على تخزين الماك' },
+            { error: 'الملف غير موجود (ماك أو سحابة)' },
             { status: 404 }
           )
         }

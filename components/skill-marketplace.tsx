@@ -1,114 +1,270 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Plus, Sparkles } from 'lucide-react'
 import {
   KSA_SKILL_CATALOG,
-  KSASkillItem,
-  searchMarketplaceSkills,
+  type KSASkillItem,
 } from '@/lib/skills/marketplace'
 
-const CATEGORIES: Array<KSASkillItem['category'] | 'الكل'> = [
-  'الكل',
-  'حوكمة',
-  'مالية',
-  'أنظمة وشؤون قانونية',
-  'موارد بشرية',
-]
+type InstalledSkill = {
+  id: string
+  name: string
+  description: string
+  scope: 'personal' | 'shared'
+  author?: string
+}
 
 export function SkillMarketplace({
   targetScopeId = 'shared-demo',
 }: {
   targetScopeId?: string
 }) {
-  const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('الكل')
+  const scopeKind = targetScopeId.startsWith('personal')
+    ? 'personal'
+    : 'shared'
+
+  const [nameAr, setNameAr] = useState('')
+  const [descriptionAr, setDescriptionAr] = useState('')
+  const [instructionsAr, setInstructionsAr] = useState('')
   const [message, setMessage] = useState('')
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [installBusy, setInstallBusy] = useState<string | null>(null)
+  const [mine, setMine] = useState<InstalledSkill[]>([])
+  const [showCatalog, setShowCatalog] = useState(false)
 
-  const skills = useMemo(
-    () =>
-      searchMarketplaceSkills(
-        query,
-        category === 'الكل' ? undefined : category
-      ),
-    [query, category]
-  )
-
-  async function install(skillId: string) {
-    setMessage('')
-    setBusyId(skillId)
+  const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/skills/install', {
+      const res = await fetch(`/api/skills?scope=${scopeKind}`)
+      const data = (await res.json()) as { skills?: InstalledSkill[] }
+      setMine(Array.isArray(data.skills) ? data.skills : [])
+    } catch {
+      setMine([])
+    }
+  }, [scopeKind])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  async function createCustom(e: FormEvent) {
+    e.preventDefault()
+    setMessage('')
+    setError('')
+    const name = nameAr.trim()
+    if (!name) {
+      setError('اكتب اسم المهارة كما تريده')
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await fetch('/api/skills', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'user-1',
-          'x-org-id': 'org-demo',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          skillId,
+          name,
+          description: descriptionAr.trim() || name,
+          scope: scopeKind,
+          author: 'أنت',
+          systemInstructions:
+            instructionsAr.trim() ||
+            `أنت مهارة باسم «${name}». نفّذ الطلبات ضمن هذا الدور بالعربية الفصحى.`,
           targetScopeId,
-          userId: 'user-1',
-          orgId: 'org-demo',
         }),
       })
-      const data = (await res.json()) as { message?: string; error?: string }
-      setMessage(data.message || data.error || (res.ok ? 'تم' : 'فشل التثبيت'))
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'خطأ في التثبيت')
+      const data = (await res.json()) as {
+        error?: string
+        skill?: InstalledSkill
+      }
+      if (!res.ok) throw new Error(data.error || 'تعذر الحفظ')
+      setMessage(`أُضيفت المهارة «${name}»`)
+      setNameAr('')
+      setDescriptionAr('')
+      setInstructionsAr('')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذر الحفظ')
     } finally {
-      setBusyId(null)
+      setBusy(false)
+    }
+  }
+
+  async function installCatalog(skill: KSASkillItem) {
+    setMessage('')
+    setError('')
+    setInstallBusy(skill.id)
+    try {
+      // Save under the catalog Arabic name via custom skills API so user owns the name
+      const res = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: skill.id,
+          name: skill.nameAr,
+          description: skill.descriptionAr,
+          scope: scopeKind,
+          author: skill.author,
+          systemInstructions: skill.skillMarkdownContent.replace(
+            /^---[\s\S]*?---\s*/,
+            ''
+          ),
+          targetScopeId,
+        }),
+      })
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل التثبيت')
+      setMessage(`أُضيفت «${skill.nameAr}» — يمكنك تعديل الاسم لاحقاً بإضافة مهارة جديدة`)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل التثبيت')
+    } finally {
+      setInstallBusy(null)
     }
   }
 
   return (
-    <section className="border-t border-ab-border bg-ab-bg px-4 py-8">
-      <h2 className="mb-4 text-xl font-bold">سوق المهارات السعودية</h2>
-      <div className="mb-4 flex flex-wrap gap-3">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث عن مهارة..."
-          className="min-w-[220px] flex-1 rounded-md border border-ab-border bg-white px-3 py-2"
-        />
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`rounded-md px-3 py-1.5 text-sm border ${
-                category === c
-                  ? 'border-ab-accent bg-ab-accent/10 text-ab-accent'
-                  : 'border-ab-border bg-white'
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
+    <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-ab-ink">مهاراتك</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          سمِّ المهارة كما تريد — مو أسماء جاهزة إجبارية. اكتب الاسم والوصف
+          والتعليمات، ثم احفظ.
+        </p>
       </div>
+
+      <form
+        onSubmit={(e) => void createCustom(e)}
+        className="mb-8 rounded-xl border border-ab-border bg-white p-4"
+      >
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Plus className="h-4 w-4" aria-hidden />
+          أضف مهارة باسمك
+        </h3>
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[11px] font-medium text-stone-500">
+            الاسم (اختَر أنت)
+          </span>
+          <input
+            value={nameAr}
+            onChange={(e) => setNameAr(e.target.value)}
+            placeholder="مثال: مراجع عقود الشركة، مساعد المبيعات…"
+            className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+            required
+          />
+        </label>
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[11px] font-medium text-stone-500">
+            وصف مختصر
+          </span>
+          <input
+            value={descriptionAr}
+            onChange={(e) => setDescriptionAr(e.target.value)}
+            placeholder="ماذا تفعل هذه المهارة؟"
+            className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="mb-4 block">
+          <span className="mb-1 block text-[11px] font-medium text-stone-500">
+            تعليمات للوكيل (اختياري)
+          </span>
+          <textarea
+            value={instructionsAr}
+            onChange={(e) => setInstructionsAr(e.target.value)}
+            rows={4}
+            placeholder="كيف يتصرف الوكيل عند استخدام هذه المهارة…"
+            className="w-full resize-y rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-md bg-ab-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {busy ? 'جاري الحفظ…' : 'حفظ المهارة'}
+        </button>
+      </form>
+
       {message && (
-        <p className="mb-4 text-sm text-ab-accent">{message}</p>
+        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          {message}
+        </p>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {(skills.length ? skills : KSA_SKILL_CATALOG).map((skill) => (
-          <article
-            key={skill.id}
-            className="rounded-lg border border-ab-border bg-ab-surface p-4"
-          >
-            <div className="mb-2 text-xs text-ab-accent">{skill.category}</div>
-            <h3 className="mb-2 font-semibold">{skill.nameAr}</h3>
-            <p className="mb-4 text-sm text-stone-600">{skill.descriptionAr}</p>
-            <button
-              type="button"
-              disabled={busyId === skill.id}
-              onClick={() => void install(skill.id)}
-              className="rounded-md bg-ab-accent px-3 py-2 text-sm text-white disabled:opacity-40"
-            >
-              {busyId === skill.id ? 'جاري التثبيت…' : 'تثبيت المهارة'}
-            </button>
-          </article>
-        ))}
+      {error && (
+        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </p>
+      )}
+
+      <div className="mb-8">
+        <h3 className="mb-2 text-sm font-semibold text-ab-ink">
+          مهاراتك الحالية ({mine.length})
+        </h3>
+        {mine.length === 0 ? (
+          <p className="text-xs text-stone-500">
+            لا يوجد بعد — أضف أول مهارة بالاسم اللي تبيه فوق.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {mine.map((s) => (
+              <li
+                key={s.id}
+                className="rounded-lg border border-ab-border bg-ab-surface px-3 py-2"
+              >
+                <p className="text-sm font-semibold text-ab-ink">{s.name}</p>
+                <p className="text-xs text-stone-500">{s.description}</p>
+                <p className="mt-0.5 font-mono text-[10px] text-stone-400" dir="ltr">
+                  {s.id}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-dashed border-ab-border bg-ab-stage/50 p-4">
+        <button
+          type="button"
+          onClick={() => setShowCatalog((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-sm font-semibold text-ab-ink"
+        >
+          <span className="inline-flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-ab-accent" aria-hidden />
+            اقتراحات جاهزة (اختياري)
+          </span>
+          <span className="text-xs font-normal text-stone-500">
+            {showCatalog ? 'إخفاء' : 'عرض'}
+          </span>
+        </button>
+        <p className="mt-1 text-[11px] text-stone-500">
+          مو إجبارية — تقدر تنسخ الفكرة أو تضيف مهارة باسمك من الفورم فوق.
+        </p>
+        {showCatalog && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {KSA_SKILL_CATALOG.map((skill) => (
+              <article
+                key={skill.id}
+                className="rounded-lg border border-ab-border bg-white p-3"
+              >
+                <div className="mb-1 text-[10px] text-ab-accent">
+                  {skill.category}
+                </div>
+                <h4 className="mb-1 text-sm font-semibold">{skill.nameAr}</h4>
+                <p className="mb-3 text-xs text-stone-600">
+                  {skill.descriptionAr}
+                </p>
+                <button
+                  type="button"
+                  disabled={installBusy === skill.id}
+                  onClick={() => void installCatalog(skill)}
+                  className="rounded-md border border-ab-border px-2.5 py-1.5 text-xs font-medium hover:bg-stone-50 disabled:opacity-40"
+                >
+                  {installBusy === skill.id ? '…' : 'إضافة بهذا الاسم'}
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )

@@ -12,6 +12,9 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response
 
   try {
+    const { warmProviderKeyCache } = await import('@/lib/ai/provider-key-store')
+    await warmProviderKeyCache()
+
     const contentType = req.headers.get('content-type') || ''
     let buffer: Buffer
     let mimeType = 'audio/webm'

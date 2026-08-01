@@ -90,6 +90,14 @@ export function CanvasViewer({
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ab-ink">
           {active.titleAr}
         </h2>
+        {(active.updatedBy || active.updatedAt) && (
+          <p className="hidden max-w-[10rem] truncate text-[10px] text-stone-400 sm:block" dir="ltr">
+            {active.updatedBy || '—'}
+            {active.updatedAt
+              ? ` · ${new Date(active.updatedAt).toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}`
+              : ''}
+          </p>
+        )}
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"

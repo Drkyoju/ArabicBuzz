@@ -4,6 +4,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { createPerplexity } from '@ai-sdk/perplexity'
 import { IS_AIR_GAPPED_MODE, validateNetworkAccess } from '@/lib/security/airgap'
 import type { HarnessModelSlug } from '@/lib/ai/harness-catalog'
+import { resolveProviderKeySync } from '@/lib/ai/provider-key-store'
 
 export const AIRGAP_ALLOWED_MODELS = (
   process.env.AIRGAP_ALLOWED_MODELS || 'qwen2.5:32b,ALLaM,deepseek-r1'
@@ -13,7 +14,11 @@ export const AIRGAP_ALLOWED_MODELS = (
   .filter(Boolean)
 
 export function getOllamaBaseUrl() {
-  return process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1'
+  return (
+    resolveProviderKeySync('OLLAMA_BASE_URL') ||
+    process.env.OLLAMA_BASE_URL ||
+    'http://localhost:11434/v1'
+  )
 }
 
 export function createOllamaProvider() {
@@ -27,7 +32,8 @@ export function createOllamaProvider() {
 
 /**
  * Cloud providers for the multi-model gateway.
- * Keys come from Netlify Environment Variables / `.env.local`.
+ * Keys: UI override (encrypted DB) → Netlify / `.env.local`.
+ * Call `warmProviderKeyCache()` on the request path first.
  */
 export function getCloudProviders() {
   if (IS_AIR_GAPPED_MODE) {
@@ -37,23 +43,72 @@ export function getCloudProviders() {
   }
   return {
     openrouter: createOpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY || '',
+      apiKey: resolveProviderKeySync('OPENROUTER_API_KEY'),
     }),
     google: createGoogleGenerativeAI({
-      apiKey: process.env.GEMINI_API_KEY || '',
+      apiKey: resolveProviderKeySync('GEMINI_API_KEY'),
     }),
     perplexity: createPerplexity({
-      apiKey: process.env.PERPLEXITY_API_KEY || '',
+      apiKey: resolveProviderKeySync('PERPLEXITY_API_KEY'),
     }),
     openaiCloud: createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY || '',
+      apiKey: resolveProviderKeySync('OPENAI_API_KEY'),
     }),
     /** Z.AI / Zhipu GLM — OpenAI-compatible (https://api.z.ai/api/paas/v4) */
     glm: createOpenAI({
-      apiKey: process.env.GLM_API_KEY || process.env.ZHIPU_API_KEY || '',
+      apiKey: resolveProviderKeySync('GLM_API_KEY'),
       baseURL:
         process.env.GLM_BASE_URL || 'https://api.z.ai/api/paas/v4',
     }),
+  }
+}
+
+/** Throw a clear Arabic error if the selected model's key is missing. */
+export function assertModelKeyConfigured(modelId: string) {
+  const id = (modelId || '').trim()
+  const checks: Array<{ match: (s: string) => boolean; env: string; label: string }> = [
+    {
+      match: (s) => s.startsWith('gemini') || s.includes('gemini'),
+      env: 'GEMINI_API_KEY',
+      label: 'Gemini',
+    },
+    {
+      match: (s) =>
+        s.startsWith('openai') || s === 'gpt-4o' || s === 'gpt-4o-mini',
+      env: 'OPENAI_API_KEY',
+      label: 'OpenAI',
+    },
+    {
+      match: (s) => s.startsWith('glm') || s === 'glm',
+      env: 'GLM_API_KEY',
+      label: 'GLM',
+    },
+    {
+      match: (s) => s.startsWith('perplexity') || s.startsWith('sonar'),
+      env: 'PERPLEXITY_API_KEY',
+      label: 'Perplexity',
+    },
+    {
+      match: (s) =>
+        s.includes('/') ||
+        s.startsWith('claude') ||
+        s.startsWith('deepseek') ||
+        s.startsWith('qwen') ||
+        s.startsWith('kimi') ||
+        s.startsWith('hermes'),
+      env: 'OPENROUTER_API_KEY',
+      label: 'OpenRouter',
+    },
+  ]
+  if (IS_AIR_GAPPED_MODE || id === 'ollama-local') return
+  for (const c of checks) {
+    if (!c.match(id)) continue
+    if (!resolveProviderKeySync(c.env)) {
+      throw new Error(
+        `مفتاح ${c.label} غير مضبوط. افتح الإعدادات ← مفاتيح المزوّدين وأضف ${c.env}.`
+      )
+    }
+    return
   }
 }
 
@@ -116,6 +171,7 @@ export class UnknownModelError extends Error {
  */
 export function getModel(modelId: string) {
   const id = (modelId || process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash').trim()
+  assertModelKeyConfigured(id)
 
   if (IS_AIR_GAPPED_MODE || id === 'ollama-local') {
     const ollama = createOllamaProvider()
@@ -139,11 +195,6 @@ export function getModel(modelId: string) {
 
   const glmId = GLM_IDS[id]
   if (glmId) {
-    if (!process.env.GLM_API_KEY && !process.env.ZHIPU_API_KEY) {
-      throw new Error(
-        'GLM_API_KEY غير مضبوط. أضف مفتاح Z.AI / Zhipu لاستخدام GLM.'
-      )
-    }
     return getCloudProviders().glm(glmId)
   }
 

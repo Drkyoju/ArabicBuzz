@@ -131,6 +131,24 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
           {post.content || (post.streaming ? '…' : '')}
         </ReactMarkdown>
       </div>
+      {post.citations && post.citations.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
+          {post.citations.map((c, i) => (
+            <span
+              key={`${c.labelAr}-${i}`}
+              title={c.excerpt || undefined}
+              className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent"
+            >
+              <span className="truncate">{c.labelAr}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {post.pendingApprovalId && (
+        <p className="mt-2 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-2 py-1.5 text-[11px] text-ab-warn">
+          إجراء معلّق بانتظار موافقة بشرية — راجع قسم «الموافقات».
+        </p>
+      )}
       <QualityFlagBanner show={Boolean(post.qualityWarning)} />
     </article>
   )

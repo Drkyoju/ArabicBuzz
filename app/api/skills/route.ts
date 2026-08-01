@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parseSkillFile } from '@/lib/skills/openclaw'
 import {
-  loadAllOpenClawSkills,
-  parseSkillFile,
-  saveSkillToWorkspace,
+  loadAllSkillsMerged,
+  persistSkill,
   serializeOpenClawSkill,
-} from '@/lib/skills/openclaw'
+} from '@/lib/skills/persist'
 
 export const dynamic = 'force-dynamic'
 
+function slugifyName(input: string): string {
+  const base = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\u0600-\u06FF]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+  if (base) return base
+  return `skill-${Date.now().toString(36)}`
+}
+
 export async function GET(req: NextRequest) {
   const scope = req.nextUrl.searchParams.get('scope')
-  let skills = loadAllOpenClawSkills()
+  let skills = await loadAllSkillsMerged()
   if (scope === 'personal' || scope === 'shared') {
     skills = skills.filter((s) => s.scope === scope)
   }
@@ -18,28 +29,38 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
   try {
+    const body = await req.json()
     let skill
     if (typeof body.content === 'string') {
       skill = parseSkillFile(body.content)
     } else {
+      const name = String(body.name || '').trim()
+      if (!name) {
+        return NextResponse.json(
+          { error: 'الاسم مطلوب — اكتب الاسم اللي تبيه' },
+          { status: 400 }
+        )
+      }
+      const id = String(body.id || slugifyName(name))
+      if (id.includes('..') || id.includes('/')) {
+        return NextResponse.json({ error: 'معرّف غير صالح' }, { status: 400 })
+      }
       skill = {
-        id: String(body.id || body.name),
-        name: String(body.name),
-        description: String(body.description || body.name),
+        id,
+        name,
+        description: String(body.description || name).trim(),
         scope: body.scope === 'personal' ? 'personal' : 'shared',
-        author: body.author,
-        systemInstructions: String(body.systemInstructions || body.body || ''),
+        author: body.author ? String(body.author) : undefined,
+        systemInstructions: String(
+          body.systemInstructions || body.body || ''
+        ).trim(),
         toolsRequired: body.toolsRequired,
       } as const
-      if (skill.id.includes('..') || skill.id.includes('/')) {
-        return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
-      }
     }
-    const path = saveSkillToWorkspace(skill)
+    await persistSkill(skill)
     return NextResponse.json(
-      { skill, path, serialized: serializeOpenClawSkill(skill) },
+      { skill, serialized: serializeOpenClawSkill(skill) },
       { status: 201 }
     )
   } catch (e) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MoreHorizontal, PanelRightOpen } from 'lucide-react'
+import { PanelRightOpen, MessageSquare } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
 import { ComposerMicButton } from '@/components/composer-mic-button'
@@ -18,9 +18,12 @@ import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
+import { RoomTeamPanel } from '@/components/room-team-panel'
+import { SecurityPosturePicker } from '@/components/security-posture-picker'
+import { ModelPicker } from '@/components/model-picker'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
-import type { RoomPost } from '@/lib/scopes/types'
+import type { RoomCitation, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
@@ -39,6 +42,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const feedRef = useRef<HTMLDivElement>(null)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
   const scopes = useWorkspaceStore((s) => s.scopes)
   const postsByScope = useWorkspaceStore((s) => s.postsByScope)
   const activeScope = useMemo(
@@ -57,29 +61,52 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [displayName, setDisplayName] = useState('أنت')
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteMsg, setInviteMsg] = useState('')
   const [outboundMsg, setOutboundMsg] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
-  const [showMore, setShowMore] = useState(false)
+  const [showMore, setShowMore] = useState(true)
   const [micNote, setMicNote] = useState('')
+  const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const posture = useSecurityPostureStore((s) => s.posture)
   const hasArtifacts = artifacts.length > 0
   const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
 
   const roomAgents = agentsForScope(activeScopeId)
 
+  // Auto-open canvas when a new artifact appears
+  useEffect(() => {
+    if (artifacts.length > prevArtifactCount.current) {
+      setShowCanvas(true)
+    }
+    prevArtifactCount.current = artifacts.length
+  }, [artifacts.length])
+
+  // Keep activity strip open by default for shared rooms
+  useEffect(() => {
+    if (activeScope && isSharedScope(activeScope)) {
+      setShowMore(true)
+    }
+  }, [activeScopeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     void getBrowserSession().then((session) => {
       const u = session?.user
-      const name =
+      let name =
         u?.user_metadata?.full_name ||
         u?.user_metadata?.name ||
         u?.email?.split('@')[0] ||
         'أنت'
+      try {
+        const saved = localStorage.getItem('ab-display-name')
+        if (saved) name = saved
+        const scope = localStorage.getItem('ab-active-scope')
+        if (scope) setActiveScopeId(scope)
+      } catch {
+        /* ignore */
+      }
       setDisplayName(String(name))
     })
     try {
@@ -87,7 +114,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [setActiveScopeId])
 
   useEffect(() => {
     feedRef.current?.scrollTo({
@@ -98,7 +125,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   useEffect(() => {
     setInput('')
-    setInviteMsg('')
     setOutboundMsg('')
   }, [activeScopeId])
 
@@ -129,6 +155,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
             titleAr: string
             content: string
             language?: string
+            updatedBy?: string | null
+            updatedAt?: string | null
           }>
         }
         for (const a of c.artifacts || []) {
@@ -138,6 +166,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
             titleAr: a.titleAr,
             content: a.content,
             language: a.language,
+            updatedBy: a.updatedBy,
+            updatedAt: a.updatedAt,
             isEditing: false,
           })
         }
@@ -302,6 +332,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
       const decoder = new TextDecoder()
       let buffer = ''
       let assembled = ''
+      const citations: RoomCitation[] = []
+      let pendingApprovalId: string | undefined
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -319,6 +351,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 type?: string
                 delta?: string
                 text?: string
+                output?: unknown
+                result?: unknown
+                toolName?: string
+                toolCallId?: string
               }
               if (
                 event.type === 'text-delta' ||
@@ -329,7 +365,48 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 updatePost(activeScopeId, agentId, {
                   content: assembled,
                   streaming: true,
+                  citations: citations.length ? [...citations] : undefined,
+                  pendingApprovalId,
                 })
+              }
+
+              const toolOut = event.output ?? event.result
+              if (toolOut && typeof toolOut === 'object') {
+                const out = toolOut as Record<string, unknown>
+                if (out.status === 'paused' && typeof out.approvalId === 'string') {
+                  pendingApprovalId = out.approvalId
+                  updatePost(activeScopeId, agentId, {
+                    content: assembled,
+                    streaming: true,
+                    pendingApprovalId,
+                  })
+                }
+                const docs = out.documents as
+                  | Array<{ citation?: string; titleAr?: string; excerpt?: string }>
+                  | undefined
+                if (Array.isArray(docs)) {
+                  for (const d of docs) {
+                    const label =
+                      d.citation ||
+                      (d.titleAr ? `[مصدر: ${d.titleAr}]` : '') ||
+                      ''
+                    if (
+                      label &&
+                      !citations.some((c) => c.labelAr === label)
+                    ) {
+                      citations.push({
+                        labelAr: label,
+                        excerpt: d.excerpt,
+                      })
+                    }
+                  }
+                  updatePost(activeScopeId, agentId, {
+                    content: assembled,
+                    streaming: true,
+                    citations: [...citations],
+                    pendingApprovalId,
+                  })
+                }
               }
             } catch {
               /* ignore */
@@ -340,8 +417,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
       updatePost(activeScopeId, agentId, {
         content:
           assembled ||
-          'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.',
+          (pendingApprovalId
+            ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
+            : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.'),
         streaming: false,
+        citations: citations.length ? citations : undefined,
+        pendingApprovalId,
       })
 
       // Persist agent reply (chat onFinish also runs when persist!==false —
@@ -367,25 +448,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
       })
     } finally {
       setStreaming(false)
-    }
-  }
-
-  async function sendInvite() {
-    if (!inviteEmail.trim()) return
-    const res = await fetch('/api/rooms/invites', {
-      method: 'POST',
-      headers: await authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        scopeId: activeScopeId,
-        email: inviteEmail.trim(),
-      }),
-    })
-    const data = (await res.json()) as { messageAr?: string; error?: string }
-    if (res.ok) {
-      setInviteMsg(data.messageAr || 'سُجّلت الدعوة في قاعدة البيانات (بدون بريد فعلي بعد).')
-      setInviteEmail('')
-    } else {
-      setInviteMsg(data.error || `تعذّرت الدعوة (HTTP ${res.status})`)
     }
   }
 
@@ -457,79 +519,97 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="flex items-start justify-between gap-2 border-b border-ab-border px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-stone-400">
-                {shared ? 'مساحة مشتركة' : 'مساحة شخصية'}
-              </p>
-              <h2 className="truncate text-[15px] font-bold text-ab-ink">
-                {activeScope.nameAr}
-              </h2>
-              <div className="mt-1">
-                <RoomPresenceBar scopeId={activeScopeId} typing={typing} />
+          <header className="flex flex-col gap-2 border-b border-ab-border px-3 py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-stone-400">
+                  {shared
+                    ? activeScopeId === 'shared-ops'
+                      ? 'مساحة مشتركة · تشغيل وتنبيهات'
+                      : 'مساحة مشتركة · قرارات الفريق'
+                    : activeScopeId === 'personal-research'
+                      ? 'مساحة شخصية · مسودات بحث'
+                      : 'مساحة شخصية · مكتبك اليومي'}
+                </p>
+                <h2 className="truncate text-[15px] font-bold text-ab-ink">
+                  {activeScope.nameAr}
+                </h2>
+                {activeScope.descriptionAr && (
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-stone-500">
+                    {activeScope.descriptionAr}
+                  </p>
+                )}
+                <div className="mt-1">
+                  <RoomPresenceBar
+                    scopeId={activeScopeId}
+                    typing={typing}
+                    displayName={displayName}
+                  />
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {hasArtifacts && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCanvas((v) => !v)}
+                    className="hidden rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50 md:inline-flex md:items-center md:gap-1"
+                  >
+                    <PanelRightOpen className="h-3 w-3" />
+                    {canvasOpen ? 'إخفاء اللوحة' : 'اللوحة'}
+                  </button>
+                )}
+                {shared && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMore((v) => !v)}
+                    className="rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
+                    aria-label="الحضور والسجل"
+                  >
+                    {showMore ? 'إخفاء السجل' : 'مين متصل · السجل'}
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {hasArtifacts && (
-                <button
-                  type="button"
-                  onClick={() => setShowCanvas((v) => !v)}
-                  className="hidden rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50 md:inline-flex md:items-center md:gap-1"
-                >
-                  <PanelRightOpen className="h-3 w-3" />
-                  {canvasOpen ? 'إخفاء اللوحة' : 'اللوحة'}
-                </button>
-              )}
-              {shared && (
-                <button
-                  type="button"
-                  onClick={() => setShowMore((v) => !v)}
-                  className="rounded-md p-1.5 text-stone-500 hover:bg-stone-100"
-                  aria-label="المزيد"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              )}
+            <div className="flex flex-wrap items-center gap-3 border-t border-ab-border/60 pt-2">
+              <ModelPicker compact />
+              <SecurityPosturePicker compact />
             </div>
           </header>
 
           {showMore && shared && (
-            <div className="space-y-2 border-b border-ab-border bg-stone-50 px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="دعوة: email@company.com"
-                  className="min-w-[10rem] flex-1 rounded-md border border-ab-border px-2 py-1.5 text-xs"
-                  dir="ltr"
-                />
-                <button
-                  type="button"
-                  onClick={() => void sendInvite()}
-                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                >
-                  دعوة
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendOutbound('telegram')}
-                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                >
-                  تيليجرام
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendOutbound('whatsapp')}
-                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                >
-                  واتساب
-                </button>
-              </div>
-              {(inviteMsg || outboundMsg) && (
-                <p className="text-[10px] text-stone-500">
-                  {inviteMsg || outboundMsg}
+            <div className="max-h-[min(50vh,24rem)] space-y-3 overflow-y-auto border-b border-ab-border bg-stone-50 px-3 py-2">
+              <RoomTeamPanel scopeId={activeScopeId} />
+              <div className="rounded-md border border-dashed border-ab-border bg-white p-2">
+                <p className="mb-1.5 text-[11px] font-semibold text-ab-ink">
+                  تنبيه قناة (مو دعوة)
                 </p>
-              )}
+                <p className="mb-2 text-[10px] text-stone-500">
+                  يرسل نص الحقل الحالي إلى شات/رقم تجريبي مضبوط في Netlify
+                  (TELEGRAM_TEST_CHAT_ID / WHATSAPP_TEST_TO) — لا يضيف أحداً
+                  للغرفة.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void sendOutbound('telegram')}
+                    className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                  >
+                    تيليجرام · تنبيه
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendOutbound('whatsapp')}
+                    className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                  >
+                    واتساب · تنبيه
+                  </button>
+                </div>
+                {outboundMsg && (
+                  <p className="mt-1.5 text-[10px] text-stone-500">
+                    {outboundMsg}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -545,22 +625,37 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
             {posts.length === 0 ? (
-              <p className="text-sm text-stone-500">
-                الغرفة فارغة — اكتب أو تكلم بالميكروفون.
-              </p>
+              <div className="relative flex h-full min-h-[12rem] flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-bl from-stone-50 via-white to-emerald-50/50 px-4 py-10 text-center">
+                <MessageSquare
+                  className="mb-3 h-10 w-10 text-stone-300"
+                  aria-hidden
+                />
+                <p className="text-base font-semibold text-ab-ink">
+                  ابدأ المحادثة
+                </p>
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-stone-500">
+                  اكتب سؤالك أو اضغط الميكروفون وتحدث بالعربية. يمكنك الإشارة
+                  لوكيل بـ @slug أو رفع ملف من شريط الكتابة.
+                </p>
+              </div>
             ) : (
               posts.map((post) => <RoomPostCard key={post.id} post={post} />)
             )}
           </div>
 
-          <footer className="border-t border-ab-border bg-ab-surface p-2.5">
+          <footer className="sticky bottom-0 border-t border-ab-border bg-ab-surface/95 p-2.5 backdrop-blur">
             {mentionPreview && (
               <p className="mb-1.5 text-[11px] text-ab-accent">
                 سيتم توجيه الرد إلى {mentionPreview.nameAr}
               </p>
             )}
             {micNote && (
-              <p className="mb-1.5 text-[10px] text-stone-500">{micNote}</p>
+              <p
+                className="mb-1.5 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] leading-snug text-stone-700"
+                role="status"
+              >
+                {micNote}
+              </p>
             )}
             <form
               className="flex items-end gap-1.5"
@@ -572,20 +667,33 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <LocalUploadPanel scopeId={activeScopeId} compact />
               <ComposerMicButton
                 disabled={streaming}
+                composerValue={input}
+                onStatus={(msg) => setMicNote(msg)}
+                onPartial={(draft) => {
+                  setInput(draft)
+                  setMicNote('يكتب من الصوت… النص يظهر في المربع — اضغط للإيقاف ثم راجع')
+                }}
                 onTranscript={(text, meta) => {
-                  setInput((prev) =>
-                    prev.trim() ? `${prev.trim()} ${text}` : text
-                  )
+                  setInput(text)
                   setMicNote(
                     meta?.providerLabelAr
-                      ? `نُسخ عبر ${meta.providerLabelAr}`
-                      : 'تم النسخ'
+                      ? `نُسخ عبر ${meta.providerLabelAr} — صحّح في المربع إن لزم ثم أرسل`
+                      : 'النص في المربع — صحّح إن لزم ثم أرسل'
                   )
+                  requestAnimationFrame(() => {
+                    composerRef.current?.focus()
+                    const el = composerRef.current
+                    if (el) {
+                      el.selectionStart = el.value.length
+                      el.selectionEnd = el.value.length
+                    }
+                  })
                 }}
               />
               <textarea
+                ref={composerRef}
                 value={input}
-                rows={1}
+                rows={Math.min(4, Math.max(1, input.split('\n').length))}
                 onChange={(e) => {
                   setInput(e.target.value)
                   setTyping(true)
@@ -601,8 +709,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 disabled={streaming}
                 placeholder={
                   shared
-                    ? 'اكتب أو تكلم… جرّب @reports'
-                    : 'اكتب أو تكلم لمساحتك…'
+                    ? 'اكتب أو تكلم بالميك… جرّب @reports'
+                    : activeScopeId === 'personal-research'
+                      ? 'اكتب أو تكلم بالميك… جرّب @research'
+                      : 'اكتب أو تكلم بالميك… النص يظهر هنا للمراجعة'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"

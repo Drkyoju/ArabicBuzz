@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import {
   MessageSquare,
   ShieldCheck,
-  Plug,
   Settings,
   Users,
   User,
@@ -12,23 +11,21 @@ import {
   X,
   FolderOpen,
   Plus,
+  Sparkles,
+  Brain,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
-import { SecurityPosturePicker } from '@/components/security-posture-picker'
-import { useModelPickerStore } from '@/lib/ai/model-picker-store'
-import {
-  listAvailableHarnessModels,
-  type HarnessModelSlug,
-} from '@/lib/ai/harness-catalog'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { cn } from '@/lib/utils'
 
 export type SidebarSection =
   | 'chats'
+  | 'files'
+  | 'memory'
   | 'approvals'
-  | 'integrations'
+  | 'skills'
   | 'settings'
 
 const NAV: Array<{
@@ -37,8 +34,10 @@ const NAV: Array<{
   icon: LucideIcon
 }> = [
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
+  { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
+  { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
-  { id: 'integrations', labelAr: 'التكاملات', icon: Plug },
+  { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
 
@@ -53,14 +52,9 @@ function SidebarBody({
   onSectionChange?: (section: SidebarSection) => void
   onNavigate?: () => void
 }) {
-  const { selectedModel, setSelectedModel } = useModelPickerStore()
-  const models = listAvailableHarnessModels(Boolean(airGapped))
-  const modelValue = models.some((m) => m.slug === selectedModel)
-    ? selectedModel
-    : models[0]?.slug || 'gemini-2.0-flash'
-
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
+  const createPersonalDesk = useWorkspaceStore((s) => s.createPersonalDesk)
   const scopes = useWorkspaceStore((s) => s.scopes)
   const personal = useMemo(() => scopes.filter(isPersonalScope), [scopes])
   const shared = useMemo(() => scopes.filter(isSharedScope), [scopes])
@@ -80,6 +74,7 @@ function SidebarBody({
         <button
           type="button"
           onClick={() => {
+            createPersonalDesk()
             onSectionChange?.('chats')
             onNavigate?.()
           }}
@@ -140,13 +135,25 @@ function SidebarBody({
                     onNavigate?.()
                   }}
                   className={cn(
-                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    'w-full rounded-md px-2.5 py-1.5 text-right transition-colors',
                     active
                       ? 'bg-ab-ink text-white'
                       : 'text-ab-ink hover:bg-stone-100'
                   )}
                 >
-                  {scope.nameAr}
+                  <span className="block text-[13px] font-medium">
+                    {scope.nameAr}
+                  </span>
+                  {scope.descriptionAr && (
+                    <span
+                      className={cn(
+                        'mt-0.5 block line-clamp-2 text-[10px] leading-snug',
+                        active ? 'text-white/70' : 'text-stone-400'
+                      )}
+                    >
+                      {scope.descriptionAr}
+                    </span>
+                  )}
                 </button>
               </li>
             )
@@ -192,37 +199,14 @@ function SidebarBody({
             )
           })}
         </ul>
-
-        <p className="mb-1 mt-4 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
-          <FolderOpen className="h-3 w-3" aria-hidden />
-          أدوات الغرفة
-        </p>
-        <p className="px-2 text-[10px] leading-relaxed text-stone-500">
-          الملفات وعقل الشركة والمهام من داخل لوحة الجلسة.
-        </p>
       </div>
 
-      <div className="space-y-3 border-t border-ab-border p-3">
-        <SecurityPosturePicker compact />
-        <div>
-          <label className="mb-1 block text-[10px] font-medium text-stone-400">
-            النموذج
-          </label>
-          <select
-            className="w-full rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs text-ab-ink"
-            value={modelValue}
-            onChange={(e) =>
-              setSelectedModel(e.target.value as HarnessModelSlug)
-            }
-            aria-label="اختيار النموذج"
-          >
-            {models.map((m) => (
-              <option key={m.slug} value={m.slug}>
-                {m.labelAr}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="border-t border-ab-border px-3 py-2.5">
+        <p className="text-[10px] leading-relaxed text-stone-500">
+          {airGapped
+            ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
+            : 'وضع سحابي — التخزين المحلي غير متاح يُحوَّل لسحابة Netlify.'}
+        </p>
       </div>
     </div>
   )

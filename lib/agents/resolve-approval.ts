@@ -46,6 +46,60 @@ export function seedMemoryApproval(row: {
   memoryApprovals.set(row.id, { ...row, status: 'PENDING_APPROVAL' })
 }
 
+/** Pending HITL rows for the approvals inbox (memory + optional DB). */
+export async function listPendingApprovals(): Promise<
+  Array<{
+    id: string
+    approvalId: string
+    actionName: string
+    params: Record<string, unknown>
+    riskLevel: 'LOW' | 'HIGH'
+    status: 'PENDING_APPROVAL'
+    messageAr: string
+    scopeId?: string
+  }>
+> {
+  const fromMem = [...memoryApprovals.values()]
+    .filter((r) => r.status === 'PENDING_APPROVAL')
+    .map((r) => ({
+      id: r.id,
+      approvalId: r.id,
+      actionName: r.actionName,
+      params: r.params,
+      riskLevel: (r.riskLevel === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
+      status: 'PENDING_APPROVAL' as const,
+      messageAr: `إجراء يحتاج موافقة: ${r.actionName}`,
+      scopeId: r.scopeId,
+    }))
+
+  const fromDb = await withPrismaFallback(async () => {
+    const rows = await prisma.pendingApproval.findMany({
+      where: { status: 'PENDING_APPROVAL' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      approvalId: r.id,
+      actionName: r.actionName,
+      params: r.params as Record<string, unknown>,
+      riskLevel: (r.riskLevel === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
+      status: 'PENDING_APPROVAL' as const,
+      messageAr: `إجراء يحتاج موافقة: ${r.actionName}`,
+      scopeId: r.scopeId || undefined,
+    }))
+  }, [] as typeof fromMem)
+
+  const seen = new Set<string>()
+  const merged: typeof fromMem = []
+  for (const row of [...fromDb, ...fromMem]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    merged.push(row)
+  }
+  return merged
+}
+
 seedMemoryApproval({
   id: 'demo-approval-1',
   actionName: 'send_message',

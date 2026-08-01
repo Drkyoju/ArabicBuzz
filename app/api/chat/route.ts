@@ -1,6 +1,7 @@
 import {
   convertToModelMessages,
   streamText,
+  stepCountIs,
   type UIMessage,
 } from 'ai'
 import { getModel, UnknownModelError } from '@/lib/ai/providers'
@@ -78,6 +79,9 @@ function scopeSystemBlock(userId: string, scopeId?: string): string {
 
 export async function POST(req: Request) {
   try {
+    const { warmProviderKeyCache } = await import('@/lib/ai/provider-key-store')
+    await warmProviderKeyCache()
+
     const auth = await requireUser(req)
     if (!auth.ok) return auth.response
 
@@ -165,7 +169,7 @@ export async function POST(req: Request) {
         ...(hasMessages
           ? { messages: await convertToModelMessages(body.messages!) }
           : { prompt }),
-        ...(tools ? { tools } : {}),
+        ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
         abortSignal: req.signal,
         onFinish: async ({ text }) => {
           if (!persistAgent || !text) return

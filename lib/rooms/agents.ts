@@ -43,8 +43,17 @@ export const ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-desk',
     nameAr: 'الوكيل الشخصي',
     slug: 'desk',
-    systemPromptAr: 'أنت الوكيل الشخصي لمساحة المستخدم. كن موجزاً وعملياً.',
+    systemPromptAr:
+      'أنت الوكيل الشخصي لمكتب المستخدم اليومي. ساعد في المهام السريعة والتنظيم والملفات الخاصة. كن موجزاً وعملياً.',
     avatarHue: 150,
+  },
+  {
+    id: 'agent-research',
+    nameAr: 'وكيل البحث',
+    slug: 'research',
+    systemPromptAr:
+      'أنت وكيل البحث والمسودات. هذه مساحة للتحليل والتجربة قبل مشاركة أي شيء مع الفريق. اكتب مسودات، قارن خيارات، واذكر مصادر/فجوات — ولا تفترض أن العمل نهائي للنشر.',
+    avatarHue: 45,
   },
 ]
 
@@ -52,7 +61,7 @@ export const SCOPE_AGENT_IDS: Record<string, string[]> = {
   'shared-demo': ['agent-reports', 'agent-compliance'],
   'shared-ops': ['agent-cron', 'agent-channels'],
   'personal-demo': ['agent-desk'],
-  'personal-research': ['agent-desk'],
+  'personal-research': ['agent-research'],
 }
 
 export function agentsForScope(scopeId: string): RoomAgent[] {

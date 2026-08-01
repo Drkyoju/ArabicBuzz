@@ -156,3 +156,15 @@ export function listAvailableHarnessModels(
   if (!airGapped) return HARNESS_MODEL_CATALOG
   return HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)
 }
+
+/** Filter catalog by which provider keys are configured (QM-style). */
+export function listServiceableHarnessModels(
+  airGapped: boolean,
+  configuredKeys: Set<string> | string[]
+): HarnessModelMeta[] {
+  const keys = configuredKeys instanceof Set ? configuredKeys : new Set(configuredKeys)
+  return listAvailableHarnessModels(airGapped).filter((m) => {
+    if (m.provider === 'ollama') return true
+    return keys.has(m.requiresKey)
+  })
+}

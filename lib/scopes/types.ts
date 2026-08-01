@@ -32,6 +32,11 @@ export type ActiveScopeContext = {
 /** A post in a shared room timeline (human or agent peer). */
 export type RoomAuthorKind = 'human' | 'agent' | 'system' | 'channel'
 
+export type RoomCitation = {
+  labelAr: string
+  excerpt?: string
+}
+
 export type RoomPost = {
   id: string
   scopeId: string
@@ -42,4 +47,8 @@ export type RoomPost = {
   createdAt: number
   streaming?: boolean
   qualityWarning?: boolean
+  /** Brain / RAG source chips under agent replies. */
+  citations?: RoomCitation[]
+  /** When a tool paused for HITL during this reply. */
+  pendingApprovalId?: string
 }

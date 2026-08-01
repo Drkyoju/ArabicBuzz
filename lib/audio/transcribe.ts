@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from 'openai'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import { validateNetworkAccess } from '@/lib/security/airgap'
+import { resolveProviderKeySync } from '@/lib/ai/provider-key-store'
 
 function extFromMime(mimeType: string): string {
   if (mimeType.includes('ogg')) return 'ogg'
@@ -110,7 +111,7 @@ async function transcribeViaHuggingFace(
   mimeType: string,
   model: string
 ): Promise<string | null> {
-  const token = process.env.HF_TOKEN?.trim() || process.env.HUGGINGFACE_TOKEN?.trim()
+  const token = resolveProviderKeySync('HF_TOKEN')
   if (!token) return null
 
   const url = `https://api-inference.huggingface.co/models/${model}`
@@ -150,7 +151,7 @@ async function transcribeViaGroq(
   buffer: Buffer,
   mimeType: string
 ): Promise<string | null> {
-  const key = process.env.GROQ_API_KEY?.trim()
+  const key = resolveProviderKeySync('GROQ_API_KEY')
   if (!key) return null
 
   validateNetworkAccess('https://api.groq.com')
@@ -194,14 +195,15 @@ export async function transcribeArabicAudioBuffer(
   if (IS_AIR_GAPPED_MODE) {
     throw new Error('النسخ الصوتي السحابي غير متاح في الوضع المحلي المغلق')
   }
-  if (!process.env.OPENAI_API_KEY) {
+  const openaiKey = resolveProviderKeySync('OPENAI_API_KEY')
+  if (!openaiKey) {
     throw new Error('OPENAI_API_KEY missing — مطلوب لـ Whisper على Netlify')
   }
   if (!buffer?.length || buffer.length < 64) {
     throw new Error('تعذر قراءة الملاحظة الصوتية')
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const openai = new OpenAI({ apiKey: openaiKey })
   const file = await toFile(buffer, `audio.${extFromMime(mimeType)}`, {
     type: mimeType || 'audio/ogg',
   })
@@ -289,7 +291,7 @@ export async function transcribeArabicSpeech(
     }
   }
 
-  if (process.env.OPENAI_API_KEY) {
+  if (resolveProviderKeySync('OPENAI_API_KEY')) {
     const text = await transcribeArabicAudioBuffer(buffer, mimeType)
     return {
       text,
@@ -299,7 +301,7 @@ export async function transcribeArabicSpeech(
   }
 
   throw new Error(
-    'تعذّر النسخ الصوتي. أضف HF_TOKEN (مجاني للعربية/السعودية) أو GROQ_API_KEY، أو OPENAI_API_KEY كاحتياطي.'
+    'تعذّر النسخ الصوتي. أضف HF_TOKEN (مجاني للعربية/السعودية) أو GROQ_API_KEY من الإعدادات، أو OPENAI_API_KEY كاحتياطي.'
   )
 }
 

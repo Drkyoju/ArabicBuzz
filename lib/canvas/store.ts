@@ -9,6 +9,8 @@ export interface CanvasArtifact {
   content: string
   language?: string
   isEditing: boolean
+  updatedBy?: string | null
+  updatedAt?: string | null
 }
 
 type CanvasState = {

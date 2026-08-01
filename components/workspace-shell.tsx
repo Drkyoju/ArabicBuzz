@@ -6,8 +6,13 @@ import { RoomWorkspace } from '@/components/room-workspace'
 import { ApprovalCard } from '@/components/approval-card'
 import { SkillMarketplace } from '@/components/skill-marketplace'
 import { CronStatusTable } from '@/components/cron-status-table'
+import { CronRegisterForm } from '@/components/cron-register-form'
 import { SdaiaAuditViewer } from '@/components/sdaia-audit-viewer'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
+import { ProviderKeysPanel } from '@/components/provider-keys-panel'
+import { FilesPanel } from '@/components/files-panel'
+import { MemoryPanel } from '@/components/memory-panel'
+import { AirGapBadge } from '@/components/airgap-badge'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
@@ -27,6 +32,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvals, setApprovals] = useState<LiveApproval[]>([])
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
+  const [pendingCount, setPendingCount] = useState(0)
 
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true)
@@ -42,23 +48,28 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       if (!res.ok) {
         setApprovalsError(data.error || `تعذّر التحميل (HTTP ${res.status})`)
         setApprovals([])
+        setPendingCount(0)
         return
       }
-      setApprovals(data.approvals || [])
+      const list = data.approvals || []
+      setApprovals(list)
+      setPendingCount(
+        list.filter((a) => a.status === 'PENDING_APPROVAL').length
+      )
     } catch (e) {
       setApprovalsError(e instanceof Error ? e.message : 'خطأ في التحميل')
       setApprovals([])
+      setPendingCount(0)
     } finally {
       setApprovalsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    if (section !== 'approvals') return
     void loadApprovals()
     const t = setInterval(() => void loadApprovals(), 8000)
     return () => clearInterval(t)
-  }, [section, loadApprovals])
+  }, [loadApprovals])
 
   return (
     <div className="min-h-dvh bg-ab-bg">
@@ -69,7 +80,21 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       />
 
       <div className="mr-0 min-h-dvh pt-11 md:mr-[15.5rem] md:pt-0">
+        {pendingCount > 0 && section !== 'approvals' && (
+          <button
+            type="button"
+            onClick={() => setSection('approvals')}
+            className="sticky top-0 z-20 w-full border-b border-ab-warn/30 bg-ab-warn/10 px-4 py-2 text-right text-xs font-medium text-ab-warn md:top-0"
+          >
+            {pendingCount} موافقة معلّقة — اضغط للمراجعة قبل تنفيذ الأدوات
+          </button>
+        )}
+
         {section === 'chats' && <RoomWorkspace />}
+
+        {section === 'files' && <FilesPanel />}
+
+        {section === 'memory' && <MemoryPanel />}
 
         {section === 'approvals' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
@@ -77,7 +102,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div>
                 <h2 className="text-xl font-bold">سجل الموافقات</h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  الإجراءات عالية المخاطر بانتظار القرار البشري.
+                  الإجراءات عالية المخاطر لا تُنفَّذ حتى توافق أو ترفض هنا.
                 </p>
               </div>
               <button
@@ -120,20 +145,37 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </section>
         )}
 
-        {section === 'integrations' && (
+        {section === 'skills' && (
           <div className="px-2" dir="rtl">
-            <p className="px-6 pt-6 text-sm text-stone-500">
-              المهارات والمهام المجدولة للمساحة:{' '}
-              <span className="font-medium text-ab-ink">{activeScopeId}</span>
-            </p>
             <SkillMarketplace targetScopeId={activeScopeId} />
-            <CronStatusTable />
+            <div className="mx-auto max-w-3xl space-y-6 px-6 pb-10">
+              <CronRegisterForm onCreated={() => undefined} />
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-ab-ink">
+                  المهام المجدولة · سجل التشغيل
+                </h3>
+                <CronStatusTable />
+              </div>
+            </div>
           </div>
         )}
 
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-4 text-xl font-bold">الإعدادات</h2>
+
+            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="font-semibold">وضع الاتصال</h3>
+                <AirGapBadge airGapped={airGapped} />
+              </div>
+              <p className="text-xs leading-relaxed text-stone-600">
+                {airGapped
+                  ? 'وضع محلي مغلق (air-gap): النماذج والملفات تبقى على هذا الجهاز قدر الإمكان. لا تُرفع الملفات لسحابة Netlify.'
+                  : 'وضع سحابي: عند غياب خزنة الماك المحلية تُحفظ الملفات الصغيرة في قاعدة البيانات (حتى 4MB) أو عبر عقل الشركة. لفرض المحلي شغّل التخزين المحلي أو MAC_SYNC_URL.'}
+              </p>
+            </div>
+
             <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <h3 className="mb-2 font-semibold">الوصول</h3>
               <p className="text-xs text-stone-600">
@@ -141,6 +183,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 لإعادة تفعيل المصادقة لاحقاً اضبط{' '}
                 <code dir="ltr">AUTH_REQUIRED=true</code>.
               </p>
+            </div>
+            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <ProviderKeysPanel />
             </div>
             <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>
@@ -152,10 +197,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             >
               <h3 className="mb-2 font-semibold">الميكروفون · نسخ عربي</h3>
               <p className="text-xs text-stone-600">
-                اضغط أيقونة الميكروفون في المحادثة وتحدث. النسخ يستخدم نماذج عربية
-                مجانية أولاً (Cohere Arabic / SADA سعودي عبر{' '}
-                <code dir="ltr">HF_TOKEN</code>، ثم Groq). أضف المفتاح في Netlify
-                لأفضل فهم للهجات السعودية.
+                اضغط أيقونة الميكروفون في المحادثة وتحدث. أضف{' '}
+                <code dir="ltr">HF_TOKEN</code> أو{' '}
+                <code dir="ltr">GROQ_API_KEY</code> من «مفاتيح المزوّدين» أعلاه.
               </p>
             </div>
             <div

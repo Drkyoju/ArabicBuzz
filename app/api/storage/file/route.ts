@@ -1,9 +1,10 @@
 import { requireUser } from '@/lib/auth/session'
 import { readLocalFile } from '@/lib/storage/local'
+import { readCloudFile } from '@/lib/storage/cloud'
 
 export const dynamic = 'force-dynamic'
 
-/** Stream a file from the Mac vault. */
+/** Stream a file from Mac vault or cloud fallback. */
 export async function GET(req: Request) {
   const auth = await requireUser(req)
   if (!auth.ok) return auth.response
@@ -16,9 +17,21 @@ export async function GET(req: Request) {
   }
 
   try {
-    const hit = readLocalFile(scopeId, id)
+    let hit: { meta: { mimeType: string; originalName: string }; buffer: Buffer } | null =
+      null
+    try {
+      hit = readLocalFile(scopeId, id)
+    } catch {
+      hit = null
+    }
     if (!hit) {
-      return Response.json({ error: 'الملف غير موجود على هذا الجهاز.' }, { status: 404 })
+      hit = await readCloudFile(scopeId, id)
+    }
+    if (!hit) {
+      return Response.json(
+        { error: 'الملف غير موجود (لا محلياً ولا سحابياً).' },
+        { status: 404 }
+      )
     }
     return new Response(new Uint8Array(hit.buffer), {
       status: 200,
