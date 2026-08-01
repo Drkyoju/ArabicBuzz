@@ -35,14 +35,14 @@ export function ApprovalCard({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': 'user-1',
+          'x-user-id': 'local-owner',
           'x-org-id': 'org-demo',
         },
         body: JSON.stringify({
           approvalId,
           decision,
           modifiedParams: modified,
-          userId: 'user-1',
+          userId: 'local-owner',
           orgId: 'org-demo',
         }),
       })

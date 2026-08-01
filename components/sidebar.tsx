@@ -13,6 +13,7 @@ import {
   Plus,
   Sparkles,
   Brain,
+  MoreHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -87,9 +88,14 @@ function SidebarBody({
         <button
           type="button"
           onClick={() => {
-            createPersonalDesk()
-            onSectionChange?.('chats')
-            onNavigate?.()
+            try {
+              const id = createPersonalDesk()
+              if (!id) throw new Error('empty')
+              onSectionChange?.('chats')
+              onNavigate?.()
+            } catch (e) {
+              console.error('createPersonalDesk failed', e)
+            }
           }}
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
         >
@@ -170,14 +176,14 @@ function SidebarBody({
                 </button>
                 <button
                   type="button"
-                  className="absolute left-1 top-1 rounded px-1 text-[10px] text-stone-400 opacity-0 hover:bg-stone-200 hover:text-ab-ink group-hover:opacity-100"
+                  className="absolute left-1 top-1 rounded p-0.5 text-stone-400 opacity-0 hover:bg-stone-200 hover:text-ab-ink group-hover:opacity-100"
                   aria-label="خيارات الجلسة"
                   onClick={(e) => {
                     e.stopPropagation()
                     setMenuId((v) => (v === scope.id ? null : scope.id))
                   }}
                 >
-                  ⋯
+                  <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
                 </button>
                 {menuId === scope.id && (
                   <div className="absolute left-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md">

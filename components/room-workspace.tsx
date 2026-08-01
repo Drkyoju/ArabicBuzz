@@ -68,7 +68,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
-  const [showMore, setShowMore] = useState(true)
+  const [showMore, setShowMore] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
   const [canvasAudit, setCanvasAudit] = useState<
@@ -91,12 +91,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
     prevArtifactCount.current = artifacts.length
   }, [artifacts.length])
 
-  // Keep activity strip open by default for shared rooms
+  // Shared rooms: keep activity collapsed by default so chat stays primary
   useEffect(() => {
-    if (activeScope && isSharedScope(activeScope)) {
-      setShowMore(true)
-    }
-  }, [activeScopeId]) // eslint-disable-line react-hooks/exhaustive-deps
+    setShowMore(false)
+  }, [activeScopeId])
 
   useEffect(() => {
     let cancelled = false
@@ -123,7 +121,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }, [activeScopeId, artifacts.length])
 
   useEffect(() => {
+    let cancelled = false
     void getBrowserSession().then((session) => {
+      if (cancelled) return
       const u = session?.user
       let name =
         u?.user_metadata?.full_name ||
@@ -133,8 +133,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
       try {
         const saved = localStorage.getItem('ab-display-name')
         if (saved) name = saved
+        // Restore scope only if still a known id (don't clobber a brand-new session)
         const scope = localStorage.getItem('ab-active-scope')
-        if (scope) setActiveScopeId(scope)
+        if (scope) {
+          const known = useWorkspaceStore.getState().scopes.some((s) => s.id === scope)
+          if (known) setActiveScopeId(scope)
+        }
       } catch {
         /* ignore */
       }
@@ -144,6 +148,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
       if (!localStorage.getItem('ab-onboarded')) setShowOnboarding(true)
     } catch {
       /* ignore */
+    }
+    return () => {
+      cancelled = true
     }
   }, [setActiveScopeId])
 
@@ -157,6 +164,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     setInput('')
     setOutboundMsg('')
+    // Canvas store is global — hide cross-room artifacts when switching desks
+    useCanvasStore.setState({ artifacts: [], activeId: null })
   }, [activeScopeId])
 
   // Hydrate + realtime

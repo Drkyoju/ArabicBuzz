@@ -9,15 +9,21 @@ export default function HomePage() {
   const [airGapped, setAirGapped] = useState(false)
 
   useEffect(() => {
-    upsertArtifact({
-      id: 'nizam-sarf',
-      type: 'code',
-      titleAr: 'نظام_الصرف.py',
-      language: 'python',
-      content:
-        'def summarize_decisions(items):\n    return {"count": len(items), "lang": "ar"}\n',
-      isEditing: false,
-    })
+    // Demo artifact only for the shared team room canvas — not personal desks
+    if (typeof window === 'undefined') return
+    const scope =
+      localStorage.getItem('ab-active-scope') || 'shared-demo'
+    if (scope === 'shared-demo' || scope === 'shared-ops') {
+      upsertArtifact({
+        id: 'nizam-sarf',
+        type: 'code',
+        titleAr: 'نظام_الصرف.py',
+        language: 'python',
+        content:
+          'def summarize_decisions(items):\n    return {"count": len(items), "lang": "ar"}\n',
+        isEditing: false,
+      })
+    }
     void fetch('/api/security/airgap')
       .then((r) => r.json())
       .then((d) => setAirGapped(Boolean(d.airGapped)))

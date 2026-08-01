@@ -366,8 +366,8 @@ export async function listRoomMembers(scopeId: string): Promise<{
   }
   if (!data?.length) {
     const seed = demoSeedMembers(scopeId)
-    // Seed owner into DB once
-    for (const m of seed.filter((x) => x.role === 'owner')) {
+    // Seed all demo members once (owner + teammates)
+    for (const m of seed) {
       await sb.from('room_members').upsert(
         {
           id: m.id,
@@ -546,11 +546,17 @@ export async function removeRoomMember(opts: {
 }
 
 function appBaseUrl() {
-  return (
+  const raw = (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.URL ||
-    'http://localhost:3000'
+    process.env.DEPLOY_PRIME_URL ||
+    'https://arabicbuzz.netlify.app'
   ).replace(/\/$/, '')
+  // Reject placeholder from .env.example leftovers
+  if (!raw || /your-site\.netlify\.app/i.test(raw)) {
+    return 'https://arabicbuzz.netlify.app'
+  }
+  return raw
 }
 
 export async function createRoomInvite(opts: {

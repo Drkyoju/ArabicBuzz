@@ -147,6 +147,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setActiveScopeId: (id) => {
     if (!get().scopes.some((s) => s.id === id)) return
     set({ activeScopeId: id })
+    try {
+      localStorage.setItem('ab-active-scope', id)
+    } catch {
+      /* ignore */
+    }
   },
 
   postsForActive: () => {

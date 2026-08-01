@@ -170,9 +170,16 @@ export async function getAccessToken(): Promise<string | null> {
 export async function authHeaders(
   extra?: Record<string, string>
 ): Promise<Record<string, string>> {
-  const token = await getAccessToken()
-  return {
-    ...(extra || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  try {
+    const token = await Promise.race([
+      getAccessToken(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ])
+    return {
+      ...(extra || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }
+  } catch {
+    return { ...(extra || {}) }
   }
 }

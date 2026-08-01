@@ -67,11 +67,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
   const [err, setErr] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [busy, setBusy] = useState(false)
-  const [tab, setTab] = useState<'people' | 'history'>('history')
+  const [tab, setTab] = useState<'people' | 'history'>('people')
   const [canManage, setCanManage] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
 
   const refresh = useCallback(async () => {
     try {
+      setLoadErr('')
       const headers = await authHeaders()
       const [mRes, iRes, aRes] = await Promise.all([
         fetch(`/api/rooms/members?scopeId=${encodeURIComponent(scopeId)}`, {
@@ -88,21 +90,32 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
         members?: Member[]
         canManage?: boolean
         myRole?: string
+        error?: string
       }
-      const iData = (await iRes.json()) as { invites?: Invite[] }
+      const iData = (await iRes.json()) as { invites?: Invite[]; error?: string }
       const aData = (await aRes.json()) as {
         events?: ActivityEvent[]
         now?: NowSnap
         totalEvents?: number
+        error?: string
+      }
+      if (!mRes.ok) {
+        setLoadErr(mData.error || `تعذّر تحميل الأعضاء (${mRes.status})`)
       }
       setMembers(mData.members || [])
       setCanManage(mData.canManage !== false)
       setInvites((iData.invites || []).filter((i) => i.status === 'pending'))
       setEvents(aData.events || [])
-      setNow(aData.now || null)
+      setNow(
+        aData.now || {
+          lastHumanMessage: null,
+          lastCanvasEdit: null,
+          memberCount: mData.members?.length || 0,
+        }
+      )
       setTotalEvents(aData.totalEvents || aData.events?.length || 0)
-    } catch {
-      /* ignore */
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : 'تعذّر تحديث الغرفة')
     }
   }, [scopeId])
 
@@ -291,6 +304,11 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
       {err && (
         <p className="rounded-md bg-red-50 px-2 py-1.5 text-red-700">{err}</p>
       )}
+      {loadErr && (
+        <p className="rounded-md bg-amber-50 px-2 py-1.5 text-amber-800">
+          {loadErr}
+        </p>
+      )}
 
       {tab === 'people' ? (
         <>
@@ -454,7 +472,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           <div className="rounded-md border border-ab-border bg-white p-2 space-y-1.5">
             <p className="font-semibold text-ab-ink">الآن</p>
             <p className="text-stone-600">
-              الأعضاء: <strong>{now?.memberCount ?? members.length}</strong>
+              الأعضاء:{' '}
+              <strong>
+                {now?.memberCount ?? members.length}
+              </strong>
+              {members.length > 0 && now?.memberCount == null
+                ? ` (محلي ${members.length})`
+                : ''}
             </p>
             <p className="text-stone-600">
               آخر رسالة بشرية:{' '}
