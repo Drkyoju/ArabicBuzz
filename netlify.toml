@@ -1,5 +1,7 @@
 [build]
   command = "npm run build"
+  # Required so publish != site base; Next.js Runtime still owns the final output.
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
