@@ -55,12 +55,12 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   return (
     <article
       className={cn(
-        'mb-2.5 rounded-lg border px-2.5 py-2',
+        'mb-3 px-1 py-1.5',
         isAgent
-          ? 'border-ab-accent/20 bg-ab-accent/[0.03]'
+          ? 'border-r-2 border-ab-accent/40 pr-2.5'
           : isChannel
-            ? 'border-dashed border-stone-300 bg-stone-50'
-            : 'border-ab-border/80 bg-white'
+            ? 'rounded-md border border-dashed border-stone-300 bg-stone-50/80 px-2.5 py-2'
+            : 'border-r-2 border-transparent pr-2.5'
       )}
       dir="rtl"
     >

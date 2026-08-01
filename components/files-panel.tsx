@@ -121,8 +121,8 @@ export function FilesPanel() {
       <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
         <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
         <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
-        <p className="mt-2 text-[10px] text-stone-500">
-          بعد الرفع يمكنك إرسال الملف إلى «عقل الشركة» للفهرسة والبحث.
+          <p className="mt-2 text-[11px] text-stone-500">
+          بعد الرفع: «عقل الشركة» للفهرسة ثم يظهر في إجابات الوكيل.
         </p>
       </div>
 

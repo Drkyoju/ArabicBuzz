@@ -124,15 +124,7 @@ export function SkillMarketplace({
   }
 
   return (
-    <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-ab-ink">مهاراتك</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          سمِّ المهارة كما تريد — مو أسماء جاهزة إجبارية. اكتب الاسم والوصف
-          والتعليمات، ثم احفظ.
-        </p>
-      </div>
-
+    <section dir="rtl">
       <form
         onSubmit={(e) => void createCustom(e)}
         className="mb-8 rounded-xl border border-ab-border bg-white p-4"

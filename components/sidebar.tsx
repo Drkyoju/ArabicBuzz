@@ -104,10 +104,7 @@ function SidebarBody({
         </button>
       </div>
 
-      <nav className="border-b border-ab-border p-2">
-        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
-          تصفح
-        </p>
+      <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
         <ul className="space-y-0.5">
           {NAV.map(({ id, labelAr, icon: Icon }) => {
             const active = activeSection === id
@@ -166,7 +163,7 @@ function SidebarBody({
                   {scope.descriptionAr && (
                     <span
                       className={cn(
-                        'mt-0.5 block line-clamp-2 text-[10px] leading-snug',
+                        'mt-0.5 block truncate text-[10px] leading-snug',
                         active ? 'text-white/70' : 'text-stone-400'
                       )}
                     >
@@ -176,7 +173,7 @@ function SidebarBody({
                 </button>
                 <button
                   type="button"
-                  className="absolute left-1 top-1 rounded p-0.5 text-stone-400 opacity-0 hover:bg-stone-200 hover:text-ab-ink group-hover:opacity-100"
+                  className="absolute left-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
                   aria-label="خيارات الجلسة"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -260,7 +257,7 @@ function SidebarBody({
         <p className="text-[10px] leading-relaxed text-stone-500">
           {airGapped
             ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-            : 'وضع سحابي — التخزين المحلي غير متاح يُحوَّل لسحابة Netlify.'}
+            : 'سحابي · arabicbuzz.netlify.app'}
         </p>
       </div>
     </div>

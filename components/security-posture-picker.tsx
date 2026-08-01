@@ -36,7 +36,8 @@ export function SecurityPosturePicker({
               onClick={() => setPosture(mode)}
               title={POSTURE_LABELS_AR[mode]}
               className={cn(
-                'rounded-md border px-2 py-1 text-[11px] transition-colors',
+                'rounded-md border text-[11px] transition-colors',
+                compact ? 'px-1.5 py-1' : 'px-2 py-1',
                 active
                   ? mode === 'DANGEROUS'
                     ? 'border-ab-warn bg-ab-warn/15 font-semibold text-ab-warn'

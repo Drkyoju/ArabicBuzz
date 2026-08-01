@@ -71,9 +71,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showMore, setShowMore] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
-  const [canvasAudit, setCanvasAudit] = useState<
-    Array<{ id: string; titleAr: string; actorAr: string; at: string }>
-  >([])
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -95,30 +92,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     setShowMore(false)
   }, [activeScopeId])
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const headers = await authHeaders()
-      const res = await fetch(
-        `/api/rooms/canvas?scopeId=${encodeURIComponent(activeScopeId)}&audit=1`,
-        { headers }
-      )
-      if (!res.ok || cancelled) return
-      const data = (await res.json()) as {
-        audit?: Array<{
-          id: string
-          titleAr: string
-          actorAr: string
-          at: string
-        }>
-      }
-      setCanvasAudit(data.audit || [])
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [activeScopeId, artifacts.length])
 
   useEffect(() => {
     let cancelled = false
@@ -591,61 +564,43 @@ export function RoomWorkspace({ className }: { className?: string }) {
           onFocusCapture={() => setPresenceSurface('feed')}
         >
           {showOnboarding && (
-            <div className="border-b border-ab-accent/20 bg-ab-accent/5 px-4 py-2.5 text-sm">
-              <p className="font-semibold text-ab-ink">مرحباً في Arabic Buzz</p>
-              <ol className="mt-1 list-decimal space-y-0.5 pr-4 text-[11px] text-stone-600">
-                <li>اختر مساحة من الشريط الجانبي.</li>
-                <li>
-                  اذكر وكيلاً بـ <code dir="ltr">@reports</code> أو انقر مقعده.
-                </li>
-                <li>اضغط الميكروفون وتحدث بالعربية — يتحول النص تلقائياً.</li>
-              </ol>
+            <div className="flex items-start justify-between gap-3 border-b border-ab-accent/20 bg-ab-accent/5 px-4 py-2.5">
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-ab-ink">مرحباً في Arabic Buzz</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-stone-600">
+                  اختر مساحة، اذكر وكيلاً بـ <code dir="ltr">@</code>، أو تكلم
+                  بالميكروفون ثم راجع النص وأرسل.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={dismissOnboarding}
-                className="mt-1.5 text-xs font-medium text-ab-accent"
+                className="shrink-0 text-xs font-medium text-ab-accent"
               >
-                حسناً، ابدأ
+                ابدأ
               </button>
             </div>
           )}
 
-          <header className="flex flex-col gap-2 border-b border-ab-border px-3 py-2.5">
-            <div className="flex items-start justify-between gap-2">
+          <header className="border-b border-ab-border px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-medium text-stone-400">
-                  {shared
-                    ? activeScopeId === 'shared-ops'
-                      ? 'مساحة مشتركة · تشغيل وتنبيهات'
-                      : 'مساحة مشتركة · قرارات الفريق'
-                    : activeScopeId === 'personal-research'
-                      ? 'مساحة شخصية · مسودات بحث'
-                      : 'مساحة شخصية · مكتبك اليومي'}
-                </p>
                 <h2 className="truncate text-[15px] font-bold text-ab-ink">
                   {activeScope.nameAr}
                 </h2>
-                {activeScope.descriptionAr && (
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-stone-500">
-                    {activeScope.descriptionAr}
-                  </p>
-                )}
-                <div className="mt-1">
+                <div className="mt-0.5">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
                     typing={typing}
                     displayName={displayName}
                     surface={presenceSurface}
+                    compact
                   />
                 </div>
-                {canvasAudit.length > 0 && (
-                  <p className="mt-1 line-clamp-1 text-[10px] text-stone-400">
-                    آخر تعديل لوحة:{' '}
-                    {canvasAudit[0].titleAr} · {canvasAudit[0].actorAr}
-                  </p>
-                )}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                <ModelPicker compact />
+                <SecurityPosturePicker compact />
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -661,16 +616,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     type="button"
                     onClick={() => setShowMore((v) => !v)}
                     className="rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
-                    aria-label="الحضور والسجل"
+                    aria-label="الأعضاء والسجل"
                   >
-                    {showMore ? 'إخفاء السجل' : 'مين متصل · السجل'}
+                    {showMore ? 'إخفاء' : 'الأعضاء'}
                   </button>
                 )}
               </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 border-t border-ab-border/60 pt-2">
-              <ModelPicker compact />
-              <SecurityPosturePicker compact />
             </div>
           </header>
 
@@ -711,34 +662,37 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <div className="border-b border-ab-border px-3 py-2">
-            <AgentSeatsPanel
-              scopeId={activeScopeId}
-              activeAgentId={mentionPreview?.id}
-              onSeatClick={(a) =>
-                setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
-              }
-            />
-          </div>
+          {roomAgents.length > 0 && (
+            <div className="border-b border-ab-border/70 px-3 py-1.5">
+              <AgentSeatsPanel
+                scopeId={activeScopeId}
+                activeAgentId={mentionPreview?.id}
+                onSeatClick={(a) =>
+                  setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
+                }
+              />
+            </div>
+          )}
 
           <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
-            {posts.length === 0 ? (
-              <div className="relative flex h-full min-h-[12rem] flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-bl from-stone-50 via-white to-emerald-50/50 px-4 py-10 text-center">
-                <MessageSquare
-                  className="mb-3 h-10 w-10 text-stone-300"
-                  aria-hidden
-                />
-                <p className="text-base font-semibold text-ab-ink">
-                  ابدأ المحادثة
-                </p>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-stone-500">
-                  اكتب سؤالك أو اضغط الميكروفون وتحدث بالعربية. يمكنك الإشارة
-                  لوكيل بـ @slug أو رفع ملف من شريط الكتابة.
-                </p>
-              </div>
-            ) : (
-              posts.map((post) => <RoomPostCard key={post.id} post={post} />)
-            )}
+            <div className="mx-auto w-full max-w-2xl">
+              {posts.length === 0 ? (
+                <div className="flex min-h-[12rem] flex-col items-center justify-center px-4 py-12 text-center">
+                  <MessageSquare
+                    className="mb-3 h-9 w-9 text-stone-300"
+                    aria-hidden
+                  />
+                  <p className="text-base font-semibold text-ab-ink">
+                    ابدأ المحادثة
+                  </p>
+                  <p className="mt-1 max-w-sm text-sm leading-relaxed text-stone-500">
+                    اكتب أو تكلم بالميكروفون، وأشر لوكيل بـ @ عند الحاجة.
+                  </p>
+                </div>
+              ) : (
+                posts.map((post) => <RoomPostCard key={post.id} post={post} />)
+              )}
+            </div>
           </div>
 
           <footer className="sticky bottom-0 border-t border-ab-border bg-ab-surface/95 p-2.5 backdrop-blur">

@@ -46,15 +46,16 @@ export function ModelPicker({
     <label
       className={
         compact
-          ? 'flex items-center gap-1.5 text-[11px] text-stone-600'
+          ? 'flex items-center gap-1 text-[11px] text-stone-600'
           : 'flex items-center gap-2 text-sm'
       }
     >
-      <span className="shrink-0">النموذج</span>
+      {!compact && <span className="shrink-0">النموذج</span>}
       <select
+        aria-label="النموذج"
         className={
           compact
-            ? 'max-w-[11rem] rounded-md border border-ab-border bg-white px-2 py-1 text-[11px]'
+            ? 'max-w-[9.5rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
             : 'max-w-[220px] rounded-md border border-ab-border bg-white px-3 py-1.5'
         }
         value={selectedModel}
@@ -66,9 +67,13 @@ export function ModelPicker({
           const ok = !availableSlugs || availableSlugs.has(m.slug)
           return (
             <option key={m.slug} value={m.slug} disabled={!ok}>
-              {ok
-                ? `${m.labelAr} · ${m.provider}`
-                : `${m.labelAr} · يحتاج مفتاحاً`}
+              {compact
+                ? ok
+                  ? m.labelAr
+                  : `${m.labelAr} · مفتاح`
+                : ok
+                  ? `${m.labelAr} · ${m.provider}`
+                  : `${m.labelAr} · يحتاج مفتاحاً`}
             </option>
           )
         })}

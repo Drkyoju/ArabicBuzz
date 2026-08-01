@@ -27,12 +27,14 @@ export function RoomPresenceBar({
   typing,
   displayName,
   surface = 'feed',
+  compact = false,
 }: {
   scopeId: string
   typing: boolean
   displayName?: string
   /** Where the local user is focused: feed | canvas | composer */
   surface?: string
+  compact?: boolean
 }) {
   const [peers, setPeers] = useState<Peer[]>([])
   const channelRef = useRef<{
@@ -134,6 +136,28 @@ export function RoomPresenceBar({
     peers.length > 0 ? peers : [{ key: 'self', name: nameRef.current, surface }]
   const surfaceLabel = (s?: string) =>
     s === 'canvas' ? 'اللوحة' : s === 'composer' ? 'الكتابة' : 'المحادثة'
+
+  if (compact) {
+    return (
+      <div
+        className="flex items-center gap-1.5 text-[11px] text-stone-500"
+        dir="rtl"
+      >
+        <span
+          className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600"
+          aria-hidden
+        />
+        <span>
+          متصل ({online.length})
+          {typingNames.length > 0
+            ? ` · ${typingNames[0]} يكتب…`
+            : online.length === 1
+              ? ` · ${online[0].name}`
+              : ''}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500" dir="rtl">

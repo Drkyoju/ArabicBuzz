@@ -147,13 +147,27 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'skills' && (
-          <div className="px-2" dir="rtl">
+          <div className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold">المهارات والمهام</h2>
+              <p className="mt-1 text-sm text-stone-500">
+                ثبّت مهارات للوكلاء أو سجّل مهمة مجدولة للعربية.
+              </p>
+            </div>
             <SkillMarketplace targetScopeId={activeScopeId} />
-            <div className="mx-auto max-w-3xl space-y-6 px-6 pb-10">
-              <CronRegisterForm onCreated={() => undefined} />
+            <div className="mt-10 space-y-6 border-t border-ab-border pt-8">
+              <div>
+                <h3 className="mb-1 text-base font-semibold text-ab-ink">
+                  المهام المجدولة
+                </h3>
+                <p className="mb-4 text-xs text-stone-500">
+                  تنبيهات وملخصات دورية عبر القنوات المضبوطة على Netlify.
+                </p>
+                <CronRegisterForm onCreated={() => undefined} />
+              </div>
               <div>
                 <h3 className="mb-3 text-sm font-semibold text-ab-ink">
-                  المهام المجدولة · سجل التشغيل
+                  سجل التشغيل
                 </h3>
                 <CronStatusTable />
               </div>
@@ -163,71 +177,49 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <h2 className="mb-4 text-xl font-bold">الإعدادات</h2>
+            <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              الحساب، المفاتيح، ووضع الأمان للموقع السحابي.
+            </p>
 
-            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="font-semibold">وضع الاتصال</h3>
+                <h3 className="font-semibold">الموقع</h3>
                 <AirGapBadge airGapped={airGapped} />
               </div>
               <p className="text-xs leading-relaxed text-stone-600">
                 {airGapped
-                  ? 'وضع محلي مغلق (air-gap): النماذج والملفات تبقى على هذا الجهاز قدر الإمكان. لا تُرفع الملفات لسحابة Netlify.'
-                  : 'وضع سحابي: عند غياب خزنة الماك المحلية تُحفظ الملفات الصغيرة في قاعدة البيانات (حتى 4MB) أو عبر عقل الشركة. لفرض المحلي شغّل التخزين المحلي أو MAC_SYNC_URL.'}
+                  ? 'وضع محلي مغلق: النماذج والملفات تبقى على الجهاز قدر الإمكان.'
+                  : 'تعمل على arabicbuzz.netlify.app — الملفات والذاكرة في السحابة وعقل الشركة.'}
               </p>
             </div>
 
-            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <h3 className="mb-2 font-semibold">الوصول والحساب</h3>
               <p className="mb-3 text-xs text-stone-600">
-                الوضع الشخصي مفتوح افتراضياً. لتفعيل غرف متعددة المستخدمين اضبط{' '}
-                <code dir="ltr">AUTH_REQUIRED=true</code> على Netlify ثم سجّل
-                الدخول هنا أو من{' '}
+                الوضع الشخصي مفتوح افتراضياً. لغرف متعددة المستخدمين فعّل{' '}
+                <code dir="ltr">AUTH_REQUIRED=true</code> ثم سجّل الدخول من{' '}
                 <a href="/auth/login" className="text-ab-accent underline">
-                  /auth/login
+                  صفحة الدخول
                 </a>
                 .
               </p>
               <AuthButtons compact />
             </div>
-            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4">
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <ProviderKeysPanel />
             </div>
-            <div className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4">
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>
               <SecurityPosturePicker />
             </div>
-            <div
-              className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm"
-              dir="rtl"
-            >
-              <h3 className="mb-2 font-semibold">الميكروفون · نسخ عربي</h3>
-              <p className="text-xs text-stone-600">
-                اضغط أيقونة الميكروفون في المحادثة وتحدث. أضف{' '}
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+              <h3 className="mb-2 font-semibold">الميكروفون وعقل الشركة</h3>
+              <p className="text-xs leading-relaxed text-stone-600">
+                الميكروفون يحتاج{' '}
                 <code dir="ltr">HF_TOKEN</code> أو{' '}
-                <code dir="ltr">GROQ_API_KEY</code> من «مفاتيح المزوّدين» أعلاه.
-              </p>
-            </div>
-            <div
-              className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm"
-              dir="rtl"
-            >
-              <h3 className="mb-2 font-semibold">عقل الشركة · OCR عربي</h3>
-              <p className="text-xs text-stone-600">
-                ارفع ملفات عبر «تحميل ملفات» أو «إلى عقل الشركة». النص الرقمي
-                يُستخرج مباشرة؛ الممسوح يمرّ على OCR عربي (Qari / Gemini).
-              </p>
-            </div>
-            <div
-              className="mb-8 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm"
-              dir="rtl"
-            >
-              <h3 className="mb-2 font-semibold">تخزين الملفات على الماك</h3>
-              <p className="text-xs text-stone-600">
-                الملفات تُحفظ في{' '}
-                <code dir="ltr">~/ArabicBuzz/data</code> محلياً أو عبر{' '}
-                <code dir="ltr">npm run storage:sync</code> مع{' '}
-                <code dir="ltr">MAC_SYNC_URL</code>.
+                <code dir="ltr">GROQ_API_KEY</code>. ارفع الملفات من «ملفات»
+                ثم أرسلها لعقل الشركة للفهرسة والرد بمصادر عربية.
               </p>
             </div>
             <div className="mt-8">
