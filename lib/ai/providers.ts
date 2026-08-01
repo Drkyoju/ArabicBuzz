@@ -48,6 +48,12 @@ export function getCloudProviders() {
     openaiCloud: createOpenAI({
       apiKey: process.env.OPENAI_API_KEY || '',
     }),
+    /** Z.AI / Zhipu GLM — OpenAI-compatible (https://api.z.ai/api/paas/v4) */
+    glm: createOpenAI({
+      apiKey: process.env.GLM_API_KEY || process.env.ZHIPU_API_KEY || '',
+      baseURL:
+        process.env.GLM_BASE_URL || 'https://api.z.ai/api/paas/v4',
+    }),
   }
 }
 
@@ -66,10 +72,16 @@ const OPENROUTER_IDS: Record<string, string> = {
   'qwen-2.5-72b': 'qwen/qwen-2.5-72b-instruct',
   'qwen-2.5': 'qwen/qwen-2.5-72b-instruct',
   'kimi-k2': 'moonshotai/kimi-k2',
-  'glm-4.5': 'z-ai/glm-4.5',
   'hermes-3-405b': 'nousresearch/hermes-3-llama-3.1-405b',
   'hermes-2-pro-8b': 'nousresearch/hermes-2-pro-llama-3-8b',
   // Allow raw OpenRouter ids: "anthropic/claude-3.5-sonnet"
+}
+
+const GLM_IDS: Record<string, string> = {
+  'glm-4.5': 'glm-4.5',
+  'glm-4.5-air': 'glm-4.5-air',
+  'glm-4-flash': 'glm-4-flash',
+  glm: 'glm-4.5',
 }
 
 const GOOGLE_IDS: Record<string, string> = {
@@ -123,6 +135,16 @@ export function getModel(modelId: string) {
   const googleId = GOOGLE_IDS[id]
   if (googleId) {
     return getCloudProviders().google(googleId)
+  }
+
+  const glmId = GLM_IDS[id]
+  if (glmId) {
+    if (!process.env.GLM_API_KEY && !process.env.ZHIPU_API_KEY) {
+      throw new Error(
+        'GLM_API_KEY غير مضبوط. أضف مفتاح Z.AI / Zhipu لاستخدام GLM.'
+      )
+    }
+    return getCloudProviders().glm(glmId)
   }
 
   const pplxId = PERPLEXITY_IDS[id]

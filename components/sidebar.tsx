@@ -37,10 +37,11 @@ const NAV: Array<{
 ]
 
 const SIDEBAR_MODELS: Array<{ slug: HarnessModelSlug; labelAr: string }> = [
+  { slug: 'glm-4.5', labelAr: 'GLM-4.5' },
+  { slug: 'gemini-2.0-flash', labelAr: 'Gemini 2.0 Flash' },
   { slug: 'claude-3.5-sonnet', labelAr: 'Claude 3.5 Sonnet' },
   { slug: 'deepseek-v3', labelAr: 'DeepSeek-V3' },
   { slug: 'qwen-2.5-72b', labelAr: 'Qwen 2.5' },
-  { slug: 'gemini-2.0-flash', labelAr: 'Gemini 2.0 Flash' },
   { slug: 'perplexity-sonar', labelAr: 'Perplexity Sonar' },
 ]
 

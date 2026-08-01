@@ -19,7 +19,7 @@ export type HarnessModelMeta = {
   slug: HarnessModelSlug
   labelAr: string
   labelEn: string
-  provider: 'openai' | 'google' | 'openrouter' | 'ollama' | 'perplexity'
+  provider: 'openai' | 'google' | 'openrouter' | 'ollama' | 'perplexity' | 'glm'
   requiresKey: string
   airGapSafe: boolean
 }
@@ -101,8 +101,8 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     slug: 'glm-4.5',
     labelAr: 'GLM-4.5',
     labelEn: 'Zhipu GLM-4.5',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
+    provider: 'glm',
+    requiresKey: 'GLM_API_KEY',
     airGapSafe: false,
   },
   {
