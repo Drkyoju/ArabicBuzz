@@ -9,6 +9,7 @@
     "lint": "eslint",
     "verify:env": "tsx scripts/verify-env.ts",
     "setup:supabase": "tsx scripts/setup-supabase.ts",
+    "storage:open": "open \"$HOME/ArabicBuzz/data\"",
     "supabase": "supabase",
     "supabase:link": "supabase link --project-ref vqhbgujxhyodxcneexss",
     "supabase:push": "supabase db push",

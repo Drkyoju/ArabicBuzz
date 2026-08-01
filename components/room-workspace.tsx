@@ -13,6 +13,7 @@ import {
 } from '@/lib/supabase/browser'
 import { isSharedScope } from '@/lib/scopes/manager'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
 import type { RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
@@ -500,6 +501,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           </div>
 
           <footer className="space-y-2 border-t border-ab-border bg-ab-surface p-3">
+            <LocalUploadPanel scopeId={activeScopeId} />
             {shared && (
               <div className="flex flex-wrap gap-2">
                 <input

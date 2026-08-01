@@ -88,6 +88,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div className="mb-8">
               <AuthSetupHint />
             </div>
+            <div
+              className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4 text-sm"
+              dir="rtl"
+            >
+              <h3 className="mb-2 font-semibold">تخزين الملفات على الماك</h3>
+              <p className="text-xs text-stone-600">
+                ملفات PDF والملاحظات الصوتية تُحفظ على جهازك في المجلد{' '}
+                <code dir="ltr">~/ArabicBuzz/data</code> عند تشغيل التطبيق محلياً
+                (<code dir="ltr"> npm run dev</code>). موقع Netlify السحابي لا
+                يستطيع الكتابة على قرص الماك — للتخزين المحلي شغّل Arabic Buzz من
+                هذا الجهاز.
+              </p>
+            </div>
             <p className="mb-4 text-sm text-stone-600">
               المساحات الشخصية والمشتركة تفصل الذاكرة والصلاحيات، بينما يبقى
               البشر والوكلاء في نفس الغرفة.

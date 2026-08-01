@@ -47,6 +47,10 @@ yarn-error.log*
 # netlify
 .netlify
 
+# local Mac vault (PDFs, voice notes) — also ~/ArabicBuzz/data
+/data
+/ArabicBuzz
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
