@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MoreHorizontal, PanelRightOpen } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
+import { ComposerMicButton } from '@/components/composer-mic-button'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import {
@@ -16,11 +18,12 @@ import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
-import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
 import type { RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
+
+const EMPTY_POSTS: RoomPost[] = []
 
 /**
  * Shared room workspace: persist + realtime + @mentions + outbound.
@@ -28,18 +31,24 @@ import { cn } from '@/lib/utils'
 export function RoomWorkspace({ className }: { className?: string }) {
   const { selectedModel } = useModelPickerStore()
   const {
-    splitRatio,
-    setSplitRatio,
+    artifacts,
     isCanvasFullscreen,
     toggleCanvasFullscreen,
     upsertArtifact,
   } = useCanvasStore()
-  const dragging = useRef(false)
   const feedRef = useRef<HTMLDivElement>(null)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
-  const activeScope = useWorkspaceStore((s) => s.activeScope())
-  const posts = useWorkspaceStore((s) => s.postsByScope[s.activeScopeId] || [])
+  const scopes = useWorkspaceStore((s) => s.scopes)
+  const postsByScope = useWorkspaceStore((s) => s.postsByScope)
+  const activeScope = useMemo(
+    () => scopes.find((s) => s.id === activeScopeId),
+    [scopes, activeScopeId]
+  )
+  const posts = useMemo(
+    () => postsByScope[activeScopeId] || EMPTY_POSTS,
+    [postsByScope, activeScopeId]
+  )
   const appendPost = useWorkspaceStore((s) => s.appendPost)
   const updatePost = useWorkspaceStore((s) => s.updatePost)
   const setPostsForScope = useWorkspaceStore((s) => s.setPostsForScope)
@@ -53,8 +62,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [outboundMsg, setOutboundMsg] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
+  const [showCanvas, setShowCanvas] = useState(true)
+  const [showMore, setShowMore] = useState(false)
+  const [micNote, setMicNote] = useState('')
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const posture = useSecurityPostureStore((s) => s.posture)
+  const hasArtifacts = artifacts.length > 0
+  const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
 
   const roomAgents = agentsForScope(activeScopeId)
 
@@ -367,12 +381,16 @@ export function RoomWorkspace({ className }: { className?: string }) {
       }),
     })
     const data = (await res.json()) as { messageAr?: string; error?: string }
-    setInviteMsg(data.messageAr || data.error || '')
-    if (res.ok) setInviteEmail('')
+    if (res.ok) {
+      setInviteMsg(data.messageAr || 'سُجّلت الدعوة في قاعدة البيانات (بدون بريد فعلي بعد).')
+      setInviteEmail('')
+    } else {
+      setInviteMsg(data.error || `تعذّرت الدعوة (HTTP ${res.status})`)
+    }
   }
 
   async function sendOutbound(channel: 'telegram' | 'whatsapp') {
-    const text = input.trim() || outboundMsg
+    const text = input.trim()
     if (!text) {
       setOutboundMsg('اكتب نصاً في الحقل ثم أرسل للقناة.')
       return
@@ -387,7 +405,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
       }),
     })
     const data = (await res.json()) as { noteAr?: string; error?: string }
-    setOutboundMsg(data.noteAr || data.error || 'تم')
+    setOutboundMsg(
+      res.ok
+        ? data.noteAr || 'تم الإرسال'
+        : data.error || data.noteAr || `فشل الإرسال (HTTP ${res.status})`
+    )
   }
 
   function dismissOnboarding() {
@@ -400,158 +422,195 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }
 
   return (
-    <div dir="rtl" className={cn('flex h-screen w-full', className)}>
+    <div
+      dir="rtl"
+      className={cn(
+        'flex h-[calc(100dvh-2.75rem)] w-full gap-3 ab-stage p-3 md:h-dvh',
+        className
+      )}
+    >
       {!isCanvasFullscreen && (
         <section
-          className="relative flex h-full flex-col border-l border-ab-border bg-ab-bg"
-          style={{ width: `${(1 - splitRatio) * 100}%` }}
+          className={cn(
+            'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm',
+            canvasOpen ? 'w-full md:w-[min(42%,28rem)] md:shrink-0' : 'w-full flex-1'
+          )}
           aria-label="غرفة العمل"
         >
           {showOnboarding && (
-            <div className="border-b border-ab-accent/30 bg-ab-accent/10 px-4 py-3 text-sm">
+            <div className="border-b border-ab-accent/20 bg-ab-accent/5 px-4 py-2.5 text-sm">
               <p className="font-semibold text-ab-ink">مرحباً في Arabic Buzz</p>
-              <ol className="mt-1 list-decimal space-y-1 pr-5 text-xs text-stone-600">
-                <li>اختر مساحة شخصية أو غرفة مشتركة من اليمين.</li>
+              <ol className="mt-1 list-decimal space-y-0.5 pr-4 text-[11px] text-stone-600">
+                <li>اختر مساحة من الشريط الجانبي.</li>
                 <li>
-                  اذكر وكيلاً بـ @slug مثل{' '}
-                  <code dir="ltr">@reports</code> لتوجيه الرد.
+                  اذكر وكيلاً بـ <code dir="ltr">@reports</code> أو انقر مقعده.
                 </li>
-                <li>ادعُ زميلاً بالبريد من أسفل الغرفة المشتركة.</li>
+                <li>اضغط الميكروفون وتحدث بالعربية — يتحول النص تلقائياً.</li>
               </ol>
               <button
                 type="button"
                 onClick={dismissOnboarding}
-                className="mt-2 text-xs font-medium text-ab-accent"
+                className="mt-1.5 text-xs font-medium text-ab-accent"
               >
                 حسناً، ابدأ
               </button>
             </div>
           )}
 
-          <header className="border-b border-ab-border bg-ab-surface px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-medium text-stone-500">
-                  {shared ? 'مساحة مشتركة' : 'مساحة شخصية'}
-                </p>
-                <h2 className="text-lg font-bold text-ab-ink">
-                  {activeScope.nameAr}
-                </h2>
-                {activeScope.descriptionAr && (
-                  <p className="mt-0.5 text-xs text-stone-500">
-                    {activeScope.descriptionAr}
-                  </p>
-                )}
-                <div className="mt-2">
-                  <RoomPresenceBar scopeId={activeScopeId} typing={typing} />
-                </div>
-                <div className="mt-3">
-                  <AgentSeatsPanel
-                    scopeId={activeScopeId}
-                    activeAgentId={mentionPreview?.id}
-                    onSeatClick={(a) =>
-                      setInput((v) =>
-                        v.startsWith('@') ? v : `@${a.slug} ${v}`
-                      )
-                    }
-                  />
-                </div>
+          <header className="flex items-start justify-between gap-2 border-b border-ab-border px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-stone-400">
+                {shared ? 'مساحة مشتركة' : 'مساحة شخصية'}
+              </p>
+              <h2 className="truncate text-[15px] font-bold text-ab-ink">
+                {activeScope.nameAr}
+              </h2>
+              <div className="mt-1">
+                <RoomPresenceBar scopeId={activeScopeId} typing={typing} />
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-2">
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {hasArtifacts && (
                 <button
                   type="button"
-                  onClick={toggleCanvasFullscreen}
-                  className="text-xs text-stone-500 hover:text-ab-ink"
+                  onClick={() => setShowCanvas((v) => !v)}
+                  className="hidden rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50 md:inline-flex md:items-center md:gap-1"
                 >
-                  توسيع اللوحة
+                  <PanelRightOpen className="h-3 w-3" />
+                  {canvasOpen ? 'إخفاء اللوحة' : 'اللوحة'}
                 </button>
-                <SecurityPosturePicker compact />
-              </div>
+              )}
+              {shared && (
+                <button
+                  type="button"
+                  onClick={() => setShowMore((v) => !v)}
+                  className="rounded-md p-1.5 text-stone-500 hover:bg-stone-100"
+                  aria-label="المزيد"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </header>
 
-          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-4">
-            {posts.length === 0 ? (
-              <p className="text-sm text-stone-500">
-                الغرفة فارغة — اكتب أول رسالة ليشارك الوكيل معك.
-              </p>
-            ) : (
-              posts.map((post) => <RoomPostCard key={post.id} post={post} />)
-            )}
-          </div>
-
-          <footer className="space-y-2 border-t border-ab-border bg-ab-surface p-3">
-            <LocalUploadPanel scopeId={activeScopeId} />
-            {shared && (
+          {showMore && shared && (
+            <div className="space-y-2 border-b border-ab-border bg-stone-50 px-3 py-2">
               <div className="flex flex-wrap gap-2">
                 <input
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="دعوة زميل: email@company.com"
-                  className="min-w-[12rem] flex-1 rounded-md border border-ab-border px-2 py-1.5 text-xs"
+                  placeholder="دعوة: email@company.com"
+                  className="min-w-[10rem] flex-1 rounded-md border border-ab-border px-2 py-1.5 text-xs"
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => void sendInvite()}
-                  className="rounded-md border border-ab-border px-2 py-1.5 text-xs"
+                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
                 >
                   دعوة
                 </button>
                 <button
                   type="button"
                   onClick={() => void sendOutbound('telegram')}
-                  className="rounded-md border border-ab-border px-2 py-1.5 text-xs"
+                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
                 >
-                  أرسل لتيليجرام
+                  تيليجرام
                 </button>
                 <button
                   type="button"
                   onClick={() => void sendOutbound('whatsapp')}
-                  className="rounded-md border border-ab-border px-2 py-1.5 text-xs"
+                  className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
                 >
-                  أرسل لواتساب
+                  واتساب
                 </button>
               </div>
-            )}
-            {(inviteMsg || outboundMsg) && (
-              <p className="text-[11px] text-stone-500">
-                {inviteMsg || outboundMsg}
+              {(inviteMsg || outboundMsg) && (
+                <p className="text-[10px] text-stone-500">
+                  {inviteMsg || outboundMsg}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="border-b border-ab-border px-3 py-2">
+            <AgentSeatsPanel
+              scopeId={activeScopeId}
+              activeAgentId={mentionPreview?.id}
+              onSeatClick={(a) =>
+                setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
+              }
+            />
+          </div>
+
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
+            {posts.length === 0 ? (
+              <p className="text-sm text-stone-500">
+                الغرفة فارغة — اكتب أو تكلم بالميكروفون.
               </p>
+            ) : (
+              posts.map((post) => <RoomPostCard key={post.id} post={post} />)
             )}
+          </div>
+
+          <footer className="border-t border-ab-border bg-ab-surface p-2.5">
             {mentionPreview && (
-              <p className="text-[11px] text-ab-accent">
+              <p className="mb-1.5 text-[11px] text-ab-accent">
                 سيتم توجيه الرد إلى {mentionPreview.nameAr}
               </p>
             )}
+            {micNote && (
+              <p className="mb-1.5 text-[10px] text-stone-500">{micNote}</p>
+            )}
             <form
-              className="flex gap-2"
+              className="flex items-end gap-1.5"
               onSubmit={(e) => {
                 e.preventDefault()
                 void sendPrompt()
               }}
             >
-              <input
+              <LocalUploadPanel scopeId={activeScopeId} compact />
+              <ComposerMicButton
+                disabled={streaming}
+                onTranscript={(text, meta) => {
+                  setInput((prev) =>
+                    prev.trim() ? `${prev.trim()} ${text}` : text
+                  )
+                  setMicNote(
+                    meta?.providerLabelAr
+                      ? `نُسخ عبر ${meta.providerLabelAr}`
+                      : 'تم النسخ'
+                  )
+                }}
+              />
+              <textarea
                 value={input}
+                rows={1}
                 onChange={(e) => {
                   setInput(e.target.value)
                   setTyping(true)
                   if (typingTimer.current) clearTimeout(typingTimer.current)
                   typingTimer.current = setTimeout(() => setTyping(false), 1200)
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void sendPrompt()
+                  }
+                }}
                 disabled={streaming}
                 placeholder={
                   shared
-                    ? 'اكتب للغرفة — جرّب @reports …'
-                    : 'اكتب لمساحةك الشخصية…'
+                    ? 'اكتب أو تكلم… جرّب @reports'
+                    : 'اكتب أو تكلم لمساحتك…'
                 }
-                className="min-w-0 flex-1 rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
+                className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
               />
               <button
                 type="submit"
                 disabled={streaming || !input.trim()}
-                className="rounded-md bg-ab-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
               >
                 إرسال
               </button>
@@ -560,53 +619,46 @@ export function RoomWorkspace({ className }: { className?: string }) {
         </section>
       )}
 
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        className="hidden w-1 shrink-0 cursor-col-resize bg-ab-border hover:bg-ab-accent/40 md:block"
-        onMouseDown={() => {
-          dragging.current = true
-          const onMove = (e: MouseEvent) => {
-            if (!dragging.current) return
-            const ratio = 1 - e.clientX / window.innerWidth
-            setSplitRatio(Math.min(0.75, Math.max(0.25, ratio)))
-          }
-          const onUp = () => {
-            dragging.current = false
-            window.removeEventListener('mousemove', onMove)
-            window.removeEventListener('mouseup', onUp)
-          }
-          window.addEventListener('mousemove', onMove)
-          window.addEventListener('mouseup', onUp)
-        }}
-      />
-
-      <section
-        className="hidden h-full overflow-hidden bg-ab-surface md:block"
-        style={{
-          width: isCanvasFullscreen ? '100%' : `${splitRatio * 100}%`,
-        }}
-        aria-label="لوحة المخرجات"
-      >
-        <CanvasViewer
-          onPersist={async (artifact) => {
-            await fetch('/api/rooms/canvas', {
-              method: 'POST',
-              headers: await authHeaders({
-                'Content-Type': 'application/json',
-              }),
-              body: JSON.stringify({
-                id: artifact.id,
-                scopeId: activeScopeId,
-                type: artifact.type,
-                titleAr: artifact.titleAr,
-                content: artifact.content,
-                language: artifact.language,
-              }),
-            })
-          }}
-        />
-      </section>
+      {canvasOpen && (
+        <section
+          className={cn(
+            'min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm',
+            isCanvasFullscreen
+              ? 'flex flex-1 flex-col'
+              : 'hidden flex-1 md:flex md:flex-col'
+          )}
+          aria-label="لوحة المخرجات"
+        >
+          <CanvasViewer
+            onClose={() => {
+              if (isCanvasFullscreen) toggleCanvasFullscreen()
+              else setShowCanvas(false)
+            }}
+            onPersist={async (artifact) => {
+              const res = await fetch('/api/rooms/canvas', {
+                method: 'POST',
+                headers: await authHeaders({
+                  'Content-Type': 'application/json',
+                }),
+                body: JSON.stringify({
+                  id: artifact.id,
+                  scopeId: activeScopeId,
+                  type: artifact.type,
+                  titleAr: artifact.titleAr,
+                  content: artifact.content,
+                  language: artifact.language,
+                }),
+              })
+              if (!res.ok) {
+                const data = (await res.json().catch(() => ({}))) as {
+                  error?: string
+                }
+                throw new Error(data.error || `فشل الحفظ (HTTP ${res.status})`)
+              }
+            }}
+          />
+        </section>
+      )}
     </div>
   )
 }

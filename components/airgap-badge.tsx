@@ -1,16 +1,27 @@
-type Props = { airGapped?: boolean }
+type Props = { airGapped?: boolean; compact?: boolean }
 
-export function AirGapBadge({ airGapped = false }: Props) {
+export function AirGapBadge({ airGapped = false, compact }: Props) {
+  if (compact) {
+    return (
+      <span
+        className={`inline-flex h-2 w-2 rounded-full ${
+          airGapped ? 'bg-ab-accent' : 'bg-stone-300'
+        }`}
+        title={airGapped ? 'وضع محلي مغلق' : 'وضع سحابي'}
+        aria-label={airGapped ? 'وضع محلي مغلق' : 'وضع سحابي'}
+      />
+    )
+  }
   if (airGapped) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1 text-sm font-medium text-ab-accent border border-ab-accent/30">
-        🔒 الوضع المحلي المغلق (متوافق مع حماية البيانات)
+      <span className="inline-flex items-center gap-1 rounded-md border border-ab-accent/30 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-ab-accent">
+        محلي
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-3 py-1 text-sm font-medium text-stone-600 border border-ab-border">
-      🌐 الوضع السحابي (Cloud Mode)
+    <span className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+      سحابي
     </span>
   )
 }

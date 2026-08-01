@@ -9,9 +9,17 @@
   --ab-ink: #1f1e1b;
   --ab-accent: #0f766e;
   --ab-warn: #b45309;
+  --ab-stage: #efece6;
 }
 
 body {
   background: var(--ab-bg);
   color: var(--ab-ink);
+}
+
+/* QM-like stage behind session tiles */
+.ab-stage {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(15, 118, 110, 0.06), transparent),
+    var(--ab-stage);
 }

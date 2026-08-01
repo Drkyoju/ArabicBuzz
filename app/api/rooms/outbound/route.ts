@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'النص مطلوب' }, { status: 400 })
   }
 
-  await emitNotification({
+  const sent = await emitNotification({
     channel,
     textAr,
     meta: { scopeId, fromUserId: auth.user.id },
@@ -34,14 +34,29 @@ export async function POST(req: Request) {
     authorKind: 'system',
     authorId: 'outbound',
     authorNameAr: channel === 'telegram' ? 'تيليجرام' : 'واتساب',
-    content: `تم إرسال رسالة للخارج عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'}:\n${textAr}`,
+    content: sent.ok
+      ? `تم إرسال رسالة للخارج عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'}:\n${textAr}`
+      : `تعذّر الإرسال عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'} (تحقق من مفاتيح القناة). النص:\n${textAr}`,
     channel,
   })
+
+  if (!sent.ok) {
+    return Response.json(
+      {
+        ok: false,
+        post: post.post,
+        error:
+          channel === 'telegram'
+            ? 'تعذّر الإرسال لتيليجرام — اضبط TELEGRAM_BOT_TOKEN و TELEGRAM_TEST_CHAT_ID.'
+            : 'تعذّر الإرسال لواتساب — اضبط WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_TEST_TO.',
+      },
+      { status: 502 }
+    )
+  }
 
   return Response.json({
     ok: true,
     post: post.post,
-    noteAr:
-      'إن لم تكن قنوات TELEGRAM_*/WHATSAPP_* مضبوطة على Netlify، يُسجَّل الحدث في الغرفة فقط.',
+    noteAr: `أُرسلت الرسالة عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'}.`,
   })
 }

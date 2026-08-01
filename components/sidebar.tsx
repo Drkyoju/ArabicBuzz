@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   MessageSquare,
   ShieldCheck,
@@ -10,12 +10,17 @@ import {
   User,
   Menu,
   X,
+  FolderOpen,
+  Plus,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
-import type { HarnessModelSlug } from '@/lib/ai/harness-catalog'
+import {
+  listAvailableHarnessModels,
+  type HarnessModelSlug,
+} from '@/lib/ai/harness-catalog'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { cn } from '@/lib/utils'
@@ -31,19 +36,10 @@ const NAV: Array<{
   labelAr: string
   icon: LucideIcon
 }> = [
-  { id: 'chats', labelAr: 'الغرف والمساحات', icon: MessageSquare },
-  { id: 'approvals', labelAr: 'سجل الموافقات', icon: ShieldCheck },
+  { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
+  { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'integrations', labelAr: 'التكاملات', icon: Plug },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
-]
-
-const SIDEBAR_MODELS: Array<{ slug: HarnessModelSlug; labelAr: string }> = [
-  { slug: 'glm-4.5', labelAr: 'GLM-4.5' },
-  { slug: 'gemini-2.0-flash', labelAr: 'Gemini 2.0 Flash' },
-  { slug: 'claude-3.5-sonnet', labelAr: 'Claude 3.5 Sonnet' },
-  { slug: 'deepseek-v3', labelAr: 'DeepSeek-V3' },
-  { slug: 'qwen-2.5-72b', labelAr: 'Qwen 2.5' },
-  { slug: 'perplexity-sonar', labelAr: 'Perplexity Sonar' },
 ]
 
 function SidebarBody({
@@ -58,144 +54,169 @@ function SidebarBody({
   onNavigate?: () => void
 }) {
   const { selectedModel, setSelectedModel } = useModelPickerStore()
-  const modelValue = SIDEBAR_MODELS.some((m) => m.slug === selectedModel)
+  const models = listAvailableHarnessModels(Boolean(airGapped))
+  const modelValue = models.some((m) => m.slug === selectedModel)
     ? selectedModel
-    : 'gemini-2.0-flash'
+    : models[0]?.slug || 'gemini-2.0-flash'
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
-  const personal = useWorkspaceStore((s) => s.personalScopes())
-  const shared = useWorkspaceStore((s) => s.sharedScopes())
+  const scopes = useWorkspaceStore((s) => s.scopes)
+  const personal = useMemo(() => scopes.filter(isPersonalScope), [scopes])
+  const shared = useMemo(() => scopes.filter(isSharedScope), [scopes])
 
   return (
-    <>
-      <div className="border-b border-ab-border px-4 py-4">
+    <div className="flex h-full flex-col" dir="rtl">
+      <div className="border-b border-ab-border px-3 py-3">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-lg font-bold tracking-tight text-ab-ink">
-            Arabic Buzz
-          </h1>
+          <div>
+            <h1 className="text-[15px] font-bold tracking-tight text-ab-ink">
+              Arabic Buzz
+            </h1>
+            <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
+          </div>
           <AirGapBadge airGapped={airGapped} />
         </div>
-        <p className="mt-1 text-xs text-stone-500">غرفة عمل بشر ووكلاء</p>
+        <button
+          type="button"
+          onClick={() => {
+            onSectionChange?.('chats')
+            onNavigate?.()
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          جلسة جديدة
+        </button>
       </div>
 
-      <nav className="flex flex-col gap-1 border-b border-ab-border p-3">
-        {NAV.map(({ id, labelAr, icon: Icon }) => {
-          const active = activeSection === id
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                onSectionChange?.(id)
-                onNavigate?.()
-              }}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                active
-                  ? 'bg-ab-accent/10 font-semibold text-ab-accent'
-                  : 'text-ab-ink hover:bg-stone-100'
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span>{labelAr}</span>
-            </button>
-          )
-        })}
+      <nav className="border-b border-ab-border p-2">
+        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+          تصفح
+        </p>
+        <ul className="space-y-0.5">
+          {NAV.map(({ id, labelAr, icon: Icon }) => {
+            const active = activeSection === id
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSectionChange?.(id)
+                    onNavigate?.()
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors',
+                    active
+                      ? 'bg-ab-accent/10 font-semibold text-ab-accent'
+                      : 'text-ab-ink hover:bg-stone-100'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                  <span>{labelAr}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
 
-      {activeSection === 'chats' && (
-        <div className="flex-1 overflow-y-auto p-3">
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-stone-500">
-            <User className="h-3 w-3" aria-hidden />
-            مساحاتي
-          </p>
-          <ul className="mb-4 space-y-1">
-            {personal.map((scope) => {
-              if (!isPersonalScope(scope)) return null
-              const active = activeScopeId === scope.id
-              return (
-                <li key={scope.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveScopeId(scope.id)
-                      onSectionChange?.('chats')
-                      onNavigate?.()
-                    }}
+      <div className="flex-1 overflow-y-auto p-2">
+        <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+          <User className="h-3 w-3" aria-hidden />
+          مساحاتي
+        </p>
+        <ul className="mb-3 space-y-0.5">
+          {personal.map((scope) => {
+            const active =
+              activeSection === 'chats' && activeScopeId === scope.id
+            return (
+              <li key={scope.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScopeId(scope.id)
+                    onSectionChange?.('chats')
+                    onNavigate?.()
+                  }}
+                  className={cn(
+                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    active
+                      ? 'bg-ab-ink text-white'
+                      : 'text-ab-ink hover:bg-stone-100'
+                  )}
+                >
+                  {scope.nameAr}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+          <Users className="h-3 w-3" aria-hidden />
+          مساحات مشتركة
+        </p>
+        <ul className="space-y-0.5">
+          {shared.map((scope) => {
+            const active =
+              activeSection === 'chats' && activeScopeId === scope.id
+            return (
+              <li key={scope.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScopeId(scope.id)
+                    onSectionChange?.('chats')
+                    onNavigate?.()
+                  }}
+                  className={cn(
+                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    active
+                      ? 'bg-ab-ink text-white'
+                      : 'text-ab-ink hover:bg-stone-100'
+                  )}
+                >
+                  <span className="block font-medium">{scope.nameAr}</span>
+                  <span
                     className={cn(
-                      'w-full rounded-md px-3 py-2 text-right text-sm transition-colors',
-                      active
-                        ? 'bg-ab-accent text-white'
-                        : 'text-ab-ink hover:bg-stone-100'
+                      'mt-0.5 block text-[10px]',
+                      active ? 'text-white/70' : 'text-stone-400'
                     )}
                   >
-                    <span className="block font-medium">{scope.nameAr}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+                    {scope.memberLabelsAr.length} بشر ·{' '}
+                    {scope.agentLabelsAr.length} وكلاء
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
 
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-stone-500">
-            <Users className="h-3 w-3" aria-hidden />
-            مساحات مشتركة
-          </p>
-          <ul className="space-y-1">
-            {shared.map((scope) => {
-              if (!isSharedScope(scope)) return null
-              const active = activeScopeId === scope.id
-              return (
-                <li key={scope.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveScopeId(scope.id)
-                      onSectionChange?.('chats')
-                      onNavigate?.()
-                    }}
-                    className={cn(
-                      'w-full rounded-md px-3 py-2 text-right text-sm transition-colors',
-                      active
-                        ? 'bg-ab-accent text-white'
-                        : 'text-ab-ink hover:bg-stone-100'
-                    )}
-                  >
-                    <span className="block font-medium">{scope.nameAr}</span>
-                    <span
-                      className={cn(
-                        'mt-0.5 block text-[11px]',
-                        active ? 'text-white/80' : 'text-stone-500'
-                      )}
-                    >
-                      {scope.memberLabelsAr.length} بشر ·{' '}
-                      {scope.agentLabelsAr.length} وكلاء
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
+        <p className="mb-1 mt-4 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+          <FolderOpen className="h-3 w-3" aria-hidden />
+          أدوات الغرفة
+        </p>
+        <p className="px-2 text-[10px] leading-relaxed text-stone-500">
+          الملفات وعقل الشركة والمهام من داخل لوحة الجلسة.
+        </p>
+      </div>
 
-      {activeSection !== 'chats' && <div className="flex-1" />}
-
-      <div className="space-y-4 border-t border-ab-border p-4">
+      <div className="space-y-3 border-t border-ab-border p-3">
         <SecurityPosturePicker compact />
         <div>
-          <label className="mb-2 block text-xs font-medium text-stone-500">
+          <label className="mb-1 block text-[10px] font-medium text-stone-400">
             النموذج
           </label>
           <select
-            className="w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink"
+            className="w-full rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs text-ab-ink"
             value={modelValue}
             onChange={(e) =>
               setSelectedModel(e.target.value as HarnessModelSlug)
             }
             aria-label="اختيار النموذج"
           >
-            {SIDEBAR_MODELS.map((m) => (
+            {models.map((m) => (
               <option key={m.slug} value={m.slug}>
                 {m.labelAr}
               </option>
@@ -203,7 +224,7 @@ function SidebarBody({
           </select>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -220,8 +241,7 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="fixed inset-x-0 top-0 z-50 flex items-center justify-between border-b border-ab-border bg-ab-surface px-3 py-2 md:hidden">
+      <div className="fixed inset-x-0 top-0 z-50 flex h-11 items-center justify-between border-b border-ab-border bg-ab-surface/95 px-3 backdrop-blur md:hidden">
         <button
           type="button"
           aria-label="فتح القائمة"
@@ -237,7 +257,7 @@ export function Sidebar({
       {mobileOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-50 bg-black/30 md:hidden"
+          className="fixed inset-0 z-50 bg-black/25 md:hidden"
           aria-label="إغلاق"
           onClick={() => setMobileOpen(false)}
         />
@@ -245,7 +265,7 @@ export function Sidebar({
 
       <aside
         className={cn(
-          'fixed inset-y-0 right-0 z-[60] flex w-[17.5rem] flex-col border-l border-ab-border bg-ab-surface transition-transform md:translate-x-0',
+          'fixed inset-y-0 right-0 z-[60] flex w-[15.5rem] flex-col border-l border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
           mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
         aria-label="الشريط الجانبي"

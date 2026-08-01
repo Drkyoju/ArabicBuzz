@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, User } from 'lucide-react'
@@ -20,13 +21,29 @@ function LtrData({ children }: { children: React.ReactNode }) {
 
 function formatTime(ts: number) {
   try {
-    return new Intl.DateTimeFormat('ar-SA', {
+    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory', {
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'Asia/Riyadh',
     }).format(new Date(ts))
   } catch {
     return ''
   }
+}
+
+/** Render timestamps after mount; server and client clocks/locales differ. */
+function PostTime({ createdAt }: { createdAt: number }) {
+  const [label, setLabel] = useState('')
+
+  useEffect(() => {
+    setLabel(formatTime(createdAt))
+  }, [createdAt])
+
+  return (
+    <span className="text-[11px] text-stone-400" suppressHydrationWarning>
+      {label}
+    </span>
+  )
 }
 
 /** Single peer post in a humans+agents room timeline. */
@@ -38,19 +55,19 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   return (
     <article
       className={cn(
-        'mb-4 rounded-lg border px-3 py-3',
+        'mb-2.5 rounded-lg border px-2.5 py-2',
         isAgent
-          ? 'border-ab-accent/25 bg-ab-accent/[0.04]'
+          ? 'border-ab-accent/20 bg-ab-accent/[0.03]'
           : isChannel
             ? 'border-dashed border-stone-300 bg-stone-50'
-            : 'border-ab-border bg-ab-surface'
+            : 'border-ab-border/80 bg-white'
       )}
       dir="rtl"
     >
-      <header className="mb-2 flex items-center gap-2">
+      <header className="mb-1.5 flex items-center gap-2">
         <span
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-full',
+            'flex h-6 w-6 items-center justify-center rounded-full',
             isAgent
               ? 'bg-ab-accent/15 text-ab-accent'
               : isChannel
@@ -60,34 +77,32 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
           aria-hidden
         >
           {isAgent || isChannel ? (
-            <Bot className="h-3.5 w-3.5" />
+            <Bot className="h-3 w-3" />
           ) : (
-            <User className="h-3.5 w-3.5" />
+            <User className="h-3 w-3" />
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="text-sm font-semibold text-ab-ink">
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <span className="text-[13px] font-semibold text-ab-ink">
               {post.authorNameAr}
             </span>
-            <span className="text-[11px] text-stone-500">
+            <span className="text-[10px] text-stone-500">
               {isAgent
                 ? 'وكيل'
                 : isChannel
                   ? 'قناة / نظام'
                   : 'بشري'}
             </span>
-            <span className="text-[11px] text-stone-400">
-              {formatTime(post.createdAt)}
-            </span>
+            <PostTime createdAt={post.createdAt} />
           </div>
         </div>
         {post.streaming && (
-          <span className="text-[11px] text-ab-accent">يكتب…</span>
+          <span className="text-[10px] text-ab-accent">يكتب…</span>
         )}
       </header>
 
-      <div className="text-sm leading-relaxed text-ab-ink">
+      <div className="text-[13px] leading-relaxed text-ab-ink">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{

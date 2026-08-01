@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FileUp, Mic, Paperclip, Brain } from 'lucide-react'
+import {
+  checkBrowserRecordSupport,
+  extForAudioMime,
+  startBrowserRecording,
+  type ActiveRecording,
+} from '@/lib/audio/browser-record'
 import { authHeaders } from '@/lib/supabase/browser'
+import { cn } from '@/lib/utils'
 
 type StoredFile = {
   id: string
@@ -12,21 +19,25 @@ type StoredFile = {
   createdAt: string
 }
 
+/**
+ * Compact attach / Mac-save / brain toolbar for the session composer.
+ */
 export function LocalUploadPanel({
   scopeId,
   onUploaded,
+  compact,
 }: {
   scopeId: string
   onUploaded?: () => void
+  compact?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const mediaRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const mediaRef = useRef<ActiveRecording | null>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState<StoredFile[]>([])
-  const [storageRoot, setStorageRoot] = useState('')
+  const [open, setOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     const headers = await authHeaders()
@@ -37,11 +48,9 @@ export function LocalUploadPanel({
     if (listRes.ok) {
       const data = (await listRes.json()) as {
         files?: StoredFile[]
-        storage?: { root?: string; enabled?: boolean; error?: string }
         error?: string
       }
       setFiles(data.files || [])
-      setStorageRoot(data.storage?.root || '')
       if (data.error) setMessage(data.error)
     }
   }, [scopeId])
@@ -49,6 +58,12 @@ export function LocalUploadPanel({
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    return () => {
+      mediaRef.current?.stream.getTracks().forEach((t) => t.stop())
+    }
+  }, [])
 
   async function uploadBlob(file: File | Blob, filename: string) {
     setBusy(true)
@@ -70,13 +85,12 @@ export function LocalUploadPanel({
       const data = (await res.json()) as {
         error?: string
         messageAr?: string
-        file?: StoredFile
       }
       if (!res.ok) {
         setMessage(data.error || 'تعذّر الرفع')
         return
       }
-      setMessage(data.messageAr || 'تم الحفظ على الماك')
+      setMessage(data.messageAr || 'تم الحفظ')
       await refresh()
       onUploaded?.()
     } catch (e) {
@@ -120,31 +134,130 @@ export function LocalUploadPanel({
     }
   }
 
-  async function toggleRecord() {
+  async function toggleMacRecord() {
     if (recording && mediaRef.current) {
-      mediaRef.current.stop()
-      setRecording(false)
+      try {
+        const { blob, mimeType } = await mediaRef.current.stop()
+        mediaRef.current = null
+        setRecording(false)
+        await uploadBlob(blob, `voice-${Date.now()}.${extForAudioMime(mimeType)}`)
+      } catch (e) {
+        setRecording(false)
+        setMessage(e instanceof Error ? e.message : 'فشل حفظ التسجيل')
+      }
+      return
+    }
+    const support = checkBrowserRecordSupport()
+    if (!support.ok) {
+      setMessage(support.reasonAr || 'التسجيل غير متاح')
       return
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const rec = new MediaRecorder(stream)
-      chunksRef.current = []
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size) chunksRef.current.push(ev.data)
-      }
-      rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        stream.getTracks().forEach((t) => t.stop())
-        void uploadBlob(blob, `voice-${Date.now()}.webm`)
-      }
-      mediaRef.current = rec
-      rec.start()
+      const active = await startBrowserRecording()
+      mediaRef.current = active
       setRecording(true)
-      setMessage('جاري التسجيل… اضغط مجدداً للإيقاف والحفظ على الماك')
-    } catch {
-      setMessage('تعذّر الوصول للميكروفون.')
+      setMessage('جاري التسجيل للحفظ على الماك… اضغط مجدداً للإيقاف')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'تعذّر الوصول للميكروفون')
     }
+  }
+
+  if (compact) {
+    return (
+      <div className="relative" dir="rtl">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+          aria-label="تحميل ملفات"
+          title="تحميل ملفات"
+        >
+          <Paperclip className="h-4 w-4" />
+        </button>
+        {open && (
+          <div className="absolute bottom-full end-0 z-20 mb-2 w-64 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => inputRef.current?.click()}
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1.5 text-[11px]"
+              >
+                <FileUp className="h-3 w-3" />
+                تحميل ملفات
+              </button>
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-[11px] text-ab-accent">
+                <Brain className="h-3 w-3" />
+                عقل الشركة
+                <input
+                  type="file"
+                  accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) void ingestToBrain(undefined, f)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void toggleMacRecord()}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
+                  recording
+                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+                    : 'border-ab-border'
+                )}
+              >
+                <Mic className="h-3 w-3" />
+                {recording ? 'إيقاف' : 'حفظ صوتي'}
+              </button>
+            </div>
+            {message && (
+              <p className="mt-1.5 text-[10px] text-stone-500">{message}</p>
+            )}
+            {files.length > 0 && (
+              <ul className="mt-1.5 max-h-20 space-y-0.5 overflow-y-auto text-[10px] text-stone-600">
+                {files.slice(0, 5).map((f) => (
+                  <li key={f.id} className="flex justify-between gap-2">
+                    <span className="truncate">{f.originalName}</span>
+                    {(f.kind === 'pdf' ||
+                      f.kind === 'doc' ||
+                      f.kind === 'pptx' ||
+                      f.kind === 'xlsx' ||
+                      f.kind === 'image') && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="text-ab-accent hover:underline"
+                        onClick={() => void ingestToBrain(f.id)}
+                      >
+                        عقل
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,application/pdf,image/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,*/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void uploadBlob(f, f.name)
+                e.target.value = ''
+              }}
+            />
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -152,19 +265,6 @@ export function LocalUploadPanel({
       className="rounded-md border border-dashed border-ab-border bg-stone-50 p-2"
       dir="rtl"
     >
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-medium text-stone-600">
-          تخزين الماك · عقل الشركة
-        </span>
-        {storageRoot && (
-          <span
-            className="max-w-full truncate text-[10px] text-stone-400"
-            dir="ltr"
-          >
-            {storageRoot}
-          </span>
-        )}
-      </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -173,7 +273,7 @@ export function LocalUploadPanel({
           className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:opacity-40"
         >
           <FileUp className="h-3.5 w-3.5" />
-          PDF / Word / Excel / PPT
+          تحميل ملفات
         </button>
         <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-xs text-ab-accent">
           <Brain className="h-3.5 w-3.5" />
@@ -193,30 +293,17 @@ export function LocalUploadPanel({
         <button
           type="button"
           disabled={busy}
-          onClick={() => void toggleRecord()}
-          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs disabled:opacity-40 ${
+          onClick={() => void toggleMacRecord()}
+          className={cn(
+            'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs disabled:opacity-40',
             recording
               ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
               : 'border-ab-border bg-white'
-          }`}
+          )}
         >
           <Mic className="h-3.5 w-3.5" />
-          {recording ? 'إيقاف وحفظ' : 'ملاحظة صوتية'}
+          {recording ? 'إيقاف وحفظ' : 'حفظ صوتي للماك'}
         </button>
-        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs">
-          <Paperclip className="h-3.5 w-3.5" />
-          صوت من الجهاز
-          <input
-            type="file"
-            accept="audio/*,.ogg,.mp3,.wav,.m4a,.webm"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void uploadBlob(f, f.name)
-              e.target.value = ''
-            }}
-          />
-        </label>
       </div>
       <input
         ref={inputRef}
@@ -230,47 +317,6 @@ export function LocalUploadPanel({
         }}
       />
       {message && <p className="mt-1 text-[11px] text-stone-500">{message}</p>}
-      {files.length > 0 && (
-        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-stone-600">
-          {files.slice(0, 8).map((f) => (
-            <li key={f.id} className="flex justify-between gap-2">
-              <span className="truncate">
-                {f.kind === 'pdf'
-                  ? '📄'
-                  : f.kind === 'pptx'
-                    ? '📊'
-                    : f.kind === 'xlsx'
-                      ? '📗'
-                      : f.kind === 'audio'
-                        ? '🎤'
-                        : f.kind === 'image'
-                          ? '🖼️'
-                          : '📎'}{' '}
-                {f.originalName}
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                {(f.kind === 'pdf' ||
-                  f.kind === 'doc' ||
-                  f.kind === 'pptx' ||
-                  f.kind === 'xlsx' ||
-                  f.kind === 'image') && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-ab-accent hover:underline disabled:opacity-40"
-                    onClick={() => void ingestToBrain(f.id)}
-                  >
-                    عقل
-                  </button>
-                )}
-                <span className="text-stone-400">
-                  {Math.round(f.size / 1024)}ك
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }
