@@ -65,18 +65,76 @@ export function LocalUploadPanel({
     }
   }, [])
 
+  async function uploadDirectToMac(
+    file: File,
+    direct: {
+      uploadUrl: string
+      secretHeader?: string | null
+      secretValue?: string | null
+    }
+  ) {
+    const headers: Record<string, string> = {
+      'X-Scope-Id': scopeId,
+      'X-Original-Name': encodeURIComponent(file.name),
+      'X-Mime-Type': file.type || 'application/octet-stream',
+      'Content-Type': file.type || 'application/octet-stream',
+    }
+    if (direct.secretHeader && direct.secretValue) {
+      headers[direct.secretHeader] = direct.secretValue
+    }
+    setMessage('رفع مباشر إلى الماك… قد يستغرق وقتاً للملفات الكبيرة')
+    const res = await fetch(direct.uploadUrl, {
+      method: 'POST',
+      headers,
+      body: file,
+    })
+    const data = (await res.json()) as {
+      ok?: boolean
+      error?: string
+      messageAr?: string
+      file?: { id?: string }
+    }
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'فشل الرفع المباشر للماك')
+    }
+    return data
+  }
+
   async function uploadBlob(file: File | Blob, filename: string) {
     setBusy(true)
     setMessage('')
     try {
-      const body = new FormData()
-      body.append('scopeId', scopeId)
-      body.append(
-        'file',
+      const asFile =
         file instanceof File
           ? file
           : new File([file], filename, { type: file.type })
-      )
+
+      // Probe status for direct-upload threshold / URL
+      const statusRes = await fetch('/api/storage/upload?status=1', {
+        headers: await authHeaders(),
+      })
+      const status = (await statusRes.json()) as {
+        hopMaxBytes?: number
+        directUpload?: {
+          uploadUrl: string
+          secretHeader?: string | null
+          secretValue?: string | null
+          maxBytes?: number
+        } | null
+      }
+      const hopMax = status.hopMaxBytes || 32 * 1024 * 1024
+
+      if (asFile.size > hopMax && status.directUpload?.uploadUrl) {
+        const data = await uploadDirectToMac(asFile, status.directUpload)
+        setMessage(data.messageAr || 'حُفظ مباشرة على الماك')
+        await refresh()
+        onUploaded?.()
+        return
+      }
+
+      const body = new FormData()
+      body.append('scopeId', scopeId)
+      body.append('file', asFile)
       const res = await fetch('/api/storage/upload', {
         method: 'POST',
         headers: await authHeaders(),
@@ -85,9 +143,23 @@ export function LocalUploadPanel({
       const data = (await res.json()) as {
         error?: string
         messageAr?: string
+        ok?: boolean
+        directUploadRequired?: boolean
+        directUpload?: {
+          uploadUrl: string
+          secretHeader?: string | null
+          secretValue?: string | null
+        }
       }
-      if (!res.ok) {
-        setMessage(data.error || 'تعذّر الرفع')
+      if (data.directUploadRequired && data.directUpload?.uploadUrl) {
+        const direct = await uploadDirectToMac(asFile, data.directUpload)
+        setMessage(direct.messageAr || 'حُفظ مباشرة على الماك')
+        await refresh()
+        onUploaded?.()
+        return
+      }
+      if (!res.ok || data.ok === false) {
+        setMessage(data.error || data.messageAr || 'تعذّر الرفع')
         return
       }
       setMessage(data.messageAr || 'تم الحفظ')

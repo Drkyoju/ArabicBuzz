@@ -5,14 +5,35 @@ import {
   listLocalFiles,
   saveLocalFile,
 } from '@/lib/storage/local'
-import {
-  listCloudFiles,
-  saveCloudFile,
-} from '@/lib/storage/cloud'
+import { listCloudFiles, saveCloudFile } from '@/lib/storage/cloud'
 import { insertRoomPost } from '@/lib/rooms/persist'
+import {
+  directMacUploadInfo,
+  getMacSyncConfig,
+  macSyncConfigured,
+  NETLIFY_MAC_HOP_MAX,
+} from '@/lib/storage/mac-sync-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
+
+async function listMacRemoteFiles(scopeId: string): Promise<unknown[]> {
+  const { baseUrl, secret } = getMacSyncConfig()
+  if (!baseUrl) return []
+  try {
+    const res = await fetch(
+      `${baseUrl}/files?scopeId=${encodeURIComponent(scopeId)}`,
+      {
+        headers: secret ? { Authorization: `Bearer ${secret}` } : {},
+      }
+    )
+    if (!res.ok) return []
+    const data = (await res.json()) as { files?: unknown[] }
+    return data.files || []
+  } catch {
+    return []
+  }
+}
 
 async function forwardToMacSync(opts: {
   scopeId: string
@@ -20,16 +41,12 @@ async function forwardToMacSync(opts: {
   originalName: string
   mimeType: string
 }): Promise<{ ok: boolean; file?: unknown; messageAr?: string; error?: string }> {
-  const syncUrl = (process.env.MAC_SYNC_URL || '').replace(/\/$/, '')
-  const secret =
-    process.env.MAC_SYNC_SECRET?.trim() ||
-    process.env.LOCAL_STORAGE_SYNC_SECRET?.trim() ||
-    ''
-  if (!syncUrl) {
+  const { baseUrl, secret } = getMacSyncConfig()
+  if (!baseUrl) {
     return { ok: false, error: 'MAC_SYNC_URL غير مضبوط' }
   }
   try {
-    const res = await fetch(`${syncUrl}/sync`, {
+    const res = await fetch(`${baseUrl}/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,25 +85,33 @@ export async function GET(req: Request) {
   const auth = await requireUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
+  const direct = directMacUploadInfo()
   if (url.searchParams.get('status') === '1') {
     return Response.json({
       storage: getStorageStatus(),
-      macSyncConfigured: Boolean(process.env.MAC_SYNC_URL),
+      macSyncConfigured: macSyncConfigured(),
+      directUpload: direct,
+      hopMaxBytes: NETLIFY_MAC_HOP_MAX,
     })
   }
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
   try {
     let files: unknown[] = []
-    let source: 'local' | 'cloud' | 'none' = 'none'
+    let source: 'local' | 'mac' | 'cloud' | 'none' = 'none'
     let listError: string | undefined
 
     if (isLocalStorageEnabled()) {
       try {
         files = listLocalFiles(scopeId)
-        source = 'local'
+        if (files.length > 0) source = 'local'
       } catch (e) {
         listError = e instanceof Error ? e.message : 'local list failed'
       }
+    }
+
+    if (files.length === 0 && macSyncConfigured()) {
+      files = await listMacRemoteFiles(scopeId)
+      if (files.length > 0) source = 'mac'
     }
 
     if (files.length === 0) {
@@ -101,10 +126,14 @@ export async function GET(req: Request) {
       files,
       source,
       storage: getStorageStatus(),
-      macSyncConfigured: Boolean(process.env.MAC_SYNC_URL),
+      macSyncConfigured: macSyncConfigured(),
+      directUpload: direct,
+      hopMaxBytes: NETLIFY_MAC_HOP_MAX,
       error:
-        files.length === 0 && !isLocalStorageEnabled() && !process.env.MAC_SYNC_URL
-          ? 'التخزين المحلي غير متاح هنا — الرفع يحفظ سحابياً (حتى 4MB) أو استخدم «عقل الشركة» للمستندات.'
+        files.length === 0 &&
+        !isLocalStorageEnabled() &&
+        !macSyncConfigured()
+          ? 'التخزين المحلي غير متاح هنا — ارفع مباشرة للماك (ملفات كبيرة) أو استخدم السحابة حتى 4MB.'
           : listError,
     })
   } catch (e) {
@@ -112,7 +141,8 @@ export async function GET(req: Request) {
       {
         files: [],
         storage: getStorageStatus(),
-        macSyncConfigured: Boolean(process.env.MAC_SYNC_URL),
+        macSyncConfigured: macSyncConfigured(),
+        directUpload: direct,
         error: e instanceof Error ? e.message : 'storage error',
       },
       { status: 200 }
@@ -131,11 +161,44 @@ export async function POST(req: Request) {
     if (!(file instanceof File)) {
       return Response.json({ error: 'أرفق ملفاً (file).' }, { status: 400 })
     }
-    const buf = Buffer.from(await file.arrayBuffer())
-    if (buf.length > 40 * 1024 * 1024) {
+
+    const declaredSize = file.size || 0
+    const direct = directMacUploadInfo()
+
+    // Too large for Netlify hop — client must POST raw body to Mac /upload
+    if (declaredSize > NETLIFY_MAC_HOP_MAX) {
+      if (!direct) {
+        return Response.json(
+          {
+            error:
+              'الملف كبير جداً للنقل عبر Netlify. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل وكيل الماك، ثم ارفع مباشرة.',
+            directUploadRequired: true,
+          },
+          { status: 413 }
+        )
+      }
       return Response.json(
-        { error: 'الحد الأقصى للملف 40MB على التخزين المحلي.' },
-        { status: 400 }
+        {
+          ok: false,
+          directUploadRequired: true,
+          directUpload: direct,
+          scopeId,
+          messageAr:
+            'ارفع هذا الملف مباشرة إلى وكيل الماك (تجاوز حجم النقل عبر Netlify).',
+        },
+        { status: 200 }
+      )
+    }
+
+    const buf = Buffer.from(await file.arrayBuffer())
+    if (buf.length > NETLIFY_MAC_HOP_MAX) {
+      return Response.json(
+        {
+          error: 'الملف أكبر من حد النقل عبر Netlify. استخدم الرفع المباشر للماك.',
+          directUploadRequired: true,
+          directUpload: direct,
+        },
+        { status: 413 }
       )
     }
 
@@ -162,7 +225,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!meta) {
+    if (!meta && macSyncConfigured()) {
       const forwarded = await forwardToMacSync({
         scopeId,
         buffer: buf,
@@ -193,7 +256,8 @@ export async function POST(req: Request) {
           {
             error:
               cloud.error ||
-              'تعذّر الحفظ. جرّب «عقل الشركة» للمستندات أو شغّل التخزين المحلي على الماك.',
+              'تعذّر الحفظ. شغّل وكيل الماك للملفات الكبيرة أو استخدم عقل الشركة للنص.',
+            directUpload: direct,
           },
           { status: 503 }
         )

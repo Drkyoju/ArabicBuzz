@@ -6,13 +6,18 @@ import {
 import { readLocalFile } from '@/lib/storage/local'
 import { readCloudFile } from '@/lib/storage/cloud'
 import { insertRoomPost } from '@/lib/rooms/persist'
+import {
+  isBrainPrimaryMac,
+  macBrainIngest,
+  macSyncConfigured,
+} from '@/lib/storage/mac-sync-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * Ingest Word / PowerPoint / PDF / images into company brain (Arabic hybrid RAG).
- * Uses native text extract first; Arabic OCR (Qari → Gemini) for scans/images.
+ * Ingest Word / PowerPoint / PDF / images into company brain.
+ * When BRAIN_PRIMARY=mac, text is stored only on the Mac vault via the sync agent.
  */
 export async function POST(req: Request) {
   const auth = await requireUser(req)
@@ -62,6 +67,52 @@ export async function POST(req: Request) {
         text = body.text
         extractMethod = 'plain'
       } else if (body.localFileId) {
+        if (isBrainPrimaryMac() && macSyncConfigured()) {
+          const { getMacSyncConfig } = await import(
+            '@/lib/storage/mac-sync-client'
+          )
+          const { baseUrl, secret } = getMacSyncConfig()
+          const res = await fetch(`${baseUrl}/brain/ingest`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+            },
+            body: JSON.stringify({
+              scopeId,
+              titleAr,
+              localFileId: body.localFileId,
+            }),
+          })
+          const data = (await res.json()) as {
+            ok?: boolean
+            chunks?: number
+            error?: string
+            messageAr?: string
+          }
+          if (!res.ok || !data.ok) {
+            return Response.json(
+              { error: data.error || 'فشل الاستيعاب على الماك' },
+              { status: 502 }
+            )
+          }
+          await insertRoomPost({
+            scopeId,
+            authorKind: 'system',
+            authorId: 'company-brain',
+            authorNameAr: 'عقل الشركة',
+            content: `🧠 أُضيف «${titleAr}» إلى عقل الماك (${data.chunks} مقطع).`,
+          })
+          return Response.json({
+            ok: true,
+            chunks: data.chunks,
+            primary: 'mac',
+            messageAr:
+              data.messageAr ||
+              `تم الاستيعاب على الماك (${data.chunks} مقطع)`,
+          })
+        }
+
         let local: Awaited<ReturnType<typeof readCloudFile>> = null
         try {
           local = readLocalFile(scopeId, body.localFileId)
@@ -101,6 +152,44 @@ export async function POST(req: Request) {
         },
         { status: 400 }
       )
+    }
+
+    if (isBrainPrimaryMac()) {
+      if (!macSyncConfigured()) {
+        return Response.json(
+          {
+            error:
+              'BRAIN_PRIMARY=mac لكن MAC_SYNC_URL غير مضبوط. شغّل وكيل الماك والنفق.',
+          },
+          { status: 503 }
+        )
+      }
+      const data = await macBrainIngest({
+        scopeId,
+        titleAr,
+        content: text,
+        sourceFileId,
+        sourcePath,
+      })
+      const ocrNote = ocrUsed
+        ? ` · OCR عبر ${ocrProvider || extractMethod}`
+        : ` · استخراج ${extractMethod || 'نصي'}`
+      await insertRoomPost({
+        scopeId,
+        authorKind: 'system',
+        authorId: 'company-brain',
+        authorNameAr: 'عقل الشركة',
+        content: `🧠 أُضيف «${titleAr}» إلى عقل الماك (${data.chunks} مقطع)${ocrNote}.`,
+      })
+      return Response.json({
+        ok: true,
+        chunks: data.chunks,
+        primary: 'mac',
+        method: extractMethod,
+        ocrUsed,
+        ocrProvider: ocrProvider || null,
+        messageAr: `تم استيعاب ${data.chunks} مقطع على الماك${ocrNote}`,
+      })
     }
 
     const result = await ingestArabicDocument({

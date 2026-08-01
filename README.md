@@ -40,6 +40,26 @@ npm run setup:supabase
 4. Dashboard → Authentication → enable **Google** + **Apple**, redirect  
    `https://arabicbuzz.netlify.app/auth/callback` only.
 
+## Mac vault + company brain (large files)
+
+Source of truth on your Mac (`~/ArabicBuzz/data`); teammates use the Netlify site.
+
+1. On the Mac (keep running):
+
+```bash
+MAC_SYNC_SECRET=your-secret npm run storage:sync
+# tunnel, e.g.:
+npx ngrok http 7420
+```
+
+2. Netlify env:
+
+- `MAC_SYNC_URL` / `NEXT_PUBLIC_MAC_UPLOAD_URL` = tunnel URL
+- `MAC_SYNC_SECRET` = same secret
+- `BRAIN_PRIMARY=mac`
+
+3. Uploads above ~32MB go **direct** to Mac `/upload` (up to `MAC_MAX_UPLOAD_BYTES`, default 8GB). Search/ingest proxy to the Mac while it is online. Settings → «خزنة الماك» shows agent status.
+
 ## Verify secrets
 
 ```bash

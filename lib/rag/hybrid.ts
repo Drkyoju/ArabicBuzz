@@ -15,7 +15,9 @@ export type RAGDocument = {
   metadata: {
     bm25Rank: number | null
     vectorRank: number | null
-    source: 'hybrid_rrf'
+    source: 'hybrid_rrf' | 'mac-brain' | string
+    sourceFileId?: string | null
+    sourcePath?: string | null
   }
 }
 

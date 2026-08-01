@@ -1,15 +1,32 @@
 /**
- * Mac sync agent — receives uploads from Netlify / browser and writes to ~/ArabicBuzz/data.
+ * Mac sync agent — vault + company brain on this machine.
  *
  *   npm run storage:sync
  *   MAC_SYNC_SECRET=... MAC_SYNC_PORT=7420 npm run storage:sync
  *
- * On Netlify set MAC_SYNC_URL to a tunnel (ngrok) pointing here, e.g.
- *   https://xxxx.ngrok-free.app
+ * On Netlify:
+ *   MAC_SYNC_URL=https://xxxx.ngrok-free.app
+ *   MAC_SYNC_SECRET=...
+ *   BRAIN_PRIMARY=mac
+ *   NEXT_PUBLIC_MAC_UPLOAD_URL=https://xxxx.ngrok-free.app
+ *
+ * Large files (1GB+): browser POSTs raw body to /upload (not via Netlify).
  */
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage } from 'node:http'
 import { config } from 'dotenv'
-import { saveLocalFile, getStorageStatus, ensureVault } from '../lib/storage/local'
+import {
+  saveLocalFile,
+  getStorageStatus,
+  ensureVault,
+  readLocalFile,
+  listLocalFiles,
+} from '../lib/storage/local'
+import {
+  ensureMacBrain,
+  getMacBrainStatus,
+  ingestMacBrainDocument,
+  searchMacBrain,
+} from '../lib/storage/mac-brain'
 
 config({ path: '.env.local' })
 config({ path: '.env' })
@@ -19,14 +36,37 @@ const SECRET =
   process.env.MAC_SYNC_SECRET?.trim() ||
   process.env.LOCAL_STORAGE_SYNC_SECRET?.trim() ||
   'arabic-buzz-local'
+const MAX_BYTES = Number(
+  process.env.MAC_MAX_UPLOAD_BYTES || 8 * 1024 * 1024 * 1024
+)
+
+process.env.STORAGE_BACKEND = process.env.STORAGE_BACKEND || 'local'
 
 ensureVault('_shared')
+ensureMacBrain()
 
-function checkAuth(req: { headers: { authorization?: string; 'x-sync-secret'?: string } }) {
+function checkAuth(req: IncomingMessage) {
   const header = req.headers.authorization || ''
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : ''
-  const alt = req.headers['x-sync-secret'] || ''
+  const alt = String(req.headers['x-sync-secret'] || '')
   return bearer === SECRET || alt === SECRET
+}
+
+async function readBody(req: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
+}
+
+function json(
+  res: import('node:http').ServerResponse,
+  status: number,
+  body: unknown
+) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify(body))
 }
 
 const server = createServer(async (req, res) => {
@@ -35,8 +75,9 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Sync-Secret'
+    'Content-Type, Authorization, X-Sync-Secret, X-Scope-Id, X-Original-Name, X-Mime-Type, X-Title-Ar'
   )
+  res.setHeader('Access-Control-Expose-Headers', 'X-File-Id')
   if (req.method === 'OPTIONS') {
     res.writeHead(204)
     res.end()
@@ -45,106 +86,254 @@ const server = createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`)
 
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
-    const status = getStorageStatus()
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(
-      JSON.stringify({
-        ok: true,
-        agent: 'arabic-buzz-mac-sync',
-        storage: status,
-      })
-    )
+  if (
+    req.method === 'GET' &&
+    (url.pathname === '/' || url.pathname === '/health')
+  ) {
+    json(res, 200, {
+      ok: true,
+      agent: 'arabic-buzz-mac-sync',
+      storage: getStorageStatus(),
+      brain: getMacBrainStatus(),
+      maxUploadBytes: MAX_BYTES,
+    })
     return
   }
 
-  if (req.method === 'POST' && url.pathname === '/sync') {
+  if (req.method === 'GET' && url.pathname === '/brain/status') {
     if (!checkAuth(req)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'unauthorized' }))
+      json(res, 401, { error: 'unauthorized' })
       return
     }
+    json(res, 200, getMacBrainStatus())
+    return
+  }
 
-    const chunks: Buffer[] = []
-    for await (const chunk of req) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  if (req.method === 'GET' && url.pathname === '/files') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
     }
-    const raw = Buffer.concat(chunks)
-
+    const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
     try {
+      json(res, 200, { ok: true, files: listLocalFiles(scopeId) })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'list failed',
+      })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/brain/search') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8')) as {
+        queryAr?: string
+        scopeId?: string
+        limit?: number
+      }
+      const documents = searchMacBrain({
+        queryAr: String(body.queryAr || ''),
+        scopeId: String(body.scopeId || 'shared-demo'),
+        limit: body.limit,
+      })
+      json(res, 200, { ok: true, count: documents.length, documents })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'search failed',
+      })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/brain/ingest') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
       const contentType = req.headers['content-type'] || ''
       let scopeId = 'shared-demo'
-      let originalName = 'upload.bin'
-      let mimeType = 'application/octet-stream'
-      let buffer: Buffer
+      let titleAr = 'مستند الشركة'
+      let content = ''
+      let sourceFileId: string | undefined
+      let sourcePath: string | undefined
 
       if (contentType.includes('application/json')) {
         const body = JSON.parse(raw.toString('utf8')) as {
           scopeId?: string
-          originalName?: string
-          mimeType?: string
-          contentBase64?: string
+          titleAr?: string
+          content?: string
+          text?: string
+          localFileId?: string
+          sourceFileId?: string
+          sourcePath?: string
         }
         scopeId = body.scopeId || scopeId
-        originalName = body.originalName || originalName
-        mimeType = body.mimeType || mimeType
-        if (!body.contentBase64) {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'contentBase64 required' }))
-          return
-        }
-        buffer = Buffer.from(body.contentBase64, 'base64')
-      } else {
-        // naive multipart: look for filename + binary after double CRLF of last part header
-        // Prefer JSON clients; FormData from Node uses JSON path via upload route.
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            error: 'Send application/json with contentBase64',
+        titleAr = body.titleAr || titleAr
+        content = String(body.content || body.text || '')
+        sourceFileId = body.sourceFileId || body.localFileId
+        sourcePath = body.sourcePath
+        if (!content && body.localFileId) {
+          const hit = readLocalFile(scopeId, body.localFileId)
+          if (!hit) {
+            json(res, 404, { error: 'الملف غير موجود على الماك' })
+            return
+          }
+          const { extractDocumentText } = await import('../lib/rag/extract')
+          const extracted = await extractDocumentText({
+            buffer: hit.buffer,
+            filename: hit.meta.originalName,
+            mimeType: hit.meta.mimeType,
+            enableOcr: true,
           })
-        )
+          content = extracted.text
+          titleAr = body.titleAr || hit.meta.originalName
+          sourceFileId = hit.meta.id
+          sourcePath = hit.meta.relativePath
+        }
+      } else {
+        json(res, 400, {
+          error: 'أرسل JSON: content أو localFileId',
+        })
         return
       }
 
-      if (buffer.length > 40 * 1024 * 1024) {
-        res.writeHead(413, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'file too large' }))
+      if (!content.trim()) {
+        json(res, 400, { error: 'لا يوجد نص للاستيعاب' })
         return
       }
 
-      const meta = saveLocalFile({
+      const result = ingestMacBrainDocument({
         scopeId,
-        buffer,
-        originalName,
-        mimeType,
+        titleAr,
+        content,
+        sourceFileId,
+        sourcePath,
       })
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          ok: true,
-          file: meta,
-          messageAr: `حُفظ على الماك عبر وكيل المزامنة: ${meta.originalName}`,
-        })
-      )
+      if (!result.ok) {
+        json(res, 500, { error: result.error })
+        return
+      }
+      json(res, 200, {
+        ok: true,
+        chunks: result.chunks,
+        messageAr: `أُضيف ${result.chunks} مقطع إلى عقل الماك`,
+      })
     } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          error: e instanceof Error ? e.message : 'sync failed',
-        })
-      )
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'ingest failed',
+      })
     }
     return
   }
 
-  res.writeHead(404, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify({ error: 'not found' }))
+  /** Raw binary upload — preferred for multi‑hundred‑MB / 1GB+. */
+  if (req.method === 'POST' && url.pathname === '/upload') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const scopeId = String(req.headers['x-scope-id'] || 'shared-demo')
+      const originalName = decodeURIComponent(
+        String(req.headers['x-original-name'] || 'upload.bin')
+      )
+      const mimeType = String(
+        req.headers['x-mime-type'] ||
+          req.headers['content-type'] ||
+          'application/octet-stream'
+      )
+      const buffer = await readBody(req)
+      if (buffer.length === 0) {
+        json(res, 400, { error: 'جسم فارغ' })
+        return
+      }
+      if (buffer.length > MAX_BYTES) {
+        json(res, 413, {
+          error: `الملف أكبر من الحد (${MAX_BYTES} بايت). ارفع MAC_MAX_UPLOAD_BYTES.`,
+        })
+        return
+      }
+      const meta = saveLocalFile({
+        scopeId,
+        buffer,
+        originalName,
+        mimeType: mimeType.split(';')[0]!.trim(),
+      })
+      res.setHeader('X-File-Id', meta.id)
+      json(res, 200, {
+        ok: true,
+        file: meta,
+        messageAr: `حُفظ على الماك: ${meta.originalName} (${Math.round(meta.size / (1024 * 1024))} MB)`,
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'upload failed',
+      })
+    }
+    return
+  }
+
+  /** Legacy JSON base64 sync (small/medium files via Netlify hop). */
+  if (req.method === 'POST' && url.pathname === '/sync') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8')) as {
+        scopeId?: string
+        originalName?: string
+        mimeType?: string
+        contentBase64?: string
+      }
+      if (!body.contentBase64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const buffer = Buffer.from(body.contentBase64, 'base64')
+      if (buffer.length > MAX_BYTES) {
+        json(res, 413, { error: 'file too large' })
+        return
+      }
+      const meta = saveLocalFile({
+        scopeId: body.scopeId || 'shared-demo',
+        buffer,
+        originalName: body.originalName || 'upload.bin',
+        mimeType: body.mimeType || 'application/octet-stream',
+      })
+      json(res, 200, {
+        ok: true,
+        file: meta,
+        messageAr: `حُفظ على الماك عبر وكيل المزامنة: ${meta.originalName}`,
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'sync failed',
+      })
+    }
+    return
+  }
+
+  json(res, 404, { error: 'not found' })
 })
 
 server.listen(PORT, '0.0.0.0', () => {
   const status = getStorageStatus()
   console.log(`Arabic Buzz Mac sync agent on http://127.0.0.1:${PORT}`)
-  console.log(`  POST /sync  (Bearer ${SECRET.slice(0, 4)}…)`)
+  console.log(`  GET  /health`)
+  console.log(`  POST /upload  (raw body, up to ${MAX_BYTES} bytes)`)
+  console.log(`  POST /sync    (JSON base64)`)
+  console.log(`  POST /brain/ingest | /brain/search`)
   console.log(`  vault: ${status.root}`)
+  console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)
   console.log(`  tunnel tip: npx ngrok http ${PORT}`)
 })

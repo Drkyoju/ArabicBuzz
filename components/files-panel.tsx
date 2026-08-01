@@ -122,7 +122,8 @@ export function FilesPanel() {
         <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
         <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
           <p className="mt-2 text-[11px] text-stone-500">
-          بعد الرفع: «عقل الشركة» للفهرسة ثم يظهر في إجابات الوكيل.
+          الملفات الكبيرة تُرفع مباشرة لخزنة الماك. بعد الرفع: «عقل الشركة»
+          للفهرسة (على الماك إذا كان BRAIN_PRIMARY=mac).
         </p>
       </div>
 

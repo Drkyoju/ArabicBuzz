@@ -4,6 +4,10 @@ import {
   hybridArabicSearch,
   type RAGDocument,
 } from '@/lib/rag/hybrid'
+import {
+  isBrainPrimaryMac,
+  macBrainSearch,
+} from '@/lib/storage/mac-sync-client'
 
 export type SearchKnowledgeBaseResult = {
   queryAr: string
@@ -66,6 +70,58 @@ export async function searchKnowledgeBase(opts: {
   scopeId: string
   limit?: number
 }): Promise<SearchKnowledgeBaseResult> {
+  if (isBrainPrimaryMac()) {
+    try {
+      const hits = await macBrainSearch({
+        queryAr: opts.queryAr,
+        scopeId: opts.scopeId,
+        limit: opts.limit ?? 5,
+      })
+      const docs: RAGDocument[] = hits.map((h) => ({
+        id: h.id,
+        scopeId: opts.scopeId,
+        titleAr: h.titleAr,
+        content: h.content,
+        rrfScore: h.rrfScore,
+        rankBm25: h.rankBm25,
+        rankVector: h.rankVector,
+        metadata: {
+          bm25Rank: h.rankBm25,
+          vectorRank: h.rankVector,
+          source: 'mac-brain',
+          sourceFileId:
+            typeof h.metadata?.sourceFileId === 'string'
+              ? h.metadata.sourceFileId
+              : null,
+          sourcePath:
+            typeof h.metadata?.sourcePath === 'string'
+              ? h.metadata.sourcePath
+              : null,
+        },
+      }))
+      const formatted = formatArabicCitations(docs, opts.queryAr)
+      return {
+        queryAr: opts.queryAr,
+        scopeId: opts.scopeId,
+        count: docs.length,
+        citationBlockAr: formatted.block,
+        documents: formatted.documents,
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : 'تعذّر البحث في عقل الماك'
+      return {
+        queryAr: opts.queryAr,
+        scopeId: opts.scopeId,
+        count: 0,
+        citationBlockAr: `عقل الشركة على الماك غير متاح حالياً: ${msg}`,
+        documents: [],
+      }
+    }
+  }
+
   const docs = await hybridArabicSearch(
     opts.queryAr,
     opts.scopeId,

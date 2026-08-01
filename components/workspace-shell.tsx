@@ -11,6 +11,7 @@ import { SdaiaAuditViewer } from '@/components/sdaia-audit-viewer'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ProviderKeysPanel } from '@/components/provider-keys-panel'
 import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
+import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -214,6 +215,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <GoogleCalendarPanel />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <MacBrainPanel />
+            </div>
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>
               <SecurityPosturePicker />
             </div>
@@ -222,8 +226,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <p className="text-xs leading-relaxed text-stone-600">
                 الميكروفون يحتاج{' '}
                 <code dir="ltr">HF_TOKEN</code> أو{' '}
-                <code dir="ltr">GROQ_API_KEY</code>. ارفع الملفات من «ملفات»
-                ثم أرسلها لعقل الشركة للفهرسة والرد بمصادر عربية.
+                <code dir="ltr">GROQ_API_KEY</code>. مع{' '}
+                <code dir="ltr">BRAIN_PRIMARY=mac</code> يُفهرس النص على جهازك
+                ويبحث الزملاء عبر النفق من الموقع.
               </p>
             </div>
             <div className="mt-8">
