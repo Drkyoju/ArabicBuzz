@@ -6,6 +6,7 @@ import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
 import { resolveApproval } from '@/lib/agents/resolve-approval'
 import { handleInboundVoiceNote } from '@/lib/audio/voice-pipeline'
 import { updateApprovalInSupabase } from '@/lib/supabase/server'
+import { mirrorChannelTurnToRoom } from '@/lib/rooms/channel-mirror'
 
 let bot: Bot | null = null
 
@@ -71,6 +72,14 @@ export function getTelegramBot() {
         engine.text?.trim() ||
         'تم استلام رسالتك، لكن لم يُنتَج رد نصي. حاول مرة أخرى.'
       await ctx.reply(reply)
+      void mirrorChannelTurnToRoom({
+        scopeId: scope.scope.id,
+        channel: 'telegram',
+        externalId: chatId,
+        userLabelAr: ctx.from?.first_name || 'مستخدم تيليجرام',
+        userMessageAr: rawText,
+        agentReplyAr: reply,
+      })
     } catch (e) {
       console.error('[telegram] text handler', e)
       await ctx.reply(

@@ -12,7 +12,7 @@ function LoginBody() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12" dir="rtl">
       <h1 className="mb-2 text-2xl font-bold text-ab-ink">Arabic Buzz</h1>
       <p className="mb-8 text-sm text-stone-600">
-        سجّل الدخول للمتابعة إلى منصة الوكلاء الذكية.
+        سجّل الدخول عبر Google أو GitHub لاستخدام النماذج مع زملائك.
       </p>
       {error && (
         <p className="mb-4 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-3 py-2 text-sm text-ab-warn">

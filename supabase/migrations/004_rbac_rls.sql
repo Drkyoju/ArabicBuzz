@@ -68,18 +68,33 @@ CREATE INDEX IF NOT EXISTS pending_approvals_scope_id_idx
   ON pending_approvals (scope_id);
 
 -- ---------------------------------------------------------------------------
--- auth.uid() shim (Supabase-compatible; falls back to app.current_user_id)
+-- Auth helpers
+-- Supabase already ships auth.uid() → uuid. Never REPLACE that.
+-- Local/dev without Supabase Auth: create a text shim once if missing.
+-- Policies compare with auth.uid()::text so both shapes work.
 -- ---------------------------------------------------------------------------
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS app;
 
-CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS text
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT NULLIF(current_setting('app.current_user_id', true), '');
-$$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'auth' AND p.proname = 'uid'
+  ) THEN
+    EXECUTE $fn$
+      CREATE FUNCTION auth.uid()
+      RETURNS text
+      LANGUAGE sql
+      STABLE
+      AS $body$
+        SELECT NULLIF(current_setting('app.current_user_id', true), '');
+      $body$
+    $fn$;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION app.current_org_id()
 RETURNS text
@@ -87,6 +102,17 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT NULLIF(current_setting('app.current_org_id', true), '');
+$$;
+
+CREATE OR REPLACE FUNCTION app.current_user_id()
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COALESCE(
+    NULLIF(current_setting('app.current_user_id', true), ''),
+    auth.uid()::text
+  );
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -118,15 +144,15 @@ CREATE POLICY thread_org_isolation ON session_threads
   USING (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
   )
   WITH CHECK (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
   );
 
@@ -136,15 +162,15 @@ CREATE POLICY memory_org_isolation ON scope_memories
   USING (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
   )
   WITH CHECK (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
   );
 
@@ -155,19 +181,19 @@ CREATE POLICY approval_org_isolation ON pending_approvals
     scope_id IS NULL
     OR scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
-    OR requester_id = auth.uid()
+    OR requester_id = app.current_user_id()
   )
   WITH CHECK (
     scope_id IS NULL
     OR scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
-    OR requester_id = auth.uid()
+    OR requester_id = app.current_user_id()
   );
 
 DROP POLICY IF EXISTS audit_org_isolation ON sdaia_audit_logs;
@@ -176,18 +202,18 @@ CREATE POLICY audit_org_isolation ON sdaia_audit_logs
   USING (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
-    OR user_id = auth.uid()
+    OR user_id = app.current_user_id()
   )
   WITH CHECK (
     scope_id IN (
       SELECT scope_id FROM scope_permissions
-      WHERE user_id = auth.uid()
-         OR org_id = NULLIF(current_setting('app.current_org_id', true), '')
+      WHERE user_id = app.current_user_id()
+         OR org_id = COALESCE(app.current_org_id(), NULLIF(current_setting('app.current_org_id', true), ''))
     )
-    OR user_id = auth.uid()
+    OR user_id = app.current_user_id()
   );
 
 -- Seed helper org for local/dev demos (idempotent)

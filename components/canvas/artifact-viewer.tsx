@@ -1,9 +1,13 @@
 'use client'
 
-import { useCanvasStore } from '@/lib/canvas/store'
+import { useCanvasStore, type CanvasArtifact } from '@/lib/canvas/store'
 import ReactMarkdown from 'react-markdown'
 
-export function CanvasViewer() {
+export function CanvasViewer({
+  onPersist,
+}: {
+  onPersist?: (artifact: CanvasArtifact) => void | Promise<void>
+}) {
   const { artifacts, activeId, setEditing, setContent } = useCanvasStore()
   const active = artifacts.find((a) => a.id === activeId) || artifacts[0]
 
@@ -20,13 +24,19 @@ export function CanvasViewer() {
   }
 
   function download() {
-    const blob = new Blob([active!.content], { type: 'text/plain;charset=utf-8' })
+    const blob = new Blob([active!.content], {
+      type: 'text/plain;charset=utf-8',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = active!.titleAr || 'artifact.txt'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function persist() {
+    if (onPersist) await onPersist(active!)
   }
 
   const tech = ['code', 'json', 'diff'].includes(active.type)
@@ -45,10 +55,15 @@ export function CanvasViewer() {
           >
             تعديل
           </button>
+          <button
+            onClick={() => void persist()}
+            className="text-sm text-ab-accent"
+          >
+            مشاركة مع الغرفة
+          </button>
           <button onClick={download} className="text-sm text-ab-accent">
             تحميل
           </button>
-          <button className="text-sm text-ab-accent">معاينة</button>
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
@@ -57,24 +72,20 @@ export function CanvasViewer() {
             dir={tech ? 'ltr' : 'rtl'}
             className="h-full w-full rounded-lg border border-ab-border bg-ab-surface p-3 font-mono text-sm"
             value={active.content}
-            onChange={(e) => setContent(active.id, e.target.value)}
+            onChange={(e) => {
+              setContent(active.id, e.target.value)
+            }}
+            onBlur={() => void persist()}
           />
         ) : tech ? (
-          <div
+          <pre
             dir="ltr"
-            className="font-mono text-left bg-stone-900 text-stone-100 p-4 rounded-lg overflow-x-auto text-sm whitespace-pre-wrap"
+            className="overflow-x-auto rounded-lg bg-stone-900 p-4 text-left text-sm text-stone-100"
           >
-            {active.content}
-          </div>
-        ) : active.type === 'html' ? (
-          <iframe
-            title={active.titleAr}
-            sandbox=""
-            className="h-[70vh] w-full rounded-lg border border-ab-border bg-white"
-            srcDoc={active.content}
-          />
+            <code>{active.content}</code>
+          </pre>
         ) : (
-          <div className="prose max-w-none">
+          <div dir="rtl" className="prose prose-sm max-w-none">
             <ReactMarkdown>{active.content}</ReactMarkdown>
           </div>
         )}

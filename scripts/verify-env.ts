@@ -93,6 +93,39 @@ async function checkWhatsApp(token?: string): Promise<Check> {
   }
 }
 
+async function checkSupabase(): Promise<Check> {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const anon =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+  if (!url || !anon) {
+    return {
+      name: 'SUPABASE',
+      ok: false,
+      detail: 'missing URL or anon key (optional until Auth/webhooks)',
+    }
+  }
+  if (offline) {
+    return { name: 'SUPABASE', ok: true, detail: 'present (offline)' }
+  }
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/auth/v1/health`, {
+      headers: { apikey: anon },
+    })
+    return {
+      name: 'SUPABASE',
+      ok: res.ok || res.status === 401,
+      detail: res.ok || res.status === 401 ? 'reachable' : `http ${res.status}`,
+    }
+  } catch (e) {
+    return {
+      name: 'SUPABASE',
+      ok: false,
+      detail: e instanceof Error ? e.message : 'error',
+    }
+  }
+}
+
 async function main() {
   const openai = process.env.OPENAI_API_KEY
   const checks = await Promise.all([
@@ -100,6 +133,7 @@ async function main() {
     checkGemini(process.env.GEMINI_API_KEY),
     checkTelegram(process.env.TELEGRAM_BOT_TOKEN),
     checkWhatsApp(process.env.WHATSAPP_TOKEN),
+    checkSupabase(),
     Promise.resolve({
       name: 'OPENAI_API_KEY',
       ok: Boolean(openai),
@@ -109,9 +143,14 @@ async function main() {
 
   console.log('\nArabic Buzz env verification / التحقق من البيئة\n')
   for (const c of checks) {
+    // Supabase is soft-fail until the project is linked
+    if (c.name === 'SUPABASE' && !c.ok) {
+      console.log(`· ${c.name}: ${c.detail}`)
+      continue
+    }
     console.log(`${c.ok ? '✓' : '✗'} ${c.name}: ${c.detail}`)
   }
-  const failed = checks.filter((c) => !c.ok)
+  const failed = checks.filter((c) => !c.ok && c.name !== 'SUPABASE')
   if (failed.length) {
     console.error('\nFailed checks:', failed.map((f) => f.name).join(', '))
     process.exit(1)

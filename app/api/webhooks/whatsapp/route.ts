@@ -12,6 +12,7 @@ import {
   saveWhatsAppTurnToSupabase,
   updateApprovalInSupabase,
 } from '@/lib/supabase/server'
+import { mirrorChannelTurnToRoom } from '@/lib/rooms/channel-mirror'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -135,6 +136,14 @@ async function handleInboundMessage(message: WaMessage) {
         agentReplyAr: text,
         modelSlug,
       })
+      void mirrorChannelTurnToRoom({
+        scopeId: scope.scope.id,
+        channel: 'whatsapp',
+        externalId: message.from,
+        userLabelAr: 'مستخدم واتساب',
+        userMessageAr: `🎤 ${transcript}`,
+        agentReplyAr: text,
+      })
       await sendWhatsAppText(
         message.from,
         `🎤 *تم التحويل:*\n> "${transcript}"\n\n${text}`
@@ -163,6 +172,14 @@ async function handleInboundMessage(message: WaMessage) {
         transcriptOrText: message.text.body,
         agentReplyAr: text,
         modelSlug,
+      })
+      void mirrorChannelTurnToRoom({
+        scopeId: scope.scope.id,
+        channel: 'whatsapp',
+        externalId: message.from,
+        userLabelAr: 'مستخدم واتساب',
+        userMessageAr: message.text.body,
+        agentReplyAr: text,
       })
       await sendWhatsAppText(message.from, text)
     } catch (e) {

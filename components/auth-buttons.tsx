@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
   signInWithOAuthProvider,
   signOutSupabase,
+  type OAuthProvider,
 } from '@/lib/supabase/browser'
 import type { User } from '@supabase/supabase-js'
 
@@ -22,7 +23,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       .catch(() => setUser(null))
   }, [configured])
 
-  async function start(provider: 'google' | 'apple') {
+  async function start(provider: OAuthProvider) {
     setError('')
     setBusy(provider)
     try {
@@ -49,7 +50,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     return (
       <p className="text-xs text-stone-500">
         فعّل Supabase عبر NEXT_PUBLIC_SUPABASE_URL و
-        NEXT_PUBLIC_SUPABASE_ANON_KEY، ثم فعّل مزوّدي Google و Apple في لوحة
+        NEXT_PUBLIC_SUPABASE_ANON_KEY، ثم فعّل مزوّدي Google و GitHub في لوحة
         Supabase.
       </p>
     )
@@ -86,10 +87,10 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         disabled={Boolean(busy)}
-        onClick={() => void start('apple')}
+        onClick={() => void start('github')}
         className="flex w-full items-center justify-center gap-2 rounded-md bg-ab-ink px-3 py-2.5 text-sm font-medium text-white disabled:opacity-40"
       >
-        {busy === 'apple' ? 'جاري التحويل…' : 'تسجيل الدخول عبر Apple'}
+        {busy === 'github' ? 'جاري التحويل…' : 'تسجيل الدخول عبر GitHub'}
       </button>
       {error && <p className="text-xs text-ab-warn">{error}</p>}
     </div>

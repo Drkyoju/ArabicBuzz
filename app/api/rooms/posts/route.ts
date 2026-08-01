@@ -1,0 +1,56 @@
+import { requireUser } from '@/lib/auth/session'
+import { insertRoomPost, listRoomPosts } from '@/lib/rooms/persist'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: Request) {
+  const auth = await requireUser(req)
+  if (!auth.ok) return auth.response
+  const url = new URL(req.url)
+  const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+  const result = await listRoomPosts(scopeId)
+  if (!result.ok) {
+    return Response.json(
+      { posts: [], warning: result.error || 'persist unavailable' },
+      { status: 200 }
+    )
+  }
+  return Response.json({ posts: result.posts })
+}
+
+export async function POST(req: Request) {
+  const auth = await requireUser(req)
+  if (!auth.ok) return auth.response
+  const body = (await req.json()) as {
+    scopeId?: string
+    content?: string
+    authorKind?: 'human' | 'agent' | 'system' | 'channel'
+    authorId?: string
+    authorNameAr?: string
+    mentionAgentId?: string
+    id?: string
+  }
+  const scopeId = body.scopeId || 'shared-demo'
+  const content = String(body.content || '').trim()
+  if (!content) {
+    return Response.json({ error: 'المحتوى مطلوب' }, { status: 400 })
+  }
+  const name =
+    body.authorNameAr ||
+    auth.user.user_metadata?.full_name ||
+    auth.user.email ||
+    'مستخدم'
+  const result = await insertRoomPost({
+    id: body.id,
+    scopeId,
+    authorKind: body.authorKind || 'human',
+    authorId: body.authorId || auth.user.id,
+    authorNameAr: String(name),
+    content,
+    mentionAgentId: body.mentionAgentId,
+  })
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: 500 })
+  }
+  return Response.json({ post: result.post })
+}

@@ -1,0 +1,53 @@
+import { createClient } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
+
+function adminOrAnonClient() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+/**
+ * Resolve the signed-in Supabase user from `Authorization: Bearer <access_token>`.
+ * Returns null if missing/invalid (caller decides 401).
+ */
+export async function getUserFromRequest(req: Request): Promise<User | null> {
+  const header = req.headers.get('authorization') || ''
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  const token = match?.[1]?.trim()
+  if (!token) return null
+
+  const supabase = adminOrAnonClient()
+  if (!supabase) return null
+
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error || !data.user) return null
+  return data.user
+}
+
+export async function requireUser(req: Request): Promise<
+  | { ok: true; user: User }
+  | { ok: false; response: Response }
+> {
+  const user = await getUserFromRequest(req)
+  if (!user) {
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          error: 'يلزم تسجيل الدخول لاستخدام النماذج.',
+          code: 'AUTH_REQUIRED',
+          loginUrl: '/auth/login',
+        },
+        { status: 401 }
+      ),
+    }
+  }
+  return { ok: true, user }
+}

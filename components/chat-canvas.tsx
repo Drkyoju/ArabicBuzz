@@ -12,6 +12,7 @@ import type { ThreadItem } from '@/components/chat-thread-bar'
 import { stripArtifactTags } from '@/lib/agents/canvas-stream'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
+import { getAccessToken } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
 const LTR_CODE_CLASS =
@@ -132,17 +133,54 @@ export function ChatCanvas({
     ])
     setStreaming(true)
 
-    // Netlify-optimized multi-model stream (`/api/chat`)
+    // Netlify-optimized multi-model stream (`/api/chat`) — requires signed-in session
     try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) {
+        setExtraMessages((prev) =>
+          prev.map((m) =>
+            m.id === asstId
+              ? {
+                  ...m,
+                  content:
+                    'يلزم تسجيل الدخول لاستخدام النماذج. افتح الإعدادات أو /auth/login (Google أو GitHub).',
+                  streaming: false,
+                }
+              : m
+          )
+        )
+        setStreaming(false)
+        return
+      }
+
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           prompt,
           modelId: selectedModel,
         }),
       })
 
+      if (res.status === 401) {
+        setExtraMessages((prev) =>
+          prev.map((m) =>
+            m.id === asstId
+              ? {
+                  ...m,
+                  content:
+                    'انتهت الجلسة أو يلزم تسجيل الدخول. استخدم Google أو GitHub من الإعدادات.',
+                  streaming: false,
+                }
+              : m
+          )
+        )
+        setStreaming(false)
+        return
+      }
       if (res.ok && res.body) {
         const reader = res.body.getReader()
         const decoder = new TextDecoder()

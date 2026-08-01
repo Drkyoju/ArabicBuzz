@@ -25,6 +25,21 @@ npx prisma generate
 npx prisma migrate dev
 ```
 
+### Supabase (Auth + HITL + WhatsApp log)
+
+See [`supabase/README.md`](supabase/README.md). Short path:
+
+1. Create a Supabase project and paste URL / anon / service_role into `.env.local`.
+2. Set `DATABASE_URL` to the project Postgres URI.
+3. Apply schema:
+
+```bash
+npm run setup:supabase
+```
+
+4. Dashboard → Authentication → enable **Google** + **Apple**, redirect  
+   `https://your-site.netlify.app/auth/callback` (and localhost for dev).
+
 ## Verify secrets
 
 ```bash
@@ -90,7 +105,7 @@ Pass tenant context via `x-user-id` / `x-org-id` headers (or body `userId` / `or
 - Delete thread → `ADMIN+`
 - Approve high-risk → `ADMIN+`
 
-RLS on `session_threads`, `scope_memories`, `pending_approvals`, `sdaia_audit_logs` (view `audit_logs`) uses `scope_permissions` + `auth.uid()` / `app.current_org_id`.
+RLS on `session_threads`, `scope_memories`, `pending_approvals`, `sdaia_audit_logs` (view `audit_logs`) uses `scope_permissions` + `app.current_user_id()` / `app.current_org_id()` (compatible with Supabase Auth `auth.uid()`).
 
 ## Arabic Hybrid RAG
 

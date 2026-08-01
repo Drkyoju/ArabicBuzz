@@ -35,6 +35,51 @@ export async function emitPassiveNotification(
   uiInbox.push(payload)
 }
 
+/** Plain outbound text to Telegram or WhatsApp (room → channel). */
+export async function emitNotification(opts: {
+  channel: 'telegram' | 'whatsapp'
+  textAr: string
+  meta?: Record<string, unknown>
+}): Promise<{ ok: boolean }> {
+  if (opts.channel === 'telegram') {
+    const token = process.env.TELEGRAM_BOT_TOKEN
+    const chatId = process.env.TELEGRAM_TEST_CHAT_ID
+    if (!token || !chatId) return { ok: false }
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: opts.textAr }),
+      })
+      return { ok: true }
+    } catch {
+      return { ok: false }
+    }
+  }
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const to = process.env.WHATSAPP_TEST_TO
+  if (!token || !phoneId || !to) return { ok: false }
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body: opts.textAr },
+      }),
+    })
+    return { ok: true }
+  } catch {
+    return { ok: false }
+  }
+}
+
 async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_TEST_CHAT_ID

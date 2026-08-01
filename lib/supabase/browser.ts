@@ -15,7 +15,7 @@ export function isSupabaseConfigured() {
   return Boolean(url && anonKey)
 }
 
-/** Browser Supabase client (Google / Apple OAuth). */
+/** Browser Supabase client (Google / GitHub OAuth). */
 export function createBrowserSupabaseClient(): SupabaseClient {
   const { url, anonKey } = publicSupabaseConfig()
   if (!url || !anonKey) {
@@ -33,7 +33,7 @@ export function createBrowserSupabaseClient(): SupabaseClient {
   })
 }
 
-export type OAuthProvider = 'google' | 'apple'
+export type OAuthProvider = 'google' | 'github'
 
 export function getAuthRedirectTo() {
   const base =
@@ -42,7 +42,7 @@ export function getAuthRedirectTo() {
   return `${base.replace(/\/$/, '')}/auth/callback`
 }
 
-/** Start Google or Apple OAuth via Supabase. */
+/** Start Google or GitHub OAuth via Supabase. */
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
   const supabase = createBrowserSupabaseClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -52,7 +52,7 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
       skipBrowserRedirect: false,
       queryParams:
         provider === 'google'
-          ? { access_type: 'offline', prompt: 'consent' }
+          ? { access_type: 'offline', prompt: 'select_account' }
           : undefined,
     },
   })
@@ -71,4 +71,9 @@ export async function getBrowserSession() {
   const supabase = createBrowserSupabaseClient()
   const { data } = await supabase.auth.getSession()
   return data.session
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  const session = await getBrowserSession()
+  return session?.access_token ?? null
 }
