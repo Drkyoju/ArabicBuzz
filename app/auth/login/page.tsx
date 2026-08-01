@@ -1,33 +1,17 @@
 'use client'
 
-import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { AuthButtons } from '@/components/auth-buttons'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-function LoginBody() {
-  const params = useSearchParams()
-  const error = params.get('error')
-
-  return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12" dir="rtl">
-      <h1 className="mb-2 text-2xl font-bold text-ab-ink">Arabic Buzz</h1>
-      <p className="mb-8 text-sm text-stone-600">
-        أدخل بريدك وسنرسل رمزاً إلى صندوق الوارد — أدخله للدخول فوراً.
-      </p>
-      {error && (
-        <p className="mb-4 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-3 py-2 text-sm text-ab-warn">
-          {decodeURIComponent(error)}
-        </p>
-      )}
-      <AuthButtons />
-    </main>
-  )
-}
-
+/** Login disabled — redirect straight into the workspace. */
 export default function LoginPage() {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace('/')
+  }, [router])
   return (
-    <Suspense fallback={<main className="p-8 text-center">جارٍ التحميل…</main>}>
-      <LoginBody />
-    </Suspense>
+    <main className="flex min-h-screen items-center justify-center text-sm text-stone-500" dir="rtl">
+      جارٍ فتح المنصة…
+    </main>
   )
 }

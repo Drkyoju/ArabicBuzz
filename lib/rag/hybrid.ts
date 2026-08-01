@@ -70,7 +70,7 @@ async function lexicalBm25Search(
         ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
       )::int AS rank
     FROM knowledge_documents
-    WHERE scope_id = $2::uuid
+    WHERE scope_id::text = $2
       AND tsv_content @@ to_tsquery('arabic', $1)
     ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
     LIMIT $3
@@ -97,7 +97,7 @@ async function vectorSimilaritySearch(
         ORDER BY embedding <=> $1::vector
       )::int AS rank
     FROM knowledge_documents
-    WHERE scope_id = $2::uuid
+    WHERE scope_id::text = $2
     ORDER BY embedding <=> $1::vector
     LIMIT $3
     `,
@@ -215,7 +215,7 @@ export async function upsertKnowledgeDocument(input: {
   await prisma.$executeRawUnsafe(
     `
     INSERT INTO knowledge_documents (id, scope_id, title_ar, content, embedding)
-    VALUES ($1::uuid, $2::uuid, $3, $4, $5::vector)
+    VALUES ($1::uuid, $2, $3, $4, $5::vector)
     ON CONFLICT (id) DO UPDATE SET
       title_ar = EXCLUDED.title_ar,
       content = EXCLUDED.content,

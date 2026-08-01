@@ -24,10 +24,12 @@ export function ApprovalCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(JSON.stringify(params, null, 2))
   const [localStatus, setLocalStatus] = useState(status)
+  const [message, setMessage] = useState('')
   const disabled = localStatus !== 'PENDING_APPROVAL' || busy
 
   async function decide(decision: 'APPROVE' | 'REJECT', modified?: object) {
     setBusy(true)
+    setMessage('')
     try {
       const res = await fetch('/api/agent/approve', {
         method: 'POST',
@@ -44,14 +46,22 @@ export function ApprovalCard({
           orgId: 'org-demo',
         }),
       })
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        status?: string
+      }
       if (res.ok) {
         setLocalStatus(decision === 'APPROVE' ? 'APPROVED' : 'REJECTED')
+        setMessage(
+          decision === 'APPROVE'
+            ? 'تمت الموافقة وتنفيذ الإجراء.'
+            : 'تم رفض الإجراء.'
+        )
       } else {
-        const data = await res.json().catch(() => ({}))
-        if (data.error) {
-          console.warn(data.error)
-        }
+        setMessage(data.error || `تعذّر القرار (HTTP ${res.status})`)
       }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'خطأ في الاتصال')
     } finally {
       setBusy(false)
     }
@@ -95,6 +105,7 @@ export function ApprovalCard({
       )}
       <div className="flex flex-wrap gap-2">
         <button
+          type="button"
           disabled={disabled}
           onClick={() => {
             let modified: object | undefined
@@ -102,6 +113,7 @@ export function ApprovalCard({
               try {
                 modified = JSON.parse(draft)
               } catch {
+                setMessage('JSON غير صالح في المعاملات.')
                 return
               }
             }
@@ -112,13 +124,15 @@ export function ApprovalCard({
           موافقة وتنفيذ
         </button>
         <button
+          type="button"
           disabled={disabled}
           onClick={() => setEditing((v) => !v)}
           className="rounded-md bg-ab-warn px-3 py-2 text-sm text-white disabled:opacity-40"
         >
-          تعديل المعاملات
+          {editing ? 'إلغاء التعديل' : 'تعديل المعاملات'}
         </button>
         <button
+          type="button"
           disabled={disabled}
           onClick={() => void decide('REJECT')}
           className="rounded-md bg-red-700 px-3 py-2 text-sm text-white disabled:opacity-40"
@@ -126,6 +140,17 @@ export function ApprovalCard({
           رفض الإجراء
         </button>
       </div>
+      {message && (
+        <p
+          className={`mt-2 text-xs ${
+            localStatus === 'PENDING_APPROVAL' && message.includes('تعذّر')
+              ? 'text-ab-warn'
+              : 'text-stone-600'
+          }`}
+        >
+          {message}
+        </p>
+      )}
       {localStatus !== 'PENDING_APPROVAL' && (
         <p className="mt-2 text-xs text-stone-500">الحالة: {localStatus}</p>
       )}

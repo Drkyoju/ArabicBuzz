@@ -23,6 +23,7 @@ export function SkillMarketplace({
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('الكل')
   const [message, setMessage] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const skills = useMemo(
     () =>
@@ -35,22 +36,29 @@ export function SkillMarketplace({
 
   async function install(skillId: string) {
     setMessage('')
-    const res = await fetch('/api/skills/install', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': 'user-1',
-        'x-org-id': 'org-demo',
-      },
-      body: JSON.stringify({
-        skillId,
-        targetScopeId,
-        userId: 'user-1',
-        orgId: 'org-demo',
-      }),
-    })
-    const data = await res.json()
-    setMessage(data.message || data.error || '')
+    setBusyId(skillId)
+    try {
+      const res = await fetch('/api/skills/install', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': 'user-1',
+          'x-org-id': 'org-demo',
+        },
+        body: JSON.stringify({
+          skillId,
+          targetScopeId,
+          userId: 'user-1',
+          orgId: 'org-demo',
+        }),
+      })
+      const data = (await res.json()) as { message?: string; error?: string }
+      setMessage(data.message || data.error || (res.ok ? 'تم' : 'فشل التثبيت'))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'خطأ في التثبيت')
+    } finally {
+      setBusyId(null)
+    }
   }
 
   return (
@@ -92,10 +100,12 @@ export function SkillMarketplace({
             <h3 className="mb-2 font-semibold">{skill.nameAr}</h3>
             <p className="mb-4 text-sm text-stone-600">{skill.descriptionAr}</p>
             <button
+              type="button"
+              disabled={busyId === skill.id}
               onClick={() => void install(skill.id)}
-              className="rounded-md bg-ab-accent px-3 py-2 text-sm text-white"
+              className="rounded-md bg-ab-accent px-3 py-2 text-sm text-white disabled:opacity-40"
             >
-              تثبيت المهارة
+              {busyId === skill.id ? 'جاري التثبيت…' : 'تثبيت المهارة'}
             </button>
           </article>
         ))}

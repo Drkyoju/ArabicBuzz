@@ -7,8 +7,7 @@ import { ApprovalCard } from '@/components/approval-card'
 import { SkillMarketplace } from '@/components/skill-marketplace'
 import { CronStatusTable } from '@/components/cron-status-table'
 import { SdaiaAuditViewer } from '@/components/sdaia-audit-viewer'
-import { AuthButtons } from '@/components/auth-buttons'
-import { AuthSetupHint } from '@/components/auth-setup-hint'
+import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import type { ThreadItem } from '@/components/chat-thread-bar'
 
@@ -78,15 +77,31 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-4 text-xl font-bold">الإعدادات</h2>
-            <div className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4">
-              <h3 className="mb-3 font-semibold">الحساب وتسجيل الدخول</h3>
-              <p className="mb-3 text-sm text-stone-600">
-                Google أو GitHub اختياري — الافتراضي: بريد وكلمة مرور.
+            <div className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4 text-sm">
+              <h3 className="mb-2 font-semibold">الوصول</h3>
+              <p className="text-xs text-stone-600">
+                تسجيل الدخول معطّل حالياً — المنصة مفتوحة للاستخدام الشخصي.
+                لإعادة تفعيل المصادقة لاحقاً اضبط{' '}
+                <code dir="ltr">AUTH_REQUIRED=true</code>.
               </p>
-              <AuthButtons />
             </div>
-            <div className="mb-8">
-              <AuthSetupHint />
+            <div className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4">
+              <h3 className="mb-3 font-semibold">وضع الأمان</h3>
+              <SecurityPosturePicker />
+            </div>
+            <div
+              className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4 text-sm"
+              dir="rtl"
+            >
+              <h3 className="mb-2 font-semibold">عقل الشركة · OCR عربي</h3>
+              <p className="text-xs text-stone-600">
+                ارفع Word / Excel / PowerPoint / PDF / صوراً عبر «إلى عقل الشركة». النص
+                الرقمي يُستخرج مباشرة؛ الملفات الممسوحة تمرّ على OCR عربي:{' '}
+                <strong>Qari</strong> (مجاني على Hugging Face) إن وُجد{' '}
+                <code dir="ltr">HF_TOKEN</code> أو{' '}
+                <code dir="ltr">QARI_OCR_URL</code>، وإلا Gemini Vision. ثم يُخزَّن
+                النص في RAG للبحث لاحقاً.
+              </p>
             </div>
             <div
               className="mb-8 rounded-lg border border-ab-border bg-ab-surface p-4 text-sm"
@@ -95,10 +110,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <h3 className="mb-2 font-semibold">تخزين الملفات على الماك</h3>
               <p className="text-xs text-stone-600">
                 ملفات PDF والملاحظات الصوتية تُحفظ على جهازك في المجلد{' '}
-                <code dir="ltr">~/ArabicBuzz/data</code> عند تشغيل التطبيق محلياً
-                (<code dir="ltr"> npm run dev</code>). موقع Netlify السحابي لا
-                يستطيع الكتابة على قرص الماك — للتخزين المحلي شغّل Arabic Buzz من
-                هذا الجهاز.
+                <code dir="ltr">~/ArabicBuzz/data</code> عند تشغيل{' '}
+                <code dir="ltr">npm run dev</code> محلياً، أو عبر وكيل المزامنة{' '}
+                <code dir="ltr">npm run storage:sync</code> مع ضبط{' '}
+                <code dir="ltr">MAC_SYNC_URL</code> على Netlify (نفق ngrok).
               </p>
             </div>
             <p className="mb-4 text-sm text-stone-600">

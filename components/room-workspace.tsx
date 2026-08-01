@@ -7,13 +7,17 @@ import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import {
   createBrowserSupabaseClient,
-  getAccessToken,
   getBrowserSession,
   isSupabaseConfigured,
+  authHeaders,
 } from '@/lib/supabase/browser'
 import { isSharedScope } from '@/lib/scopes/manager'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
+import { RoomPresenceBar } from '@/components/room-presence'
+import { AgentSeatsPanel } from '@/components/agent-seats-panel'
+import { SecurityPosturePicker } from '@/components/security-posture-picker'
+import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { agentsForScope, resolveMentionHandoff } from '@/lib/rooms/agents'
 import type { RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
@@ -48,6 +52,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [inviteMsg, setInviteMsg] = useState('')
   const [outboundMsg, setOutboundMsg] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [typing, setTyping] = useState(false)
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const posture = useSecurityPostureStore((s) => s.posture)
 
   const roomAgents = agentsForScope(activeScopeId)
 
@@ -85,11 +92,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     let cancelled = false
     async function hydrate() {
-      const token = await getAccessToken()
-      if (!token) return
+      const headers = await authHeaders()
       const res = await fetch(
         `/api/rooms/posts?scopeId=${encodeURIComponent(activeScopeId)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       )
       if (!res.ok || cancelled) return
       const data = (await res.json()) as { posts?: RoomPost[] }
@@ -99,7 +105,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
       const canvasRes = await fetch(
         `/api/rooms/canvas?scopeId=${encodeURIComponent(activeScopeId)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       )
       if (canvasRes.ok) {
         const c = (await canvasRes.json()) as {
@@ -212,19 +218,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
     if (!prompt || streaming) return
     setInput('')
 
-    const token = await getAccessToken()
-    if (!token) {
-      appendPost({
-        id: `err-${Date.now()}`,
-        scopeId: activeScopeId,
-        authorKind: 'system',
-        authorId: 'system',
-        authorNameAr: 'النظام',
-        content: 'يلزم تسجيل الدخول للمشاركة في الغرفة.',
-        createdAt: Date.now(),
-      })
-      return
-    }
+    const headers = await authHeaders({
+      'Content-Type': 'application/json',
+    })
 
     const handoff = resolveMentionHandoff(prompt)
     const agent = handoff.agent || roomAgents[0]
@@ -233,10 +229,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     await fetch('/api/rooms/posts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({
         id: humanId,
         scopeId: activeScopeId,
@@ -270,10 +263,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({
           prompt,
           modelId: selectedModel,
@@ -281,6 +271,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           agentId: agent?.id,
           persist: false,
           authorNameAr: displayName,
+          securityPosture: posture,
         }),
       })
 
@@ -344,10 +335,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       if (assembled) {
         await fetch('/api/rooms/posts', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             scopeId: activeScopeId,
             content: assembled,
@@ -369,14 +357,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }
 
   async function sendInvite() {
-    const token = await getAccessToken()
-    if (!token || !inviteEmail.trim()) return
+    if (!inviteEmail.trim()) return
     const res = await fetch('/api/rooms/invites', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         scopeId: activeScopeId,
         email: inviteEmail.trim(),
@@ -388,18 +372,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }
 
   async function sendOutbound(channel: 'telegram' | 'whatsapp') {
-    const token = await getAccessToken()
     const text = input.trim() || outboundMsg
-    if (!token || !text) {
+    if (!text) {
       setOutboundMsg('اكتب نصاً في الحقل ثم أرسل للقناة.')
       return
     }
     const res = await fetch('/api/rooms/outbound', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         scopeId: activeScopeId,
         textAr: text,
@@ -462,31 +442,31 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     {activeScope.descriptionAr}
                   </p>
                 )}
-                <p className="mt-2 text-[11px] text-stone-500">
-                  وكلاء الغرفة:{' '}
-                  {roomAgents.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      className="ml-1 inline-block rounded bg-stone-100 px-1.5 py-0.5 text-ab-accent hover:bg-ab-accent/10"
-                      onClick={() =>
-                        setInput((v) =>
-                          v.startsWith('@') ? v : `@${a.slug} ${v}`
-                        )
-                      }
-                    >
-                      @{a.slug}
-                    </button>
-                  ))}
-                </p>
+                <div className="mt-2">
+                  <RoomPresenceBar scopeId={activeScopeId} typing={typing} />
+                </div>
+                <div className="mt-3">
+                  <AgentSeatsPanel
+                    scopeId={activeScopeId}
+                    activeAgentId={mentionPreview?.id}
+                    onSeatClick={(a) =>
+                      setInput((v) =>
+                        v.startsWith('@') ? v : `@${a.slug} ${v}`
+                      )
+                    }
+                  />
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={toggleCanvasFullscreen}
-                className="shrink-0 text-xs text-stone-500 hover:text-ab-ink"
-              >
-                توسيع اللوحة
-              </button>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <button
+                  type="button"
+                  onClick={toggleCanvasFullscreen}
+                  className="text-xs text-stone-500 hover:text-ab-ink"
+                >
+                  توسيع اللوحة
+                </button>
+                <SecurityPosturePicker compact />
+              </div>
             </div>
           </header>
 
@@ -553,7 +533,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
             >
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  setTyping(true)
+                  if (typingTimer.current) clearTimeout(typingTimer.current)
+                  typingTimer.current = setTimeout(() => setTyping(false), 1200)
+                }}
                 disabled={streaming}
                 placeholder={
                   shared
@@ -605,14 +590,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
       >
         <CanvasViewer
           onPersist={async (artifact) => {
-            const token = await getAccessToken()
-            if (!token) return
             await fetch('/api/rooms/canvas', {
               method: 'POST',
-              headers: {
+              headers: await authHeaders({
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
+              }),
               body: JSON.stringify({
                 id: artifact.id,
                 scopeId: activeScopeId,

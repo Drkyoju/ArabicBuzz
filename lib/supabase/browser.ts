@@ -165,3 +165,14 @@ export async function getAccessToken(): Promise<string | null> {
   const session = await getBrowserSession()
   return session?.access_token ?? null
 }
+
+/** Optional Bearer header — empty when auth is off / no session. */
+export async function authHeaders(
+  extra?: Record<string, string>
+): Promise<Record<string, string>> {
+  const token = await getAccessToken()
+  return {
+    ...(extra || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}

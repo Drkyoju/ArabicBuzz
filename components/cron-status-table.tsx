@@ -47,35 +47,46 @@ export function CronStatusTable() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
-              <tr key={log.id} className="border-t border-ab-border">
-                <td className="px-3 py-2">{log.taskNameAr}</td>
-                <td className="px-3 py-2" dir="ltr">
-                  {new Date(log.ranAt).toLocaleString('ar-SA')}
-                </td>
-                <td className="px-3 py-2">{log.channel}</td>
-                <td className="px-3 py-2">
-                  <span
-                    className={
-                      log.status === 'success'
-                        ? 'text-emerald-700'
-                        : log.status === 'failed'
-                          ? 'text-red-700'
-                          : 'text-ab-warn'
-                    }
-                  >
-                    {log.status === 'success'
-                      ? 'نجاح'
-                      : log.status === 'failed'
-                        ? 'فشل'
-                        : 'جاري'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 max-w-xs truncate">
-                  {log.details || '—'}
+            {logs.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-3 py-6 text-center text-stone-500"
+                >
+                  لا توجد مهام دورية بعد — ستظهر هنا عند تشغيل الـ Cron.
                 </td>
               </tr>
-            ))}
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="border-t border-ab-border">
+                  <td className="px-3 py-2">{log.taskNameAr}</td>
+                  <td className="px-3 py-2" dir="ltr">
+                    {new Date(log.ranAt).toLocaleString('ar-SA')}
+                  </td>
+                  <td className="px-3 py-2">{log.channel}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={
+                        log.status === 'success'
+                          ? 'text-emerald-700'
+                          : log.status === 'failed'
+                            ? 'text-red-700'
+                            : 'text-ab-warn'
+                      }
+                    >
+                      {log.status === 'success'
+                        ? 'نجاح'
+                        : log.status === 'failed'
+                          ? 'فشل'
+                          : 'جاري'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 max-w-xs truncate">
+                    {log.details || '—'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

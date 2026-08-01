@@ -29,6 +29,7 @@ const MIGRATIONS = [
   'supabase/migrations/004_rbac_rls.sql',
   'supabase/migrations/005_whatsapp_and_auth.sql',
   'supabase/migrations/006_rooms_realtime.sql',
+  'supabase/migrations/007_company_brain.sql',
 ]
 
 function present(v?: string): boolean {

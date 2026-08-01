@@ -72,7 +72,8 @@ export function SdaiaAuditViewer() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold">سجل تدقيق SDAIA</h2>
         <button
-          onClick={exportCsv}
+          type="button"
+          onClick={() => void exportCsv()}
           className="rounded-md bg-ab-ink px-3 py-2 text-sm text-white"
         >
           تصدير التقرير التنظيمي (SDAIA Audit Export)
@@ -97,6 +98,7 @@ export function SdaiaAuditViewer() {
           <option value="TIER_4_CRITICAL">TIER_4_CRITICAL</option>
         </select>
         <button
+          type="button"
           onClick={() => void load()}
           className="rounded-md border border-ab-border px-3 py-2 text-sm"
         >
@@ -115,21 +117,32 @@ export function SdaiaAuditViewer() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => (
-              <tr key={row.id} className="border-t border-ab-border">
-                <td className="px-3 py-2 font-mono text-xs" dir="ltr">
-                  {row.id.slice(0, 8)}…
-                </td>
-                <td className="px-3 py-2">
-                  {new Date(row.timestamp).toLocaleString('ar-SA')}
-                </td>
-                <td className="px-3 py-2">{row.riskTier}</td>
-                <td className="px-3 py-2">{row.dataLocality}</td>
-                <td className="px-3 py-2 font-mono text-xs" dir="ltr">
-                  {row.watermarkSignature.slice(0, 16)}…
+            {filtered.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-3 py-6 text-center text-stone-500"
+                >
+                  لا توجد سجلات تدقيق بعد — ستُملأ عند تشغيل الوكلاء.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filtered.map((row) => (
+                <tr key={row.id} className="border-t border-ab-border">
+                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">
+                    {row.id.slice(0, 8)}…
+                  </td>
+                  <td className="px-3 py-2">
+                    {new Date(row.timestamp).toLocaleString('ar-SA')}
+                  </td>
+                  <td className="px-3 py-2">{row.riskTier}</td>
+                  <td className="px-3 py-2">{row.dataLocality}</td>
+                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">
+                    {row.watermarkSignature.slice(0, 16)}…
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

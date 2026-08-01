@@ -1,9 +1,15 @@
-export type SecurityPostureMode = 'STRICT' | 'AUTO'
+export type SecurityPostureMode = 'STRICT' | 'AUTO' | 'DANGEROUS'
 export type RiskLevel = 'LOW' | 'HIGH'
 
 export type ActionRiskResult = {
   riskLevel: RiskLevel
   requiresApproval: boolean
+}
+
+export const POSTURE_LABELS_AR: Record<SecurityPostureMode, string> = {
+  STRICT: 'صارم — موافقة على كل أداة',
+  AUTO: 'تلقائي — موافقة للخطر العالي فقط',
+  DANGEROUS: 'حر — بدون توقف بين الأدوات (خطير)',
 }
 
 export const TEXT_GENERATION_TOOLS = new Set([
@@ -19,6 +25,7 @@ const LOW_RISK_TOOLS = new Set([
   'query_db_readonly',
   'memory_search',
   'search_knowledge_base',
+  'ingest_knowledge',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
@@ -49,6 +56,10 @@ export function evaluateActionRisk(
       ? 'LOW'
       : 'HIGH'
 
+  if (mode === 'DANGEROUS') {
+    return { riskLevel, requiresApproval: false }
+  }
+
   if (mode === 'STRICT') {
     return { riskLevel, requiresApproval: true }
   }
@@ -61,4 +72,10 @@ export function evaluateActionRisk(
 
 export function shouldHaltForApproval(result: ActionRiskResult): boolean {
   return result.requiresApproval
+}
+
+export function parsePosture(raw?: string | null): SecurityPostureMode {
+  const v = (raw || 'AUTO').toUpperCase()
+  if (v === 'STRICT' || v === 'DANGEROUS' || v === 'AUTO') return v
+  return 'AUTO'
 }

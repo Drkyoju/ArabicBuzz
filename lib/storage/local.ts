@@ -10,7 +10,14 @@ import {
 import path from 'node:path'
 import os from 'node:os'
 
-export type StoredKind = 'pdf' | 'audio' | 'image' | 'doc' | 'other'
+export type StoredKind =
+  | 'pdf'
+  | 'audio'
+  | 'image'
+  | 'doc'
+  | 'pptx'
+  | 'xlsx'
+  | 'other'
 
 export type StoredFileMeta = {
   id: string
@@ -60,6 +67,18 @@ function kindFromMime(mime: string, name: string): StoredKind {
   if (mime.startsWith('audio/') || /\.(ogg|mp3|wav|m4a|webm|opus)$/i.test(lower))
     return 'audio'
   if (mime.startsWith('image/')) return 'image'
+  if (
+    mime.includes('presentation') ||
+    mime.includes('ms-powerpoint') ||
+    /\.(pptx|ppt)$/i.test(lower)
+  )
+    return 'pptx'
+  if (
+    mime.includes('spreadsheet') ||
+    mime.includes('excel') ||
+    /\.(xlsx|xls|csv)$/i.test(lower)
+  )
+    return 'xlsx'
   if (
     mime.includes('word') ||
     mime.includes('text') ||

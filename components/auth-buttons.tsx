@@ -9,6 +9,7 @@ import {
   signInWithOAuthProvider,
   signOutSupabase,
   verifyEmailOtp,
+  createBrowserSupabaseClient,
   type OAuthProvider,
 } from '@/lib/supabase/browser'
 import type { User } from '@supabase/supabase-js'
@@ -83,6 +84,41 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  async function demoLogin() {
+    setError('')
+    setInfo('')
+    setBusy('demo')
+    try {
+      const res = await fetch('/api/auth/demo', { method: 'POST' })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        session?: { access_token: string; refresh_token: string }
+      }
+      if (!res.ok || !data.session) {
+        throw new Error(data.error || 'تعذّر الدخول التجريبي')
+      }
+      const supabase = createBrowserSupabaseClient()
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+      if (sessionError) throw sessionError
+      setUser((await getBrowserSession())?.user ?? null)
+      setInfo(data.messageAr || 'تم الدخول التجريبي')
+      router.replace('/')
+      router.refresh()
+      // Hard navigation so home auth gate re-reads session
+      if (typeof window !== 'undefined') {
+        window.location.assign('/')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذّر الدخول التجريبي')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function logout() {
     setBusy('out')
     try {
@@ -125,6 +161,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
+      <button
+        type="button"
+        disabled={Boolean(busy)}
+        onClick={() => void demoLogin()}
+        className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+      >
+        {busy === 'demo' ? 'جاري الدخول…' : 'دخول تجريبي (جرّب المنصة الآن)'}
+      </button>
+
+      <p className="text-center text-[11px] text-stone-400">أو بالبريد</p>
+
       <p className="text-xs text-stone-500">
         أدخل بريدك → يصلك رمز في الرسالة → أدخله هنا للدخول.
       </p>

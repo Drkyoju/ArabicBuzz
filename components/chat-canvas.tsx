@@ -12,7 +12,6 @@ import type { ThreadItem } from '@/components/chat-thread-bar'
 import { stripArtifactTags } from '@/lib/agents/canvas-stream'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
-import { getAccessToken } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
 const LTR_CODE_CLASS =
@@ -133,46 +132,29 @@ export function ChatCanvas({
     ])
     setStreaming(true)
 
-    // Netlify-optimized multi-model stream (`/api/chat`) — requires signed-in session
+    // Netlify-optimized multi-model stream (`/api/chat`)
     try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) {
-        setExtraMessages((prev) =>
-          prev.map((m) =>
-            m.id === asstId
-              ? {
-                  ...m,
-                  content:
-                    'يلزم تسجيل الدخول لاستخدام النماذج. افتح الإعدادات أو /auth/login (Google أو GitHub).',
-                  streaming: false,
-                }
-              : m
-          )
-        )
-        setStreaming(false)
-        return
-      }
-
+      const { authHeaders } = await import('@/lib/supabase/browser')
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           prompt,
           modelId: selectedModel,
         }),
       })
 
-      if (res.status === 401) {
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as {
+          error?: string
+        }
         setExtraMessages((prev) =>
           prev.map((m) =>
             m.id === asstId
               ? {
                   ...m,
                   content:
-                    'انتهت الجلسة أو يلزم تسجيل الدخول. استخدم Google أو GitHub من الإعدادات.',
+                    errBody.error || `تعذّر الرد (HTTP ${res.status}).`,
                   streaming: false,
                 }
               : m
@@ -181,7 +163,8 @@ export function ChatCanvas({
         setStreaming(false)
         return
       }
-      if (res.ok && res.body) {
+
+      if (res.body) {
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
@@ -239,10 +222,30 @@ export function ChatCanvas({
           )
         )
       } else {
-        await streamLocalDemo(asstId, prompt)
+        setExtraMessages((prev) =>
+          prev.map((m) =>
+            m.id === asstId
+              ? {
+                  ...m,
+                  content: 'تعذّر بث الرد (لا يوجد جسم استجابة).',
+                  streaming: false,
+                }
+              : m
+          )
+        )
       }
     } catch {
-      await streamLocalDemo(asstId, prompt)
+      setExtraMessages((prev) =>
+        prev.map((m) =>
+          m.id === asstId
+            ? {
+                ...m,
+                content: 'حدث خطأ في الاتصال ببوابة النماذج.',
+                streaming: false,
+              }
+            : m
+        )
+      )
     } finally {
       setStreaming(false)
     }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FileUp, Mic, Paperclip } from 'lucide-react'
-import { getAccessToken } from '@/lib/supabase/browser'
+import { FileUp, Mic, Paperclip, Brain } from 'lucide-react'
+import { authHeaders } from '@/lib/supabase/browser'
 
 type StoredFile = {
   id: string
@@ -29,16 +29,10 @@ export function LocalUploadPanel({
   const [storageRoot, setStorageRoot] = useState('')
 
   const refresh = useCallback(async () => {
-    const token = await getAccessToken()
-    if (!token) return
-    const res = await fetch(
-      `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}&status=1`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-    // list endpoint is same route GET
+    const headers = await authHeaders()
     const listRes = await fetch(
       `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers }
     )
     if (listRes.ok) {
       const data = (await listRes.json()) as {
@@ -50,7 +44,6 @@ export function LocalUploadPanel({
       setStorageRoot(data.storage?.root || '')
       if (data.error) setMessage(data.error)
     }
-    void res
   }, [scopeId])
 
   useEffect(() => {
@@ -58,11 +51,6 @@ export function LocalUploadPanel({
   }, [refresh])
 
   async function uploadBlob(file: File | Blob, filename: string) {
-    const token = await getAccessToken()
-    if (!token) {
-      setMessage('يلزم تسجيل الدخول لرفع الملفات.')
-      return
-    }
     setBusy(true)
     setMessage('')
     try {
@@ -70,11 +58,13 @@ export function LocalUploadPanel({
       body.append('scopeId', scopeId)
       body.append(
         'file',
-        file instanceof File ? file : new File([file], filename, { type: file.type })
+        file instanceof File
+          ? file
+          : new File([file], filename, { type: file.type })
       )
       const res = await fetch('/api/storage/upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: await authHeaders(),
         body,
       })
       const data = (await res.json()) as {
@@ -91,6 +81,40 @@ export function LocalUploadPanel({
       onUploaded?.()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'خطأ في الرفع')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function ingestToBrain(fileId?: string, file?: File) {
+    setBusy(true)
+    setMessage('جاري الاستيعاب في عقل الشركة…')
+    try {
+      let res: Response
+      if (file) {
+        const body = new FormData()
+        body.append('scopeId', scopeId)
+        body.append('file', file)
+        body.append('titleAr', file.name)
+        res = await fetch('/api/brain/ingest', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body,
+        })
+      } else if (fileId) {
+        res = await fetch('/api/brain/ingest', {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ scopeId, localFileId: fileId }),
+        })
+      } else {
+        setMessage('اختر ملفاً للاستيعاب')
+        return
+      }
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      setMessage(data.messageAr || data.error || 'تم')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'فشل الاستيعاب')
     } finally {
       setBusy(false)
     }
@@ -124,13 +148,19 @@ export function LocalUploadPanel({
   }
 
   return (
-    <div className="rounded-md border border-dashed border-ab-border bg-stone-50 p-2" dir="rtl">
+    <div
+      className="rounded-md border border-dashed border-ab-border bg-stone-50 p-2"
+      dir="rtl"
+    >
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-medium text-stone-600">
-          تخزين الماك المحلي
+          تخزين الماك · عقل الشركة
         </span>
         {storageRoot && (
-          <span className="max-w-full truncate text-[10px] text-stone-400" dir="ltr">
+          <span
+            className="max-w-full truncate text-[10px] text-stone-400"
+            dir="ltr"
+          >
             {storageRoot}
           </span>
         )}
@@ -143,8 +173,23 @@ export function LocalUploadPanel({
           className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:opacity-40"
         >
           <FileUp className="h-3.5 w-3.5" />
-          PDF / ملف
+          PDF / Word / Excel / PPT
         </button>
+        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-xs text-ab-accent">
+          <Brain className="h-3.5 w-3.5" />
+          إلى عقل الشركة
+          <input
+            type="file"
+            accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void ingestToBrain(undefined, f)
+              e.target.value = ''
+            }}
+          />
+        </label>
         <button
           type="button"
           disabled={busy}
@@ -176,7 +221,7 @@ export function LocalUploadPanel({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,application/pdf,image/*,.doc,.docx,.txt,.md"
+        accept=".pdf,application/pdf,image/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,*/*"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0]
@@ -190,11 +235,37 @@ export function LocalUploadPanel({
           {files.slice(0, 8).map((f) => (
             <li key={f.id} className="flex justify-between gap-2">
               <span className="truncate">
-                {f.kind === 'pdf' ? '📄' : f.kind === 'audio' ? '🎤' : '📎'}{' '}
+                {f.kind === 'pdf'
+                  ? '📄'
+                  : f.kind === 'pptx'
+                    ? '📊'
+                    : f.kind === 'xlsx'
+                      ? '📗'
+                      : f.kind === 'audio'
+                        ? '🎤'
+                        : f.kind === 'image'
+                          ? '🖼️'
+                          : '📎'}{' '}
                 {f.originalName}
               </span>
-              <span className="shrink-0 text-stone-400">
-                {Math.round(f.size / 1024)}ك
+              <span className="flex shrink-0 items-center gap-2">
+                {(f.kind === 'pdf' ||
+                  f.kind === 'doc' ||
+                  f.kind === 'pptx' ||
+                  f.kind === 'xlsx' ||
+                  f.kind === 'image') && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="text-ab-accent hover:underline disabled:opacity-40"
+                    onClick={() => void ingestToBrain(f.id)}
+                  >
+                    عقل
+                  </button>
+                )}
+                <span className="text-stone-400">
+                  {Math.round(f.size / 1024)}ك
+                </span>
               </span>
             </li>
           ))}

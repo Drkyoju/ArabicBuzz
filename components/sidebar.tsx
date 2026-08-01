@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
+import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import type { HarnessModelSlug } from '@/lib/ai/harness-catalog'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -180,24 +181,27 @@ function SidebarBody({
 
       {activeSection !== 'chats' && <div className="flex-1" />}
 
-      <div className="border-t border-ab-border p-4">
-        <label className="mb-2 block text-xs font-medium text-stone-500">
-          النموذج
-        </label>
-        <select
-          className="w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink"
-          value={modelValue}
-          onChange={(e) =>
-            setSelectedModel(e.target.value as HarnessModelSlug)
-          }
-          aria-label="اختيار النموذج"
-        >
-          {SIDEBAR_MODELS.map((m) => (
-            <option key={m.slug} value={m.slug}>
-              {m.labelAr}
-            </option>
-          ))}
-        </select>
+      <div className="space-y-4 border-t border-ab-border p-4">
+        <SecurityPosturePicker compact />
+        <div>
+          <label className="mb-2 block text-xs font-medium text-stone-500">
+            النموذج
+          </label>
+          <select
+            className="w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink"
+            value={modelValue}
+            onChange={(e) =>
+              setSelectedModel(e.target.value as HarnessModelSlug)
+            }
+            aria-label="اختيار النموذج"
+          >
+            {SIDEBAR_MODELS.map((m) => (
+              <option key={m.slug} value={m.slug}>
+                {m.labelAr}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </>
   )

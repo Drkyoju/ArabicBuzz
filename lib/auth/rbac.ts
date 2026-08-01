@@ -57,6 +57,7 @@ export function seedOrgMembership(
 }
 
 seedOrgMembership('user-1', 'org-demo', 'OWNER')
+seedOrgMembership('local-owner', 'org-demo', 'OWNER')
 
 export async function getMemberRole(
   userId: string,

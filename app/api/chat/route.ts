@@ -16,6 +16,12 @@ import {
   ROOM_AGENTS,
 } from '@/lib/rooms/agents'
 import { insertRoomPost } from '@/lib/rooms/persist'
+import {
+  parsePosture,
+  POSTURE_LABELS_AR,
+  type SecurityPostureMode,
+} from '@/lib/security/posture'
+import { getNativeAiTools } from '@/lib/agents/engine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -36,6 +42,8 @@ type ChatBody = {
   agentId?: string
   persist?: boolean
   authorNameAr?: string
+  securityPosture?: SecurityPostureMode | string
+  enableTools?: boolean
 }
 
 type StreamTextResult = ReturnType<typeof streamText>
@@ -126,15 +134,29 @@ export async function POST(req: Request) {
       .map((a) => `• ${a.nameAr} (@${a.slug})`)
       .join('\n')
 
+    const posture = parsePosture(
+      body.securityPosture || process.env.DEFAULT_SECURITY_POSTURE
+    )
+    const postureBlock = `\n\nوضع الأمان الحالي: ${posture} — ${POSTURE_LABELS_AR[posture]}. التزم بحدود الأدوات حسب هذا الوضع.`
+
     const system =
       MSA_BASE +
       agentBlock +
       scopeBlock +
+      postureBlock +
       (roomAgents
         ? `\n\nوكلاء الغرفة المتاحون للإشارة بـ @slug:\n${roomAgents}`
         : '')
 
     const persistAgent = body.persist !== false
+    const enableTools = body.enableTools !== false
+    const tools = enableTools
+      ? getNativeAiTools({
+          mode: posture,
+          requesterId: auth.user.id,
+          scopeId,
+        })
+      : undefined
 
     const result = withDataStreamResponse(
       streamText({
@@ -143,6 +165,7 @@ export async function POST(req: Request) {
         ...(hasMessages
           ? { messages: await convertToModelMessages(body.messages!) }
           : { prompt }),
+        ...(tools ? { tools } : {}),
         abortSignal: req.signal,
         onFinish: async ({ text }) => {
           if (!persistAgent || !text) return

@@ -20,7 +20,11 @@ export function CanvasViewer({
   }
 
   async function copy() {
-    await navigator.clipboard.writeText(active!.content)
+    try {
+      await navigator.clipboard.writeText(active!.content)
+    } catch {
+      /* ignore clipboard failures */
+    }
   }
 
   function download() {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getHarnessModel } from '@/lib/ai/router'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { getToolExecutor, toolRegistry } from '@/lib/agents/tools'
-import { createSearchKnowledgeBaseTool } from '@/lib/agents/tools/rag-tool'
+import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
 import type { SecurityPostureMode } from '@/lib/security/posture'
 
@@ -106,9 +106,26 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('query_db_readonly'),
         }),
     }),
-    search_knowledge_base: createSearchKnowledgeBaseTool(
-      scopeId || '00000000-0000-0000-0000-000000000001'
-    ),
+    search_knowledge_base: tool({
+      description:
+        'بحث هجين في قاعدة معرفة الشركة للنطاق الحالي (عقل الشركة).',
+      inputSchema: z.object({
+        queryAr: z.string().min(1).describe('استعلام البحث بالعربية'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'search_knowledge_base',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: async (_name, p) =>
+            searchKnowledgeBase({
+              queryAr: String(p.queryAr || ''),
+              scopeId: String(p.scopeId || scopeId || 'shared-demo'),
+            }),
+        }),
+    }),
   }
 
   // Ensure registry stays the source of truth for known local names
