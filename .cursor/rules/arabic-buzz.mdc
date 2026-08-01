@@ -1,0 +1,47 @@
+---
+description: Arabic Buzz project standards — Next.js App Router, RTL MSA UI, Netlify hosting
+alwaysApply: true
+---
+
+# Arabic Buzz — Project Rules
+
+## Stack
+
+- **Framework:** Next.js 14+ (App Router), TypeScript, Tailwind CSS, Shadcn UI patterns
+- **Hosting:** Netlify via OpenNext / `@netlify/plugin-nextjs` runtime
+- **AI:** Vercel AI SDK (`ai`) + OpenRouter / Google / OpenAI providers
+- **Data:** PostgreSQL (Prisma / Supabase), env-only secrets
+
+## Text & language
+
+- Root layout **always** uses `lang="ar"` and `dir="rtl"`
+- Font: `IBM_Plex_Sans_Arabic` from `next/font/google`
+- All UI copy in **Modern Standard Arabic (MSA)**
+- Code, JSON, URLs, and mono blocks must use `dir="ltr"` (and `className="ltr"` / logical Tailwind where needed)
+
+```tsx
+// ✅ GOOD
+<html lang="ar" dir="rtl">
+  <pre dir="ltr" className="font-mono">{json}</pre>
+</html>
+
+// ❌ BAD — LTR page chrome or Arabic inside unscoped mono without dir="ltr"
+```
+
+## Netlify deployment constraints
+
+- Every `app/api/**/route.ts` must export:
+
+```ts
+export const dynamic = 'force-dynamic'
+```
+
+- **Never** hardcode API keys, tokens, or webhook secrets
+- Read secrets only from `process.env` (Netlify Environment Variables UI / `.env.local` locally)
+- Prefer `NEXT_PUBLIC_*` only for non-secret client values (e.g. `NEXT_PUBLIC_APP_URL`)
+
+## Agent / product conventions
+
+- Preserve existing RTL workspace shell, scopes, HITL approvals, and SDAIA audit patterns
+- Sensitive actions go through RBAC (`lib/auth/rbac.ts`) before execution
+- Do not invent legal/tax facts; ground answers in RAG / provided sources when available

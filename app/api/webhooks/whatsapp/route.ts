@@ -1,0 +1,223 @@
+import { after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { extractWhatsAppMessages, type WaMessage } from '@/lib/whatsapp/parse'
+import { resolveChannelScope } from '@/lib/channels/bindings'
+import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
+import { runAgentEngine } from '@/lib/agents/engine'
+import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
+import { transcribeWhatsAppVoiceNote } from '@/lib/audio/transcribe'
+import { sendWhatsAppText } from '@/lib/whatsapp/client'
+import { resolveApproval } from '@/lib/agents/resolve-approval'
+import {
+  saveWhatsAppTurnToSupabase,
+  updateApprovalInSupabase,
+} from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+/** Netlify function budget for Whisper + agent + Graph reply. */
+export const maxDuration = 30
+
+async function resolveWhatsAppScope(from: string) {
+  const bound = await resolveChannelScope({
+    channel: 'whatsapp',
+    externalId: from,
+    fallbackUserId: from,
+  })
+  if (bound) return bound
+  return resolveActiveScope({
+    userId: from,
+    scopeId: process.env.WHATSAPP_DEFAULT_SCOPE_ID || 'shared-demo',
+    scopes: DEMO_SCOPES,
+  })
+}
+
+async function runArabicAgent(opts: {
+  promptAr: string
+  scopeId: string
+  requesterId: string
+}) {
+  const normalized = await normalizeArabicPrompt(opts.promptAr)
+  const modelSlug =
+    process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash'
+  const engine = await runAgentEngine({
+    prompt: normalized.normalizedPromptAr,
+    system:
+      'أنت وكيل Arabic Buzz عبر واتساب. أجب بالعربية الفصحى المهنية بإيجاز ووضوح.',
+    modelSlug,
+    scopeId: opts.scopeId,
+    requesterId: opts.requesterId,
+    includeMcpTools: true,
+  })
+  return {
+    text:
+      engine.text?.trim() ||
+      'تم استلام رسالتك، لكن لم يُنتَج رد نصي. حاول مرة أخرى.',
+    modelSlug,
+  }
+}
+
+async function handleInteractive(message: WaMessage) {
+  const id = message.interactive?.button_reply?.id || ''
+  let decision: 'APPROVE' | 'REJECT' | null = null
+  let approvalId = ''
+
+  if (id.startsWith('approve_')) {
+    decision = 'APPROVE'
+    approvalId = id.slice('approve_'.length)
+  } else if (id.startsWith('reject_')) {
+    decision = 'REJECT'
+    approvalId = id.slice('reject_'.length)
+  } else if (id.startsWith('apprv:') || id.startsWith('rjct:')) {
+    const [kind, aid] = id.split(':')
+    decision = kind === 'apprv' ? 'APPROVE' : 'REJECT'
+    approvalId = aid
+  }
+
+  if (!decision || !approvalId) return
+
+  try {
+    const result = await resolveApproval({
+      approvalId,
+      decision,
+      approvedBy: message.from,
+      userId: process.env.WHATSAPP_APPROVER_USER_ID || 'user-1',
+      orgId: process.env.WHATSAPP_DEFAULT_ORG_ID || 'org-demo',
+    })
+    const detailAr =
+      result.status === 'APPROVED'
+        ? `✅ تمت الموافقة على الإجراء (${approvalId}) وتنفيذه.`
+        : `❌ تم رفض الإجراء (${approvalId}).`
+    await updateApprovalInSupabase({
+      approvalId,
+      status: result.status === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+      resolvedBy: message.from,
+      decisionNoteAr: detailAr,
+    })
+    await sendWhatsAppText(message.from, detailAr)
+  } catch {
+    await sendWhatsAppText(
+      message.from,
+      'تعذّر تسجيل قرار الموافقة. حاول مرة أخرى.'
+    )
+  }
+}
+
+async function handleInboundMessage(message: WaMessage) {
+  const scope = await resolveWhatsAppScope(message.from)
+  if (!scope) {
+    await sendWhatsAppText(
+      message.from,
+      'يرجى ربط رقم واتساب بنطاق عمل أولاً.'
+    )
+    return
+  }
+
+  if (message.type === 'interactive') {
+    await handleInteractive(message)
+    return
+  }
+
+  // Voice notes → Meta download → Whisper (ar) → Agent Engine → Supabase → reply
+  if (message.type === 'audio' && message.audio?.id) {
+    try {
+      const { transcript } = await transcribeWhatsAppVoiceNote(message.audio.id)
+      const { text, modelSlug } = await runArabicAgent({
+        promptAr: transcript,
+        scopeId: scope.scope.id,
+        requesterId: message.from,
+      })
+      await saveWhatsAppTurnToSupabase({
+        from: message.from,
+        scopeId: scope.scope.id,
+        inboundType: 'audio',
+        transcriptOrText: transcript,
+        agentReplyAr: text,
+        modelSlug,
+      })
+      await sendWhatsAppText(
+        message.from,
+        `🎤 *تم التحويل:*\n> "${transcript}"\n\n${text}`
+      )
+    } catch (e) {
+      await sendWhatsAppText(
+        message.from,
+        e instanceof Error ? e.message : 'تعذر معالجة الصوت'
+      )
+    }
+    return
+  }
+
+  // Text → Agent Engine → Supabase → Meta Graph reply
+  if (message.type === 'text' && message.text?.body) {
+    try {
+      const { text, modelSlug } = await runArabicAgent({
+        promptAr: message.text.body,
+        scopeId: scope.scope.id,
+        requesterId: message.from,
+      })
+      await saveWhatsAppTurnToSupabase({
+        from: message.from,
+        scopeId: scope.scope.id,
+        inboundType: 'text',
+        transcriptOrText: message.text.body,
+        agentReplyAr: text,
+        modelSlug,
+      })
+      await sendWhatsAppText(message.from, text)
+    } catch (e) {
+      await sendWhatsAppText(
+        message.from,
+        e instanceof Error
+          ? `تعذّر معالجة الرسالة: ${e.message}`
+          : 'تعذّر معالجة الرسالة حالياً.'
+      )
+    }
+  }
+}
+
+async function processWhatsAppPayload(payload: unknown) {
+  const messages = extractWhatsAppMessages(payload)
+  for (const message of messages) {
+    try {
+      await handleInboundMessage(message)
+    } catch (e) {
+      console.error('[whatsapp] message failed', e)
+    }
+  }
+}
+
+/**
+ * Meta webhook verification (hub.mode / hub.verify_token / hub.challenge).
+ */
+export async function GET(req: NextRequest) {
+  const mode = req.nextUrl.searchParams.get('hub.mode')
+  const token = req.nextUrl.searchParams.get('hub.verify_token')
+  const challenge = req.nextUrl.searchParams.get('hub.challenge')
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return new NextResponse(challenge || '', {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
+  }
+  return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+}
+
+/**
+ * Incoming WhatsApp Cloud API events.
+ * Returns 200 OK immediately; heavy work runs via `after()` within Netlify limits.
+ */
+export async function POST(req: NextRequest) {
+  let payload: unknown
+  try {
+    payload = await req.json()
+  } catch {
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
+
+  after(async () => {
+    await processWhatsAppPayload(payload)
+  })
+
+  return NextResponse.json({ ok: true }, { status: 200 })
+}

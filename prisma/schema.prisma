@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ScopeType {
+  personal
+  shared
+}
+
+enum ThreadStatus {
+  active
+  archived
+}
+
+enum SensitivityLabel {
+  public
+  internal
+  private
+  restricted
+}
+
+enum ApprovalStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum RiskLevel {
+  LOW
+  HIGH
+}
+
+enum ChannelKind {
+  telegram
+  whatsapp
+}
+
+enum CronLogStatus {
+  running
+  success
+  failed
+}
+
+model Scope {
+  id        String           @id @default(cuid())
+  type      ScopeType
+  name      String?
+  ownerId   String           @map("owner_id")
+  createdAt DateTime         @default(now()) @map("created_at")
+  threads   SessionThread[]
+  memories  ScopeMemory[]
+
+  @@map("scopes")
+}
+
+model SessionThread {
+  id      String       @id @default(cuid())
+  scopeId String       @map("scope_id")
+  title   String
+  status  ThreadStatus @default(active)
+  scope   Scope        @relation(fields: [scopeId], references: [id])
+
+  @@map("session_threads")
+}
+
+model ScopeMemory {
+  id               String           @id @default(cuid())
+  scopeId          String           @map("scope_id")
+  content          String
+  vectorEmbedding  String?          @map("vector_embedding")
+  sensitivityLabel SensitivityLabel @default(private) @map("sensitivity_label")
+  scope            Scope            @relation(fields: [scopeId], references: [id])
+
+  @@map("scope_memories")
+}
+
+model PendingApproval {
+  id             String         @id @default(cuid())
+  actionName     String         @map("action_name")
+  params         Json
+  riskLevel      RiskLevel      @map("risk_level")
+  status         ApprovalStatus @default(PENDING_APPROVAL)
+  requesterId    String         @map("requester_id")
+  threadId       String?        @map("thread_id")
+  scopeId        String?        @map("scope_id")
+  toolOutput     Json?          @map("tool_output")
+  modifiedParams Json?          @map("modified_params")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  @@index([scopeId])
+  @@map("pending_approvals")
+}
+
+model ChannelBinding {
+  id         String      @id @default(cuid())
+  channel    ChannelKind
+  externalId String      @map("external_id")
+  scopeId    String      @map("scope_id")
+  scopeKind  ScopeType   @map("scope_kind")
+  userId     String?     @map("user_id")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@unique([channel, externalId])
+  @@map("channel_bindings")
+}
+
+model ScheduledTask {
+  id             String    @id @default(cuid())
+  scopeId        String    @map("scope_id")
+  nameAr         String    @map("name_ar")
+  prompt         String
+  cronExpr       String    @map("cron_expr")
+  timezone       String    @default("Asia/Riyadh")
+  notifyChannels Json      @map("notify_channels")
+  enabled        Boolean   @default(true)
+  lastRunAt      DateTime? @map("last_run_at")
+  nextRunAt      DateTime? @map("next_run_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("scheduled_tasks")
+}
+
+model CronLog {
+  id         String        @id @default(cuid())
+  taskId     String        @map("task_id")
+  taskNameAr String        @map("task_name_ar")
+  channel    String
+  recipient  String?
+  status     CronLogStatus
+  details    String?
+  ranAt      DateTime      @default(now()) @map("ran_at")
+
+  @@index([ranAt])
+  @@map("cron_logs")
+}
+
+model ToolTrustMetric {
+  id                   String    @id @default(cuid())
+  toolName             String    @map("tool_name")
+  scopeId              String    @map("scope_id")
+  totalExecutions      Int       @default(0) @map("total_executions")
+  userApprovals        Int       @default(0) @map("user_approvals")
+  userRejections       Int       @default(0) @map("user_rejections")
+  consecutiveSuccesses Int       @default(0) @map("consecutive_successes")
+  errorCount           Int       @default(0) @map("error_count")
+  lastExecutedAt       DateTime? @map("last_executed_at")
+
+  @@unique([toolName, scopeId])
+  @@map("tool_trust_metrics")
+}
+
+model SdaiaAuditLog {
+  id                 String   @id @default(cuid())
+  scopeId            String   @map("scope_id")
+  userId             String   @map("user_id")
+  modelUsed          String   @map("model_used")
+  promptHash         String   @map("prompt_hash")
+  responseHash       String   @map("response_hash")
+  riskTier           String   @map("risk_tier")
+  approvedBy         String?  @map("approved_by")
+  dataLocality       String   @map("data_locality")
+  watermarkSignature String   @map("watermark_signature")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([scopeId, createdAt])
+  @@map("sdaia_audit_logs")
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  DEPARTMENT_MANAGER
+  MEMBER
+  AUDITOR
+
+  @@map("org_role")
+}
+
+model Organization {
+  id        String               @id @default(cuid())
+  name      String
+  createdAt DateTime             @default(now()) @map("created_at")
+  members   OrganizationMember[]
+  scopePerms ScopePermission[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  orgId     String       @map("org_id")
+  role      OrgRole      @default(MEMBER)
+  createdAt DateTime     @default(now()) @map("created_at")
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model ScopePermission {
+  id        String        @id @default(cuid())
+  scopeId   String        @map("scope_id")
+  userId    String?       @map("user_id")
+  orgId     String?       @map("org_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([scopeId])
+  @@index([userId])
+  @@index([orgId])
+  @@map("scope_permissions")
+}

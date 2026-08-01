@@ -1,0 +1,64 @@
+export type SecurityPostureMode = 'STRICT' | 'AUTO'
+export type RiskLevel = 'LOW' | 'HIGH'
+
+export type ActionRiskResult = {
+  riskLevel: RiskLevel
+  requiresApproval: boolean
+}
+
+export const TEXT_GENERATION_TOOLS = new Set([
+  'text_generate',
+  'generate_text',
+])
+
+const LOW_RISK_TOOLS = new Set([
+  'web_search',
+  'web_fetch',
+  'read_file',
+  'list_files',
+  'query_db_readonly',
+  'memory_search',
+  'search_knowledge_base',
+])
+
+const HIGH_RISK_TOOLS = new Set([
+  'write_file',
+  'delete_file',
+  'db_update',
+  'db_insert',
+  'db_delete',
+  'send_message',
+  'http_mutate',
+  'keychain_write',
+  'delete_database',
+  'transfer_funds',
+  'change_user_roles',
+])
+
+export function evaluateActionRisk(
+  toolName: string,
+  _params: Record<string, unknown>,
+  mode: SecurityPostureMode
+): ActionRiskResult {
+  if (TEXT_GENERATION_TOOLS.has(toolName)) {
+    return { riskLevel: 'LOW', requiresApproval: false }
+  }
+
+  const riskLevel: RiskLevel =
+    LOW_RISK_TOOLS.has(toolName) && !HIGH_RISK_TOOLS.has(toolName)
+      ? 'LOW'
+      : 'HIGH'
+
+  if (mode === 'STRICT') {
+    return { riskLevel, requiresApproval: true }
+  }
+
+  return {
+    riskLevel,
+    requiresApproval: riskLevel === 'HIGH',
+  }
+}
+
+export function shouldHaltForApproval(result: ActionRiskResult): boolean {
+  return result.requiresApproval
+}

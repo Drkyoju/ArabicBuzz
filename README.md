@@ -1,36 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Arabic Buzz
 
-## Getting Started
+منصة وكيل عربية (RTL) للمساحات الشخصية والمشتركة مع موافقات بشرية، سوق مهارات سعودية، تدقيق SDAIA، ووضع محلي مغلق (Air-Gapped).
 
-First, run the development server:
+## Stack
+
+- Next.js 15 App Router + TypeScript + Tailwind CSS v3 (`tailwindcss-rtl`)
+- Prisma + PostgreSQL
+- Vercel AI SDK multi-harness router:
+  - **Direct:** OpenAI GPT-4o / Mini, Gemini 2.0 Flash / 2.5 Pro, Ollama, Perplexity
+  - **Via OpenRouter:** Claude, DeepSeek, Kimi, GLM, Qwen, Hermes
+- OpenClaw `SKILL.md` registry + Hermes skill distillation
+- Grammy (Telegram) + WhatsApp Cloud API
+- Whisper STT + OpenAI TTS
+
+Pick the active model from the header **النموذج** dropdown. In air-gap mode only Ollama-safe models remain available.
+
+## Setup
+
+```bash
+cp .env.example .env.local
+# املأ المفاتيح ثم:
+npm install
+npx prisma generate
+npx prisma migrate dev
+```
+
+## Verify secrets
+
+```bash
+npm run verify:env
+# أو بدون شبكة:
+npx tsx scripts/verify-env.ts --offline
+```
+
+## Local app + webhooks
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+في طرفية أخرى:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx ngrok http 3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+وجّه Telegram / Meta إلى:
 
-## Learn More
+- `https://<ngrok-host>/api/webhooks/telegram`
+- `https://<ngrok-host>/api/webhooks/whatsapp`
 
-To learn more about Next.js, take a look at the following resources:
+## Multiplayer simulation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run test:multiplayer
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cron
 
-## Deploy on Vercel
+اضغط على المسار كل دقيقة (أو Vercel Cron):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+curl -X POST http://localhost:3000/api/crons/runner \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Evaluation benchmark
+
+```bash
+npm run test:evals           # offline-capable CI gate
+npm run test:evals -- --live # Agent Orchestrator + LLM-as-Judge when keys exist
+```
+
+Fails with exit code `1` if overall `Accuracy < 90%`. Metrics: `ToolSelectionAccuracy`, `ArabicSyntaxScore`, `SafetyPassRate`.
+
+## Multi-tenant RBAC + RLS
+
+Org roles: `OWNER` · `ADMIN` · `DEPARTMENT_MANAGER` · `MEMBER` · `AUDITOR`
+
+```bash
+psql "$DATABASE_URL" -f supabase/migrations/004_rbac_rls.sql
+```
+
+Sensitive actions call `hasPermission` / `assertPermission` (`lib/auth/rbac.ts`) and return:
+`عفواً، لا تملك الصلاحية الكافية لتنفيذ هذا الإجراء.`
+
+Pass tenant context via `x-user-id` / `x-org-id` headers (or body `userId` / `orgId`):
+- Install skill → `DEPARTMENT_MANAGER+`
+- Delete thread → `ADMIN+`
+- Approve high-risk → `ADMIN+`
+
+RLS on `session_threads`, `scope_memories`, `pending_approvals`, `sdaia_audit_logs` (view `audit_logs`) uses `scope_permissions` + `auth.uid()` / `app.current_org_id`.
+
+## Arabic Hybrid RAG
+
+PostgreSQL `pgvector` + Arabic FTS (`to_tsquery('arabic', …)`) + Reciprocal Rank Fusion.
+
+```bash
+# Apply schema (pgvector required)
+psql "$DATABASE_URL" -f supabase/migrations/003_arabic_rag.sql
+# or: npx prisma migrate deploy
+```
+
+Set `COHERE_API_KEY` (default) or `EMBEDDING_PROVIDER=bge-m3` with a local OpenAI-compatible embeddings endpoint. Agent tool: `search_knowledge_base` (`queryAr`).
+
+## MCP Client Host
+
+Connect external MCP servers (stdio or SSE/HTTP) and expose their tools to the agent engine alongside native tools.
+
+```bash
+# List connected servers + tools
+curl http://localhost:3000/api/mcp/servers
+
+# Connect GitHub MCP (stdio example)
+curl -X POST http://localhost:3000/api/mcp/servers \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "github",
+    "name": "GitHub",
+    "transport": "stdio",
+    "commandOrUrl": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..." }
+  }'
+
+# Connect PostgreSQL MCP
+curl -X POST http://localhost:3000/api/mcp/servers \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "postgres",
+    "name": "PostgreSQL",
+    "transport": "stdio",
+    "commandOrUrl": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5432/arabic_buzz"]
+  }'
+```
+
+Core files: `lib/mcp/client-manager.ts`, `lib/agents/engine.ts`, `app/api/mcp/servers/route.ts`.
+
+## Air-gapped mode
+
+اضبط `AIR_GAPPED_MODE=true` لفرض Ollama المحلي ومنع الاتصال الخارجي.
