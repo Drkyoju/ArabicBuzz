@@ -16,18 +16,17 @@ export function IntegrationsSetupPanel() {
   useEffect(() => {
     void (async () => {
       try {
-        const [z, m, t] = await Promise.all([
+        const [z, m] = await Promise.all([
           fetch('/api/integrations/status').then((r) => r.json()).catch(() => null),
           fetch('/api/mac/status').then((r) => r.json()).catch(() => null),
-          fetch('/api/webhooks/telegram').then((r) => r.json()).catch(() => null),
         ])
-        if (z && typeof z.zoomConfigured === 'boolean') {
-          setZoom({ configured: z.zoomConfigured })
+        if (z) {
+          setZoom({ configured: Boolean(z.zoomConfigured) })
+          setTg(Boolean(z.telegramConfigured))
         } else {
           setZoom({ configured: false })
         }
         setMacOnline(Boolean(m?.online))
-        setTg(Boolean(t?.configured))
       } catch {
         setZoom({ configured: false })
       }
