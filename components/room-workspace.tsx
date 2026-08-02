@@ -22,8 +22,9 @@ import { RoomTeamPanel } from '@/components/room-team-panel'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ModelPicker } from '@/components/model-picker'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
-import { resolveMentionHandoff } from '@/lib/rooms/agents'
+import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
+import { useRosterCloudSync } from '@/lib/rooms/use-roster-cloud-sync'
 import type {
   RoomCitation,
   RoomFileAttachment,
@@ -79,14 +80,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const runAbortRef = useRef<AbortController | null>(null)
+  useRosterCloudSync()
   const posture = useSecurityPostureStore((s) => s.posture)
   const hasArtifacts = artifacts.length > 0
   const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
 
   const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
   const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
+  const collabModeFor = useAgentRosterStore((s) => s.collabModeFor)
   const roomAgents = agentsForScopeFn(activeScopeId)
   const agentCatalog = allAgentsFn()
+  const collabMode = collabModeFor(activeScopeId)
 
   // Auto-open canvas when a new artifact appears
   useEffect(() => {
@@ -278,6 +283,253 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const agentNameAr =
     mentionPreview?.nameAr || roomAgents[0]?.nameAr || 'وكيل الغرفة'
 
+  function stopAgentRun() {
+    runAbortRef.current?.abort()
+    runAbortRef.current = null
+    setStreaming(false)
+  }
+
+  async function streamOneAgent(opts: {
+    prompt: string
+    agent: RoomAgent
+    peerContextAr?: string
+    postId: string
+    headers: HeadersInit
+    signal?: AbortSignal
+  }): Promise<string> {
+    if (opts.signal?.aborted) {
+      updatePost(activeScopeId, opts.postId, {
+        content: 'أُوقف التشغيل.',
+        streaming: false,
+      })
+      return 'أُوقف التشغيل.'
+    }
+
+    let res: Response
+    try {
+      res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: opts.headers,
+        signal: opts.signal,
+        body: JSON.stringify({
+          prompt: opts.prompt,
+          modelId: opts.agent.preferredModel || selectedModel,
+          scopeId: activeScopeId,
+          agentId: opts.agent.id,
+          agentProfile: {
+            id: opts.agent.id,
+            nameAr: opts.agent.nameAr,
+            slug: opts.agent.slug,
+            systemPromptAr: opts.agent.systemPromptAr,
+            taskAr: opts.agent.taskAr,
+            preferredModel: opts.agent.preferredModel,
+          },
+          peerContextAr: opts.peerContextAr,
+          collabMode,
+          persist: false,
+          authorNameAr: displayName,
+          securityPosture: posture,
+        }),
+      })
+    } catch (e) {
+      if (opts.signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
+        updatePost(activeScopeId, opts.postId, {
+          content: 'أُوقف التشغيل.',
+          streaming: false,
+        })
+        return 'أُوقف التشغيل.'
+      }
+      throw e
+    }
+
+    if (!res.ok || !res.body) {
+      const msg = `تعذّر الرد (HTTP ${res.status}).`
+      updatePost(activeScopeId, opts.postId, {
+        content: msg,
+        streaming: false,
+      })
+      return msg
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let assembled = ''
+    const citations: RoomCitation[] = []
+    const attachments: RoomFileAttachment[] = []
+    let pendingApprovalId: string | undefined
+    while (true) {
+      if (opts.signal?.aborted) {
+        try {
+          await reader.cancel()
+        } catch {
+          /* ignore */
+        }
+        const stopped = (assembled || 'أُوقف التشغيل.') + (assembled ? '…' : '')
+        updatePost(activeScopeId, opts.postId, {
+          content: assembled ? `${assembled}\n\n— أُوقف التشغيل.` : 'أُوقف التشغيل.',
+          streaming: false,
+        })
+        return stopped
+      }
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const chunks = buffer.split('\n\n')
+      buffer = chunks.pop() || ''
+      for (const chunk of chunks) {
+        for (const rawLine of chunk.split('\n')) {
+          const line = rawLine.trim()
+          if (!line.startsWith('data:')) continue
+          const payload = line.slice(5).trim()
+          if (!payload || payload === '[DONE]') continue
+          try {
+            const event = JSON.parse(payload) as {
+              type?: string
+              delta?: string
+              text?: string
+              output?: unknown
+              result?: unknown
+            }
+            if (
+              event.type === 'text-delta' ||
+              typeof event.delta === 'string' ||
+              (event.type === 'text' && typeof event.text === 'string')
+            ) {
+              assembled += String(event.delta ?? event.text ?? '')
+              updatePost(activeScopeId, opts.postId, {
+                content: assembled,
+                streaming: true,
+                citations: citations.length ? [...citations] : undefined,
+                attachments: attachments.length ? [...attachments] : undefined,
+                pendingApprovalId,
+              })
+            }
+            const toolOut =
+              event.output ??
+              event.result ??
+              (event.type === 'tool-output-available' ? event.output : undefined)
+            if (toolOut && typeof toolOut === 'object') {
+              const out = toolOut as Record<string, unknown>
+              const nested =
+                out.output && typeof out.output === 'object'
+                  ? (out.output as Record<string, unknown>)
+                  : out
+              if (
+                nested.status === 'paused' &&
+                typeof nested.approvalId === 'string'
+              ) {
+                pendingApprovalId = nested.approvalId
+              }
+              const docs = (nested.documents || out.documents) as
+                | Array<{
+                    citation?: string
+                    titleAr?: string
+                    excerpt?: string
+                  }>
+                | undefined
+              if (Array.isArray(docs)) {
+                for (const d of docs) {
+                  const label =
+                    d.citation ||
+                    (d.titleAr ? `[مصدر: ${d.titleAr}]` : '') ||
+                    ''
+                  if (label && !citations.some((c) => c.labelAr === label)) {
+                    citations.push({ labelAr: label, excerpt: d.excerpt })
+                  }
+                }
+              }
+              const attachList = (nested.attachments || out.attachments) as
+                | RoomFileAttachment[]
+                | undefined
+              if (Array.isArray(attachList)) {
+                for (const a of attachList) {
+                  if (!a?.fileId || !a?.name) continue
+                  if (attachments.some((x) => x.fileId === a.fileId)) continue
+                  attachments.push({
+                    fileId: String(a.fileId),
+                    name: String(a.name),
+                    mimeType: a.mimeType ? String(a.mimeType) : undefined,
+                    scopeId: String(a.scopeId || activeScopeId),
+                    downloadPath: a.downloadPath
+                      ? String(a.downloadPath)
+                      : undefined,
+                  })
+                }
+              } else if (
+                typeof nested.fileId === 'string' &&
+                typeof nested.name === 'string' &&
+                (nested.downloadPath || nested.downloadUrl || nested.ok)
+              ) {
+                const fileId = nested.fileId
+                if (!attachments.some((x) => x.fileId === fileId)) {
+                  attachments.push({
+                    fileId,
+                    name: nested.name,
+                    mimeType:
+                      typeof nested.mimeType === 'string'
+                        ? nested.mimeType
+                        : undefined,
+                    scopeId: activeScopeId,
+                    downloadPath: String(
+                      nested.downloadPath || nested.downloadUrl || ''
+                    ),
+                  })
+                }
+              }
+              updatePost(activeScopeId, opts.postId, {
+                content: assembled,
+                streaming: true,
+                citations: citations.length ? [...citations] : undefined,
+                attachments: attachments.length ? [...attachments] : undefined,
+                pendingApprovalId,
+              })
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
+    const fileFooter =
+      attachments.length > 0
+        ? `\n\n${attachments
+            .map((a) => `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`)
+            .join('\n')}`
+        : ''
+    const finalContent =
+      (assembled ||
+        (pendingApprovalId
+          ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
+          : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.')) +
+      (assembled ? fileFooter : '')
+
+    updatePost(activeScopeId, opts.postId, {
+      content: finalContent,
+      streaming: false,
+      citations: citations.length ? citations : undefined,
+      attachments: attachments.length ? attachments : undefined,
+      pendingApprovalId,
+    })
+
+    if (assembled || attachments.length) {
+      await fetch('/api/rooms/posts', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId: activeScopeId,
+          content: finalContent,
+          authorKind: 'agent',
+          authorId: opts.agent.id,
+          authorNameAr: opts.agent.nameAr,
+          mentionAgentId: opts.agent.id,
+        }),
+      })
+    }
+    return finalContent
+  }
+
   async function sendPrompt() {
     const prompt = input.trim()
     if (!prompt || streaming) return
@@ -287,10 +539,42 @@ export function RoomWorkspace({ className }: { className?: string }) {
       'Content-Type': 'application/json',
     })
 
-    const handoff = resolveMentionHandoff(prompt, agentCatalog)
-    const agent = handoff.agent || roomAgents[0]
+    // Note: JS \b does not work after Arabic tokens — match whitespace/end instead.
+    const teamMention = prompt
+      .trim()
+      .match(/^@(all|team|الجميع|فريق)(?:\s+|$)/i)
+    const wantsAll = Boolean(teamMention)
+    const promptAfterTeam = wantsAll
+      ? prompt.trim().slice(teamMention![0].length).trim() || prompt.trim()
+      : prompt
+    const handoff = resolveMentionHandoff(promptAfterTeam, agentCatalog)
+    const runTeam =
+      (collabMode === 'team' && !handoff.agent) || wantsAll
+    const TEAM_RUN_CAP = 8
+    const teamAgents = roomAgents.slice(0, TEAM_RUN_CAP)
+    const agentsToRun: RoomAgent[] = runTeam
+      ? teamAgents.length
+        ? teamAgents
+        : roomAgents[0]
+          ? [roomAgents[0]]
+          : []
+      : [handoff.agent || roomAgents[0]].filter(Boolean) as RoomAgent[]
+
+    if (agentsToRun.length === 0) {
+      appendPost({
+        id: `sys-${Date.now()}`,
+        scopeId: activeScopeId,
+        authorKind: 'system',
+        authorId: 'system',
+        authorNameAr: 'النظام',
+        content: 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
+        createdAt: Date.now(),
+      })
+      return
+    }
+
+    const cleanPrompt = handoff.cleanPrompt || prompt
     const humanId = `h-${Date.now()}`
-    const agentId = `a-${Date.now()}`
 
     await fetch('/api/rooms/posts', {
       method: 'POST',
@@ -300,7 +584,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         scopeId: activeScopeId,
         content: prompt,
         authorNameAr: displayName,
-        mentionAgentId: agent?.id,
+        mentionAgentId: runTeam ? undefined : agentsToRun[0]?.id,
       }),
     })
 
@@ -313,265 +597,75 @@ export function RoomWorkspace({ className }: { className?: string }) {
       content: prompt,
       createdAt: Date.now(),
     })
-    appendPost({
-      id: agentId,
-      scopeId: activeScopeId,
-      authorKind: 'agent',
-      authorId: agent?.id || 'room-agent',
-      authorNameAr: agent?.nameAr || agentNameAr,
-      content: '',
-      createdAt: Date.now() + 1,
-      streaming: true,
-    })
+
+    runAbortRef.current?.abort()
+    const abort = new AbortController()
+    runAbortRef.current = abort
     setStreaming(true)
+    const peerNotes: string[] = []
+    // Prior agent posts in the room (shared memory of what others did)
+    const priorPeers = posts
+      .filter((p) => p.authorKind === 'agent' && p.content)
+      .slice(-6)
+      .map((p) => `• ${p.authorNameAr}: ${p.content.slice(0, 400)}`)
+    if (priorPeers.length) {
+      peerNotes.push('من سجل الغرفة:\n' + priorPeers.join('\n'))
+    }
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          prompt,
-          modelId: selectedModel,
+      for (let i = 0; i < agentsToRun.length; i++) {
+        if (abort.signal.aborted) break
+        const agent = agentsToRun[i]
+        const postId = `a-${Date.now()}-${i}`
+        appendPost({
+          id: postId,
           scopeId: activeScopeId,
-          agentId: agent?.id,
-          agentProfile: agent
-            ? {
-                id: agent.id,
-                nameAr: agent.nameAr,
-                slug: agent.slug,
-                systemPromptAr: agent.systemPromptAr,
-              }
-            : undefined,
-          persist: false,
-          authorNameAr: displayName,
-          securityPosture: posture,
-        }),
-      })
-
-      if (!res.ok || !res.body) {
-        updatePost(activeScopeId, agentId, {
-          content: `تعذّر الرد (HTTP ${res.status}).`,
-          streaming: false,
+          authorKind: 'agent',
+          authorId: agent.id,
+          authorNameAr: agent.nameAr,
+          content: '',
+          createdAt: Date.now() + i + 1,
+          streaming: true,
         })
-        setStreaming(false)
-        return
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let assembled = ''
-      const citations: RoomCitation[] = []
-      const attachments: RoomFileAttachment[] = []
-      let pendingApprovalId: string | undefined
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const chunks = buffer.split('\n\n')
-        buffer = chunks.pop() || ''
-        for (const chunk of chunks) {
-          for (const rawLine of chunk.split('\n')) {
-            const line = rawLine.trim()
-            if (!line.startsWith('data:')) continue
-            const payload = line.slice(5).trim()
-            if (!payload || payload === '[DONE]') continue
-            try {
-              const event = JSON.parse(payload) as {
-                type?: string
-                delta?: string
-                text?: string
-                output?: unknown
-                result?: unknown
-                toolName?: string
-                toolCallId?: string
-                citationBlockAr?: string
-              }
-              if (
-                event.type === 'text-delta' ||
-                typeof event.delta === 'string' ||
-                (event.type === 'text' && typeof event.text === 'string')
-              ) {
-                assembled += String(event.delta ?? event.text ?? '')
-                updatePost(activeScopeId, agentId, {
-                  content: assembled,
-                  streaming: true,
-                  citations: citations.length ? [...citations] : undefined,
-                  attachments: attachments.length ? [...attachments] : undefined,
-                  pendingApprovalId,
-                })
-              }
-
-              const toolOut =
-                event.output ??
-                event.result ??
-                (event.type === 'tool-output-available'
-                  ? event.output
-                  : undefined) ??
-                (event.type === 'tool-result' ? event.result : undefined)
-
-              const absorbTool = (raw: unknown) => {
-                if (!raw || typeof raw !== 'object') return
-                const out = raw as Record<string, unknown>
-                // Nested intercept wrapper
-                const nested =
-                  out.output && typeof out.output === 'object'
-                    ? (out.output as Record<string, unknown>)
-                    : out
-                if (
-                  nested.status === 'paused' &&
-                  typeof nested.approvalId === 'string'
-                ) {
-                  pendingApprovalId = nested.approvalId
-                }
-                if (out.status === 'paused' && typeof out.approvalId === 'string') {
-                  pendingApprovalId = out.approvalId
-                }
-                const docs = (nested.documents || out.documents) as
-                  | Array<{
-                      citation?: string
-                      titleAr?: string
-                      excerpt?: string
-                    }>
-                  | undefined
-                if (Array.isArray(docs)) {
-                  for (const d of docs) {
-                    const label =
-                      d.citation ||
-                      (d.titleAr ? `[مصدر: ${d.titleAr}]` : '') ||
-                      ''
-                    if (
-                      label &&
-                      !citations.some((c) => c.labelAr === label)
-                    ) {
-                      citations.push({
-                        labelAr: label,
-                        excerpt: d.excerpt,
-                      })
-                    }
-                  }
-                }
-                const block = String(
-                  nested.citationBlockAr || out.citationBlockAr || ''
-                )
-                if (block && !citations.some((c) => c.labelAr === block.slice(0, 40))) {
-                  const lines = block
-                    .split('\n')
-                    .map((l) => l.trim())
-                    .filter((l) => l.startsWith('[مصدر'))
-                  for (const line of lines) {
-                    if (!citations.some((c) => c.labelAr === line)) {
-                      citations.push({ labelAr: line })
-                    }
-                  }
-                }
-                const attachList = (nested.attachments || out.attachments) as
-                  | RoomFileAttachment[]
-                  | undefined
-                if (Array.isArray(attachList)) {
-                  for (const a of attachList) {
-                    if (!a?.fileId || !a?.name) continue
-                    if (attachments.some((x) => x.fileId === a.fileId)) continue
-                    attachments.push({
-                      fileId: String(a.fileId),
-                      name: String(a.name),
-                      mimeType: a.mimeType ? String(a.mimeType) : undefined,
-                      scopeId: String(a.scopeId || activeScopeId),
-                      downloadPath: a.downloadPath
-                        ? String(a.downloadPath)
-                        : undefined,
-                    })
-                  }
-                } else if (
-                  typeof nested.fileId === 'string' &&
-                  typeof nested.name === 'string' &&
-                  (nested.downloadPath || nested.downloadUrl || nested.ok)
-                ) {
-                  const fileId = nested.fileId
-                  if (!attachments.some((x) => x.fileId === fileId)) {
-                    attachments.push({
-                      fileId,
-                      name: nested.name,
-                      mimeType:
-                        typeof nested.mimeType === 'string'
-                          ? nested.mimeType
-                          : undefined,
-                      scopeId: activeScopeId,
-                      downloadPath: String(
-                        nested.downloadPath || nested.downloadUrl || ''
-                      ),
-                    })
-                  }
-                }
-                updatePost(activeScopeId, agentId, {
-                  content: assembled,
-                  streaming: true,
-                  citations: citations.length ? [...citations] : undefined,
-                  attachments: attachments.length ? [...attachments] : undefined,
-                  pendingApprovalId,
-                })
-              }
-
-              if (toolOut) absorbTool(toolOut)
-              if (
-                event.type === 'tool-output-available' ||
-                event.type === 'tool-result' ||
-                event.type === 'tool-call-result'
-              ) {
-                absorbTool(event.output ?? event.result ?? event)
-              }
-            } catch {
-              /* ignore */
-            }
-          }
+        const reply = await streamOneAgent({
+          prompt: cleanPrompt,
+          agent,
+          peerContextAr:
+            runTeam && peerNotes.length ? peerNotes.join('\n\n') : undefined,
+          postId,
+          headers,
+          signal: abort.signal,
+        })
+        if (abort.signal.aborted) break
+        if (runTeam) {
+          peerNotes.push(`• ${agent.nameAr}: ${reply.slice(0, 800)}`)
         }
       }
-      const fileFooter =
-        attachments.length > 0
-          ? `\n\n${attachments
-              .map(
-                (a) =>
-                  `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`
-              )
-              .join('\n')}`
-          : ''
-      const finalContent =
-        (assembled ||
-          (pendingApprovalId
-            ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
-            : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.')) +
-        (assembled ? fileFooter : '')
-
-      updatePost(activeScopeId, agentId, {
-        content: finalContent,
-        streaming: false,
-        citations: citations.length ? citations : undefined,
-        attachments: attachments.length ? attachments : undefined,
-        pendingApprovalId,
-      })
-
-      // Persist agent reply (chat onFinish also runs when persist!==false —
-      // we used persist:false so save here)
-      if (assembled || attachments.length) {
-        await fetch('/api/rooms/posts', {
-          method: 'POST',
-          headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({
-            scopeId: activeScopeId,
-            content: finalContent,
-            authorKind: 'agent',
-            authorId: agent?.id || 'agent-desk',
-            authorNameAr: agent?.nameAr || agentNameAr,
-            mentionAgentId: agent?.id,
-          }),
+      if (abort.signal.aborted) {
+        appendPost({
+          id: `stop-${Date.now()}`,
+          scopeId: activeScopeId,
+          authorKind: 'system',
+          authorId: 'system',
+          authorNameAr: 'النظام',
+          content: 'أُوقف تشغيل الوكلاء.',
+          createdAt: Date.now(),
         })
       }
-    } catch {
-      updatePost(activeScopeId, agentId, {
-        content: 'حدث خطأ في الاتصال.',
-        streaming: false,
-      })
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        appendPost({
+          id: `err-${Date.now()}`,
+          scopeId: activeScopeId,
+          authorKind: 'system',
+          authorId: 'system',
+          authorNameAr: 'النظام',
+          content: 'حدث خطأ في الاتصال أثناء تشغيل الوكلاء.',
+          createdAt: Date.now(),
+        })
+      }
     } finally {
+      if (runAbortRef.current === abort) runAbortRef.current = null
       setStreaming(false)
     }
   }
@@ -769,6 +863,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 سيتم توجيه الرد إلى {mentionPreview.nameAr}
               </p>
             )}
+            {!mentionPreview && collabMode === 'team' && roomAgents.length > 1 && (
+              <p className="mb-1.5 text-[11px] text-stone-500">
+                وضع تعاون: سيرد حتى{' '}
+                {Math.min(8, roomAgents.length)} وكلاء بالتتابع ويتبادلون
+                الملاحظات — أو @الجميع / @اسم لوكيل واحد
+              </p>
+            )}
             {micNote && (
               <p
                 className="mb-1.5 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] leading-snug text-stone-700"
@@ -829,22 +930,34 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 }}
                 disabled={streaming}
                 placeholder={
-                  shared
-                    ? 'اكتب أو تكلم بالميك… جرّب @reports'
-                    : activeScopeId === 'personal-research'
-                      ? 'اكتب أو تكلم بالميك… جرّب @research'
-                      : 'اكتب أو تكلم بالميك… النص يظهر هنا للمراجعة'
+                  collabMode === 'team'
+                    ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
+                    : shared
+                      ? 'اكتب أو تكلم بالميك… جرّب @reports'
+                      : activeScopeId === 'personal-research'
+                        ? 'اكتب أو تكلم بالميك… جرّب @research'
+                        : 'اكتب أو تكلم بالميك… النص يظهر هنا للمراجعة'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
               />
-              <button
-                type="submit"
-                disabled={streaming || !input.trim()}
-                className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
-              >
-                إرسال
-              </button>
+              {streaming ? (
+                <button
+                  type="button"
+                  onClick={stopAgentRun}
+                  className="h-10 shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700"
+                >
+                  إيقاف
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!input.trim()}
+                  className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  إرسال
+                </button>
+              )}
             </form>
           </footer>
         </section>

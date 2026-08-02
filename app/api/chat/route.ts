@@ -50,7 +50,12 @@ type ChatBody = {
     nameAr: string
     slug: string
     systemPromptAr: string
+    taskAr?: string
+    preferredModel?: string
   }
+  /** Notes from peer agents in collaborative mode. */
+  peerContextAr?: string
+  collabMode?: 'solo' | 'team'
   persist?: boolean
   authorNameAr?: string
   securityPosture?: SecurityPostureMode | string
@@ -96,7 +101,9 @@ export async function POST(req: Request) {
     if (!auth.ok) return auth.response
 
     const body = (await req.json()) as ChatBody
+    const profile = body.agentProfile
     const modelId =
+      profile?.preferredModel ||
       body.modelId ||
       body.modelSlug ||
       process.env.DEFAULT_HARNESS_MODEL ||
@@ -115,7 +122,6 @@ export async function POST(req: Request) {
     }
 
     const handoff = resolveMentionHandoff(rawPrompt || '')
-    const profile = body.agentProfile
     const mentioned =
       (profile?.id && profile.nameAr && profile.systemPromptAr
         ? {
@@ -123,6 +129,8 @@ export async function POST(req: Request) {
             nameAr: profile.nameAr,
             slug: profile.slug || profile.id,
             systemPromptAr: profile.systemPromptAr,
+            taskAr: profile.taskAr,
+            preferredModel: profile.preferredModel,
             avatarHue: 160,
           }
         : null) ||
@@ -149,8 +157,24 @@ export async function POST(req: Request) {
       })
     }
 
+    const taskBlock =
+      mentioned && 'taskAr' in mentioned && mentioned.taskAr
+        ? `\nالمهمة المعيّنة: ${mentioned.taskAr}`
+        : profile?.taskAr
+          ? `\nالمهمة المعيّنة: ${profile.taskAr}`
+          : ''
+
+    const peerBlock = body.peerContextAr?.trim()
+      ? `\n\nملاحظات زملائك الوكلاء في هذه الجولة (تعاون):\n${body.peerContextAr.trim()}\nكمّل عملهم أو صحّحه دون تكرار عديم الفائدة.`
+      : ''
+
+    const collabBlock =
+      body.collabMode === 'team'
+        ? '\n\nأنت في وضع تعاون جماعي: الغرفة مشتركة، اطّلع على سياق الزملاء وساعدهم.'
+        : ''
+
     const agentBlock = mentioned
-      ? `\n\nهويتك في الغرفة: «${mentioned.nameAr}» (${mentioned.slug}).\n${mentioned.systemPromptAr}`
+      ? `\n\nهويتك في الغرفة: «${mentioned.nameAr}» (${mentioned.slug}).${taskBlock}\n${mentioned.systemPromptAr}${peerBlock}${collabBlock}`
       : ''
 
     const scopeBlock = scopeSystemBlock(auth.user.id, scopeId)

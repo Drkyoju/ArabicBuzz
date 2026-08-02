@@ -33,6 +33,18 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       .catch(() => setUser(null))
   }, [configured])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error') || params.get('error_description')
+    if (!err) return
+    setError(decodeURIComponent(err.replace(/\+/g, ' ')))
+    params.delete('error')
+    params.delete('error_description')
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
+    window.history.replaceState({}, '', next)
+  }, [])
+
   async function sendCode(e: React.FormEvent) {
     e.preventDefault()
     setError('')

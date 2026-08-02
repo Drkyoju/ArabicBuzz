@@ -140,7 +140,12 @@ export function GoogleCalendarPanel() {
       }
       await connectGoogleCalendar()
     } catch (e) {
-      setNote(e instanceof Error ? e.message : 'فشل بدء الربط')
+      const msg = e instanceof Error ? e.message : 'فشل بدء الربط'
+      setNote(
+        /provider is not enabled|Unsupported provider/i.test(msg)
+          ? 'مزوّد Google غير مفعّل في Supabase — فعّل Google وأضف Client ID/Secret ثم أعد المحاولة.'
+          : msg
+      )
       setBusy(false)
     }
   }

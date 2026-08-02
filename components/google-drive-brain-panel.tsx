@@ -136,7 +136,16 @@ export function GoogleDriveBrainPanel() {
                 setNote('Supabase غير مُعدّ')
                 return
               }
-              void connectGoogleCalendar()
+              setNote('جاري فتح تسجيل Google…')
+              void connectGoogleCalendar().catch((e) => {
+                const msg =
+                  e instanceof Error ? e.message : 'تعذّر بدء ربط Google'
+                setNote(
+                  /provider is not enabled|Unsupported provider/i.test(msg)
+                    ? 'مزوّد Google غير مفعّل في Supabase — فعّل Google وأضف Client ID/Secret ثم أعد المحاولة.'
+                    : msg
+                )
+              })
             }}
             className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
           >

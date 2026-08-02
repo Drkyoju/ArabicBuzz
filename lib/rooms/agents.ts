@@ -7,7 +7,19 @@ export type RoomAgent = {
   avatarHue: number
   /** User-created agent (can be deleted). */
   custom?: boolean
+  /** Preferred harness model slug (shares Gemini/GLM API keys). */
+  preferredModel?: string
+  /** Short task assignment shown in UI and injected into the system prompt. */
+  taskAr?: string
 }
+
+export type AgentCollabMode = 'solo' | 'team'
+
+export const AGENT_MODEL_PRESETS = [
+  { slug: 'gemini-2.0-flash', labelAr: 'Gemini 2.0 Flash', provider: 'google' },
+  { slug: 'gemini-2.5-pro', labelAr: 'Gemini 2.5 Pro', provider: 'google' },
+  { slug: 'glm-4.5', labelAr: 'GLM-4.5', provider: 'glm' },
+] as const
 
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
   {
