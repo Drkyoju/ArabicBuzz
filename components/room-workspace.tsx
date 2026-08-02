@@ -14,10 +14,14 @@ import {
   authHeaders,
 } from '@/lib/supabase/browser'
 import { isSharedScope } from '@/lib/scopes/manager'
-import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import {
+  hydrateScopeMemories,
+  useWorkspaceStore,
+} from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
+import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ModelPicker } from '@/components/model-picker'
@@ -69,6 +73,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [answeringAgentId, setAnsweringAgentId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('أنت')
   const [outboundMsg, setOutboundMsg] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -153,6 +158,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     } catch {
       /* ignore */
     }
+    hydrateScopeMemories()
     return () => {
       cancelled = true
     }
@@ -345,6 +351,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
           persist: false,
           authorNameAr: displayName,
           securityPosture: posture,
+          scopeMemory: useWorkspaceStore
+            .getState()
+            .memoriesForScope(activeScopeId),
         }),
       })
     } catch (e) {
@@ -456,6 +465,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     citation?: string
                     titleAr?: string
                     excerpt?: string
+                    url?: string
+                    metadata?: { url?: string; sourceUrl?: string }
                   }>
                 | undefined
               if (Array.isArray(docs)) {
@@ -464,8 +475,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     d.citation ||
                     (d.titleAr ? `[مصدر: ${d.titleAr}]` : '') ||
                     ''
+                  const url =
+                    d.url ||
+                    d.metadata?.url ||
+                    d.metadata?.sourceUrl ||
+                    undefined
                   if (label && !citations.some((c) => c.labelAr === label)) {
-                    citations.push({ labelAr: label, excerpt: d.excerpt })
+                    citations.push({
+                      labelAr: label,
+                      excerpt: d.excerpt,
+                      url,
+                    })
                   }
                 }
               }
@@ -632,6 +652,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const abort = new AbortController()
     runAbortRef.current = abort
     setStreaming(true)
+    setAnsweringAgentId(null)
+    try {
+      localStorage.setItem('ab-first-chat', '1')
+    } catch {
+      /* ignore */
+    }
     const peerNotes: string[] = []
     // Prior agent posts in the room (shared memory of what others did)
     const priorPeers = posts
@@ -646,6 +672,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       for (let i = 0; i < agentsToRun.length; i++) {
         if (abort.signal.aborted) break
         const agent = agentsToRun[i]
+        setAnsweringAgentId(agent.id)
         const postId = `a-${Date.now()}-${i}`
         appendPost({
           id: postId,
@@ -697,6 +724,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     } finally {
       if (runAbortRef.current === abort) runAbortRef.current = null
       setStreaming(false)
+      setAnsweringAgentId(null)
     }
   }
 
@@ -758,21 +786,16 @@ export function RoomWorkspace({ className }: { className?: string }) {
           onFocusCapture={() => setPresenceSurface('feed')}
         >
           {showOnboarding && (
-            <div className="flex items-start justify-between gap-3 border-b border-ab-accent/20 bg-ab-accent/5 px-4 py-2.5">
-              <div className="min-w-0 text-sm">
-                <p className="font-semibold text-ab-ink">مرحباً في Arabic Buzz</p>
-                <p className="mt-0.5 text-[11px] leading-snug text-stone-600">
-                  اختر مساحة، اذكر وكيلاً بـ <code dir="ltr">@</code>، أو تكلم
-                  بالميكروفون ثم راجع النص وأرسل.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={dismissOnboarding}
-                className="shrink-0 text-xs font-medium text-ab-accent"
-              >
-                ابدأ
-              </button>
+            <div className="space-y-2 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
+              <FirstRunChecklist
+                onNavigate={(section) => {
+                  dismissOnboarding()
+                  window.dispatchEvent(
+                    new CustomEvent('ab-nav', { detail: section })
+                  )
+                }}
+                onDismiss={dismissOnboarding}
+              />
             </div>
           )}
 
@@ -873,6 +896,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             <AgentSeatsPanel
               scopeId={activeScopeId}
               activeAgentId={mentionPreview?.id}
+              answeringAgentId={answeringAgentId}
               onSeatClick={(a) =>
                 setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
               }
@@ -891,8 +915,38 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     ابدأ المحادثة
                   </p>
                   <p className="mt-1 max-w-sm text-sm leading-relaxed text-stone-500">
-                    اكتب أو تكلم بالميكروفون، وأشر لوكيل بـ @ عند الحاجة.
+                    اكتب مهمة أو تكلم بالميكروفون. في وضع تعاون يرد عدة وكلاء
+                    بالتتابع — أو وجّه بـ @اسم / @الجميع.
                   </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInput('لخّص قرارات هذا الأسبوع بالعربية الفصحى')}
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                    >
+                      ملخص قرارات
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setInput('ابحث في عقل الشركة عن سياسة الموافقات')
+                      }
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                    >
+                      ابحث في المعرفة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent('ab-nav', { detail: 'calendar' })
+                        )
+                      }
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                    >
+                      افتح التقويم
+                    </button>
+                  </div>
                 </div>
               ) : (
                 posts.map((post) => <RoomPostCard key={post.id} post={post} />)

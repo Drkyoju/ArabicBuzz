@@ -60,6 +60,8 @@ type ChatBody = {
   authorNameAr?: string
   securityPosture?: SecurityPostureMode | string
   enableTools?: boolean
+  /** Client-side scope memories for tools + prompt */
+  scopeMemory?: string[]
 }
 
 type StreamTextResult = ReturnType<typeof streamText>
@@ -76,7 +78,11 @@ function withDataStreamResponse(result: StreamTextResult) {
   })
 }
 
-function scopeSystemBlock(userId: string, scopeId?: string): string {
+function scopeSystemBlock(
+  userId: string,
+  scopeId?: string,
+  clientMemory?: string[]
+): string {
   if (!scopeId) return ''
   try {
     const ctx = resolveActiveScope({
@@ -84,11 +90,18 @@ function scopeSystemBlock(userId: string, scopeId?: string): string {
       scopeId,
       scopes: DEMO_SCOPES,
     })
+    if (clientMemory && clientMemory.length) {
+      ctx.memory = clientMemory
+    }
     return `\n\n${buildPromptContext(ctx)}`
   } catch {
     const scope = DEMO_SCOPES.find((s) => s.id === scopeId)
     if (!scope) return ''
-    return `\n\nأنت في مساحة العمل «${scope.nameAr}». ابنِ على سياق الغرفة.`
+    const mem =
+      clientMemory && clientMemory.length
+        ? `\nذاكرة المساحة:\n${clientMemory.map((m) => `• ${m}`).join('\n')}`
+        : ''
+    return `\n\nأنت في مساحة العمل «${scope.nameAr}». ابنِ على سياق الغرفة.${mem}`
   }
 }
 
@@ -177,7 +190,11 @@ export async function POST(req: Request) {
       ? `\n\nهويتك في الغرفة: «${mentioned.nameAr}» (${mentioned.slug}).${taskBlock}\n${mentioned.systemPromptAr}${peerBlock}${collabBlock}`
       : ''
 
-    const scopeBlock = scopeSystemBlock(auth.user.id, scopeId)
+    const scopeBlock = scopeSystemBlock(
+      auth.user.id,
+      scopeId,
+      body.scopeMemory
+    )
     const roomAgents = agentsForScope(scopeId)
       .map((a) => `• ${a.nameAr} (@${a.slug})`)
       .join('\n')
@@ -203,6 +220,7 @@ export async function POST(req: Request) {
           mode: posture,
           requesterId: auth.user.id,
           scopeId,
+          scopeMemory: body.scopeMemory,
         })
       : undefined
 

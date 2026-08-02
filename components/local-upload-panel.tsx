@@ -35,6 +35,7 @@ export function LocalUploadPanel({
   const mediaRef = useRef<ActiveRecording | null>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState<StoredFile[]>([])
   const [open, setOpen] = useState(false)
@@ -103,6 +104,7 @@ export function LocalUploadPanel({
   async function uploadBlob(file: File | Blob, filename: string) {
     setBusy(true)
     setMessage('')
+    setProgress(0)
     try {
       const asFile =
         file instanceof File
@@ -121,17 +123,23 @@ export function LocalUploadPanel({
           secretValue?: string | null
           maxBytes?: number
         } | null
+        macSyncConfigured?: boolean
+        storage?: { backend?: string }
       }
       const hopMax = status.hopMaxBytes || 32 * 1024 * 1024
+      setProgress(15)
 
       if (asFile.size > hopMax && status.directUpload?.uploadUrl) {
+        setProgress(40)
         const data = await uploadDirectToMac(asFile, status.directUpload)
+        setProgress(100)
         setMessage(data.messageAr || 'حُفظ مباشرة على الماك')
         await refresh()
         onUploaded?.()
         return
       }
 
+      setProgress(35)
       const body = new FormData()
       body.append('scopeId', scopeId)
       body.append('file', asFile)
@@ -140,10 +148,12 @@ export function LocalUploadPanel({
         headers: await authHeaders(),
         body,
       })
+      setProgress(75)
       const data = (await res.json()) as {
         error?: string
         messageAr?: string
         ok?: boolean
+        source?: string
         directUploadRequired?: boolean
         directUpload?: {
           uploadUrl: string
@@ -152,7 +162,9 @@ export function LocalUploadPanel({
         }
       }
       if (data.directUploadRequired && data.directUpload?.uploadUrl) {
+        setProgress(80)
         const direct = await uploadDirectToMac(asFile, data.directUpload)
+        setProgress(100)
         setMessage(direct.messageAr || 'حُفظ مباشرة على الماك')
         await refresh()
         onUploaded?.()
@@ -162,13 +174,19 @@ export function LocalUploadPanel({
         setMessage(data.error || data.messageAr || 'تعذّر الرفع')
         return
       }
-      setMessage(data.messageAr || 'تم الحفظ')
+      setProgress(100)
+      const via =
+        status.macSyncConfigured
+          ? 'عبر وكيل الماك إن وُجد'
+          : 'تخزين سحابي (حدود الحجم على Netlify)'
+      setMessage(`${data.messageAr || 'تم الحفظ'} · ${via}`)
       await refresh()
       onUploaded?.()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'خطأ في الرفع')
     } finally {
       setBusy(false)
+      setTimeout(() => setProgress(null), 800)
     }
   }
 
@@ -289,6 +307,14 @@ export function LocalUploadPanel({
                 {recording ? 'إيقاف' : 'حفظ صوتي'}
               </button>
             </div>
+            {progress != null && (
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                <div
+                  className="h-full rounded-full bg-ab-accent transition-all"
+                  style={{ width: `${Math.min(100, progress)}%` }}
+                />
+              </div>
+            )}
             {message && (
               <p className="mt-1.5 text-[10px] text-stone-500">{message}</p>
             )}
@@ -388,6 +414,14 @@ export function LocalUploadPanel({
           e.target.value = ''
         }}
       />
+      {progress != null && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
+          <div
+            className="h-full rounded-full bg-ab-accent transition-all"
+            style={{ width: `${Math.min(100, progress)}%` }}
+          />
+        </div>
+      )}
       {message && <p className="mt-1 text-[11px] text-stone-500">{message}</p>}
     </div>
   )

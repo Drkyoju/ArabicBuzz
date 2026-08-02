@@ -117,7 +117,47 @@ async function sendWhatsAppApproval(payload: ApprovalNotificationPayload) {
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const to = process.env.WHATSAPP_TEST_TO
   if (!token || !phoneId || !to) return
+  const bodyText = `${payload.messageAr}\nالإجراء: ${payload.actionName}\nالمستوى: ${payload.riskLevel}`
   try {
+    // Prefer interactive buttons; fall back to plain text if rejected.
+    const interactive = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'interactive',
+          interactive: {
+            type: 'button',
+            body: { text: bodyText.slice(0, 1024) },
+            action: {
+              buttons: [
+                {
+                  type: 'reply',
+                  reply: {
+                    id: `approve_${payload.approvalId}`,
+                    title: 'موافقة',
+                  },
+                },
+                {
+                  type: 'reply',
+                  reply: {
+                    id: `reject_${payload.approvalId}`,
+                    title: 'رفض',
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      }
+    )
+    if (interactive.ok) return
     await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
       method: 'POST',
       headers: {
@@ -128,7 +168,9 @@ async function sendWhatsAppApproval(payload: ApprovalNotificationPayload) {
         messaging_product: 'whatsapp',
         to,
         type: 'text',
-        text: { body: `${payload.messageAr}\n${payload.actionName}` },
+        text: {
+          body: `${bodyText}\nرد بـ: موافقة ${payload.approvalId} أو رفض ${payload.approvalId}`,
+        },
       }),
     })
   } catch (e) {

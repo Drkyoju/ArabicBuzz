@@ -12,10 +12,12 @@ export function getNativeAiTools(opts?: {
   mode?: SecurityPostureMode
   requesterId?: string
   scopeId?: string
+  scopeMemory?: string[]
 }): ToolSet {
   const mode = opts?.mode || 'AUTO'
   const requesterId = opts?.requesterId || 'engine'
   const scopeId = opts?.scopeId
+  const scopeMemory = opts?.scopeMemory
 
   const native: ToolSet = {
     web_search: tool({
@@ -171,7 +173,11 @@ export function getNativeAiTools(opts?: {
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'memory_search',
-          params,
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            scopeMemory,
+          },
           mode,
           requesterId,
           scopeId,

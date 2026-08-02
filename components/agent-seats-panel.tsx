@@ -22,11 +22,14 @@ function shortModel(slug?: string) {
 export function AgentSeatsPanel({
   scopeId,
   activeAgentId,
+  answeringAgentId,
   onSeatClick,
   className,
 }: {
   scopeId: string
   activeAgentId?: string | null
+  /** Agent currently streaming a reply */
+  answeringAgentId?: string | null
   onSeatClick?: (agent: RoomAgent) => void
   className?: string
 }) {
@@ -58,12 +61,14 @@ export function AgentSeatsPanel({
         <span className="text-[10px] font-medium text-stone-400">وكلاء</span>
         {agents.map((agent) => {
           const active = activeAgentId === agent.id
+          const answering = answeringAgentId === agent.id
           const model = shortModel(agent.preferredModel)
           const tip = [
             `@${agent.slug}`,
             agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
             agent.preferredModel || null,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
+            answering ? 'يجيب الآن…' : null,
           ]
             .filter(Boolean)
             .join(' · ')
@@ -74,10 +79,12 @@ export function AgentSeatsPanel({
               title={tip}
               onClick={() => onSeatClick?.(agent)}
               className={cn(
-                'inline-flex max-w-[12rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors',
-                active
-                  ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
-                  : 'border-transparent bg-stone-100 text-ab-ink hover:bg-stone-200/80'
+                'inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors',
+                answering
+                  ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
+                  : active
+                    ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
+                    : 'border-transparent bg-stone-100 text-ab-ink hover:bg-stone-200/80'
               )}
             >
               <span
@@ -88,7 +95,9 @@ export function AgentSeatsPanel({
                 {agent.nameAr.slice(0, 1)}
               </span>
               <span className="truncate">{agent.nameAr}</span>
-              {model ? (
+              {answering ? (
+                <span className="shrink-0 text-[9px] text-ab-accent">يجيب…</span>
+              ) : model ? (
                 <span className="shrink-0 text-[9px] text-stone-400" dir="ltr">
                   {model}
                 </span>
@@ -98,6 +107,15 @@ export function AgentSeatsPanel({
         })}
         <AgentsManagePanel scopeId={scopeId} compact />
       </div>
+      {agents.some((a) => a.taskAr) && (
+        <p className="truncate text-[10px] text-stone-400">
+          مهام:{' '}
+          {agents
+            .filter((a) => a.taskAr)
+            .map((a) => `${a.nameAr}: ${a.taskAr}`)
+            .join(' · ')}
+        </p>
+      )}
     </div>
   )
 }

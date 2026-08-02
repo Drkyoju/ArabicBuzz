@@ -137,6 +137,10 @@ type WorkspaceState = {
   createPersonalDesk: (opts?: { nameAr?: string }) => string
   renameScope: (id: string, nameAr: string) => void
   archiveScope: (id: string, archived?: boolean) => void
+  addMemory: (scopeId: string, text: string) => boolean
+  updateMemory: (scopeId: string, index: number, text: string) => void
+  removeMemory: (scopeId: string, index: number) => void
+  memoriesForScope: (scopeId: string) => string[]
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -283,4 +287,109 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return { scopes, activeScopeId }
     })
   },
+
+  memoriesForScope: (scopeId) => {
+    const scope = get().scopes.find((s) => s.id === scopeId)
+    if (!scope) return []
+    return isPersonalScope(scope) ? scope.privateMemory : scope.sharedMemory
+  },
+
+  addMemory: (scopeId, text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return false
+    set((state) => ({
+      scopes: state.scopes.map((s) => {
+        if (s.id !== scopeId) return s
+        if (isPersonalScope(s)) {
+          if (s.privateMemory.includes(trimmed)) return s
+          return { ...s, privateMemory: [...s.privateMemory, trimmed] }
+        }
+        if (isSharedScope(s)) {
+          if (s.sharedMemory.includes(trimmed)) return s
+          return { ...s, sharedMemory: [...s.sharedMemory, trimmed] }
+        }
+        return s
+      }),
+    }))
+    persistMemories(get().scopes)
+    return true
+  },
+
+  updateMemory: (scopeId, index, text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    set((state) => ({
+      scopes: state.scopes.map((s) => {
+        if (s.id !== scopeId) return s
+        if (isPersonalScope(s)) {
+          const privateMemory = [...s.privateMemory]
+          if (index < 0 || index >= privateMemory.length) return s
+          privateMemory[index] = trimmed
+          return { ...s, privateMemory }
+        }
+        if (isSharedScope(s)) {
+          const sharedMemory = [...s.sharedMemory]
+          if (index < 0 || index >= sharedMemory.length) return s
+          sharedMemory[index] = trimmed
+          return { ...s, sharedMemory }
+        }
+        return s
+      }),
+    }))
+    persistMemories(get().scopes)
+  },
+
+  removeMemory: (scopeId, index) => {
+    set((state) => ({
+      scopes: state.scopes.map((s) => {
+        if (s.id !== scopeId) return s
+        if (isPersonalScope(s)) {
+          return {
+            ...s,
+            privateMemory: s.privateMemory.filter((_, i) => i !== index),
+          }
+        }
+        if (isSharedScope(s)) {
+          return {
+            ...s,
+            sharedMemory: s.sharedMemory.filter((_, i) => i !== index),
+          }
+        }
+        return s
+      }),
+    }))
+    persistMemories(get().scopes)
+  },
 }))
+
+function persistMemories(scopes: Scope[]) {
+  try {
+    const payload: Record<string, string[]> = {}
+    for (const s of scopes) {
+      payload[s.id] = isPersonalScope(s) ? s.privateMemory : s.sharedMemory
+    }
+    localStorage.setItem('ab-scope-memories', JSON.stringify(payload))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Hydrate memories from localStorage (call once from client). */
+export function hydrateScopeMemories() {
+  try {
+    const raw = localStorage.getItem('ab-scope-memories')
+    if (!raw) return
+    const payload = JSON.parse(raw) as Record<string, string[]>
+    useWorkspaceStore.setState((state) => ({
+      scopes: state.scopes.map((s) => {
+        const mem = payload[s.id]
+        if (!mem || !Array.isArray(mem)) return s
+        if (isPersonalScope(s)) return { ...s, privateMemory: mem }
+        if (isSharedScope(s)) return { ...s, sharedMemory: mem }
+        return s
+      }),
+    }))
+  } catch {
+    /* ignore */
+  }
+}

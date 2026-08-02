@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, Download, User } from 'lucide-react'
+import { Bot, BookmarkPlus, Download, User } from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 
@@ -181,17 +182,45 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       </div>
       {post.citations && post.citations.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
-          {post.citations.map((c, i) => (
-            <span
-              key={`${c.labelAr}-${i}`}
-              title={c.excerpt || undefined}
-              className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent"
-            >
-              <span className="truncate">{c.labelAr}</span>
-            </span>
-          ))}
+          {post.citations.map((c, i) =>
+            c.url ? (
+              <a
+                key={`${c.labelAr}-${i}`}
+                href={c.url}
+                target="_blank"
+                rel="noreferrer"
+                title={c.excerpt || undefined}
+                className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent underline-offset-2 hover:underline"
+              >
+                <span className="truncate">{c.labelAr}</span>
+              </a>
+            ) : (
+              <span
+                key={`${c.labelAr}-${i}`}
+                title={c.excerpt || undefined}
+                className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent"
+              >
+                <span className="truncate">{c.labelAr}</span>
+              </span>
+            )
+          )}
         </div>
       )}
+      {post.authorKind === 'human' || post.authorKind === 'agent' ? (
+        <button
+          type="button"
+          onClick={() => {
+            const ok = useWorkspaceStore
+              .getState()
+              .addMemory(post.scopeId, post.content.slice(0, 800))
+            if (ok) setDlError('')
+          }}
+          className="mt-2 inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent"
+        >
+          <BookmarkPlus className="h-3 w-3" />
+          احفظ في الذاكرة
+        </button>
+      ) : null}
       {attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
           {attachments.map((a) => (

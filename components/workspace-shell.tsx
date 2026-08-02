@@ -15,6 +15,7 @@ import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
 import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
+import { OpsHealthPanel } from '@/components/ops-health-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -88,7 +89,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         detail === 'memory' ||
         detail === 'approvals' ||
         detail === 'skills' ||
-        detail === 'api-keys'
+        detail === 'api-keys' ||
+        detail === 'ops'
       ) {
         setSection(detail)
       }
@@ -229,6 +231,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
           </section>
         )}
+
+        {section === 'ops' && <OpsHealthPanel />}
 
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">

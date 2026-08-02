@@ -26,7 +26,6 @@ const stubResults: Record<string, (params: Record<string, unknown>) => unknown> 
   web_search: (p) => ({ results: [`نتائج بحث عن: ${String(p.query || '')}`] }),
   web_fetch: (p) => ({ url: p.url, content: 'محتوى مقروء (تجريبي)' }),
   query_db_readonly: () => ({ rows: [] }),
-  memory_search: () => ({ hits: [] }),
   write_file: (p) => ({ written: true, path: p.path }),
   send_message: (p) => ({ sent: true, channel: p.channel || 'telegram' }),
   delete_file: (p) => ({ deleted: true, path: p.path }),
@@ -39,6 +38,54 @@ const stubResults: Record<string, (params: Record<string, unknown>) => unknown> 
   text_generate: (p) => ({ text: String(p.prompt || '') }),
 }
 
+async function executeMemorySearch(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const query = String(params.query || params.q || '')
+    .trim()
+    .toLowerCase()
+  const fromClient = Array.isArray(params.scopeMemory)
+    ? (params.scopeMemory as unknown[]).map(String)
+    : null
+  const { DEMO_SCOPES, isPersonalScope, isSharedScope } = await import(
+    '@/lib/scopes/manager'
+  )
+  const scopeId = String(params.scopeId || 'shared-demo')
+  const scope = DEMO_SCOPES.find((s) => s.id === scopeId)
+  const seeded = scope
+    ? isPersonalScope(scope)
+      ? scope.privateMemory
+      : isSharedScope(scope)
+        ? scope.sharedMemory
+        : []
+    : []
+  const pool = fromClient && fromClient.length ? fromClient : seeded
+  const hits = !query
+    ? pool.slice(0, 8).map((text, i) => ({ id: `m-${i}`, text, score: 1 }))
+    : pool
+        .map((text, i) => {
+          const t = text.toLowerCase()
+          const score = t.includes(query)
+            ? 1
+            : query.split(/\s+/).filter((w) => w.length > 2 && t.includes(w))
+                .length * 0.25
+          return { id: `m-${i}`, text, score }
+        })
+        .filter((h) => h.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+  return {
+    query,
+    count: hits.length,
+    hits,
+    messageAr:
+      hits.length > 0
+        ? `عُثر على ${hits.length} ذكرى`
+        : 'لا نتائج في ذاكرة المساحة',
+  }
+}
+
 export const toolRegistry: Record<string, ToolExecutor> = {
   ...Object.fromEntries(
     Object.entries(stubResults).map(([name, fn]) => [
@@ -46,6 +93,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       async (_n, params) => fn(params),
     ])
   ),
+  memory_search: executeMemorySearch,
   list_files: executeListFiles,
   read_file: executeReadFile,
   list_workspace_files: executeListWorkspaceFiles,

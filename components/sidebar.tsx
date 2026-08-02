@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   KeyRound,
   CalendarDays,
+  Activity,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -31,6 +32,7 @@ export type SidebarSection =
   | 'approvals'
   | 'skills'
   | 'api-keys'
+  | 'ops'
   | 'settings'
 
 const NAV: Array<{
@@ -45,6 +47,7 @@ const NAV: Array<{
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'api-keys', labelAr: 'مفاتيح API', icon: KeyRound },
+  { id: 'ops', labelAr: 'صحة التشغيل', icon: Activity },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
 

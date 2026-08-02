@@ -37,6 +37,8 @@ export type RoomAuthorKind = 'human' | 'agent' | 'system' | 'channel'
 export type RoomCitation = {
   labelAr: string
   excerpt?: string
+  /** Optional deep-link (Drive / file / URL) */
+  url?: string
 }
 
 /** Downloadable file produced by agent tools (edit_document, etc.). */

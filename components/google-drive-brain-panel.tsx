@@ -174,6 +174,36 @@ export function GoogleDriveBrainPanel() {
         </p>
       )}
 
+      {preview?.connected && (preview.count === 0 || !preview.files?.length) && (
+        <div className="mb-3 rounded-xl border border-dashed border-ab-border bg-gradient-to-bl from-stone-50 to-emerald-50/40 px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-ab-ink">المجلد فارغ أو لم يُزامَن</p>
+          <p className="mx-auto mt-1 max-w-sm text-[11px] leading-relaxed text-stone-500">
+            افتح مجلد «ملفات الجمعية» في Drive، ارفع مستندات الشركة، ثم اضغط
+            «مزامنة المجلد → عقل الشركة» هنا.
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {preview.folderUrl && (
+              <a
+                href={preview.folderUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] font-medium text-ab-accent"
+              >
+                فتح المجلد في Drive
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => void sync()}
+              disabled={syncing}
+              className="rounded-md bg-ab-accent px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
+            >
+              {syncing ? 'جاري المزامنة…' : 'مزامنة الآن'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {preview?.files && preview.files.length > 0 && (
         <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-ab-border bg-stone-50 p-2 text-[11px]">
           {preview.files.slice(0, 30).map((f) => (

@@ -21,6 +21,7 @@ export type SearchKnowledgeBaseResult = {
     excerpt: string
     rrfScore: number
     metadata: RAGDocument['metadata']
+    url?: string
   }>
 }
 
@@ -37,6 +38,10 @@ export function formatArabicCitations(
 ): { documents: SearchKnowledgeBaseResult['documents']; block: string } {
   const documents = docs.map((doc, i) => {
     const n = i + 1
+    const meta = (doc.metadata || {}) as Record<string, unknown>
+    const urlCandidate = [meta.url, meta.sourceUrl, meta.webViewLink, meta.sourcePath]
+      .find((v) => typeof v === 'string' && String(v).startsWith('http'))
+    const url = typeof urlCandidate === 'string' ? urlCandidate : undefined
     return {
       citation: `[مصدر ${n}: ${doc.titleAr}]`,
       id: doc.id,
@@ -44,6 +49,7 @@ export function formatArabicCitations(
       excerpt: excerpt(doc.content),
       rrfScore: doc.rrfScore,
       metadata: doc.metadata,
+      url,
     }
   })
 

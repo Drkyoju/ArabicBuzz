@@ -91,6 +91,7 @@ export function GoogleCalendarPanel({
   const [meetStart, setMeetStart] = useState('')
   const [meetMinutes, setMeetMinutes] = useState(60)
   const [zoomUrl, setZoomUrl] = useState('')
+  const [zoomAuto, setZoomAuto] = useState(false)
   const memberEmails = useTeamCalendarStore((s) => s.memberEmails)
   const addEmail = useTeamCalendarStore((s) => s.addEmail)
   const removeEmail = useTeamCalendarStore((s) => s.removeEmail)
@@ -142,6 +143,12 @@ export function GoogleCalendarPanel({
 
   useEffect(() => {
     void refresh()
+    void fetch('/api/integrations/status')
+      .then((r) => r.json())
+      .then((d: { zoomConfigured?: boolean }) =>
+        setZoomAuto(Boolean(d.zoomConfigured))
+      )
+      .catch(() => setZoomAuto(false))
   }, [refresh])
 
   async function connect() {
@@ -523,6 +530,15 @@ export function GoogleCalendarPanel({
             dir="ltr"
             className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono"
           />
+          {zoomAuto ? (
+            <p className="text-[10px] text-emerald-700">
+              إنشاء Zoom تلقائي مفعّل — اترك الحقل فارغاً ليُنشأ الرابط عند الحجز.
+            </p>
+          ) : (
+            <p className="text-[10px] text-stone-400">
+              للصق رابط يدوياً، أو اضبط Zoom API من الإعدادات → تكاملات.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -577,6 +593,7 @@ export function GoogleCalendarPanel({
                   className="rounded border border-ab-accent/40 px-2 py-0.5 text-[10px] text-ab-accent disabled:opacity-40"
                 >
                   احجز وأرسل دعوات
+                  {zoomAuto && !zoomUrl.trim() ? ' + Zoom' : ''}
                 </button>
               </li>
             ))}
