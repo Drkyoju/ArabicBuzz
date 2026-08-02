@@ -314,25 +314,16 @@ export function GoogleCalendarPanel({
     void (async () => {
       try {
         const session = await getBrowserSession()
-        const providerToken = (
-          session as { provider_token?: string } | null
-        )?.provider_token
-        const providerRefresh = (
-          session as { provider_refresh_token?: string } | null
-        )?.provider_refresh_token
-        if (!providerToken || !session?.user?.id) return
-        await fetch('/api/google/calendar', {
-          method: 'POST',
-          headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({
-            action: 'save-tokens',
-            accessToken: providerToken,
-            refreshToken: providerRefresh || null,
-            email: session.user.email,
-            expiresAt: new Date(Date.now() + 3500_000).toISOString(),
-            scopes: 'calendar,gmail.readonly,drive.readonly',
-          }),
-        })
+        if (
+          !(session as { provider_token?: string } | null)?.provider_token ||
+          !session?.user?.id
+        ) {
+          return
+        }
+        const { persistGoogleProviderTokens } = await import(
+          '@/lib/google/persist-provider-tokens'
+        )
+        await persistGoogleProviderTokens(session)
         await refresh()
       } catch {
         /* ignore */

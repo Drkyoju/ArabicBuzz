@@ -6,6 +6,7 @@ import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
+import { persistGoogleProviderTokens } from '@/lib/google/persist-provider-tokens'
 
 /**
  * Client-side OAuth callback (PKCE).
@@ -49,36 +50,22 @@ export default function AuthCallbackPage() {
 
         const { data } = await supabase.auth.getSession()
         const session = data.session
-        const providerToken = (
-          session as { provider_token?: string } | null
-        )?.provider_token
-        const refresh = (
-          session as { provider_refresh_token?: string } | null
-        )?.provider_refresh_token
+        const hasProvider = Boolean(
+          (session as { provider_token?: string } | null)?.provider_token
+        )
 
-        if (session?.access_token && providerToken) {
+        if (session?.access_token && hasProvider) {
           setMessage(
             wantCalendar
               ? 'جاري حفظ صلاحيات Google (تقويم / Drive)…'
               : 'جاري حفظ جلسة Google…'
           )
-          await fetch('/api/google/calendar', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              action: 'save-tokens',
-              accessToken: providerToken,
-              refreshToken: refresh || null,
-              email: session.user.email,
-              expiresAt: new Date(Date.now() + 3500_000).toISOString(),
-              scopes: wantCalendar
-                ? 'calendar,gmail.readonly,drive.readonly'
-                : 'login',
-            }),
-          })
+          await persistGoogleProviderTokens(
+            session,
+            wantCalendar
+              ? 'calendar,gmail.readonly,drive.readonly'
+              : 'login'
+          )
         }
 
         router.replace(wantCalendar ? '/?calendar=connected' : '/')

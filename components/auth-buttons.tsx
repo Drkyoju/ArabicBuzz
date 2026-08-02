@@ -12,6 +12,7 @@ import {
   createBrowserSupabaseClient,
   type OAuthProvider,
 } from '@/lib/supabase/browser'
+import { persistGoogleProviderTokens } from '@/lib/google/persist-provider-tokens'
 import type { User } from '@supabase/supabase-js'
 
 export function AuthButtons({ compact = false }: { compact?: boolean }) {
@@ -29,7 +30,18 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     if (!configured) return
     void getBrowserSession()
-      .then((s) => setUser(s?.user ?? null))
+      .then(async (s) => {
+        setUser(s?.user ?? null)
+        // If OAuth landed on /auth/login instead of /auth/callback,
+        // still persist Calendar/Drive tokens when present.
+        if (
+          s &&
+          (s as { provider_token?: string }).provider_token &&
+          s.user?.app_metadata?.provider === 'google'
+        ) {
+          await persistGoogleProviderTokens(s)
+        }
+      })
       .catch(() => setUser(null))
   }, [configured])
 
