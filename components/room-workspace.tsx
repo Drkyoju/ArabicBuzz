@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PanelRightOpen, MessageSquare } from 'lucide-react'
+import { PanelRightOpen, MessageSquare, CalendarDays } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
 import { ComposerMicButton } from '@/components/composer-mic-button'
@@ -795,6 +795,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                 <ModelPicker compact />
                 <SecurityPosturePicker compact />
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent('ab-nav', { detail: 'calendar' })
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1 text-[11px] text-ab-accent hover:bg-ab-accent/10"
+                  aria-label="التقويم وZoom"
+                >
+                  <CalendarDays className="h-3 w-3" />
+                  التقويم
+                </button>
                 {hasArtifacts && (
                   <button
                     type="button"

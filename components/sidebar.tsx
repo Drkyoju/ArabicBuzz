@@ -15,6 +15,7 @@ import {
   Brain,
   MoreHorizontal,
   KeyRound,
+  CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -26,6 +27,7 @@ export type SidebarSection =
   | 'chats'
   | 'files'
   | 'memory'
+  | 'calendar'
   | 'approvals'
   | 'skills'
   | 'api-keys'
@@ -39,6 +41,7 @@ const NAV: Array<{
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
   { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
+  { id: 'calendar', labelAr: 'التقويم · Zoom', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'api-keys', labelAr: 'مفاتيح API', icon: KeyRound },

@@ -16,6 +16,7 @@ import {
   getBrowserSession,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
+import { useTeamCalendarStore } from '@/lib/rooms/team-calendar-store'
 
 type CalStatus = {
   connected?: boolean
@@ -80,6 +81,14 @@ export function GoogleCalendarPanel() {
   const [alignAccounts, setAlignAccounts] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
+  const [guestInput, setGuestInput] = useState('')
+  const [meetTitle, setMeetTitle] = useState('')
+  const [meetStart, setMeetStart] = useState('')
+  const [meetMinutes, setMeetMinutes] = useState(60)
+  const [zoomUrl, setZoomUrl] = useState('')
+  const memberEmails = useTeamCalendarStore((s) => s.memberEmails)
+  const addEmail = useTeamCalendarStore((s) => s.addEmail)
+  const removeEmail = useTeamCalendarStore((s) => s.removeEmail)
 
   const refresh = useCallback(async () => {
     setBusy(true)
@@ -214,25 +223,86 @@ export function GoogleCalendarPanel() {
     setNote('')
     setSlots([])
     try {
-      const res = await fetch(
-        '/api/google/calendar?action=align&duration=60&max=10',
-        { headers: await authHeaders() }
-      )
+      const res = await fetch('/api/google/calendar', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'align',
+          durationMinutes: 60,
+          guestEmails: memberEmails,
+        }),
+      })
       const data = (await res.json()) as {
         slots?: FreeSlot[]
         accounts?: string[]
+        guestsUnknown?: string[]
         messageAr?: string
         error?: string
       }
       if (!res.ok) throw new Error(data.error || 'فشل المقارنة')
       setSlots(data.slots || [])
       setAlignAccounts(data.accounts || [])
-      setNote(data.messageAr || 'تمت المقارنة.')
+      setNote(
+        [
+          data.messageAr || 'تمت المقارنة.',
+          data.guestsUnknown?.length
+            ? `ضيوف بدون فراغ ظاهر (دعوة فقط): ${data.guestsUnknown.join(', ')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'فشل إيجاد الأوقات المشتركة')
     } finally {
       setBusy(false)
     }
+  }
+
+  async function bookSlot(startIso: string, endIso: string) {
+    setBusy(true)
+    setNote('')
+    try {
+      const res = await fetch('/api/google/calendar', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'create',
+          summary: meetTitle.trim() || 'اجتماع الجمعية',
+          startIso,
+          endIso,
+          conferenceUrl: zoomUrl.trim() || undefined,
+          attendeeEmails: memberEmails,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        event?: { htmlLink?: string; summary?: string }
+      }
+      if (!res.ok) throw new Error(data.error || 'فشل الحجز')
+      setNote(
+        `أُنشئ «${data.event?.summary || 'موعد'}» وأُرسلت دعوات لـ ${memberEmails.length} بريد.`
+      )
+      await refresh()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل الحجز')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function createManualMeeting() {
+    if (!meetTitle.trim() || !meetStart) {
+      setNote('أدخل عنوان الموعد ووقت البداية.')
+      return
+    }
+    const start = new Date(meetStart)
+    if (!Number.isFinite(start.getTime())) {
+      setNote('وقت البداية غير صالح.')
+      return
+    }
+    const end = new Date(start.getTime() + Math.max(15, meetMinutes) * 60_000)
+    await bookSlot(start.toISOString(), end.toISOString())
   }
 
   useEffect(() => {
@@ -273,11 +343,13 @@ export function GoogleCalendarPanel() {
         <div>
           <h3 className="flex items-center gap-2 font-semibold">
             <CalendarDays className="h-4 w-4 text-ab-accent" aria-hidden />
-            تقويم Google · عدة بريدات
+            تقويم الجمعية · Zoom
           </h3>
           <p className="mt-1 text-xs leading-relaxed text-stone-600">
-            اربط بريداً أو أكثر («ربط بريد إضافي» → اختر حساب Google الآخر)، ثم
-            اضغط «أوقات مشتركة للجميع» أو اسأل في الدردشة: «متى نتفرغ كلنا؟».
+            <strong>أنت</strong> تربط Google مرة واحدةحدة. أضف بريد الأصدقاء/الموظفين
+            أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ AI / «أوقات مشتركة»
+            يقترحون الوقت، ثم تُرسل دعوة تقويم (+ رابط Zoom إن لصقته). Zoom لا
+            يُنشأ تلقائياً من هنا؛ الصق الرابط أو امسحه من البريد.
           </p>
         </div>
         {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
@@ -357,6 +429,119 @@ export function GoogleCalendarPanel() {
         </ul>
       )}
 
+      <div className="mb-4 rounded-xl border border-ab-border bg-white p-3">
+        <p className="mb-2 text-[12px] font-semibold text-ab-ink">
+          أعضاء التقويم (بريد فقط — بلا تسجيل Google)
+        </p>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          <input
+            value={guestInput}
+            onChange={(e) => setGuestInput(e.target.value)}
+            placeholder="friend@email.com"
+            dir="ltr"
+            className="min-w-[12rem] flex-1 rounded-md border border-ab-border px-2.5 py-1.5 text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!addEmail(guestInput)) {
+                setNote('أدخل بريداً صالحاً.')
+                return
+              }
+              setGuestInput('')
+              setNote('أُضيف البريد لقائمة الدعوات.')
+            }}
+            className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            إضافة
+          </button>
+        </div>
+        {memberEmails.length === 0 ? (
+          <p className="text-[11px] text-stone-400">
+            لا أعضاء بعد — أضف بريد صديق أو موظف.
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5">
+            {memberEmails.map((email) => (
+              <li
+                key={email}
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-[11px]"
+              >
+                <span dir="ltr">{email}</span>
+                <button
+                  type="button"
+                  onClick={() => removeEmail(email)}
+                  className="text-stone-400 hover:text-red-600"
+                  aria-label={`حذف ${email}`}
+                >
+                  <Unlink className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {status?.connected && (
+        <div className="mb-4 space-y-2 rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-3">
+          <p className="text-[12px] font-semibold text-ab-accent">
+            حجز اجتماع + Zoom
+          </p>
+          <input
+            value={meetTitle}
+            onChange={(e) => setMeetTitle(e.target.value)}
+            placeholder="عنوان الاجتماع"
+            className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
+          />
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="datetime-local"
+              value={meetStart}
+              onChange={(e) => setMeetStart(e.target.value)}
+              className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
+              dir="ltr"
+            />
+            <label className="inline-flex items-center gap-1 text-[11px] text-stone-600">
+              المدة (د)
+              <input
+                type="number"
+                min={15}
+                max={240}
+                value={meetMinutes}
+                onChange={(e) => setMeetMinutes(Number(e.target.value) || 60)}
+                className="w-16 rounded border border-ab-border px-1 py-0.5 text-center"
+                dir="ltr"
+              />
+            </label>
+          </div>
+          <input
+            value={zoomUrl}
+            onChange={(e) => setZoomUrl(e.target.value)}
+            placeholder="رابط Zoom أو Meet (اختياري)"
+            dir="ltr"
+            className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void createManualMeeting()}
+              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              إنشاء وإرسال دعوات
+            </button>
+            <button
+              type="button"
+              disabled={busy || !status?.connected}
+              onClick={() => void findAlignment()}
+              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
+            >
+              اقترح أوقاتاً للفريق
+            </button>
+          </div>
+        </div>
+      )}
+
       {note && (
         <p className="mb-3 text-[11px] leading-snug text-stone-600">{note}</p>
       )}
@@ -373,14 +558,24 @@ export function GoogleCalendarPanel() {
             {slots.map((s) => (
               <li
                 key={`${s.startIso}-${s.endIso}`}
-                className="text-[11px] text-stone-700"
+                className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-700"
               >
-                {formatSlot(s.startIso)}
-                <span className="text-stone-400"> — </span>
-                {formatSlot(s.endIso)}
-                <span className="ms-1 text-stone-400">
-                  ({s.durationMinutes} د)
+                <span>
+                  {formatSlot(s.startIso)}
+                  <span className="text-stone-400"> — </span>
+                  {formatSlot(s.endIso)}
+                  <span className="ms-1 text-stone-400">
+                    ({s.durationMinutes} د)
+                  </span>
                 </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void bookSlot(s.startIso, s.endIso)}
+                  className="rounded border border-ab-accent/40 px-2 py-0.5 text-[10px] text-ab-accent disabled:opacity-40"
+                >
+                  احجز وأرسل دعوات
+                </button>
               </li>
             ))}
           </ul>

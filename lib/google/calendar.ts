@@ -526,6 +526,11 @@ export async function findMutualFreeSlots(
   userId: string,
   opts: {
     emails?: string[]
+    /**
+     * Guest emails that did NOT OAuth — FreeBusy via org token when shared,
+     * otherwise treated as fully free (invite-only).
+     */
+    guestEmails?: string[]
     /** Window start (default: now). */
     timeMinIso?: string
     /** Window end (default: +7 days). */
@@ -539,6 +544,8 @@ export async function findMutualFreeSlots(
   } = {}
 ): Promise<{
   accounts: string[]
+  guests: string[]
+  guestsUnknown: string[]
   busy: AccountBusyBlock[]
   slots: FreeSlot[]
   window: { start: string; end: string }
@@ -559,12 +566,20 @@ export async function findMutualFreeSlots(
   const tokens = await getValidGoogleAccessTokens(userId, opts.emails)
   if (tokens.length === 0) {
     throw new Error(
-      'لا حسابات Google مربوطة. اربط بريداً أو أكثر من الإعدادات → تقويم Google.'
+      'لا حسابات Google مربوطة. اربط بريد الجمعية من قسم التقويم أولاً.'
     )
   }
 
   const busy: AccountBusyBlock[] = []
   const accounts: string[] = []
+  const guestsUnknown: string[] = []
+  const guestEmails = [
+    ...new Set(
+      (opts.guestEmails || [])
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes('@'))
+    ),
+  ].filter((g) => !tokens.some((t) => t.email.toLowerCase() === g))
 
   await Promise.all(
     tokens.map(async (t) => {
@@ -601,6 +616,51 @@ export async function findMutualFreeSlots(
     })
   )
 
+  // Probe guest FreeBusy using the first org-linked token (if they shared free/busy).
+  if (guestEmails.length > 0 && tokens[0]) {
+    const org = tokens[0]
+    try {
+      const res = await fetch(`${CAL_BASE}/freeBusy`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${org.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          timeZone: tz,
+          items: guestEmails.map((id) => ({ id })),
+        }),
+      })
+      const data = (await res.json()) as {
+        calendars?: Record<
+          string,
+          {
+            busy?: Array<{ start: string; end: string }>
+            errors?: Array<{ reason?: string }>
+          }
+        >
+      }
+      if (res.ok && data.calendars) {
+        for (const email of guestEmails) {
+          const cal = data.calendars[email]
+          if (!cal || (cal.errors && cal.errors.length > 0)) {
+            guestsUnknown.push(email)
+            continue
+          }
+          for (const b of cal.busy || []) {
+            busy.push({ email, start: b.start, end: b.end })
+          }
+        }
+      } else {
+        guestsUnknown.push(...guestEmails)
+      }
+    } catch {
+      guestsUnknown.push(...guestEmails)
+    }
+  }
+
   // Merge all busy intervals (anyone busy ⇒ slot blocked for mutual meeting)
   const mergedBusy = mergeIntervals(
     busy.map((b) => ({
@@ -620,17 +680,27 @@ export async function findMutualFreeSlots(
     maxSlots,
   })
 
+  const guestsOk = guestEmails.filter((g) => !guestsUnknown.includes(g))
+  const messageAr = [
+    `فُحص ${accounts.length} تقويم مربوط`,
+    guestEmails.length
+      ? `+ ${guestEmails.length} ضيف بالبريد (${guestsOk.length} فراغ معروف، ${guestsUnknown.length} دعوة فقط)`
+      : '',
+    slots.length
+      ? `— وُجد ${slots.length} فترة مناسبة لمدة ${duration} د.`
+      : '— لا فترات فارغة مشتركة في النافذة.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return {
     accounts,
+    guests: guestEmails,
+    guestsUnknown,
     busy,
     slots,
     window: { start: timeMin.toISOString(), end: timeMax.toISOString() },
-    messageAr:
-      tokens.length < 2
-        ? `حُسب التفرّغ لحساب واحد (${tokens[0].email}). اربط بريداً ثانياً لمقارنة الجميع.`
-        : slots.length === 0
-          ? `لا فترات مشتركة متاحة لـ ${tokens.length} حسابات خلال النافذة (مدة ${duration} د).`
-          : `وُجد ${slots.length} فترة مشتركة حيث كل الحسابات (${tokens.length}) متفرغون.`,
+    messageAr,
   }
 }
 

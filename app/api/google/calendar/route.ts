@@ -106,10 +106,13 @@ export async function POST(req: Request) {
     endIso?: string
     description?: string
     conferenceUrl?: string
+    zoomUrl?: string
     reminderMinutes?: number[]
     eventId?: string
     accountEmail?: string
     emails?: string[]
+    guestEmails?: string[]
+    attendeeEmails?: string[]
     durationMinutes?: number
     timeMinIso?: string
     timeMaxIso?: string
@@ -168,6 +171,7 @@ export async function POST(req: Request) {
     try {
       const result = await findMutualFreeSlots(auth.user.id, {
         emails: body.emails,
+        guestEmails: body.guestEmails || body.attendeeEmails,
         durationMinutes: body.durationMinutes || 60,
         timeMinIso: body.timeMinIso,
         timeMaxIso: body.timeMaxIso,
@@ -183,12 +187,21 @@ export async function POST(req: Request) {
 
   if (action === 'create') {
     try {
+      const attendees = [
+        ...(Array.isArray(body.attendeeEmails)
+          ? body.attendeeEmails.map(String)
+          : []),
+        ...(Array.isArray(body.guestEmails)
+          ? body.guestEmails.map(String)
+          : []),
+      ].filter((e) => e.includes('@'))
       const event = await createCalendarEvent(auth.user.id, {
         summary: String(body.summary || 'موعد'),
         startIso: String(body.startIso),
         endIso: String(body.endIso),
         description: body.description,
-        conferenceUrl: body.conferenceUrl,
+        conferenceUrl: body.conferenceUrl || body.zoomUrl,
+        attendeeEmails: attendees.length ? attendees : undefined,
         reminderMinutes: body.reminderMinutes || [30, 60],
         timeZone: 'Asia/Riyadh',
         accountEmail: body.accountEmail || body.email || undefined,

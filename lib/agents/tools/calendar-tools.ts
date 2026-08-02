@@ -18,9 +18,9 @@ function userIdOf(params: Record<string, unknown>) {
 
 function requireUser(params: Record<string, unknown>) {
   const userId = userIdOf(params)
-  if (!userId || userId === 'local-owner' || userId === 'engine') {
+  if (!userId || userId === 'engine') {
     throw new Error(
-      'يلزم تسجيل الدخول بـ Google وربط التقويم من الإعدادات أولاً.'
+      'يلزم تسجيل الدخول وربط التقويم من قسم «التقويم · Zoom» أولاً.'
     )
   }
   return userId
@@ -72,8 +72,14 @@ export async function executeCalendarFindAlignment(
 ) {
   const userId = requireUser(params)
   const emails = emailsOf(params)
+  const guestEmails = Array.isArray(params.guestEmails)
+    ? params.guestEmails.map(String).filter((e) => e.includes('@'))
+    : Array.isArray(params.attendeeEmails)
+      ? params.attendeeEmails.map(String).filter((e) => e.includes('@'))
+      : undefined
   const result = await findMutualFreeSlots(userId, {
     emails,
+    guestEmails,
     timeMinIso: params.timeMinIso ? String(params.timeMinIso) : undefined,
     timeMaxIso: params.timeMaxIso ? String(params.timeMaxIso) : undefined,
     durationMinutes: Number(params.durationMinutes || 60),
@@ -158,8 +164,10 @@ export async function executeCalendarCreate(
     timeZone: params.timeZone ? String(params.timeZone) : 'Asia/Riyadh',
     conferenceUrl: conf,
     attendeeEmails: Array.isArray(params.attendeeEmails)
-      ? params.attendeeEmails.map(String)
-      : undefined,
+      ? params.attendeeEmails.map(String).filter((e) => e.includes('@'))
+      : Array.isArray(params.guestEmails)
+        ? params.guestEmails.map(String).filter((e) => e.includes('@'))
+        : undefined,
     reminderMinutes,
     accountEmail,
   })

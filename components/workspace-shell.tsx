@@ -76,6 +76,26 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     return () => clearInterval(t)
   }, [loadApprovals])
 
+  useEffect(() => {
+    const onNav = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail
+      if (
+        detail === 'calendar' ||
+        detail === 'chats' ||
+        detail === 'settings' ||
+        detail === 'files' ||
+        detail === 'memory' ||
+        detail === 'approvals' ||
+        detail === 'skills' ||
+        detail === 'api-keys'
+      ) {
+        setSection(detail)
+      }
+    }
+    window.addEventListener('ab-nav', onNav)
+    return () => window.removeEventListener('ab-nav', onNav)
+  }, [])
+
   return (
     <div className="min-h-dvh bg-ab-bg">
       <Sidebar
@@ -98,6 +118,23 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'chats' && <RoomWorkspace />}
 
         {section === 'files' && <FilesPanel />}
+
+        {section === 'calendar' && (
+          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+            <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
+            <p className="mb-6 text-sm text-stone-500">
+              تقويم الجمعية المشترك: أنت تربط Google مرة واحدةحدة، وتضيف بريد
+              الأصدقاء والموظفين — الـ AI يرتّب المواعيد ويرسل الدعوات (مع رابط
+              Zoom إن وُجد).
+            </p>
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <GoogleCalendarPanel />
+            </div>
+            <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
+              <GoogleSetupChecklist />
+            </div>
+          </section>
+        )}
 
         {section === 'memory' && <MemoryPanel />}
 

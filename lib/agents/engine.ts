@@ -237,12 +237,17 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_find_alignment: tool({
       description:
-        ' إيجاد أوقات مشتركة متاحة عبر عدة بريدات Google مربوطة (FreeBusy). استخدمه عندما يطلب المستخدم موعداً يناسب الجميع أو مقارنة تقاويم عدة حسابات.',
+        'إيجاد أوقات تناسب الجميع: تقاويم Google المربوطة + ضيوف ببريدهم فقط (guestEmails) دون تسجيل دخول. بعد الاختيار أنشئ الموعد بدعوات.',
       inputSchema: z.object({
         emails: z
           .array(z.string())
           .optional()
-          .describe('الحسابات للمقارنة — افتراضي كل المربوطة'),
+          .describe('الحسابات المربوطة للمقارنة — افتراضي كل المربوطة'),
+        guestEmails: z
+          .array(z.string())
+          .optional()
+          .describe('بريد الأصدقاء/الموظفين بدون OAuth'),
+        attendeeEmails: z.array(z.string()).optional(),
         durationMinutes: z.number().optional().describe('مدة الاجتماع بالدقائق'),
         timeMinIso: z.string().optional(),
         timeMaxIso: z.string().optional(),
