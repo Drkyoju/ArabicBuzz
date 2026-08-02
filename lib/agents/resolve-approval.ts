@@ -100,19 +100,6 @@ export async function listPendingApprovals(): Promise<
   return merged
 }
 
-seedMemoryApproval({
-  id: 'demo-approval-1',
-  actionName: 'send_message',
-  params: {
-    channel: 'telegram',
-    text: 'تنبيه: متطلبات جديدة في التقرير',
-  },
-  riskLevel: 'HIGH',
-  requesterId: 'user-1',
-  threadId: 'demo-thread',
-  scopeId: 'shared-demo',
-})
-
 export async function resolveApproval(input: ResolveApprovalInput) {
   const dbRow = await withPrismaFallback(async () => {
     return prisma.pendingApproval.findUnique({ where: { id: input.approvalId } })

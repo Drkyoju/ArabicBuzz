@@ -1,0 +1,11 @@
+---
+description: Test and verify only on the live Netlify site — never localhost
+alwaysApply: true
+---
+
+# Live site only
+
+- The only environment for QA, browser checks, smoke tests, and “does it work?” verification is **https://arabicbuzz.netlify.app/**
+- **Never** use localhost, `127.0.0.1`, `next dev`, or local preview URLs for verification
+- After code changes: commit → push to `main` → wait for Netlify deploy → verify on the live URL
+- Do not start local servers to “check the UI”
