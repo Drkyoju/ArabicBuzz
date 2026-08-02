@@ -359,7 +359,21 @@ export function RoomWorkspace({ className }: { className?: string }) {
     }
 
     if (!res.ok || !res.body) {
-      const msg = `تعذّر الرد (HTTP ${res.status}).`
+      let detail = ''
+      try {
+        const raw = await res.text()
+        const parsed = JSON.parse(raw) as { error?: string; code?: string }
+        detail = parsed.error || raw.slice(0, 200)
+        if (parsed.code === 'AUTH_REQUIRED') {
+          detail =
+            'يلزم تسجيل الدخول من الإعدادات ثم إعادة المحاولة.'
+        }
+      } catch {
+        /* ignore */
+      }
+      const msg = detail
+        ? `تعذّر الرد: ${detail}`
+        : `تعذّر الرد (HTTP ${res.status}).`
       updatePost(activeScopeId, opts.postId, {
         content: msg,
         streaming: false,
