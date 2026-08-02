@@ -14,6 +14,7 @@ import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
 import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
 import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
+import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -261,7 +262,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <AuthButtons compact />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <ProviderKeysPanel />
+              <p className="mb-2 text-sm font-semibold">مفاتيح المزوّدين</p>
+              <p className="mb-3 text-xs text-stone-500">
+                المفاتيح العاملة فقط تظهر هنا بشكل مختصر — لإضافة أو إصلاح مفتاح
+                افتح قسم «مفاتيح API».
+              </p>
+              <button
+                type="button"
+                onClick={() => setSection('api-keys')}
+                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
+              >
+                فتح مفاتيح API
+              </button>
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleSetupChecklist focus="all" />
@@ -274,6 +286,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <MacBrainPanel />
+            </div>
+            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <IntegrationsSetupPanel />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>

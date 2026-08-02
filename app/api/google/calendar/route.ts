@@ -13,6 +13,10 @@ import {
   listUpcomingEvents,
   scanEmailForMeetings,
 } from '@/lib/google/calendar'
+import {
+  createZoomMeeting,
+  isZoomCreateConfigured,
+} from '@/lib/zoom/create-meeting'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -195,18 +199,44 @@ export async function POST(req: Request) {
           ? body.guestEmails.map(String)
           : []),
       ].filter((e) => e.includes('@'))
+
+      let conferenceUrl = body.conferenceUrl || body.zoomUrl || undefined
+      let zoomCreated: { joinUrl: string; meetingId: number | string } | null =
+        null
+      if (!conferenceUrl && isZoomCreateConfigured()) {
+        const start = new Date(String(body.startIso))
+        const end = new Date(String(body.endIso))
+        const mins = Math.max(
+          15,
+          Math.round((end.getTime() - start.getTime()) / 60_000) || 60
+        )
+        zoomCreated = await createZoomMeeting({
+          topic: String(body.summary || 'موعد'),
+          startIso: String(body.startIso),
+          durationMinutes: mins,
+          agenda: body.description,
+        })
+        conferenceUrl = zoomCreated.joinUrl
+      }
+
       const event = await createCalendarEvent(auth.user.id, {
         summary: String(body.summary || 'موعد'),
         startIso: String(body.startIso),
         endIso: String(body.endIso),
         description: body.description,
-        conferenceUrl: body.conferenceUrl || body.zoomUrl,
+        conferenceUrl,
         attendeeEmails: attendees.length ? attendees : undefined,
         reminderMinutes: body.reminderMinutes || [30, 60],
         timeZone: 'Asia/Riyadh',
         accountEmail: body.accountEmail || body.email || undefined,
       })
-      return Response.json({ ok: true, event })
+      return Response.json({
+        ok: true,
+        event,
+        zoom: zoomCreated
+          ? { created: true, joinUrl: zoomCreated.joinUrl, id: zoomCreated.meetingId }
+          : { configured: isZoomCreateConfigured(), created: false },
+      })
     } catch (e) {
       return Response.json(
         { error: e instanceof Error ? e.message : 'فشل الإنشاء' },

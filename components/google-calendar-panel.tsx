@@ -519,7 +519,7 @@ export function GoogleCalendarPanel({
           <input
             value={zoomUrl}
             onChange={(e) => setZoomUrl(e.target.value)}
-            placeholder="رابط Zoom أو Meet (اختياري)"
+            placeholder="رابط Zoom (اختياري — يُنشأ تلقائياً إن ضُبط Zoom API)"
             dir="ltr"
             className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono"
           />

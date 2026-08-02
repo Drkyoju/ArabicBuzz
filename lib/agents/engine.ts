@@ -268,7 +268,7 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_scan_email: tool({
       description:
-        'مسح بريد Gmail لدعوات الاجتماع وZoom/Meet ثم اقتراح إضافتها للتقويم.',
+        'مسح بريد Gmail لدعوات الاجتماع وZoom/Meet ثم اقتراح إضافتها للتقويم. إن وُجدت بيانات Zoom S2S على الخادم يمكن إنشاء رابط Zoom تلقائياً عند calendar_create_event بدون conferenceUrl.',
       inputSchema: z.object({
         maxResults: z.number().optional(),
       }),
