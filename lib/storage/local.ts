@@ -44,7 +44,14 @@ export function isLocalStorageEnabled(): boolean {
   if (process.env.STORAGE_BACKEND === 'local') return true
   // Auto: enable on non-Netlify / when explicitly allowed
   if (process.env.LOCAL_STORAGE_ROOT) return true
-  if (process.env.NETLIFY === 'true' || process.env.NETLIFY_DEV === 'true') {
+  // Netlify / OpenNext / Lambda — home vault is not writable
+  if (
+    process.env.NETLIFY === 'true' ||
+    process.env.NETLIFY_DEV === 'true' ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT ||
+    process.env.AWS_EXECUTION_ENV
+  ) {
     return process.env.ALLOW_LOCAL_STORAGE_ON_NETLIFY === 'true'
   }
   return true

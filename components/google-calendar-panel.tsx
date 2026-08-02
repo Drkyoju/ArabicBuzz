@@ -72,7 +72,12 @@ function formatSlot(iso: string) {
   }
 }
 
-export function GoogleCalendarPanel() {
+export function GoogleCalendarPanel({
+  hideTitle,
+}: {
+  /** When true, skip the inner h3 (page already has a heading). */
+  hideTitle?: boolean
+}) {
   const [status, setStatus] = useState<CalStatus | null>(null)
   const [events, setEvents] = useState<EventRow[]>([])
   const [meetings, setMeetings] = useState<MeetingRow[]>([])
@@ -339,21 +344,27 @@ export function GoogleCalendarPanel() {
 
   return (
     <div dir="rtl">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 font-semibold">
-            <CalendarDays className="h-4 w-4 text-ab-accent" aria-hidden />
-            تقويم الجمعية · Zoom
-          </h3>
-          <p className="mt-1 text-xs leading-relaxed text-stone-600">
-            <strong>أنت</strong> تربط Google مرة واحدةحدة. أضف بريد الأصدقاء/الموظفين
-            أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ AI / «أوقات مشتركة»
-            يقترحون الوقت، ثم تُرسل دعوة تقويم (+ رابط Zoom إن لصقته). Zoom لا
-            يُنشأ تلقائياً من هنا؛ الصق الرابط أو امسحه من البريد.
-          </p>
+      {!hideTitle && (
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 font-semibold">
+              <CalendarDays className="h-4 w-4 text-ab-accent" aria-hidden />
+              تقويم الجمعية · Zoom
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-stone-600">
+              <strong>أنت</strong> تربط Google مرة واحدةحدة. أضف بريد
+              الأصدقاء/الموظفين أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ
+              AI يقترح الوقت ثم تُرسل دعوة (+ رابط Zoom إن لصقته).
+            </p>
+          </div>
+          {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
         </div>
-        {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
-      </div>
+      )}
+      {hideTitle && busy && (
+        <div className="mb-2 flex justify-end">
+          <Loader2 className="h-4 w-4 animate-spin text-stone-400" />
+        </div>
+      )}
 
       <div className="mb-3 flex flex-wrap gap-2">
         <button

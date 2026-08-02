@@ -128,10 +128,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               Zoom إن وُجد).
             </p>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleCalendarPanel />
+              <GoogleCalendarPanel hideTitle />
             </div>
             <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
-              <GoogleSetupChecklist />
+              <GoogleSetupChecklist focus="calendar" />
             </div>
           </section>
         )}
@@ -264,7 +264,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <ProviderKeysPanel />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleSetupChecklist />
+              <GoogleSetupChecklist focus="all" />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleCalendarPanel />

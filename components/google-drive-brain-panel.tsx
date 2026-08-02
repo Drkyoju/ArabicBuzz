@@ -8,7 +8,6 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
-import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
 
 type DriveFile = {
   id: string
@@ -169,9 +168,10 @@ export function GoogleDriveBrainPanel() {
       )}
 
       {!preview?.connected && (
-        <div className="mb-3 rounded-lg border border-dashed border-ab-border bg-stone-50 p-3">
-          <GoogleSetupChecklist />
-        </div>
+        <p className="mb-3 text-[11px] leading-snug text-stone-500">
+          غير مربوط — من قسم التقويم أو الزر أعلاه اربط Google، أو راجع خطوات
+          الإعداد في الإعدادات.
+        </p>
       )}
 
       {preview?.files && preview.files.length > 0 && (

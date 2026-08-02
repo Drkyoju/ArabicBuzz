@@ -105,7 +105,11 @@ export async function GET(req: Request) {
         files = listLocalFiles(scopeId)
         if (files.length > 0) source = 'local'
       } catch (e) {
-        listError = e instanceof Error ? e.message : 'local list failed'
+        const msg = e instanceof Error ? e.message : 'local list failed'
+        // Serverless often cannot mkdir home vault — fall through quietly
+        if (!/ENOENT|EACCES|EROFS|read-only/i.test(msg)) {
+          listError = msg
+        }
       }
     }
 
@@ -122,6 +126,14 @@ export async function GET(req: Request) {
       }
     }
 
+    const noBackendHint =
+      files.length === 0 &&
+      !isLocalStorageEnabled() &&
+      !macSyncConfigured() &&
+      source === 'none'
+        ? 'لا خزنة ماك هنا — ارفع للسحابة (حتى ~4MB) أو اربط وكيل المزامنة للملفات الكبيرة.'
+        : undefined
+
     return Response.json({
       files,
       source,
@@ -129,12 +141,7 @@ export async function GET(req: Request) {
       macSyncConfigured: macSyncConfigured(),
       directUpload: direct,
       hopMaxBytes: NETLIFY_MAC_HOP_MAX,
-      error:
-        files.length === 0 &&
-        !isLocalStorageEnabled() &&
-        !macSyncConfigured()
-          ? 'التخزين المحلي غير متاح هنا — ارفع مباشرة للماك (ملفات كبيرة) أو استخدم السحابة حتى 4MB.'
-          : listError,
+      error: noBackendHint || listError,
     })
   } catch (e) {
     return Response.json(

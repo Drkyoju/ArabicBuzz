@@ -803,10 +803,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     )
                   }
                   className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1 text-[11px] text-ab-accent hover:bg-ab-accent/10"
-                  aria-label="التقويم وZoom"
+                  aria-label="التقويم · Zoom"
                 >
                   <CalendarDays className="h-3 w-3" />
-                  التقويم
+                  التقويم · Zoom
                 </button>
                 {hasArtifacts && (
                   <button

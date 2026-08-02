@@ -4,36 +4,44 @@ const REDIRECT =
   'https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback'
 
 /**
- * What only the owner can finish (OAuth secrets) — shown in settings.
+ * What only the owner can finish (OAuth secrets).
  */
-export function GoogleSetupChecklist({ className }: { className?: string }) {
+export function GoogleSetupChecklist({
+  className,
+  focus = 'all',
+}: {
+  className?: string
+  focus?: 'all' | 'calendar' | 'drive'
+}) {
+  const lastStep =
+    focus === 'calendar'
+      ? 'هنا: اضغط «ربط تقويم Google» ثم أضف بريد الأعضاء واحجز اجتماعاً'
+      : focus === 'drive'
+        ? 'هنا: اضغط «ربط Google» ثم «مزامنة المجلد» لعقل الشركة'
+        : 'هنا: اربط Google من التقويم أو Drive ثم زامن المجلد عند الحاجة'
+
   return (
-    <div
-      className={className}
-      dir="rtl"
-    >
+    <div className={className} dir="rtl">
       <h3 className="text-sm font-semibold text-ab-ink">
-        إعداد Google (Drive + تقويم) — خطواتك
+        إعداد Google — خطواتك
       </h3>
       <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
-        التطبيق جاهز برمجياً. الربط يعمل فقط بعد هذه الخطوات في حسابك:
+        التطبيق جاهز برمجياً. الربط يعمل بعد هذه الخطوات في حسابك:
       </p>
       <ol className="mt-2 list-decimal space-y-1.5 pe-4 text-[11px] leading-relaxed text-stone-700">
         <li>
-          Google Cloud → OAuth Client (Web) → Authorized redirect URI بالضبط:{' '}
+          Google Cloud → OAuth Client (Web) → Redirect URI:{' '}
           <code className="break-all font-mono text-[10px]" dir="ltr">
             {REDIRECT}
           </code>
         </li>
+        <li>فعّل APIs: Calendar + Drive (+ Gmail لدعوات Zoom في البريد)</li>
         <li>
-          فعّل APIs: Calendar + Drive (+ Gmail إن أردت دعوات Zoom)
+          Supabase → Authentication → Providers → Google → Enable + Client
+          ID/Secret
         </li>
         <li>
-          Supabase → Authentication → Providers → Google → Enable + الصق Client
-          ID و Client Secret
-        </li>
-        <li>
-          Netlify → Environment variables → نفس{' '}
+          Netlify →{' '}
           <code className="font-mono text-[10px]" dir="ltr">
             GOOGLE_CLIENT_ID
           </code>{' '}
@@ -43,14 +51,8 @@ export function GoogleSetupChecklist({ className }: { className?: string }) {
           </code>{' '}
           ثم Redeploy
         </li>
-        <li>
-          هنا: اضغط «ربط Google» ثم «مزامنة المجلد» لعقل الشركة
-        </li>
+        <li>{lastStep}</li>
       </ol>
-      <p className="mt-2 text-[10px] text-stone-400">
-        مجلد العقل مضبوط: «ملفات الجمعية». بدون Client ID/Secret سيظهر خطأ
-        «provider is not enabled».
-      </p>
     </div>
   )
 }

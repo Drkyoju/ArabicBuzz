@@ -56,21 +56,6 @@ export function AgentSeatsPanel({
     <div className={cn('space-y-1', className)} dir="rtl">
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-[10px] font-medium text-stone-400">وكلاء</span>
-        <span
-          className={cn(
-            'rounded px-1.5 py-0.5 text-[10px]',
-            collabMode === 'team'
-              ? 'bg-ab-accent/15 text-ab-accent'
-              : 'bg-stone-100 text-stone-500'
-          )}
-          title={
-            collabMode === 'team'
-              ? 'بدون @mention يعمل حتى 8 وكلاء بالتتابع ويتبادلون الملاحظات'
-              : 'يرد وكيل واحد (أول المقعد أو @الاسم) — @الجميع لتشغيل الفريق'
-          }
-        >
-          {collabMode === 'team' ? 'تعاون' : 'منفصل'}
-        </span>
         {agents.map((agent) => {
           const active = activeAgentId === agent.id
           const model = shortModel(agent.preferredModel)
@@ -78,6 +63,7 @@ export function AgentSeatsPanel({
             `@${agent.slug}`,
             agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
             agent.preferredModel || null,
+            collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
           ]
             .filter(Boolean)
             .join(' · ')

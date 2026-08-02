@@ -61,7 +61,14 @@ export function FilesPanel() {
       }
       setFiles(data.files || [])
       setSource(data.source || 'none')
-      if (data.error) setError(data.error)
+      if (data.error) {
+        const raw = data.error
+        setError(
+          /ENOENT|EACCES|EROFS|mkdir/i.test(raw)
+            ? 'التخزين المحلي غير متاح على الموقع السحابي — استخدم الرفع للسحابة أو وكيل الماك.'
+            : raw
+        )
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'تعذّر التحميل')
       setFiles([])
@@ -240,6 +247,18 @@ export function FilesPanel() {
         ? 'تخزين سحابي'
         : 'لا مصدر بعد'
 
+  const emptyHint =
+    source === 'local' || source === 'mac'
+      ? 'ارفع أول ملف — يظهر فوراً لجميع أعضاء المساحة عبر خزنة الماك.'
+      : source === 'cloud'
+        ? 'ارفع أول ملف — يُحفظ في التخزين السحابي لهذه المساحة.'
+        : 'ارفع ملفاً للسحابة، أو اربط وكيل الماك للملفات الكبيرة والخزنة المشتركة.'
+
+  const uploadHint =
+    source === 'local' || source === 'mac'
+      ? 'زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة مشتركة طالما وكيل المزامنة يعمل.'
+      : 'على الموقع السحابي تُحفظ الملفات الصغيرة في التخزين السحابي. للملفات الكبيرة اربط وكيل مزامنة الماك من الإعدادات.'
+
   return (
     <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
       <input
@@ -270,8 +289,7 @@ export function FilesPanel() {
         <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
         <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
         <p className="mt-2 text-[11px] text-stone-500">
-          زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة
-          مشتركة طالما وكيل المزامنة يعمل.
+          {uploadHint}
         </p>
       </div>
 
@@ -296,7 +314,7 @@ export function FilesPanel() {
           />
           <p className="text-base font-semibold text-ab-ink">لا ملفات بعد</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
-            ارفع أول ملف — يظهر فوراً لجميع أعضاء المساحة عبر خزنة الماك.
+            {emptyHint}
           </p>
         </div>
       ) : (
