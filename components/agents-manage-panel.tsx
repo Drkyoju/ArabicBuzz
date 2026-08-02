@@ -29,7 +29,9 @@ export function AgentsManagePanel({
   const deleteCustomAgent = useAgentRosterStore((s) => s.deleteCustomAgent)
   const removeAgentFromScope = useAgentRosterStore((s) => s.removeAgentFromScope)
   const addAgentToScope = useAgentRosterStore((s) => s.addAgentToScope)
-  const collabMode = useAgentRosterStore((s) => s.collabModeFor(scopeId))
+  const collabMode = useAgentRosterStore(
+    (s) => s.collabModeByScope[scopeId] || 'solo'
+  )
   const setCollabMode = useAgentRosterStore((s) => s.setCollabMode)
   const cloudSyncedAt = useAgentRosterStore((s) => s.cloudSyncedAt)
 

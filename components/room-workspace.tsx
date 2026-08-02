@@ -88,10 +88,28 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
   const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
-  const collabModeFor = useAgentRosterStore((s) => s.collabModeFor)
-  const roomAgents = agentsForScopeFn(activeScopeId)
-  const agentCatalog = allAgentsFn()
-  const collabMode = collabModeFor(activeScopeId)
+  const customAgents = useAgentRosterStore((s) => s.customAgents)
+  const removedFromScope = useAgentRosterStore((s) => s.removedFromScope)
+  const addedToScope = useAgentRosterStore((s) => s.addedToScope)
+  const agentOverrides = useAgentRosterStore((s) => s.agentOverrides)
+  const collabMode = useAgentRosterStore(
+    (s) => s.collabModeByScope[activeScopeId] || 'solo'
+  )
+  const roomAgents = useMemo(
+    () => agentsForScopeFn(activeScopeId),
+    [
+      agentsForScopeFn,
+      activeScopeId,
+      customAgents,
+      removedFromScope,
+      addedToScope,
+      agentOverrides,
+    ]
+  )
+  const agentCatalog = useMemo(
+    () => allAgentsFn(),
+    [allAgentsFn, customAgents, agentOverrides]
+  )
 
   // Auto-open canvas when a new artifact appears
   useEffect(() => {
@@ -280,8 +298,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   const shared = isSharedScope(activeScope)
   const { agent: mentionPreview } = resolveMentionHandoff(input, agentCatalog)
-  const agentNameAr =
-    mentionPreview?.nameAr || roomAgents[0]?.nameAr || 'وكيل الغرفة'
 
   function stopAgentRun() {
     runAbortRef.current?.abort()

@@ -1,21 +1,7 @@
 import { prisma, withPrismaFallback } from '@/lib/db'
-import type { AgentCollabMode, RoomAgent } from '@/lib/rooms/agents'
+import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 
-export type AgentRosterPayload = {
-  customAgents: RoomAgent[]
-  removedFromScope: Record<string, string[]>
-  addedToScope: Record<string, string[]>
-  collabModeByScope: Record<string, AgentCollabMode>
-  agentOverrides: Record<
-    string,
-    Partial<
-      Pick<
-        RoomAgent,
-        'nameAr' | 'slug' | 'systemPromptAr' | 'preferredModel' | 'taskAr' | 'avatarHue'
-      >
-    >
-  >
-}
+export type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 
 async function ensureTable(): Promise<void> {
   await withPrismaFallback(

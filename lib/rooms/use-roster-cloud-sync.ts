@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { authHeaders, getBrowserSession } from '@/lib/supabase/browser'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
-import type { AgentRosterPayload } from '@/lib/rooms/roster-persist'
+import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 
 /**
  * Hydrate roster from server when logged in; debounce push on local changes.

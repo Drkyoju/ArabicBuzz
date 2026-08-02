@@ -8,7 +8,7 @@ import {
   type AgentCollabMode,
   type RoomAgent,
 } from '@/lib/rooms/agents'
-import type { AgentRosterPayload } from '@/lib/rooms/roster-persist'
+import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 
 export type AgentOverride = Partial<
   Pick<
@@ -139,9 +139,9 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       cloudSyncedAt: null,
 
       allAgents: () => {
-        const custom = get().customAgents
+        const custom = get().customAgents || []
         const customIds = new Set(custom.map((a) => a.id))
-        const overrides = get().agentOverrides
+        const overrides = get().agentOverrides || {}
         return [
           ...BUILTIN_ROOM_AGENTS.filter((a) => !customIds.has(a.id)).map((a) =>
             mergeBuiltin(a, overrides[a.id])
@@ -409,6 +409,17 @@ export const useAgentRosterStore = create<AgentRosterState>()(
     }),
     {
       name: 'arabic-buzz-agent-roster',
+      version: 2,
+      migrate: (persisted) => {
+        const p = (persisted || {}) as Partial<AgentRosterState>
+        return {
+          customAgents: Array.isArray(p.customAgents) ? p.customAgents : [],
+          removedFromScope: p.removedFromScope || {},
+          addedToScope: p.addedToScope || {},
+          collabModeByScope: p.collabModeByScope || {},
+          agentOverrides: p.agentOverrides || {},
+        }
+      },
       partialize: (s) => ({
         customAgents: s.customAgents,
         removedFromScope: s.removedFromScope,
@@ -416,6 +427,20 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         collabModeByScope: s.collabModeByScope,
         agentOverrides: s.agentOverrides,
       }),
+      merge: (persisted, current) => {
+        const p = (persisted || {}) as Partial<AgentRosterState>
+        return {
+          ...current,
+          ...p,
+          customAgents: Array.isArray(p.customAgents)
+            ? p.customAgents
+            : current.customAgents,
+          removedFromScope: p.removedFromScope || current.removedFromScope,
+          addedToScope: p.addedToScope || current.addedToScope,
+          collabModeByScope: p.collabModeByScope || current.collabModeByScope,
+          agentOverrides: p.agentOverrides || current.agentOverrides || {},
+        }
+      },
     }
   )
 )
