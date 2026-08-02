@@ -107,6 +107,18 @@ export function FirstRunChecklist({
   const doneCount = steps.filter((s) => s.done).length
   const allCore = steps.slice(0, 4).every((s) => s.done)
 
+  useEffect(() => {
+    if (loading || !allCore) return
+    try {
+      localStorage.setItem('ab-onboarded', '1')
+    } catch {
+      /* ignore */
+    }
+    onDismiss?.()
+    // Only when core steps flip to complete — not on every parent re-render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, allCore])
+
   if (allCore) return null
 
   return (

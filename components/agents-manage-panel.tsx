@@ -322,6 +322,12 @@ export function AgentsManagePanel({
                 <p className="mb-1.5 text-[11px] font-semibold text-stone-500">
                   في هذه الغرفة ({seated.length})
                 </p>
+                {seated.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-ab-border bg-stone-50 px-3 py-3 text-[11px] text-stone-500">
+                    لا وكلاء في المقاعد — أضف من القائمة أدناه أو أنشئ وكيلاً
+                    جديداً.
+                  </p>
+                ) : (
                 <ul className="space-y-1.5">
                   {seated.map((agent) => (
                     <li
@@ -397,6 +403,7 @@ export function AgentsManagePanel({
                     </li>
                   ))}
                 </ul>
+                )}
               </div>
 
               <div>

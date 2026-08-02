@@ -90,6 +90,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
     post.authorKind === 'channel' || post.authorKind === 'system'
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [memNote, setMemNote] = useState('')
 
   const attachments = (() => {
     const fromPost = post.attachments || []
@@ -207,19 +208,30 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         </div>
       )}
       {post.authorKind === 'human' || post.authorKind === 'agent' ? (
-        <button
-          type="button"
-          onClick={() => {
-            const ok = useWorkspaceStore
-              .getState()
-              .addMemory(post.scopeId, post.content.slice(0, 800))
-            if (ok) setDlError('')
-          }}
-          className="mt-2 inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent"
-        >
-          <BookmarkPlus className="h-3 w-3" />
-          احفظ في الذاكرة
-        </button>
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => {
+              const text = (post.content || '').trim().slice(0, 800)
+              if (!text) {
+                setMemNote('لا يوجد نص للحفظ.')
+                return
+              }
+              const ok = useWorkspaceStore
+                .getState()
+                .addMemory(post.scopeId, text)
+              setMemNote(ok ? 'حُفظ في ذاكرة المساحة.' : 'موجود مسبقاً في الذاكرة.')
+              window.setTimeout(() => setMemNote(''), 2500)
+            }}
+            className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent"
+          >
+            <BookmarkPlus className="h-3 w-3" />
+            احفظ في الذاكرة
+          </button>
+          {memNote && (
+            <p className="mt-1 text-[10px] text-emerald-700">{memNote}</p>
+          )}
+        </div>
       ) : null}
       {attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">

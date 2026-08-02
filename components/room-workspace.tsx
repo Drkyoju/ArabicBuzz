@@ -789,7 +789,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
             <div className="space-y-2 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
                 onNavigate={(section) => {
-                  dismissOnboarding()
                   window.dispatchEvent(
                     new CustomEvent('ab-nav', { detail: section })
                   )

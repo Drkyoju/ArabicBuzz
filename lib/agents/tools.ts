@@ -23,18 +23,59 @@ export type ToolExecutor = (
 ) => Promise<unknown>
 
 const stubResults: Record<string, (params: Record<string, unknown>) => unknown> = {
-  web_search: (p) => ({ results: [`نتائج بحث عن: ${String(p.query || '')}`] }),
-  web_fetch: (p) => ({ url: p.url, content: 'محتوى مقروء (تجريبي)' }),
-  query_db_readonly: () => ({ rows: [] }),
-  write_file: (p) => ({ written: true, path: p.path }),
-  send_message: (p) => ({ sent: true, channel: p.channel || 'telegram' }),
-  delete_file: (p) => ({ deleted: true, path: p.path }),
-  db_update: () => ({ updated: true }),
-  db_insert: () => ({ inserted: true }),
-  db_delete: () => ({ deleted: true }),
-  delete_database: () => ({ deleted: true }),
-  transfer_funds: () => ({ transferred: true }),
-  change_user_roles: () => ({ changed: true }),
+  web_search: (p) => ({
+    stub: true,
+    messageAr: 'بحث الويب التجريبي غير متصل بمزوّد حي — النتائج محاكاة.',
+    results: [`نتائج بحث تجريبية عن: ${String(p.query || '')}`],
+  }),
+  web_fetch: (p) => ({
+    stub: true,
+    messageAr: 'جلب الصفحات تجريبي.',
+    url: p.url,
+    content: 'محتوى مقروء (تجريبي)',
+  }),
+  query_db_readonly: () => ({
+    stub: true,
+    messageAr: 'استعلام قاعدة البيانات تجريبي.',
+    rows: [],
+  }),
+  write_file: (p) => ({
+    stub: true,
+    messageAr: 'كتابة الملف تجريبية — لم يُحفظ على القرص.',
+    written: true,
+    path: p.path,
+  }),
+  send_message: (p) => ({
+    stub: true,
+    messageAr:
+      'أرسل من الغرفة عبر أزرار تيليجرام/واتساب أو اضبط القنوات في Netlify.',
+    sent: true,
+    channel: p.channel || 'telegram',
+  }),
+  delete_file: (p) => ({
+    stub: true,
+    messageAr: 'حذف الملف تجريبي.',
+    deleted: true,
+    path: p.path,
+  }),
+  db_update: () => ({ stub: true, messageAr: 'تحديث DB تجريبي.', updated: true }),
+  db_insert: () => ({ stub: true, messageAr: 'إدراج DB تجريبي.', inserted: true }),
+  db_delete: () => ({ stub: true, messageAr: 'حذف DB تجريبي.', deleted: true }),
+  delete_database: () => ({
+    stub: true,
+    messageAr: 'حذف قاعدة البيانات تجريبي.',
+    deleted: true,
+  }),
+  transfer_funds: () => ({
+    stub: true,
+    messageAr: 'تحويل الأموال تجريبي — لم يُنفَّذ.',
+    transferred: true,
+  }),
+  change_user_roles: () => ({
+    stub: true,
+    messageAr: 'تغيير الأدوار تجريبي.',
+    changed: true,
+  }),
   text_generate: (p) => ({ text: String(p.prompt || '') }),
 }
 

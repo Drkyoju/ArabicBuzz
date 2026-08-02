@@ -23,6 +23,36 @@ import { AuthButtons } from '@/components/auth-buttons'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
+function AuthRequiredStatus() {
+  const [required, setRequired] = useState<boolean | null>(null)
+  useEffect(() => {
+    void fetch('/api/integrations/status')
+      .then((r) => r.json())
+      .then((d: { authRequired?: boolean }) =>
+        setRequired(Boolean(d.authRequired))
+      )
+      .catch(() => setRequired(null))
+  }, [])
+  if (required === null) {
+    return (
+      <p className="text-[11px] text-stone-400">جاري فحص وضع المصادقة…</p>
+    )
+  }
+  return (
+    <p
+      className={
+        required
+          ? 'rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900'
+          : 'rounded-md bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800'
+      }
+    >
+      {required
+        ? 'AUTH_REQUIRED مفعّل — يلزم تسجيل الدخول للـ API'
+        : 'AUTH_REQUIRED معطّل — الوضع الشخصي مفتوح (يُغيَّر من Netlify)'}
+    </p>
+  )
+}
+
 type LiveApproval = {
   id: string
   approvalId: string
@@ -255,9 +285,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <h3 className="mb-2 font-semibold">الوصول والحساب</h3>
-              <p className="mb-3 text-xs text-stone-600">
-                الوضع الشخصي مفتوح افتراضياً. لغرف متعددة المستخدمين فعّل{' '}
-                <code dir="ltr">AUTH_REQUIRED=true</code> ثم سجّل الدخول من{' '}
+              <AuthRequiredStatus />
+              <p className="mb-3 mt-2 text-xs text-stone-600">
+                لغرف متعددة المستخدمين فعّل{' '}
+                <code dir="ltr">AUTH_REQUIRED=true</code> على Netlify ثم سجّل
+                الدخول من{' '}
                 <a href="/auth/login" className="text-ab-accent underline">
                   صفحة الدخول
                 </a>
@@ -300,13 +332,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <h3 className="mb-2 font-semibold">الميكروفون وعقل الشركة</h3>
-              <p className="text-xs leading-relaxed text-stone-600">
+              <p className="mb-2 text-xs leading-relaxed text-stone-600">
                 الميكروفون يحتاج{' '}
                 <code dir="ltr">HF_TOKEN</code> أو{' '}
-                <code dir="ltr">GROQ_API_KEY</code>. مع{' '}
-                <code dir="ltr">BRAIN_PRIMARY=mac</code> يُفهرس النص على جهازك
-                ويبحث الزملاء عبر النفق من الموقع.
+                <code dir="ltr">GROQ_API_KEY</code> — أضفهما من «مفاتيح API».
+                خزنة الماك تحتاج إعداد Netlify + وكيل محلي (انظر التكاملات أدناه).
               </p>
+              <button
+                type="button"
+                onClick={() => setSection('api-keys')}
+                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
+              >
+                أضف من مفاتيح API
+              </button>
             </div>
             <div className="mt-8">
               <SdaiaAuditViewer />

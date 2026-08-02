@@ -1,4 +1,5 @@
 import { isZoomCreateConfigured } from '@/lib/zoom/create-meeting'
+import { isAuthRequired } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,5 +15,6 @@ export async function GET() {
     macSyncConfigured: Boolean(process.env.MAC_SYNC_URL?.trim()),
     brainPrimaryMac:
       (process.env.BRAIN_PRIMARY || '').toLowerCase() === 'mac',
+    authRequired: isAuthRequired(),
   })
 }

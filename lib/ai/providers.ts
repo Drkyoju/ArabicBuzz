@@ -125,7 +125,7 @@ export function assertModelKeyConfigured(modelId: string) {
     if (!c.match(id)) continue
     if (!resolveProviderKeySync(c.env)) {
       throw new Error(
-        `مفتاح ${c.label} غير مضبوط. افتح الإعدادات ← مفاتيح المزوّدين وأضف ${c.env}.`
+        `مفتاح ${c.label} غير مضبوط. افتح «مفاتيح API» من الشريط وأضف ${c.env}.`
       )
     }
     return

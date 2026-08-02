@@ -297,15 +297,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   addMemory: (scopeId, text) => {
     const trimmed = text.trim()
     if (!trimmed) return false
+    const scope = get().scopes.find((s) => s.id === scopeId)
+    if (!scope) return false
+    const existing = isPersonalScope(scope)
+      ? scope.privateMemory
+      : isSharedScope(scope)
+        ? scope.sharedMemory
+        : []
+    if (existing.includes(trimmed)) return false
     set((state) => ({
       scopes: state.scopes.map((s) => {
         if (s.id !== scopeId) return s
         if (isPersonalScope(s)) {
-          if (s.privateMemory.includes(trimmed)) return s
           return { ...s, privateMemory: [...s.privateMemory, trimmed] }
         }
         if (isSharedScope(s)) {
-          if (s.sharedMemory.includes(trimmed)) return s
           return { ...s, sharedMemory: [...s.sharedMemory, trimmed] }
         }
         return s
