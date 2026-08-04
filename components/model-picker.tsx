@@ -95,7 +95,9 @@ export function ModelPicker({
         ) : (
           readyModels.map((m) => (
             <option key={m.slug} value={m.slug}>
-              {compact ? m.labelAr : `${m.labelAr} · ${m.provider}`}
+              {compact
+                ? m.labelAr
+                : `${m.labelAr}${m.labelEn ? ` · ${m.labelEn}` : ''}`}
             </option>
           ))
         )}

@@ -29,7 +29,7 @@ export type HarnessModelMeta = {
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
     slug: 'gemini-3.1-pro',
-    labelAr: 'Gemini 3.1 Pro',
+    labelAr: 'تحليل معمق',
     labelEn: 'Gemini 3.1 Pro',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
@@ -37,7 +37,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'gemini-2.5-flash',
-    labelAr: 'Gemini 2.5 Flash',
+    labelAr: 'سريع',
     labelEn: 'Gemini 2.5 Flash',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
@@ -45,7 +45,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-5',
-    labelAr: 'GLM-5',
+    labelAr: 'تحليل معمق · GLM',
     labelEn: 'Zhipu GLM-5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
@@ -53,7 +53,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-4.5',
-    labelAr: 'GLM-4.5',
+    labelAr: 'متوازن · GLM',
     labelEn: 'Zhipu GLM-4.5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
@@ -61,7 +61,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o',
-    labelAr: 'OpenAI GPT-4o',
+    labelAr: 'تحليل معمق · OpenAI',
     labelEn: 'GPT-4o',
     provider: 'openai',
     requiresKey: 'OPENAI_API_KEY',
@@ -69,7 +69,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o-mini',
-    labelAr: 'OpenAI GPT-4o Mini',
+    labelAr: 'سريع · OpenAI',
     labelEn: 'GPT-4o Mini',
     provider: 'openai',
     requiresKey: 'OPENAI_API_KEY',
@@ -77,7 +77,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-3.5-sonnet',
-    labelAr: 'Claude 3.5 Sonnet',
+    labelAr: 'تحليل معمق · Claude',
     labelEn: 'Claude 3.5 Sonnet',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -85,7 +85,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-sonnet-4',
-    labelAr: 'Claude Sonnet 4',
+    labelAr: 'تحليل معمق · Claude 4',
     labelEn: 'Claude Sonnet 4',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -93,7 +93,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'deepseek-v3',
-    labelAr: 'DeepSeek V3',
+    labelAr: 'متوازن · DeepSeek',
     labelEn: 'DeepSeek V3',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -101,7 +101,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'deepseek-r1',
-    labelAr: 'DeepSeek R1',
+    labelAr: 'تفكير عميق · DeepSeek',
     labelEn: 'DeepSeek R1',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -109,7 +109,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'kimi-k2',
-    labelAr: 'Kimi K2',
+    labelAr: 'طويل السياق · Kimi',
     labelEn: 'Moonshot Kimi K2',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -117,7 +117,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'qwen-2.5-72b',
-    labelAr: 'Qwen 2.5 72B',
+    labelAr: 'عربي قوي · Qwen',
     labelEn: 'Qwen 2.5 72B',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -125,7 +125,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'hermes-3-405b',
-    labelAr: 'Hermes 3 405B',
+    labelAr: 'تحليل معمق · Hermes',
     labelEn: 'Nous Hermes 3',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -133,7 +133,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'hermes-2-pro-8b',
-    labelAr: 'Hermes 2 Pro 8B',
+    labelAr: 'سريع · Hermes',
     labelEn: 'Nous Hermes 2 Pro',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -141,7 +141,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'perplexity-sonar',
-    labelAr: 'Perplexity Sonar',
+    labelAr: 'بحث حي · Perplexity',
     labelEn: 'Perplexity Sonar',
     provider: 'perplexity',
     requiresKey: 'PERPLEXITY_API_KEY',
@@ -149,7 +149,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'ollama-local',
-    labelAr: 'Ollama (محلي)',
+    labelAr: 'محلي · Ollama',
     labelEn: 'Ollama Local',
     provider: 'ollama',
     requiresKey: 'OLLAMA_BASE_URL',

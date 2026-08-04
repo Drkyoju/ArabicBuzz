@@ -22,6 +22,7 @@ import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
+import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { HelpTip } from '@/components/help-tip'
@@ -772,7 +773,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           onFocusCapture={() => setPresenceSurface('feed')}
         >
           {showOnboarding && (
-            <div className="space-y-2 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
+            <div className="space-y-3 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
                 onNavigate={(section) => {
                   window.dispatchEvent(
@@ -780,6 +781,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   )
                 }}
                 onDismiss={dismissOnboarding}
+              />
+              <OrgRoleTemplates
+                onDone={() => {
+                  try {
+                    localStorage.setItem('ab-template-picked', '1')
+                  } catch {
+                    /* ignore */
+                  }
+                }}
               />
             </div>
           )}
@@ -797,6 +807,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     displayName={displayName}
                     surface={presenceSurface}
                     compact
+                    agentTyping={streaming}
+                    agentName={
+                      answeringAgentId
+                        ? roomAgents.find((a) => a.id === answeringAgentId)
+                            ?.nameAr || 'الوكيل'
+                        : 'الوكيل'
+                    }
                   />
                 </div>
               </div>

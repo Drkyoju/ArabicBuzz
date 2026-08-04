@@ -16,8 +16,8 @@ export type RoomAgent = {
 export type AgentCollabMode = 'solo' | 'team'
 
 export const AGENT_MODEL_PRESETS = [
-  { slug: 'gemini-3.1-pro', labelAr: 'Gemini 3.1 Pro', provider: 'google' },
-  { slug: 'glm-4.5', labelAr: 'GLM-4.5', provider: 'glm' },
+  { slug: 'gemini-3.1-pro', labelAr: 'تحليل معمق', provider: 'google' },
+  { slug: 'glm-4.5', labelAr: 'متوازن · GLM', provider: 'glm' },
 ] as const
 
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [

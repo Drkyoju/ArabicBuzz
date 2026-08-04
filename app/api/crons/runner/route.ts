@@ -6,6 +6,8 @@ import { runAgentPipeline } from '@/lib/agents/pipeline'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
 import { emitNotification } from '@/lib/notifications/emit'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
+import { listPendingApprovals } from '@/lib/agents/resolve-approval'
+import { appBaseUrl } from '@/lib/app-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +16,36 @@ function authorize(req: NextRequest) {
   const alt = req.headers.get('x-cron-secret') || ''
   const secret = process.env.CRON_SECRET || ''
   return header === `Bearer ${secret}` || alt === secret
+}
+
+async function buildActionableDigest(opts: {
+  nameAr: string
+  body: string
+  scopeId: string
+}) {
+  const pending = await listPendingApprovals().catch(() => [])
+  const scoped = pending.filter(
+    (p) => !p.scopeId || p.scopeId === opts.scopeId
+  )
+  const base = appBaseUrl()
+  const lines = [
+    `📋 ${opts.nameAr}`,
+    '',
+    opts.body.trim(),
+    '',
+  ]
+  if (scoped.length > 0) {
+    lines.push('── إجراءات تحتاج قرارك ──')
+    for (const p of scoped.slice(0, 5)) {
+      lines.push(`• ${p.actionName} (${p.riskLevel === 'HIGH' ? 'عالي' : 'منخفض'})`)
+    }
+    lines.push('')
+    lines.push(`👉 راجع الآن: ${base}/?section=approvals`)
+  } else {
+    lines.push('لا موافقات معلّقة حالياً.')
+    lines.push(`الغرفة: ${base}/`)
+  }
+  return lines.join('\n').slice(0, 3500)
 }
 
 async function runOne(opts: {
@@ -55,7 +87,11 @@ async function runOne(opts: {
       rawUserPrompt: opts.prompt,
       scopeCtx,
     })
-    const text = `📋 ${opts.nameAr}\n\n${result.output}`.slice(0, 3500)
+    const text = await buildActionableDigest({
+      nameAr: opts.nameAr,
+      body: result.output,
+      scopeId: opts.scopeId,
+    })
     for (const ch of opts.channels) {
       if (ch === 'telegram' || ch === 'whatsapp') {
         await emitNotification({

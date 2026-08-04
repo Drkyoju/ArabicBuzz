@@ -129,18 +129,18 @@ export async function signInWithEmail(email: string, password: string) {
   return data
 }
 
-/** Start Google or GitHub OAuth via Supabase (optional). */
+/** Start Google (with Calendar/Drive) or GitHub OAuth via Supabase. */
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
+  if (provider === 'google') {
+    // Bundle workspace scopes at login so users don't take a second connect step.
+    return connectGoogleCalendar()
+  }
   const supabase = createBrowserSupabaseClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
       redirectTo: getAuthRedirectTo(),
       skipBrowserRedirect: false,
-      queryParams:
-        provider === 'google'
-          ? { access_type: 'offline', prompt: 'select_account' }
-          : undefined,
     },
   })
   if (error) throw error

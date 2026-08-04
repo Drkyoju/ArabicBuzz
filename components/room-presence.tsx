@@ -13,6 +13,7 @@ type Peer = {
   name: string
   typing?: boolean
   surface?: string
+  kind?: 'human' | 'agent'
 }
 
 function initials(name: string) {
@@ -28,6 +29,8 @@ export function RoomPresenceBar({
   displayName,
   surface = 'feed',
   compact = false,
+  agentTyping = false,
+  agentName = 'الوكيل',
 }: {
   scopeId: string
   typing: boolean
@@ -35,6 +38,9 @@ export function RoomPresenceBar({
   /** Where the local user is focused: feed | canvas | composer */
   surface?: string
   compact?: boolean
+  /** Local AI is generating a reply */
+  agentTyping?: boolean
+  agentName?: string
 }) {
   const [peers, setPeers] = useState<Peer[]>([])
   const channelRef = useRef<{
@@ -68,6 +74,7 @@ export function RoomPresenceBar({
           name: nameRef.current,
           typing: typingRef.current,
           surface: surfaceRef.current,
+          kind: 'human',
         },
       ])
       return
@@ -100,13 +107,19 @@ export function RoomPresenceBar({
         if (cancelled) return
         const state = channel!.presenceState() as Record<
           string,
-          Array<{ name?: string; typing?: boolean; surface?: string }>
+          Array<{
+            name?: string
+            typing?: boolean
+            surface?: string
+            kind?: 'human' | 'agent'
+          }>
         >
         const list: Peer[] = Object.entries(state).map(([key, rows]) => ({
           key,
           name: rows[0]?.name || 'مستخدم',
           typing: Boolean(rows[0]?.typing),
           surface: rows[0]?.surface,
+          kind: rows[0]?.kind === 'agent' ? 'agent' : 'human',
         }))
         setPeers(list)
       })
@@ -117,6 +130,7 @@ export function RoomPresenceBar({
             name: nameRef.current,
             typing: typingRef.current,
             surface: surfaceRef.current,
+            kind: 'human',
             at: Date.now(),
           })
         }
@@ -132,7 +146,15 @@ export function RoomPresenceBar({
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setPeers([{ key: 'local', name: nameRef.current, typing, surface }])
+      setPeers([
+        {
+          key: 'local',
+          name: nameRef.current,
+          typing,
+          surface,
+          kind: 'human',
+        },
+      ])
       return
     }
     const ch = channelRef.current
@@ -141,35 +163,51 @@ export function RoomPresenceBar({
       name: nameRef.current,
       typing,
       surface,
+      kind: 'human',
       at: Date.now(),
     })
   }, [typing, surface])
 
-  const typingNames = peers.filter((p) => p.typing).map((p) => p.name)
+  const humans = peers.filter((p) => p.kind !== 'agent')
   const selfName = displayName || 'أنت'
   const online =
-    peers.length > 0 ? peers : [{ key: 'self', name: selfName, surface }]
+    humans.length > 0
+      ? humans
+      : [{ key: 'self', name: selfName, surface, kind: 'human' as const }]
+  const humanTyping = online.filter((p) => p.typing).map((p) => p.name)
   const surfaceLabel = (s?: string) =>
     s === 'canvas' ? 'اللوحة' : s === 'composer' ? 'الكتابة' : 'المحادثة'
+
+  const agentLine = agentTyping ? `${agentName} يكتب…` : null
+  const humanLine =
+    humanTyping.length > 0 ? `${humanTyping.join('، ')} يكتب…` : null
 
   if (compact) {
     return (
       <div
-        className="flex items-center gap-1.5 text-[11px] text-stone-500"
+        className="flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500"
         dir="rtl"
       >
         <span
           className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600"
           aria-hidden
+          title="بشري متصل"
         />
         <span>
-          متصل ({online.length})
-          {typingNames.length > 0
-            ? ` · ${typingNames[0]} يكتب…`
-            : online.length === 1
-              ? ` · ${online[0].name}`
-              : ''}
+          بشر ({online.length})
+          {agentTyping ? (
+            <span className="mr-1 text-violet-700"> · AI نشط</span>
+          ) : online.length === 1 ? (
+            ` · ${online[0].name}`
+          ) : (
+            ''
+          )}
         </span>
+        {(agentLine || humanLine) && (
+          <span className={agentTyping ? 'text-violet-700' : 'text-ab-accent'}>
+            — {agentLine || humanLine}
+          </span>
+        )}
       </div>
     )
   }
@@ -177,10 +215,10 @@ export function RoomPresenceBar({
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500" dir="rtl">
       <div className="flex items-center -space-x-2 space-x-reverse" aria-hidden>
-        {online.slice(0, 6).map((p, i) => (
+        {online.slice(0, 5).map((p, i) => (
           <span
             key={p.key}
-            title={p.name}
+            title={`${p.name} · بشري`}
             className={cn(
               'flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[9px] font-bold text-white',
               p.typing ? 'bg-ab-accent' : 'bg-emerald-700'
@@ -190,23 +228,37 @@ export function RoomPresenceBar({
             {initials(p.name)}
           </span>
         ))}
-        {online.length > 6 && (
+        {agentTyping && (
+          <span
+            title={`${agentName} · ذكاء اصطناعي`}
+            className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-violet-600 text-[9px] font-bold text-white"
+            style={{ zIndex: 1 }}
+          >
+            AI
+          </span>
+        )}
+        {online.length > 5 && (
           <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-stone-400 text-[9px] font-bold text-white">
-            +{online.length - 6}
+            +{online.length - 5}
           </span>
         )}
       </div>
       <span>
         <span className="font-medium text-emerald-700">
-          متصل ({online.length})
+          بشر ({online.length})
         </span>
         <span className="mr-1 text-ab-ink">
           {online.map((p) => p.name).join(' · ')}
         </span>
+        {agentTyping && (
+          <span className="mr-1 font-medium text-violet-700">
+            · AI: {agentName}
+          </span>
+        )}
       </span>
-      {typingNames.length > 0 && (
-        <span className="text-ab-accent">
-          — {typingNames.join('، ')} يكتب…
+      {(agentLine || humanLine) && (
+        <span className={agentTyping ? 'text-violet-700' : 'text-ab-accent'}>
+          — {agentLine || humanLine}
         </span>
       )}
       {online.some((p) => p.surface && p.surface !== 'feed') && (

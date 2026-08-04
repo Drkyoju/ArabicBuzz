@@ -25,7 +25,20 @@ import type { RoomCitation } from '@/lib/scopes/types'
 
 let bot: Bot | null = null
 
-function resolveTelegramScope(opts: { chatId: string; userId: string }) {
+function resolveTelegramScope(opts: {
+  chatId: string
+  userId: string
+  preferredScopeId?: string
+}) {
+  if (opts.preferredScopeId) {
+    return Promise.resolve(
+      resolveActiveScope({
+        userId: opts.userId,
+        scopeId: opts.preferredScopeId,
+        scopes: DEMO_SCOPES,
+      })
+    )
+  }
   return resolveChannelScope({
     channel: 'telegram',
     externalId: opts.chatId,
@@ -207,15 +220,43 @@ export function getTelegramBot() {
       userId,
     })
 
-    if (/^\/(start|owner|معرف|id)(?:@\w+)?$/i.test(cmd)) {
+    if (/^\/(start|owner|معرف|id)(?:@\w+)?(?:\s+(\S+))?$/i.test(cmd)) {
+      const startMatch = cmd.match(
+        /^\/(?:start|owner|معرف|id)(?:@\w+)?(?:\s+(\S+))?$/i
+      )
+      const payload = (startMatch?.[1] || '').trim()
+      let boundScopeId = scope.scope.id
+      let boundName = scope.scope.nameAr
+      if (payload) {
+        // Deep link: /start <scopeId> or /start scope_<id>
+        const scopeId = payload.replace(/^scope[_-]/i, '')
+        const resolved = await resolveTelegramScope({
+          chatId,
+          userId,
+          preferredScopeId: scopeId,
+        }).catch(() => null)
+        if (resolved?.scope?.id) {
+          boundScopeId = resolved.scope.id
+          boundName = resolved.scope.nameAr
+          await upsertChannelBinding({
+            channel: 'telegram',
+            externalId: chatId,
+            scopeId: boundScopeId,
+            userId,
+          })
+        }
+      }
       await ctx.reply(
         [
           'مرحباً — بوت Arabic Buzz جاهز.',
           `معرّف هذه المحادثة: ${chatId}`,
-          `المساحة: ${scope.scope.nameAr}`,
+          `المساحة: ${boundName}`,
+          payload ? 'تم ربط هذه المحادثة عبر رابط الدعوة.' : '',
           'أوامر: /help · /rooms · /approve',
           'أضفه في Netlify كـ TELEGRAM_OWNER_CHAT_ID إن أردت تثبيت مالك التنبيهات.',
-        ].join('\n')
+        ]
+          .filter(Boolean)
+          .join('\n')
       )
       return
     }

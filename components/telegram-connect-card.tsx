@@ -3,16 +3,19 @@
 import { useEffect, useState } from 'react'
 import { MessageCircle, CheckCircle2, Circle } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 /**
- * User-facing Telegram status — no env-var dump.
+ * User-facing Telegram status — deep-link bind via ?start=scope_<id>.
  */
 export function TelegramConnectCard() {
+  const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const [ready, setReady] = useState<boolean | null>(null)
   const [ownerOk, setOwnerOk] = useState(false)
-  const botUrl =
+  const botBase =
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL ||
     'https://t.me/alhuda14bot'
+  const deepLink = `${botBase.replace(/\/$/, '')}?start=scope_${encodeURIComponent(scopeId)}`
 
   useEffect(() => {
     let cancelled = false
@@ -46,7 +49,7 @@ export function TelegramConnectCard() {
         تيليجرام · أوامر من الجوال
       </h3>
       <p className="mb-3 text-xs text-stone-500">
-        راسل البوت من هاتفك لإرسال المهام والموافقة على الإجراءات.
+        افتح الرابط أدناه لربط هذه المساحة تلقائياً، ثم أرسل الأوامر من هاتفك.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         {ready === null ? (
@@ -55,7 +58,7 @@ export function TelegramConnectCard() {
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-emerald-800">
             <CheckCircle2 className="h-3.5 w-3.5" />
             البوت جاهز
-            {ownerOk ? ' · المالك مربوط' : ' · أرسل /start لربط محادثتك'}
+            {ownerOk ? ' · المالك مربوط' : ' · افتح رابط الربط أدناه'}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-amber-900">
@@ -65,23 +68,34 @@ export function TelegramConnectCard() {
         )}
       </div>
       <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs text-stone-600">
-        <li>افتح البوت في تيليجرام (من الرابط الذي يعطيك إياه المسؤول).</li>
+        <li>اضغط «ربط هذه المساحة» لفتح البوت مع رمز الدعوة.</li>
         <li>
-          أرسل <code dir="ltr">/start</code> ثم جرّب <code dir="ltr">/help</code>
+          أرسل <code dir="ltr">/start</code> إن لم يُفتح تلقائياً، ثم{' '}
+          <code dir="ltr">/help</code>
         </li>
         <li>
           للموافقات المعلّقة: <code dir="ltr">/approve</code>
         </li>
       </ol>
-      {botUrl.includes('t.me/') && botUrl.length > 'https://t.me/'.length && (
-        <a
-          href={botUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
-        >
-          فتح البوت في تيليجرام
-        </a>
+      {botBase.includes('t.me/') && (
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={deepLink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            ربط هذه المساحة
+          </a>
+          <a
+            href={botBase}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+          >
+            فتح البوت فقط
+          </a>
+        </div>
       )}
     </div>
   )

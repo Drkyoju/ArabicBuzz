@@ -23,6 +23,7 @@ import { AuthButtons } from '@/components/auth-buttons'
 import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
 import { OrgRoleTemplates } from '@/components/org-role-templates'
+import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
@@ -125,6 +126,27 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [showDevOps, setShowDevOps] = useState(false)
   const [showSdaia, setShowSdaia] = useState(false)
 
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('section')
+      if (
+        q === 'calendar' ||
+        q === 'chats' ||
+        q === 'settings' ||
+        q === 'files' ||
+        q === 'memory' ||
+        q === 'approvals' ||
+        q === 'skills' ||
+        q === 'api-keys' ||
+        q === 'ops'
+      ) {
+        setSection(q)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true)
     setApprovalsError('')
@@ -207,15 +229,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'files' && <FilesPanel />}
 
         {section === 'calendar' && (
-          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
-            <p className="mb-4 text-sm text-stone-500">
-              ربط Google مرة واحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
-              وُجد).
-            </p>
-            <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleCalendarPanel hideTitle />
+          <section className="mx-auto max-w-3xl space-y-6 px-6 py-8" dir="rtl">
+            <div>
+              <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
+              <p className="mb-4 text-sm text-stone-500">
+                ربط Google مرة واحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
+                وُجد).
+              </p>
+              <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+                <GoogleCalendarPanel hideTitle />
+              </div>
             </div>
+            <MeetingCopilotPanel />
           </section>
         )}
 
@@ -226,11 +251,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-1.5 text-xl font-bold">
-                  الموافقات
-                  <HelpTip textAr="عند وضع الأمان «صارم» أو «تلقائي» تظهر هنا طلبات قبل تنفيذ الأدوات الحساسة. غيّر الوضع من الإعدادات." />
+                  صندوق الموافقات
+                  <HelpTip textAr="راجع كل إجراء حساس قبل التنفيذ: اعتماد، رفض، أو تعديل المعاملات." />
                 </h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  الإجراءات عالية المخاطر تنتظر موافقتك قبل التنفيذ.
+                  اعتمد · ارفض · أو عدّل — ثم يُنفَّذ الإجراء بأمان.
                 </p>
               </div>
               <button

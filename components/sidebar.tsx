@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
+import { SdaiaBadge } from '@/components/sdaia-badge'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { cn } from '@/lib/utils'
@@ -172,7 +173,10 @@ function SidebarBody({
             </h1>
             <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
           </div>
-          <AirGapBadge airGapped={airGapped} />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <SdaiaBadge compact />
+            <AirGapBadge airGapped={airGapped} />
+          </div>
         </div>
         <button
           type="button"
