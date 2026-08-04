@@ -228,12 +228,6 @@ export function SkillMarketplace({
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ab-ink">{s.name}</p>
                   <p className="text-xs text-stone-500">{s.description}</p>
-                  <p
-                    className="mt-0.5 font-mono text-[10px] text-stone-400"
-                    dir="ltr"
-                  >
-                    {s.id}
-                  </p>
                 </div>
                 <button
                   type="button"

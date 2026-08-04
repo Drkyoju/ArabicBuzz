@@ -12,13 +12,10 @@ type Snapshot = {
   telegramOwnerConfigured?: boolean
   channelOwnerConfigured?: boolean
   triggerDispatchConfigured?: boolean
-  whatsappConfigured?: boolean
-  whatsappOwnerConfigured?: boolean
   macOnline?: boolean
   macConfigured?: boolean
   modelsReady?: number
   pendingApprovals?: number
-  whatsappPending?: number
 }
 
 /**
@@ -34,18 +31,16 @@ export function OpsHealthPanel() {
     setError('')
     try {
       const h = await authHeaders()
-      const [cal, drive, integ, mac, providers, approvals, waInbox] =
-        await Promise.all([
-          fetch('/api/google/calendar?action=status', { headers: h }).then(
-            (r) => r.json()
-          ),
-          fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
-          fetch('/api/integrations/status').then((r) => r.json()),
-          fetch('/api/mac/status', { headers: h }).then((r) => r.json()),
-          fetch('/api/settings/providers').then((r) => r.json()),
-          fetch('/api/agent/approvals', { headers: h }).then((r) => r.json()),
-          fetch('/api/whatsapp/inbox', { headers: h }).then((r) => r.json()),
-        ])
+      const [cal, drive, integ, mac, providers, approvals] = await Promise.all([
+        fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
+          r.json()
+        ),
+        fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
+        fetch('/api/integrations/status').then((r) => r.json()),
+        fetch('/api/mac/status', { headers: h }).then((r) => r.json()),
+        fetch('/api/settings/providers').then((r) => r.json()),
+        fetch('/api/agent/approvals', { headers: h }).then((r) => r.json()),
+      ])
       setSnap({
         googleConnected: Boolean(cal?.connected),
         driveFiles: Number(drive?.count || 0),
@@ -54,8 +49,6 @@ export function OpsHealthPanel() {
         telegramOwnerConfigured: Boolean(integ?.telegramOwnerConfigured),
         channelOwnerConfigured: Boolean(integ?.channelOwnerConfigured),
         triggerDispatchConfigured: Boolean(integ?.triggerDispatchConfigured),
-        whatsappConfigured: Boolean(integ?.whatsappConfigured),
-        whatsappOwnerConfigured: Boolean(integ?.whatsappOwnerConfigured),
         macOnline: Boolean(mac?.online),
         macConfigured: Boolean(mac?.configured || integ?.macSyncConfigured),
         modelsReady: Number(providers?.serviceableCount || 0),
@@ -64,7 +57,6 @@ export function OpsHealthPanel() {
               (a: { status?: string }) => a.status === 'PENDING_APPROVAL'
             ).length
           : 0,
-        whatsappPending: Number(waInbox?.count || 0),
       })
     } catch (e) {
       setSnap(null)
@@ -100,7 +92,7 @@ export function OpsHealthPanel() {
         {
           label: 'Zoom API',
           ok: Boolean(snap.zoomConfigured),
-          detail: snap.zoomConfigured ? 'مضبوط' : 'غير مضبوط',
+          detail: snap.zoomConfigured ? 'مضبوط' : 'اختياري',
         },
         {
           label: 'Telegram',
@@ -125,33 +117,18 @@ export function OpsHealthPanel() {
           detail: snap.triggerDispatchConfigured ? 'جاهز' : 'غير مضبوط',
         },
         {
-          label: 'WhatsApp',
-          ok: Boolean(snap.whatsappConfigured),
-          detail: snap.whatsappConfigured ? 'مضبوط' : 'غير مضبوط',
-        },
-        {
-          label: 'WhatsApp مالك',
-          ok: Boolean(snap.whatsappOwnerConfigured),
-          detail: snap.whatsappOwnerConfigured ? 'مضبوط' : 'غير مضبوط',
-        },
-        {
           label: 'خزنة الماك',
           ok: Boolean(snap.macOnline),
           detail: snap.macOnline
             ? 'متصلة'
             : snap.macConfigured
               ? 'مضبوطة · غير متصلة'
-              : 'غير مضبوطة',
+              : 'اختياري',
         },
         {
           label: 'موافقات معلّقة',
           ok: (snap.pendingApprovals || 0) === 0,
           detail: String(snap.pendingApprovals || 0),
-        },
-        {
-          label: 'وارد واتساب معلّق',
-          ok: (snap.whatsappPending || 0) === 0,
-          detail: String(snap.whatsappPending || 0),
         },
       ]
     : []
@@ -165,7 +142,7 @@ export function OpsHealthPanel() {
             صحة التشغيل
           </h2>
           <p className="mt-1 text-sm text-stone-500">
-            نظرة سريعة على التكاملات والنماذج — ليست تقييماً لجودة الردود.
+            نظرة سريعة على التكاملات والنماذج.
           </p>
         </div>
         <button
@@ -178,35 +155,30 @@ export function OpsHealthPanel() {
           تحديث
         </button>
       </div>
-      {error && (
-        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {error}
-        </p>
+      {error && <p className="mb-3 text-sm text-ab-warn">{error}</p>}
+      {!snap && !error && (
+        <p className="text-sm text-stone-500">جاري التحميل…</p>
       )}
-      {!snap && !error && !busy && (
-        <p className="mb-3 text-sm text-stone-500">لا بيانات بعد — اضغط تحديث.</p>
-      )}
-      <ul className="space-y-2">
-        {rows.map((r) => (
-          <li
-            key={r.label}
-            className="flex items-center justify-between gap-3 rounded-xl border border-ab-border bg-ab-surface px-3 py-2.5 text-sm"
-          >
-            <span className="font-medium text-ab-ink">{r.label}</span>
-            <span
-              className={
-                r.ok
-                  ? 'rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800'
-                  : 'rounded-md bg-amber-50 px-2 py-0.5 text-[11px] text-amber-900'
-              }
+      {snap && (
+        <ul className="space-y-2">
+          {rows.map((r) => (
+            <li
+              key={r.label}
+              className="flex items-center justify-between gap-3 rounded-lg border border-ab-border bg-ab-surface px-3 py-2 text-sm"
             >
-              {r.detail}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {!snap && (
-        <p className="mt-4 text-sm text-stone-500">جاري التحميل…</p>
+              <span className="font-medium text-ab-ink">{r.label}</span>
+              <span
+                className={
+                  r.ok
+                    ? 'text-[11px] text-emerald-700'
+                    : 'text-[11px] text-stone-500'
+                }
+              >
+                {r.detail}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   )

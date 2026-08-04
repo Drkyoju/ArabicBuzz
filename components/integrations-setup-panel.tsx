@@ -7,7 +7,7 @@ import { authHeaders } from '@/lib/supabase/browser'
 type ZoomHint = { configured: boolean }
 
 /**
- * Compact checklist: Telegram / WhatsApp / Zoom / Mac — what Netlify needs.
+ * Compact checklist: Telegram / Zoom / Mac — what Netlify needs.
  */
 export function IntegrationsSetupPanel() {
   const [zoom, setZoom] = useState<ZoomHint | null>(null)
@@ -41,7 +41,7 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات تحتاج إعداداً (Telegram · WhatsApp · Zoom · الماك)
+        تكاملات اختيارية (Telegram · Zoom · الماك)
       </h3>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
@@ -77,7 +77,7 @@ export function IntegrationsSetupPanel() {
           </li>
         </ol>
         <p className="mt-1 text-[11px] text-stone-500">
-          بعد الضبط: حجز موعد بدون لصق رابط ينشئ Zoom تلقائياً.
+          اختياري — يمكنك لصق رابط Zoom يدوياً عند الحجز بدون هذا الإعداد.
         </p>
       </div>
 
@@ -123,59 +123,6 @@ export function IntegrationsSetupPanel() {
             <code dir="ltr" className="break-all text-[10px]">
               https://arabicbuzz.netlify.app/api/webhooks/telegram
             </code>
-          </li>
-        </ol>
-      </div>
-
-      <div className="rounded-lg border border-ab-border bg-white p-3">
-        <p className="mb-1 font-semibold text-ab-ink">
-          WhatsApp · صندوق وارد المهام
-        </p>
-        <p className="mb-2 text-[11px] text-stone-600">
-          رقم الأعمال = وارد للمرسلين (عملاء/زملاء). الرسائل تُنسَخ إلى غرفة{' '}
-          <code dir="ltr">WHATSAPP_DEFAULT_SCOPE_ID</code>، والوكيل يصنّف
-          (مهمة/أمر/تأكيد/سؤال) وينفّذ أو يسألك، ثم يرد على المرسل عند
-          الاكتمال.
-        </p>
-        <ol className="list-decimal space-y-1 pe-4">
-          <li>
-            Meta Developer → App → WhatsApp → Permanent Token و Phone Number ID
-          </li>
-          <li>
-            Netlify (مطلوب):{' '}
-            <code dir="ltr">WHATSAPP_TOKEN</code> ·{' '}
-            <code dir="ltr">WHATSAPP_PHONE_NUMBER_ID</code> ·{' '}
-            <code dir="ltr">WHATSAPP_VERIFY_TOKEN</code>
-          </li>
-          <li>
-            Callback URL:{' '}
-            <code dir="ltr" className="break-all text-[10px]">
-              https://arabicbuzz.netlify.app/api/webhooks/whatsapp
-            </code>
-          </li>
-          <li>
-            غرفة المراقبة:{' '}
-            <code dir="ltr">WHATSAPP_DEFAULT_SCOPE_ID</code> (افتراضي{' '}
-            <code dir="ltr">shared-demo</code>)
-          </li>
-          <li>
-            تنبيهات المالك على واتساب:{' '}
-            <code dir="ltr">WHATSAPP_OWNER_TO</code> (رقم E.164 الشخصي)
-          </li>
-          <li>
-            سياق أدوات المالك (تقويم/Drive):{' '}
-            <code dir="ltr">CHANNEL_OWNER_USER_ID</code>
-          </li>
-          <li>
-            صوت: <code dir="ltr">HF_TOKEN</code> أو{' '}
-            <code dir="ltr">GROQ_API_KEY</code>
-          </li>
-          <li>
-            اختياري للاختبار: <code dir="ltr">WHATSAPP_TEST_TO</code>
-          </li>
-          <li>
-            للرد من الغرفة على طلب معلّق:{' '}
-            <span className="font-medium">رد واتساب: …</span>
           </li>
         </ol>
       </div>

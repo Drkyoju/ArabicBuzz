@@ -195,7 +195,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
     }
   }
 
-  async function inviteViaChannel(channel: 'telegram' | 'whatsapp') {
+  async function inviteViaTelegram() {
     setBusy(true)
     setErr('')
     setMsg('')
@@ -206,7 +206,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
         body: JSON.stringify({
           scopeId,
           kind: 'link',
-          notifyChannels: [channel],
+          notifyChannels: ['telegram'],
         }),
       })
       const data = (await res.json()) as {
@@ -409,26 +409,16 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               <button
                 type="button"
                 disabled={busy || !canManage}
-                onClick={() => void inviteViaChannel('telegram')}
+                onClick={() => void inviteViaTelegram()}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
                 title="ينشئ رابط دعوة ويرسله إلى تيليجرام المالك"
               >
                 تيليجرام · رابط دعوة
               </button>
-              <button
-                type="button"
-                disabled={busy || !canManage}
-                onClick={() => void inviteViaChannel('whatsapp')}
-                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
-                title="ينشئ رابط دعوة ويرسله إلى واتساب المالك"
-              >
-                واتساب · رابط دعوة
-              </button>
             </div>
             <p className="text-[10px] leading-relaxed text-stone-500">
-              «رابط دعوة» ينشئ رابط انضمام للغرفة. أزرار تيليجرام/واتساب تنشئ
-              الرابط وترسله للقناة المضبوطة. زر البريد يفتح تطبيق بريدك مع
-              الرابط إن لم يتوفر مُرسل آلي.
+              «رابط دعوة» ينشئ رابط انضمام. زر تيليجرام يرسل الرابط للقناة
+              المضبوطة. زر البريد يفتح تطبيق بريدك مع الرابط.
             </p>
             {linkUrl && (
               <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">

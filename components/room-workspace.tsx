@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PanelRightOpen, MessageSquare, CalendarDays } from 'lucide-react'
+import { PanelRightOpen, MessageSquare } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
 import { ComposerMicButton } from '@/components/composer-mic-button'
@@ -76,10 +76,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [answeringAgentId, setAnsweringAgentId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('أنت')
   const [outboundMsg, setOutboundMsg] = useState('')
-  const [outboundReady, setOutboundReady] = useState({
-    telegram: false,
-    whatsapp: false,
-  })
+  const [telegramReady, setTelegramReady] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
@@ -123,15 +120,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
     let cancelled = false
     void fetch('/api/integrations/status')
       .then((r) => r.json())
-      .then((data: {
-        telegramOutboundReady?: boolean
-        whatsappOutboundReady?: boolean
-      }) => {
+      .then((data: { telegramOutboundReady?: boolean }) => {
         if (cancelled) return
-        setOutboundReady({
-          telegram: Boolean(data.telegramOutboundReady),
-          whatsapp: Boolean(data.whatsappOutboundReady),
-        })
+        setTelegramReady(Boolean(data.telegramOutboundReady))
       })
       .catch(() => {
         /* ignore */
@@ -601,59 +592,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
       'Content-Type': 'application/json',
     })
 
-    // Owner resume for paused WhatsApp inbox: «رد واتساب: …»
-    const waCmd = prompt.match(
-      /^رد\s*(?:على\s+)?واتساب(?:\s*#([a-zA-Z0-9-]+))?\s*[:：]\s*([\s\S]+)$/u
-    )
-    if (waCmd) {
-      const threadId = waCmd[1]
-      const answerAr = waCmd[2].trim()
-      const humanId = `h-wa-${Date.now()}`
-      appendPost({
-        id: humanId,
-        scopeId: activeScopeId,
-        authorKind: 'human',
-        authorId: 'me',
-        authorNameAr: displayName,
-        content: prompt,
-        createdAt: Date.now(),
-      })
-      try {
-        const res = await fetch('/api/whatsapp/inbox', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            threadId: threadId || undefined,
-            answerAr,
-            scopeId: activeScopeId,
-          }),
-        })
-        const data = (await res.json()) as { error?: string; threadId?: string }
-        appendPost({
-          id: `sys-wa-${Date.now()}`,
-          scopeId: activeScopeId,
-          authorKind: 'system',
-          authorId: 'whatsapp-inbox',
-          authorNameAr: 'وارد واتساب',
-          content: res.ok
-            ? `تم استئناف طلب واتساب${data.threadId ? ` (#${data.threadId.slice(0, 8)})` : ''} وإبلاغ المرسل عند الاكتمال.`
-            : data.error || 'تعذّر استئناف طلب واتساب.',
-          createdAt: Date.now() + 1,
-        })
-      } catch (e) {
-        appendPost({
-          id: `sys-wa-${Date.now()}`,
-          scopeId: activeScopeId,
-          authorKind: 'system',
-          authorId: 'whatsapp-inbox',
-          authorNameAr: 'وارد واتساب',
-          content: e instanceof Error ? e.message : 'تعذّر استئناف طلب واتساب.',
-          createdAt: Date.now() + 1,
-        })
-      }
-      return
-    }
-
     // Note: JS \b does not work after Arabic tokens — match whitespace/end instead.
     const teamMention = prompt
       .trim()
@@ -794,7 +732,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     }
   }
 
-  async function sendOutbound(channel: 'telegram' | 'whatsapp') {
+  async function sendOutboundTelegram() {
     const text = input.trim()
     if (!text) {
       setOutboundMsg('اكتب نصاً في الحقل ثم أرسل للقناة.')
@@ -806,7 +744,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       body: JSON.stringify({
         scopeId: activeScopeId,
         textAr: text,
-        channel,
+        channel: 'telegram',
       }),
     })
     const data = (await res.json()) as { noteAr?: string; error?: string }
@@ -883,19 +821,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                 <ModelPicker compact />
                 <SecurityPosturePicker compact />
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent('ab-nav', { detail: 'calendar' })
-                    )
-                  }
-                  className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1 text-[11px] text-ab-accent hover:bg-ab-accent/10"
-                  aria-label="التقويم · Zoom"
-                >
-                  <CalendarDays className="h-3 w-3" />
-                  التقويم · Zoom
-                </button>
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -945,46 +870,24 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <RoomTeamPanel scopeId={activeScopeId} />
               <div className="rounded-md border border-dashed border-ab-border bg-white p-2">
                 <p className="mb-1.5 text-[11px] font-semibold text-ab-ink">
-                  تنبيه قناة (مو دعوة)
+                  تنبيه تيليجرام
                 </p>
                 <p className="mb-2 text-[10px] text-stone-500">
-                  يرسل نص الحقل الحالي إلى شات/رقم تجريبي مضبوط في Netlify
-                  (TELEGRAM_TEST_CHAT_ID / WHATSAPP_TEST_TO) — لا يضيف أحداً
+                  يرسل نص الحقل الحالي إلى شات تيليجرام المضبوط — لا يضيف أحداً
                   للغرفة.
                 </p>
-                {!outboundReady.telegram && !outboundReady.whatsapp ? (
+                {!telegramReady ? (
                   <p className="text-[10px] text-stone-500">
-                    القنوات غير مضبوطة بعد — راجع الإعدادات ← التكاملات.
+                    تيليجرام غير مضبوط — راجع الإعدادات ← التكاملات.
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      disabled={!outboundReady.telegram}
-                      onClick={() => void sendOutbound('telegram')}
-                      className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                      title={
-                        outboundReady.telegram
-                          ? undefined
-                          : 'تيليجرام غير مضبوط'
-                      }
-                    >
-                      تيليجرام · تنبيه
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!outboundReady.whatsapp}
-                      onClick={() => void sendOutbound('whatsapp')}
-                      className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                      title={
-                        outboundReady.whatsapp
-                          ? undefined
-                          : 'واتساب غير مضبوط'
-                      }
-                    >
-                      واتساب · تنبيه
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void sendOutboundTelegram()}
+                    className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                  >
+                    إرسال تنبيه
+                  </button>
                 )}
                 {outboundMsg && (
                   <p className="mt-1.5 text-[10px] text-stone-500">
@@ -1037,17 +940,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
                       className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
                     >
                       ابحث في المعرفة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        window.dispatchEvent(
-                          new CustomEvent('ab-nav', { detail: 'calendar' })
-                        )
-                      }
-                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
-                    >
-                      افتح التقويم
                     </button>
                   </div>
                 </div>
@@ -1133,10 +1025,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   collabMode === 'team'
                     ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
                     : shared
-                      ? 'اكتب أو تكلم بالميك… جرّب @reports · رد واتساب: …'
+                      ? 'اكتب أو تكلم بالميك… جرّب @reports'
                       : activeScopeId === 'personal-research'
                         ? 'اكتب أو تكلم بالميك… جرّب @research'
-                        : 'اكتب أو تكلم بالميك… أو رد واتساب: … لطلب معلّق'
+                        : 'اكتب أو تكلم بالميك…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"

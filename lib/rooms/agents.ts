@@ -49,7 +49,7 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     nameAr: 'وكيل القنوات',
     slug: 'channels',
     systemPromptAr:
-      'أنت وكيل القنوات. اربط تيليجرام/واتساب بالغرفة وأبلغ عن حالة الإرسال.',
+      'أنت وكيل القنوات. اربط تيليجرام بالغرفة وأبلغ عن حالة الإرسال.',
     avatarHue: 280,
   },
   {

@@ -16,7 +16,6 @@ import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
-import { WhatsAppInboxPanel } from '@/components/whatsapp-inbox-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -71,7 +70,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
-  const [waPendingCount, setWaPendingCount] = useState(0)
   const [cronReloadToken, setCronReloadToken] = useState(0)
 
   const loadApprovals = useCallback(async () => {
@@ -110,25 +108,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     const t = setInterval(() => void loadApprovals(), 8000)
     return () => clearInterval(t)
   }, [loadApprovals])
-
-  const loadWaInbox = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/whatsapp/inbox?scopeId=${encodeURIComponent(activeScopeId)}`,
-        { headers: await authHeaders() }
-      )
-      const data = (await res.json()) as { count?: number }
-      if (res.ok) setWaPendingCount(Number(data.count || 0))
-    } catch {
-      /* ignore */
-    }
-  }, [activeScopeId])
-
-  useEffect(() => {
-    void loadWaInbox()
-    const t = setInterval(() => void loadWaInbox(), 10000)
-    return () => clearInterval(t)
-  }, [loadWaInbox])
 
   useEffect(() => {
     const onNav = (e: Event) => {
@@ -170,10 +149,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </button>
         )}
 
-        {waPendingCount > 0 && section === 'chats' && (
-          <WhatsAppInboxPanel compact />
-        )}
-
         {section === 'chats' && <RoomWorkspace />}
 
         {section === 'files' && <FilesPanel />}
@@ -181,16 +156,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'calendar' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
-            <p className="mb-6 text-sm text-stone-500">
-              تقويم الجمعية المشترك: أنت تربط Google مرة واحدةحدة، وتضيف بريد
-              الأصدقاء والموظفين — الـ AI يرتّب المواعيد ويرسل الدعوات (مع رابط
-              Zoom إن وُجد).
+            <p className="mb-4 text-sm text-stone-500">
+              ربط Google مرة واحدةحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
+              وُجد).
             </p>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
+            <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleCalendarPanel hideTitle />
-            </div>
-            <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
-              <GoogleSetupChecklist focus="calendar" />
             </div>
           </section>
         )}
@@ -201,9 +172,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">الموافقات والوارد</h2>
+                <h2 className="text-xl font-bold">الموافقات</h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  وارد واتساب المعلّق وموافقات الإجراءات عالية المخاطر.
+                  الإجراءات عالية المخاطر تنتظر موافقتك قبل التنفيذ.
                 </p>
               </div>
               <button
@@ -211,43 +182,39 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 onClick={() => void loadApprovals()}
                 className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
               >
-                تحديث الموافقات
+                تحديث
               </button>
             </div>
-            <div className="mb-6">
-              <WhatsAppInboxPanel />
-            </div>
-            <h3 className="mb-3 text-base font-semibold text-ab-ink">
-              سجل الموافقات
-            </h3>
-            {approvalsLoading && approvals.length === 0 && (
+            {approvalsLoading && pendingCount === 0 && (
               <p className="text-sm text-stone-500">جاري التحميل…</p>
             )}
             {approvalsError && (
               <p className="mb-3 text-sm text-ab-warn">{approvalsError}</p>
             )}
-            {!approvalsLoading && approvals.length === 0 && !approvalsError ? (
-              <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-8 text-center text-sm text-stone-500">
-                لا توجد موافقات معلّقة حالياً. ستظهر هنا عندما يطلب الوكيل إجراءً
-                عالي المخاطر في وضع صارم أو تلقائي.
+            {!approvalsLoading && pendingCount === 0 && !approvalsError ? (
+              <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
+                لا موافقات معلّقة. تظهر هنا عندما يطلب الوكيل إجراءً عالي
+                المخاطر.
               </p>
             ) : (
-              approvals.map((item) => (
-                <div key={item.id} className="mb-3">
-                  {item.messageAr && (
-                    <p className="mb-1 text-[11px] text-stone-500">
-                      {item.messageAr}
-                    </p>
-                  )}
-                  <ApprovalCard
-                    approvalId={item.approvalId}
-                    actionName={item.actionName}
-                    params={item.params}
-                    riskLevel={item.riskLevel}
-                    status={item.status}
-                  />
-                </div>
-              ))
+              approvals
+                .filter((item) => item.status === 'PENDING_APPROVAL')
+                .map((item) => (
+                  <div key={item.id} className="mb-3">
+                    {item.messageAr && (
+                      <p className="mb-1 text-[11px] text-stone-500">
+                        {item.messageAr}
+                      </p>
+                    )}
+                    <ApprovalCard
+                      approvalId={item.approvalId}
+                      actionName={item.actionName}
+                      params={item.params}
+                      riskLevel={item.riskLevel}
+                      status={item.status}
+                    />
+                  </div>
+                ))
             )}
           </section>
         )}
@@ -332,35 +299,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <AuthButtons compact />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <p className="mb-2 text-sm font-semibold">مفاتيح المزوّدين</p>
-              <p className="mb-3 text-xs text-stone-500">
-                المفاتيح العاملة فقط تظهر هنا بشكل مختصر — لإضافة أو إصلاح مفتاح
-                افتح قسم «مفاتيح API».
-              </p>
-              <button
-                type="button"
-                onClick={() => setSection('api-keys')}
-                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
-              >
-                فتح مفاتيح API
-              </button>
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleSetupChecklist focus="all" />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <h3 className="mb-1 font-semibold">التقويم · Zoom</h3>
-              <p className="mb-3 text-xs text-stone-500">
-                ربط Google وحجز الاجتماعات من قسم التقويم المخصص لتجنّب تكرار
-                الأزرار هنا.
-              </p>
-              <button
-                type="button"
-                onClick={() => setSection('calendar')}
-                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
-              >
-                فتح التقويم · Zoom
-              </button>
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleDriveBrainPanel />
@@ -374,22 +313,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <h3 className="mb-3 font-semibold">وضع الأمان</h3>
               <SecurityPosturePicker />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
-              <h3 className="mb-2 font-semibold">الميكروفون وعقل الشركة</h3>
-              <p className="mb-2 text-xs leading-relaxed text-stone-600">
-                الميكروفون يحتاج{' '}
-                <code dir="ltr">HF_TOKEN</code> أو{' '}
-                <code dir="ltr">GROQ_API_KEY</code> — أضفهما من «مفاتيح API».
-                خزنة الماك تحتاج إعداد Netlify + وكيل محلي (انظر التكاملات أدناه).
-              </p>
-              <button
-                type="button"
-                onClick={() => setSection('api-keys')}
-                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
-              >
-                أضف من مفاتيح API
-              </button>
             </div>
             <div className="mt-8">
               <SdaiaAuditViewer />
