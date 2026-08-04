@@ -9,6 +9,8 @@ export interface CanvasArtifact {
   content: string
   language?: string
   isEditing: boolean
+  /** Agent streamed draft — needs explicit approve before room persist */
+  pendingReview?: boolean
   updatedBy?: string | null
   updatedAt?: string | null
 }
@@ -22,6 +24,7 @@ type CanvasState = {
   setActive: (id: string | null) => void
   setEditing: (id: string, isEditing: boolean) => void
   setContent: (id: string, content: string) => void
+  approveArtifact: (id: string) => void
   setSplitRatio: (ratio: number) => void
   toggleCanvasFullscreen: () => void
 }
@@ -42,6 +45,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
           content: partial.content || '',
           language: partial.language,
           isEditing: partial.isEditing ?? false,
+          pendingReview: partial.pendingReview,
         }
         return {
           artifacts: [...state.artifacts, created],
@@ -63,6 +67,12 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set((state) => ({
       artifacts: state.artifacts.map((a) =>
         a.id === id ? { ...a, content } : a
+      ),
+    })),
+  approveArtifact: (id) =>
+    set((state) => ({
+      artifacts: state.artifacts.map((a) =>
+        a.id === id ? { ...a, pendingReview: false } : a
       ),
     })),
   setSplitRatio: (ratio) =>

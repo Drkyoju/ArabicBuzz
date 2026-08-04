@@ -47,7 +47,7 @@ export type ItemEvalResult = {
 export function selectToolsForPrompt(promptAr: string): string[] {
   const p = promptAr
   const tools: string[] = []
-  if (/قاعدة المعرفة|معرفة داخلية|لائحة حوكمة/.test(p)) {
+  if (/قاعدة المعرفة|معرفة داخلية|لائحة حوكمة|ابحث في (?:العقل|المعرفة)|عقل الشركة/.test(p)) {
     tools.push('search_knowledge_base')
   }
   if (/ابحث في الويب|بحث (?:على|في) (?:الإنترنت|الويب)|قرارات مجلس الوزراء/.test(p)) {
@@ -56,11 +56,17 @@ export function selectToolsForPrompt(promptAr: string): string[] {
   if (/اجلب محتوى|الرابط|https?:\/\//i.test(p)) {
     tools.push('web_fetch')
   }
-  if (/اعرض قائمة الملفات|سرد الملفات|الملفات المتاحة/.test(p)) {
+  if (/اعرض قائمة الملفات|سرد الملفات|الملفات المتاحة|ملفات مساحة العمل/.test(p)) {
     tools.push('list_files')
   }
   if (/اقرأ(?: محتوى)? ملف|HEARTBEAT|ملف /.test(p)) {
     tools.push('read_file')
+  }
+  if (/اقرأ المستند|افتح المستند|read_document/.test(p)) {
+    tools.push('read_document')
+  }
+  if (/عدّل المستند|حرّر المستند|edit_document|استبدل في المستند|احفظ تعديلاً/.test(p)) {
+    tools.push('edit_document')
   }
   if (/ذاكرة النطاق|ابحث في ذاكرة/.test(p)) {
     tools.push('memory_search')

@@ -32,6 +32,19 @@ export function createArtifactStreamParser(handlers: CanvasStreamHandlers) {
         if (!inArtifact) {
           const m = buffer.match(openRe)
           if (!m || m.index === undefined) {
+            // Hold back a trailing incomplete <artifact …> open tag
+            const hold = buffer.lastIndexOf('<')
+            const tail = hold >= 0 ? buffer.slice(hold) : ''
+            if (
+              hold >= 0 &&
+              /^<a(?:r(?:t(?:i(?:f(?:a(?:c(?:t)?)?)?)?)?)?)?(?:\s[^>]*)?$/i.test(
+                tail
+              )
+            ) {
+              if (hold > 0) handlers.onChatText(buffer.slice(0, hold))
+              buffer = tail
+              return
+            }
             handlers.onChatText(buffer)
             buffer = ''
             return
@@ -52,6 +65,7 @@ export function createArtifactStreamParser(handlers: CanvasStreamHandlers) {
             titleAr: current.titleAr,
             content: '',
             isEditing: false,
+            pendingReview: true,
           })
         } else {
           const closeIdx = buffer.indexOf(closeTag)
@@ -65,6 +79,7 @@ export function createArtifactStreamParser(handlers: CanvasStreamHandlers) {
               content: current!.content,
               language: current!.type === 'code' ? 'text' : undefined,
               isEditing: false,
+              pendingReview: true,
             })
             return
           }
@@ -75,6 +90,7 @@ export function createArtifactStreamParser(handlers: CanvasStreamHandlers) {
             titleAr: current!.titleAr,
             content: current!.content,
             isEditing: false,
+            pendingReview: true,
           })
           buffer = buffer.slice(closeIdx + closeTag.length)
           inArtifact = false

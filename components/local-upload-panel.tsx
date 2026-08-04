@@ -40,6 +40,22 @@ export function LocalUploadPanel({
   const [files, setFiles] = useState<StoredFile[]>([])
   const [open, setOpen] = useState(false)
   const [macConfigured, setMacConfigured] = useState(false)
+  const [sensitiveMacOnly, setSensitiveMacOnly] = useState(() => {
+    try {
+      return localStorage.getItem('ab-sensitive-mac-only') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  function toggleSensitive(next: boolean) {
+    setSensitiveMacOnly(next)
+    try {
+      localStorage.setItem('ab-sensitive-mac-only', next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
 
   const refresh = useCallback(async () => {
     const headers = await authHeaders()
@@ -138,13 +154,27 @@ export function LocalUploadPanel({
       const hopMax = status.hopMaxBytes || 32 * 1024 * 1024
       setProgress(15)
 
-      if (asFile.size > hopMax && status.directUpload?.uploadUrl) {
+      if (
+        (sensitiveMacOnly || asFile.size > hopMax) &&
+        status.directUpload?.uploadUrl
+      ) {
         setProgress(40)
         const data = await uploadDirectToMac(asFile, status.directUpload)
         setProgress(100)
-        setMessage(data.messageAr || 'حُفظ مباشرة على الماك')
+        setMessage(
+          sensitiveMacOnly
+            ? data.messageAr || 'حُفظ على الماك فقط (حساس)'
+            : data.messageAr || 'حُفظ مباشرة على الماك'
+        )
         await refresh()
         onUploaded?.()
+        return
+      }
+
+      if (sensitiveMacOnly && !status.macSyncConfigured) {
+        setMessage(
+          'الوضع الحساس مفعّل لكن وكيل الماك غير متاح. لا يُسمح بالسحابة.'
+        )
         return
       }
 
@@ -152,6 +182,7 @@ export function LocalUploadPanel({
       const body = new FormData()
       body.append('scopeId', scopeId)
       body.append('file', asFile)
+      if (sensitiveMacOnly) body.append('sensitive', '1')
       const res = await fetch('/api/storage/upload', {
         method: 'POST',
         headers: await authHeaders(),
@@ -201,7 +232,11 @@ export function LocalUploadPanel({
 
   async function ingestToBrain(fileId?: string, file?: File) {
     setBusy(true)
-    setMessage('جاري الاستيعاب في عقل الشركة…')
+    setMessage(
+      sensitiveMacOnly
+        ? 'جاري الاستيعاب على الماك فقط (حساس)…'
+        : 'جاري الاستيعاب في عقل الشركة…'
+    )
     try {
       let res: Response
       if (file) {
@@ -209,6 +244,7 @@ export function LocalUploadPanel({
         body.append('scopeId', scopeId)
         body.append('file', file)
         body.append('titleAr', file.name)
+        if (sensitiveMacOnly) body.append('sensitive', '1')
         res = await fetch('/api/brain/ingest', {
           method: 'POST',
           headers: await authHeaders(),
@@ -218,7 +254,11 @@ export function LocalUploadPanel({
         res = await fetch('/api/brain/ingest', {
           method: 'POST',
           headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ scopeId, localFileId: fileId }),
+          body: JSON.stringify({
+            scopeId,
+            localFileId: fileId,
+            sensitive: sensitiveMacOnly || undefined,
+          }),
         })
       } else {
         setMessage('اختر ملفاً للاستيعاب')
@@ -305,6 +345,20 @@ export function LocalUploadPanel({
                   }}
                 />
               </label>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => toggleSensitive(!sensitiveMacOnly)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
+                  sensitiveMacOnly
+                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+                    : 'border-ab-border text-stone-600'
+                )}
+                title="لا يُحفظ في السحابة — الماك فقط"
+              >
+                {sensitiveMacOnly ? 'حساس · ماك' : 'حساس؟'}
+              </button>
               <button
                 type="button"
                 disabled={busy}
@@ -405,6 +459,20 @@ export function LocalUploadPanel({
             }}
           />
         </label>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => toggleSensitive(!sensitiveMacOnly)}
+          className={cn(
+            'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs disabled:opacity-40',
+            sensitiveMacOnly
+              ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+              : 'border-ab-border bg-white text-stone-600'
+          )}
+          title="لا يُحفظ في السحابة — الماك فقط"
+        >
+          {sensitiveMacOnly ? 'حساس · ماك فقط' : 'رفع حساس؟'}
+        </button>
         <button
           type="button"
           disabled={busy}

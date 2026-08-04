@@ -9,7 +9,7 @@ import { SubagentProgressCard } from '@/components/subagent-progress-card'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import type { ThreadItem } from '@/components/chat-thread-bar'
-import { stripArtifactTags } from '@/lib/agents/canvas-stream'
+import { stripArtifactTags, createArtifactStreamParser } from '@/lib/agents/canvas-stream'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import { cn } from '@/lib/utils'
@@ -87,6 +87,7 @@ export function ChatCanvas({
 }) {
   const { selectedModel } = useModelPickerStore()
   const {
+    upsertArtifact,
     splitRatio,
     setSplitRatio,
     isCanvasFullscreen,
@@ -169,6 +170,22 @@ export function ChatCanvas({
         const decoder = new TextDecoder()
         let buffer = ''
         let assembled = ''
+        const artifactParser = createArtifactStreamParser({
+          onChatText: (visible) => {
+            if (!visible) return
+            assembled += visible
+            setExtraMessages((prev) =>
+              prev.map((m) =>
+                m.id === asstId
+                  ? { ...m, content: assembled, streaming: true }
+                  : m
+              )
+            )
+          },
+          onArtifactUpsert: (partial) => {
+            upsertArtifact({ ...partial, pendingReview: true })
+          },
+        })
 
         while (true) {
           const { done, value } = await reader.read()
@@ -193,14 +210,7 @@ export function ChatCanvas({
                   typeof event.delta === 'string' ||
                   (event.type === 'text' && typeof event.text === 'string')
                 ) {
-                  assembled += String(event.delta ?? event.text ?? '')
-                  setExtraMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === asstId
-                        ? { ...m, content: assembled, streaming: true }
-                        : m
-                    )
-                  )
+                  artifactParser.push(String(event.delta ?? event.text ?? ''))
                 }
               } catch {
                 // ignore non-JSON SSE keepalives
@@ -208,6 +218,8 @@ export function ChatCanvas({
             }
           }
         }
+
+        artifactParser.flush()
 
         if (!assembled) {
           assembled =

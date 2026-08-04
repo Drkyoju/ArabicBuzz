@@ -54,6 +54,7 @@ export function CanvasViewer({
     activeId,
     setEditing,
     setContent,
+    approveArtifact,
     isCanvasFullscreen,
     toggleCanvasFullscreen,
   } = useCanvasStore()
@@ -166,14 +167,42 @@ export function CanvasViewer({
     }
     try {
       await onPersist(active!)
+      approveArtifact(active!.id)
       setStatus('تمت المشاركة مع الغرفة')
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'فشلت المشاركة')
     }
   }
 
+  async function approveAndPersist() {
+    if (onPersist) {
+      try {
+        await onPersist(active!)
+        approveArtifact(active!.id)
+        setStatus('اعتُمدت المسودة وحُفظت في الغرفة')
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : 'فشل الاعتماد')
+      }
+      return
+    }
+    approveArtifact(active!.id)
+    setStatus('اعتُمدت المسودة محلياً')
+  }
+
   return (
     <div className={cn('relative flex h-full flex-col bg-ab-surface', className)}>
+      {active.pendingReview && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          <span>مسودة من الوكيل — راجع المحتوى ثم اعتمد للحفظ في الغرفة.</span>
+          <button
+            type="button"
+            onClick={() => void approveAndPersist()}
+            className="rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90"
+          >
+            اعتماد وحفظ
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2 border-b border-ab-border px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ab-ink">
           {active.titleAr}

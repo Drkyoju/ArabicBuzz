@@ -47,9 +47,12 @@ export function ModelPicker({
 
   const readyModels = useMemo(() => {
     if (!availableSlugs) {
-      // Before probe finishes: prefer Gemini/GLM only (known env keys on this site)
+      // Before probe finishes: show keys commonly set on this site
       return catalog.filter(
-        (m) => m.provider === 'google' || m.provider === 'glm'
+        (m) =>
+          m.provider === 'google' ||
+          m.provider === 'glm' ||
+          m.slug.startsWith('claude')
       )
     }
     return catalog.filter((m) => availableSlugs.has(m.slug))

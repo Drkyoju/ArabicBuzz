@@ -171,14 +171,18 @@ export async function POST(req: Request) {
 
     const declaredSize = file.size || 0
     const direct = directMacUploadInfo()
+    const sensitive =
+      String(form.get('sensitive') || form.get('macOnly') || '') === '1' ||
+      String(form.get('sensitive') || '').toLowerCase() === 'true'
 
     // Too large for Netlify hop — client must POST raw body to Mac /upload
     if (declaredSize > NETLIFY_MAC_HOP_MAX) {
       if (!direct) {
         return Response.json(
           {
-            error:
-              'الملف كبير جداً للنقل عبر Netlify. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل وكيل الماك، ثم ارفع مباشرة.',
+            error: sensitive
+              ? 'الملف الحساس كبير ويتطلب وكيل الماك. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل المزامنة.'
+              : 'الملف كبير جداً للنقل عبر Netlify. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل وكيل الماك، ثم ارفع مباشرة.',
             directUploadRequired: true,
           },
           { status: 413 }
@@ -190,10 +194,33 @@ export async function POST(req: Request) {
           directUploadRequired: true,
           directUpload: direct,
           scopeId,
-          messageAr:
-            'ارفع هذا الملف مباشرة إلى وكيل الماك (تجاوز حجم النقل عبر Netlify).',
+          messageAr: sensitive
+            ? 'ارفع هذا الملف الحساس مباشرة إلى الماك فقط (دون سحابة).'
+            : 'ارفع هذا الملف مباشرة إلى وكيل الماك (تجاوز حجم النقل عبر Netlify).',
         },
         { status: 200 }
+      )
+    }
+
+    if (sensitive && !macSyncConfigured() && !isLocalStorageEnabled()) {
+      if (direct) {
+        return Response.json(
+          {
+            ok: false,
+            directUploadRequired: true,
+            directUpload: direct,
+            scopeId,
+            messageAr: 'ارفع الملف الحساس مباشرة إلى الماك فقط.',
+          },
+          { status: 200 }
+        )
+      }
+      return Response.json(
+        {
+          error:
+            'الوضع الحساس مفعّل لكن وكيل الماك غير متاح. لا يُسمح بالحفظ السحابي للمستندات الحساسة.',
+        },
+        { status: 503 }
       )
     }
 
@@ -252,6 +279,16 @@ export async function POST(req: Request) {
     }
 
     if (!meta) {
+      if (sensitive) {
+        return Response.json(
+          {
+            error:
+              'تعذّر حفظ الملف الحساس على الماك. لا يُستخدم التخزين السحابي في الوضع الحساس.',
+            directUpload: direct,
+          },
+          { status: 503 }
+        )
+      }
       const cloud = await saveCloudFile({
         scopeId,
         buffer: buf,

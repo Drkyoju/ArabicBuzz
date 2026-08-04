@@ -39,6 +39,7 @@ import {
   extractCitationsFromToolOutput,
   extractPausedApprovalId,
 } from '@/lib/agents/citation-events'
+import { createArtifactStreamParser } from '@/lib/agents/canvas-stream'
 import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
@@ -422,6 +423,23 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const citations: RoomCitation[] = []
     const attachments: RoomFileAttachment[] = []
     let pendingApprovalId: string | undefined
+    const artifactParser = createArtifactStreamParser({
+      onChatText: (visible) => {
+        if (!visible) return
+        assembled += visible
+        updatePost(activeScopeId, opts.postId, {
+          content: assembled,
+          streaming: true,
+          citations: citations.length ? [...citations] : undefined,
+          attachments: attachments.length ? [...attachments] : undefined,
+          pendingApprovalId,
+        })
+      },
+      onArtifactUpsert: (partial) => {
+        upsertArtifact({ ...partial, pendingReview: true })
+        setShowCanvas(true)
+      },
+    })
     while (true) {
       if (opts.signal?.aborted) {
         try {
@@ -429,6 +447,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         } catch {
           /* ignore */
         }
+        artifactParser.flush()
         const stopped = (assembled || 'أُوقف التشغيل.') + (assembled ? '…' : '')
         updatePost(activeScopeId, opts.postId, {
           content: assembled ? `${assembled}\n\n— أُوقف التشغيل.` : 'أُوقف التشغيل.',
@@ -460,14 +479,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               typeof event.delta === 'string' ||
               (event.type === 'text' && typeof event.text === 'string')
             ) {
-              assembled += String(event.delta ?? event.text ?? '')
-              updatePost(activeScopeId, opts.postId, {
-                content: assembled,
-                streaming: true,
-                citations: citations.length ? [...citations] : undefined,
-                attachments: attachments.length ? [...attachments] : undefined,
-                pendingApprovalId,
-              })
+              artifactParser.push(String(event.delta ?? event.text ?? ''))
             }
             const toolOut =
               event.output ??
@@ -538,6 +550,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         }
       }
     }
+
+    artifactParser.flush()
 
     const fileFooter =
       attachments.length > 0

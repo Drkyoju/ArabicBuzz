@@ -8,6 +8,7 @@ import { emitNotification } from '@/lib/notifications/emit'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { appBaseUrl } from '@/lib/app-url'
+import { runDeadlineTelegramReminders } from '@/lib/rooms/deadline-reminders'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,5 +173,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ran, scheduledCount: scheduled.length })
+  const deadlineReminders = await runDeadlineTelegramReminders().catch((e) => ({
+    sent: 0,
+    skipped: 0,
+    details: [e instanceof Error ? e.message : 'deadline reminder error'],
+  }))
+
+  return NextResponse.json({
+    ran,
+    scheduledCount: scheduled.length,
+    deadlineReminders,
+  })
 }

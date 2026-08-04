@@ -16,7 +16,9 @@ export type RoomAgent = {
 export type AgentCollabMode = 'solo' | 'team'
 
 export const AGENT_MODEL_PRESETS = [
-  { slug: 'gemini-3.1-pro', labelAr: 'تحليل معمق', provider: 'google' },
+  { slug: 'gemini-3.1-pro', labelAr: 'تحليل معمق · Gemini', provider: 'google' },
+  { slug: 'claude-sonnet-4', labelAr: 'تحليل معمق · Claude 4', provider: 'openrouter' },
+  { slug: 'claude-3.5-sonnet', labelAr: 'تحليل معمق · Claude', provider: 'openrouter' },
   { slug: 'glm-4.5', labelAr: 'متوازن · GLM', provider: 'glm' },
 ] as const
 

@@ -17,7 +17,7 @@ export const maxDuration = 60
 
 /**
  * Ingest Word / PowerPoint / PDF / images into company brain.
- * When BRAIN_PRIMARY=mac, text is stored only on the Mac vault via the sync agent.
+ * When BRAIN_PRIMARY=mac (or sensitive/macOnly), text is stored only on the Mac vault.
  */
 export async function POST(req: Request) {
   const auth = await requireUser(req)
@@ -33,11 +33,15 @@ export async function POST(req: Request) {
     let ocrProvider = ''
     let sourceFileId: string | undefined
     let sourcePath: string | undefined
+    let sensitive = false
 
     if (contentType.includes('multipart/form-data')) {
       const form = await req.formData()
       scopeId = String(form.get('scopeId') || scopeId)
       titleAr = String(form.get('titleAr') || titleAr)
+      sensitive =
+        String(form.get('sensitive') || form.get('macOnly') || '') === '1' ||
+        String(form.get('sensitive') || '').toLowerCase() === 'true'
       const file = form.get('file')
       if (file instanceof File) {
         const buf = Buffer.from(await file.arrayBuffer())
@@ -60,14 +64,17 @@ export async function POST(req: Request) {
         titleAr?: string
         text?: string
         localFileId?: string
+        sensitive?: boolean
+        macOnly?: boolean
       }
       scopeId = body.scopeId || scopeId
       titleAr = body.titleAr || titleAr
+      sensitive = Boolean(body.sensitive || body.macOnly)
       if (body.text?.trim()) {
         text = body.text
         extractMethod = 'plain'
       } else if (body.localFileId) {
-        if (isBrainPrimaryMac() && macSyncConfigured()) {
+        if ((isBrainPrimaryMac() || sensitive) && macSyncConfigured()) {
           const { getMacSyncConfig } = await import(
             '@/lib/storage/mac-sync-client'
           )
@@ -113,6 +120,16 @@ export async function POST(req: Request) {
           })
         }
 
+        if (sensitive && !macSyncConfigured()) {
+          return Response.json(
+            {
+              error:
+                'المستند حساس ويتطلب وكيل الماك. لا يُستوعب في السحابة.',
+            },
+            { status: 503 }
+          )
+        }
+
         let local: Awaited<ReturnType<typeof readCloudFile>> = null
         try {
           local = readLocalFile(scopeId, body.localFileId)
@@ -154,12 +171,14 @@ export async function POST(req: Request) {
       )
     }
 
-    if (isBrainPrimaryMac()) {
+    const macOnly = isBrainPrimaryMac() || sensitive
+    if (macOnly) {
       if (!macSyncConfigured()) {
         return Response.json(
           {
-            error:
-              'BRAIN_PRIMARY=mac لكن MAC_SYNC_URL غير مضبوط. شغّل وكيل الماك والنفق.',
+            error: sensitive
+              ? 'المستند حساس ويتطلب وكيل الماك. لا يُستوعب في السحابة.'
+              : 'BRAIN_PRIMARY=mac لكن MAC_SYNC_URL غير مضبوط. شغّل وكيل الماك والنفق.',
           },
           { status: 503 }
         )
