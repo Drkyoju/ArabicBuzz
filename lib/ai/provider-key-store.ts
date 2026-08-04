@@ -5,22 +5,20 @@ import { PROVIDER_DEFS, type ProviderDef } from '@/lib/ai/provider-defs'
 /** In-process overlay (warm Lambda / local). DB is durable. */
 const memoryOverrides = new Map<string, string>()
 
+/**
+ * Built-in vault key for UI-saved provider overrides.
+ * Prefer Netlify env vars for production keys — no extra secrets required.
+ */
+const PROVIDER_VAULT_SECRET = 'arabic-buzz-provider-vault-v1'
+
 function encryptionSecrets(): string[] {
-  const list = [
-    process.env.PROVIDER_KEYS_SECRET,
-    process.env.SDAIA_AUDIT_HMAC_SECRET,
-    'arabic-buzz-dev-provider-keys',
-  ].filter((s): s is string => Boolean(s && s.trim()))
-  return [...new Set(list)]
+  return [PROVIDER_VAULT_SECRET]
 }
 
 function encryptionKey(secret?: string): Buffer {
-  const s =
-    secret ||
-    process.env.PROVIDER_KEYS_SECRET ||
-    process.env.SDAIA_AUDIT_HMAC_SECRET ||
-    'arabic-buzz-dev-provider-keys'
-  return createHash('sha256').update(s).digest()
+  return createHash('sha256')
+    .update(secret || PROVIDER_VAULT_SECRET)
+    .digest()
 }
 
 function encrypt(plain: string): string {
