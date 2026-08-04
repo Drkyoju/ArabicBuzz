@@ -31,7 +31,7 @@ export async function normalizeArabicPrompt(
   rawUserPrompt: string
 ): Promise<NormalizedArabicPrompt> {
   try {
-    const modelSlug = IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-2.5-pro'
+    const modelSlug = IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-3.1-pro'
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug),
       schema,

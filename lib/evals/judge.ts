@@ -25,7 +25,7 @@ export async function evaluateAgentResponse(
   sourceDocs?: string[]
 ): Promise<JudgeEvaluation> {
   try {
-    const modelSlug = IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-2.5-pro'
+    const modelSlug = IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-3.1-pro'
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug),
       schema,
@@ -52,7 +52,7 @@ export async function reGenerateWithCorrection(
 ): Promise<string> {
   const modelSlug =
     opts?.modelSlug ||
-    (IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-2.5-pro')
+    (IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-3.1-pro')
   const { text } = await generateText({
     model: getHarnessModel(modelSlug),
     system:

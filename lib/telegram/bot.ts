@@ -272,7 +272,7 @@ export function getTelegramBot() {
     try {
       const normalized = await normalizeArabicPrompt(rawText)
       const modelSlug =
-        process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
+        process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
       const requesterId = await resolveChannelOwnerUserIdAsync(userId)
       const system = await buildScopedSystemPrompt(
         'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية بإيجاز. عند استخدام قاعدة المعرفة اذكر المصادر. اطلب الموافقة عند الإجراءات عالية المخاطر.',

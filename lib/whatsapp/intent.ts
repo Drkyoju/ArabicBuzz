@@ -35,7 +35,7 @@ export async function classifyWhatsAppIntent(
   messageAr: string
 ): Promise<WhatsAppIntent> {
   const modelSlug =
-    process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
+    process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
   try {
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug),
@@ -79,7 +79,7 @@ export async function classifyWhatsAppOutcome(opts: {
   intent: WhatsAppIntent
 }): Promise<WhatsAppOutcome> {
   const modelSlug =
-    process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
+    process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
   try {
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug),

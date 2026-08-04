@@ -461,7 +461,7 @@ export async function runAgentEngine(
   const modelSlug =
     input.modelSlug ||
     process.env.DEFAULT_HARNESS_MODEL ||
-    'gemini-2.5-pro'
+    'gemini-3.1-pro'
 
   const native = getNativeAiTools({
     mode: input.mode,

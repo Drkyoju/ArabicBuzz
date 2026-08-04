@@ -109,7 +109,7 @@ function uniqueSlug(base: string, taken: Set<string>) {
   return slug
 }
 
-const GEMINI_DEFAULT = 'gemini-2.5-pro'
+const GEMINI_DEFAULT = 'gemini-3.1-pro'
 const GLM_DEFAULT = 'glm-4.5'
 
 function mergeBuiltin(agent: RoomAgent, override?: AgentOverride): RoomAgent {

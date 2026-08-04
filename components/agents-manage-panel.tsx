@@ -40,7 +40,7 @@ export function AgentsManagePanel({
   const [slug, setSlug] = useState('')
   const [taskAr, setTaskAr] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState('gemini-2.5-pro')
+  const [model, setModel] = useState('gemini-3.1-pro')
   const [batchCount, setBatchCount] = useState(5)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -63,7 +63,7 @@ export function AgentsManagePanel({
     setSlug('')
     setTaskAr('')
     setPrompt('')
-    setModel('gemini-2.5-pro')
+    setModel('gemini-3.1-pro')
     setEditingId(null)
   }
 
@@ -73,7 +73,7 @@ export function AgentsManagePanel({
     setSlug(agent.slug)
     setTaskAr(agent.taskAr || '')
     setPrompt(agent.systemPromptAr)
-    setModel(agent.preferredModel || 'gemini-2.5-pro')
+    setModel(agent.preferredModel || 'gemini-3.1-pro')
     setOpen(true)
   }
 

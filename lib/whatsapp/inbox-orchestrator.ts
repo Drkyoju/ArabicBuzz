@@ -81,7 +81,7 @@ async function runOwnerAgent(opts: {
 }) {
   const normalized = await normalizeArabicPrompt(opts.promptAr)
   const modelSlug =
-    process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
+    process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
   const ownerHint = opts.ownerAnswerAr
     ? `\n\nرد المالك على سؤالك السابق:\n${opts.ownerAnswerAr}`
     : ''

@@ -12,11 +12,11 @@ type ModelPickerState = {
 }
 
 const DEFAULT_SLUG = (process.env.NEXT_PUBLIC_DEFAULT_HARNESS_MODEL ||
-  'gemini-2.5-pro') as HarnessModelSlug
+  'gemini-3.1-pro') as HarnessModelSlug
 
 export const useModelPickerStore = create<ModelPickerState>((set) => ({
   selectedModel: HARNESS_MODEL_CATALOG.some((m) => m.slug === DEFAULT_SLUG)
     ? DEFAULT_SLUG
-    : 'gemini-2.5-pro',
+    : 'gemini-3.1-pro',
   setSelectedModel: (slug) => set({ selectedModel: slug }),
 }))

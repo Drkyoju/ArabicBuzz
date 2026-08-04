@@ -6,7 +6,9 @@ export type HarnessModelSlug =
   | 'deepseek-v3'
   | 'deepseek-r1'
   | 'qwen-2.5-72b'
+  | 'gemini-3.1-pro'
   | 'gemini-2.5-pro'
+  | 'gemini-2.5-flash'
   | 'kimi-k2'
   | 'glm-4.5'
   | 'ollama-local'
@@ -25,9 +27,17 @@ export type HarnessModelMeta = {
 
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
-    slug: 'gemini-2.5-pro',
-    labelAr: 'Gemini 2.5 Pro',
-    labelEn: 'Gemini 2.5 Pro',
+    slug: 'gemini-3.1-pro',
+    labelAr: 'Gemini 3.1 Pro',
+    labelEn: 'Gemini 3.1 Pro',
+    provider: 'google',
+    requiresKey: 'GEMINI_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'gemini-2.5-flash',
+    labelAr: 'Gemini 2.5 Flash',
+    labelEn: 'Gemini 2.5 Flash',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
     airGapSafe: false,

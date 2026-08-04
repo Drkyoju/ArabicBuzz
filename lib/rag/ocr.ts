@@ -158,7 +158,7 @@ async function ocrViaGemini(
 
   try {
     const { google } = getCloudProviders()
-    const modelId = process.env.OCR_GEMINI_MODEL || 'gemini-2.5-pro'
+    const modelId = process.env.OCR_GEMINI_MODEL || 'gemini-3.1-pro'
     const isImage = looksLikeImage(mime, filename)
     const isPdf = looksLikePdf(mime, filename)
 

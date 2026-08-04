@@ -49,7 +49,7 @@ export async function orchestrateParallelWorkflow(
   results: SubagentResult[]
   plan: SubagentTask[]
 }> {
-  const leadModel = opts?.modelSlug || 'gemini-2.5-pro'
+  const leadModel = opts?.modelSlug || 'gemini-3.1-pro'
 
   const bound = await listBoundEngineTools({ includeMcpTools: true })
   const toolCatalogHint = bound.all.slice(0, 40).join(', ')
