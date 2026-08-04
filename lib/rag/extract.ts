@@ -93,7 +93,7 @@ async function extractWithOfficeParser(
     }
   }
 
-  const ast = await parseOffice(buffer, config)
+  const ast: unknown = await parseOffice(buffer, config)
   if (ast && typeof (ast as { to?: (f: string) => Promise<string> }).to === 'function') {
     return String(await (ast as { to: (f: string) => Promise<string> }).to('text')).trim()
   }
@@ -111,7 +111,6 @@ async function extractWithOfficeParser(
     for (const v of [maybe.value, maybe.text, maybe.content, maybe.data]) {
       if (typeof v === 'string' && v.trim().length > 0) return v.trim()
     }
-    // Never persist "[object Object]" into the brain
     throw new Error('تعذّر استخراج نص من المستند (صيغة غير مدعومة)')
   }
   return String(ast ?? '').trim()
