@@ -495,19 +495,22 @@ export function Sidebar({
           mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
         aria-label="الشريط الجانبي"
-        aria-hidden={!mobileOpen ? undefined : undefined}
+        aria-hidden={mobileOpen ? undefined : true}
+        inert={!mobileOpen ? true : undefined}
       >
-        <div className="flex items-center justify-between border-b border-ab-border px-3 py-2 md:hidden">
-          <span className="text-sm font-bold text-ab-ink">القائمة</span>
-          <button
-            type="button"
-            className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100"
-            aria-label="إغلاق القائمة"
-            onClick={() => setMobileOpen(false)}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        {mobileOpen && (
+          <div className="flex items-center justify-between border-b border-ab-border px-3 py-2 md:hidden">
+            <span className="text-sm font-bold text-ab-ink">القائمة</span>
+            <button
+              type="button"
+              className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100"
+              aria-label="إغلاق القائمة"
+              onClick={() => setMobileOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <SidebarBody
           airGapped={airGapped}
           activeSection={activeSection}
