@@ -87,6 +87,12 @@ export function RoomCalendarBoard({
 
   useEffect(() => {
     void load()
+    try {
+      localStorage.setItem('ab-room-collab-seen', '1')
+      window.dispatchEvent(new Event('ab-room-collab-seen'))
+    } catch {
+      /* ignore */
+    }
   }, [load])
 
   const upcoming = useMemo(

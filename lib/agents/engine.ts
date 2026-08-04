@@ -170,7 +170,8 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     memory_search: tool({
-      description: 'بحث في ذاكرة النطاق.',
+      description:
+        'بحث في ذاكرة الغرفة المشتركة (room_memories) وذاكرة النطاق — ليست خاصة بجهاز واحد.',
       inputSchema: z.object({
         query: z.string(),
       }),
@@ -262,7 +263,7 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_list_events: tool({
       description:
-        'عرض المواعيد القادمة من كل حسابات Google المربوطة (أو بريد محدد). كل موعد يحمل accountEmail.',
+        'اختياري: مواعيد Google الشخصية. للعمل الجماعي استخدم room_calendar_list.',
       inputSchema: z.object({
         query: z.string().optional().describe('بحث اختياري في العنوان'),
         maxResults: z.number().optional(),
@@ -284,7 +285,7 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_find_alignment: tool({
       description:
-        'إيجاد أوقات تناسب الجميع: تقاويم Google المربوطة + ضيوف ببريدهم فقط (guestEmails) دون تسجيل دخول. بعد الاختيار أنشئ الموعد بدعوات.',
+        'اختياري: فراغات Google. للوحة الفريق اجمع التواريخ ثم room_calendar_ingest.',
       inputSchema: z.object({
         emails: z
           .array(z.string())
@@ -347,7 +348,7 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_create_event: tool({
       description:
-        'إضافة موعد إلى تقويم Google مع تذكيرات بريد/منبثقة وروابط Zoom عند توفرها. يتوقف إن وُجد تكرار/تعارض ما لم يُمرَّر allowDuplicate=true.',
+        'اختياري: موعد Google لدعوات خارجية/Zoom. داخلياً استخدم room_calendar_create.',
       inputSchema: z.object({
         summary: z.string().describe('عنوان الموعد'),
         startIso: z.string().describe('بداية ISO-8601 مع المنطقة إن أمكن'),
@@ -545,6 +546,113 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('room_calendar_cancel'),
+        }),
+    }),
+    room_tasks_list: tool({
+      description:
+        'عرض لوحة مهام/طلبات الغرفة المشتركة (ليست قائمة شخص واحد).',
+      inputSchema: z.object({}),
+      execute: async () =>
+        interceptToolExecution({
+          toolName: 'room_tasks_list',
+          params: { scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_tasks_list'),
+        }),
+    }),
+    room_tasks_create: tool({
+      description: 'إضافة مهمة أو طلب إلى لوحة الغرفة المشتركة.',
+      inputSchema: z.object({
+        titleAr: z.string(),
+        notesAr: z.string().optional(),
+        priority: z.number().min(1).max(5).optional(),
+        dueAt: z.string().optional(),
+        assigneeAr: z.string().optional(),
+        assigneeEmail: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_tasks_create',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_tasks_create'),
+        }),
+    }),
+    room_tasks_reconcile: tool({
+      description:
+        'إعادة ترتيب مهام الغرفة حسب الأولوية والتاريخ وتأجيل المتأخر تلقائياً.',
+      inputSchema: z.object({
+        shiftOverdueDays: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_tasks_reconcile',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_tasks_reconcile'),
+        }),
+    }),
+    room_tasks_update: tool({
+      description: 'تعديل مهمة في لوحة الغرفة (موعد، أولوية، حالة، مسؤول).',
+      inputSchema: z.object({
+        taskId: z.string(),
+        titleAr: z.string().optional(),
+        dueAt: z.string().optional(),
+        priority: z.number().optional(),
+        status: z
+          .enum(['open', 'in_progress', 'done', 'cancelled'])
+          .optional(),
+        assigneeAr: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_tasks_update',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_tasks_update'),
+        }),
+    }),
+    room_memory_list: tool({
+      description: 'قراءة ذاكرة الغرفة المشتركة (لكل الأعضاء).',
+      inputSchema: z.object({}),
+      execute: async () =>
+        interceptToolExecution({
+          toolName: 'room_memory_list',
+          params: { scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_memory_list'),
+        }),
+    }),
+    room_memory_add: tool({
+      description: 'إضافة ذكرى إلى ذاكرة الغرفة المشتركة.',
+      inputSchema: z.object({ content: z.string() }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_memory_add',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_memory_add'),
         }),
     }),
     browser_rpa: tool({

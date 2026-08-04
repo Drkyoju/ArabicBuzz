@@ -16,6 +16,14 @@ import {
   executeRoomCalendarUpdate,
 } from '@/lib/agents/tools/room-calendar-tools'
 import {
+  executeRoomMemoryAdd,
+  executeRoomMemoryList,
+  executeRoomTasksCreate,
+  executeRoomTasksList,
+  executeRoomTasksReconcile,
+  executeRoomTasksUpdate,
+} from '@/lib/agents/tools/room-collab-tools'
+import {
   executeEditDocument,
   executeListFiles,
   executeListWorkspaceFiles,
@@ -105,6 +113,7 @@ async function executeMemorySearch(
   const { DEMO_SCOPES, isPersonalScope, isSharedScope } = await import(
     '@/lib/scopes/manager'
   )
+  const { listRoomMemories } = await import('@/lib/rooms/room-memory')
   const scopeId = String(params.scopeId || 'shared-demo')
   const scope = DEMO_SCOPES.find((s) => s.id === scopeId)
   const seeded = scope
@@ -114,7 +123,18 @@ async function executeMemorySearch(
         ? scope.sharedMemory
         : []
     : []
-  const pool = fromClient && fromClient.length ? fromClient : seeded
+  let roomTexts: string[] = []
+  try {
+    roomTexts = (await listRoomMemories(scopeId)).map((m) => m.content)
+  } catch {
+    roomTexts = []
+  }
+  const pool = [
+    ...new Set([
+      ...(fromClient && fromClient.length ? fromClient : seeded),
+      ...roomTexts,
+    ]),
+  ]
   const hits = !query
     ? pool.slice(0, 8).map((text, i) => ({ id: `m-${i}`, text, score: 1 }))
     : pool
@@ -135,8 +155,8 @@ async function executeMemorySearch(
     hits,
     messageAr:
       hits.length > 0
-        ? `عُثر على ${hits.length} ذكرى`
-        : 'لا نتائج في ذاكرة المساحة',
+        ? `عُثر على ${hits.length} ذكرى (غرفة مشتركة + محلية)`
+        : 'لا نتائج في ذاكرة الغرفة',
   }
 }
 
@@ -166,6 +186,12 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   room_calendar_update: executeRoomCalendarUpdate,
   room_calendar_cancel: executeRoomCalendarCancel,
   room_calendar_ingest: executeRoomCalendarIngest,
+  room_tasks_list: executeRoomTasksList,
+  room_tasks_create: executeRoomTasksCreate,
+  room_tasks_update: executeRoomTasksUpdate,
+  room_tasks_reconcile: executeRoomTasksReconcile,
+  room_memory_list: executeRoomMemoryList,
+  room_memory_add: executeRoomMemoryAdd,
   web_search: executeWebSearch,
   web_fetch: executeWebFetch,
   drive_sync_brain: async (_n, params) => {

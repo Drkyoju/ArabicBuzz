@@ -34,6 +34,8 @@ const LOW_RISK_TOOLS = new Set([
   'calendar_find_alignment',
   'arabic_ocr',
   'room_calendar_list',
+  'room_tasks_list',
+  'room_memory_list',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
@@ -60,6 +62,10 @@ const HIGH_RISK_TOOLS = new Set([
   'room_calendar_update',
   'room_calendar_cancel',
   'room_calendar_ingest',
+  'room_tasks_create',
+  'room_tasks_update',
+  'room_tasks_reconcile',
+  'room_memory_add',
 ])
 
 export function evaluateActionRisk(

@@ -17,6 +17,7 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import { useTeamCalendarStore } from '@/lib/rooms/team-calendar-store'
+import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 type CalStatus = {
   connected?: boolean
@@ -95,6 +96,8 @@ export function GoogleCalendarPanel({
   const memberEmails = useTeamCalendarStore((s) => s.memberEmails)
   const addEmail = useTeamCalendarStore((s) => s.addEmail)
   const removeEmail = useTeamCalendarStore((s) => s.removeEmail)
+  const setEmails = useTeamCalendarStore((s) => s.setEmails)
+  const scopeId = useWorkspaceStore((s) => s.activeScopeId)
 
   const refresh = useCallback(async () => {
     setBusy(true)
@@ -150,6 +153,37 @@ export function GoogleCalendarPanel({
       )
       .catch(() => setZoomAuto(false))
   }, [refresh])
+
+  /** Prefer room member emails over per-browser localStorage list. */
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/rooms/members?scopeId=${encodeURIComponent(scopeId)}`,
+          { headers: await authHeaders() }
+        )
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          members?: Array<{ email?: string | null }>
+        }
+        const fromRoom = (data.members || [])
+          .map((m) => (m.email || '').trim().toLowerCase())
+          .filter((e) => e.includes('@') && !e.endsWith('@example.com'))
+        if (fromRoom.length > 0 && !cancelled) {
+          const merged = [
+            ...new Set([...fromRoom, ...useTeamCalendarStore.getState().memberEmails]),
+          ]
+          setEmails(merged)
+        }
+      } catch {
+        /* keep local list */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [scopeId, setEmails])
 
   async function connect() {
     setBusy(true)
@@ -476,7 +510,11 @@ export function GoogleCalendarPanel({
 
       <div className="mb-4 rounded-xl border border-ab-border bg-white p-3">
         <p className="mb-2 text-[12px] font-semibold text-ab-ink">
-          أعضاء التقويم (بريد فقط — بلا تسجيل Google)
+          مدعوّو Google (من أعضاء الغرفة + بريد إضافي)
+        </p>
+        <p className="mb-2 text-[11px] text-stone-500">
+          تُحمَّل تلقائياً من أعضاء الغرفة. أضف بريداً خارجياً فقط لدعوات خارج
+          الفريق — التقويم الرسمي هو لوحة الغرفة أعلاه.
         </p>
         <div className="mb-2 flex flex-wrap gap-1.5">
           <input
@@ -503,7 +541,7 @@ export function GoogleCalendarPanel({
         </div>
         {memberEmails.length === 0 ? (
           <p className="text-[11px] text-stone-400">
-            لا أعضاء بعد — أضف بريد صديق أو موظف.
+            لا بريد بعد — أضف أعضاءً من لوحة الغرفة أو بريداً هنا للدعوات.
           </p>
         ) : (
           <ul className="flex flex-wrap gap-1.5">

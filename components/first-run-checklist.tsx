@@ -31,16 +31,24 @@ export function FirstRunChecklist({
   const [telegramOk, setTelegramOk] = useState(false)
   const [loading, setLoading] = useState(true)
   const [chatted, setChatted] = useState(false)
+  const [roomCollabOk, setRoomCollabOk] = useState(false)
 
   useEffect(() => {
     try {
       setChatted(Boolean(localStorage.getItem('ab-first-chat')))
+      setRoomCollabOk(Boolean(localStorage.getItem('ab-room-collab-seen')))
     } catch {
       setChatted(false)
+      setRoomCollabOk(false)
     }
     const onFirstChat = () => setChatted(true)
+    const onRoomCollab = () => setRoomCollabOk(true)
     window.addEventListener('ab-first-chat', onFirstChat)
-    return () => window.removeEventListener('ab-first-chat', onFirstChat)
+    window.addEventListener('ab-room-collab-seen', onRoomCollab)
+    return () => {
+      window.removeEventListener('ab-first-chat', onFirstChat)
+      window.removeEventListener('ab-room-collab-seen', onRoomCollab)
+    }
   }, [])
 
   useEffect(() => {
@@ -83,25 +91,32 @@ export function FirstRunChecklist({
         actionLabelAr: 'المفاتيح',
       },
       {
-        id: 'google',
-        labelAr: 'اربط تقويم Google',
-        done: googleOk,
-        action: () => onNavigate?.('calendar'),
-        actionLabelAr: 'التقويم',
-      },
-      {
-        id: 'drive',
-        labelAr: 'أضف ملفاً لعقل الشركة (Drive)',
-        done: driveCount > 0,
-        action: () => onNavigate?.('settings'),
-        actionLabelAr: 'الإعدادات',
-      },
-      {
         id: 'chat',
         labelAr: 'أرسل أول رسالة في غرفة',
         done: chatted,
         action: () => onNavigate?.('chats'),
         actionLabelAr: 'الغرف',
+      },
+      {
+        id: 'room-calendar',
+        labelAr: 'افتح تقويم ومهام الغرفة المشتركة',
+        done: roomCollabOk,
+        action: () => onNavigate?.('calendar'),
+        actionLabelAr: 'تقويم الفريق',
+      },
+      {
+        id: 'drive',
+        labelAr: 'أضف ملفاً لعقل الغرفة (اختياري)',
+        done: driveCount > 0,
+        action: () => onNavigate?.('settings'),
+        actionLabelAr: 'الإعدادات',
+      },
+      {
+        id: 'google',
+        labelAr: 'Google اختياري · دعوات خارجية',
+        done: googleOk,
+        action: () => onNavigate?.('calendar'),
+        actionLabelAr: 'التقويم',
       },
       {
         id: 'telegram',
@@ -118,11 +133,11 @@ export function FirstRunChecklist({
         actionLabelAr: 'الإعدادات',
       },
     ],
-    [keysOk, googleOk, driveCount, chatted, zoomOk, telegramOk, onNavigate]
+    [keysOk, googleOk, driveCount, chatted, roomCollabOk, zoomOk, telegramOk, onNavigate]
   )
 
   const doneCount = steps.filter((s) => s.done).length
-  const allCore = steps.slice(0, 4).every((s) => s.done)
+  const allCore = steps.slice(0, 3).every((s) => s.done)
 
   useEffect(() => {
     if (loading || !allCore) return

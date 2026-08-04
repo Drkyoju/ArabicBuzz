@@ -25,6 +25,7 @@ import { HelpTip } from '@/components/help-tip'
 import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
+import { RoomTasksBoard } from '@/components/room-tasks-board'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import {
   isEmployeeSection,
@@ -243,14 +244,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'calendar' && (
           <section className="mx-auto max-w-3xl space-y-8 px-6 py-8" dir="rtl">
             <RoomCalendarBoard />
+            <RoomTasksBoard />
             <details className="rounded-xl border border-ab-border bg-ab-surface">
               <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ab-ink">
-                Google اختياري · دعوات خارجية و Zoom
+                Google اختياري · دعوات خارجية و Zoom فقط
               </summary>
               <div className="border-t border-ab-border p-4">
                 <p className="mb-3 text-xs text-stone-500">
-                  ربط Google لإرسال دعوات بريد خارج اللوحة المشتركة فقط. المصدر
-                  الرسمي للفريق هو «تقويم الغرفة» أعلاه.
+                  اللوحات أعلاه مشتركة للغرفة. Google هنا فقط لإرسال دعوات بريد
+                  خارجية أو Zoom — ليس مصدر مواعيد الفريق.
                 </p>
                 <GoogleCalendarPanel hideTitle />
               </div>
@@ -400,9 +402,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
 
             <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <h3 className="mb-1 font-semibold">تقويم Google و Drive</h3>
+              <h3 className="mb-1 font-semibold">تقويم ومهام الغرفة · Google اختياري</h3>
               <p className="mb-3 text-xs text-stone-500">
-                اربط حسابك لحجز المواعيد ومزامنة ملفات العقل.
+                المواعيد والمهام والذاكرة مشتركة للغرفة. Google اختياري لدعوات
+                خارجية أو Zoom أو ملفات Drive.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -410,7 +413,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   onClick={() => setSection('calendar')}
                   className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
                 >
-                  فتح التقويم
+                  تقويم ومهام الفريق
                 </button>
                 <button
                   type="button"
