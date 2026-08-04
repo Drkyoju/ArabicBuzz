@@ -32,6 +32,7 @@ const LOW_RISK_TOOLS = new Set([
   'calendar_scan_email',
   'calendar_find_duplicates',
   'calendar_find_alignment',
+  'arabic_ocr',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
@@ -51,6 +52,8 @@ const HIGH_RISK_TOOLS = new Set([
   'calendar_update_event',
   'calendar_delete_event',
   'drive_sync_brain',
+  'browser_rpa',
+  'trigger_workflow',
 ])
 
 export function evaluateActionRisk(

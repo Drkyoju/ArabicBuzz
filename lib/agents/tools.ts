@@ -21,6 +21,9 @@ import {
   deleteWorkspaceFile,
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
+import { executeBrowserTask } from '@/lib/tools/browser-rpa'
+import { parseArabicDocument } from '@/lib/tools/arabic-ocr'
+import { triggerExternalWorkflow } from '@/lib/tools/workflow-bridge'
 
 export type ToolExecutor = (
   toolName: string,
@@ -219,6 +222,33 @@ export const toolRegistry: Record<string, ToolExecutor> = {
         ? 'تم إرسال الرسالة عبر القناة.'
         : 'تعذّر الإرسال. تحقق من إعدادات القناة والمستلم.',
     }
+  },
+  browser_rpa: async (_n, params) => {
+    return executeBrowserTask(
+      String(params.taskPrompt || params.task || ''),
+      String(params.targetUrl || params.url || '')
+    )
+  },
+  arabic_ocr: async (_n, params) => {
+    const src =
+      params.fileUrl ||
+      params.url ||
+      params.contentBase64 ||
+      params.buffer
+    if (src == null || src === '') {
+      throw new Error('يلزم fileUrl أو contentBase64 لمستند OCR.')
+    }
+    return parseArabicDocument(
+      typeof src === 'string' ? src : Buffer.from(src as ArrayBuffer)
+    )
+  },
+  trigger_workflow: async (_n, params) => {
+    const workflowId = String(params.workflowId || params.id || '').trim()
+    const payload =
+      params.payload && typeof params.payload === 'object'
+        ? (params.payload as Record<string, unknown>)
+        : { ...params, workflowId: undefined, id: undefined, payload: undefined }
+    return triggerExternalWorkflow(workflowId, payload)
   },
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { CanvasViewer } from '@/components/canvas/artifact-viewer'
+import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { ChatThreadBar, ThreadItem } from '@/components/chat-thread-bar'
 import { useCanvasStore } from '@/lib/canvas/store'
 
@@ -60,7 +60,7 @@ export function SplitWorkspace({ items }: { items: ThreadItem[] }) {
             {isCanvasFullscreen ? 'استعادة التقسيم' : 'ملء الشاشة'}
           </button>
         </div>
-        <CanvasViewer />
+        <CanvasWorkspace />
       </div>
     </div>
   )

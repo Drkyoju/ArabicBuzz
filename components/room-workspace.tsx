@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PanelRightOpen, MessageSquare } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
-import { CanvasViewer } from '@/components/canvas/artifact-viewer'
+import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { ComposerMicButton } from '@/components/composer-mic-button'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
@@ -1105,7 +1105,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           aria-label="لوحة المخرجات"
           onFocusCapture={() => setPresenceSurface('canvas')}
         >
-          <CanvasViewer
+          <CanvasWorkspace
             onClose={() => {
               if (isCanvasFullscreen) toggleCanvasFullscreen()
               else setShowCanvas(false)

@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { ChatMessage } from '@/components/chat-message'
 import { ApprovalCard } from '@/components/approval-card'
 import { SubagentProgressCard } from '@/components/subagent-progress-card'
-import { CanvasViewer } from '@/components/canvas/artifact-viewer'
+import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import type { ThreadItem } from '@/components/chat-thread-bar'
 import { stripArtifactTags } from '@/lib/agents/canvas-stream'
@@ -389,7 +389,7 @@ export function ChatCanvas({
           </button>
         </div>
         <div className="h-[calc(100%-2.75rem)]">
-          <CanvasViewer />
+          <CanvasWorkspace />
         </div>
       </section>
     </div>

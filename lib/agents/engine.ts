@@ -2,6 +2,7 @@ import { generateText, stepCountIs, tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { getHarnessModel } from '@/lib/ai/router'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
+import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getToolExecutor, toolRegistry } from '@/lib/agents/tools'
 import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
@@ -423,6 +424,71 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('drive_sync_brain'),
         }),
     }),
+    browser_rpa: tool({
+      description:
+        'أتمتة متصفح خارجي (browser-use / Steel): تسجيل دخول، تعبئة نماذج، استخراج بيانات منظمة من مواقع.',
+      inputSchema: z.object({
+        taskPrompt: z.string().describe('وصف المهمة بالعربية أو الإنجليزية'),
+        targetUrl: z.string().url().describe('رابط الصفحة المستهدفة'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'browser_rpa',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('browser_rpa'),
+        }),
+    }),
+    arabic_ocr: tool({
+      description:
+        'تحليل OCR/تخطيط لمستندات عربية ممسوحة (هوية، سند، PDF) عبر Marker/Surya أو Qari/Gemini. يعيد Markdown منظماً.',
+      inputSchema: z.object({
+        fileUrl: z
+          .string()
+          .optional()
+          .describe('رابط الملف أو data URL'),
+        contentBase64: z
+          .string()
+          .optional()
+          .describe('محتوى الملف بصيغة base64 إن لم يتوفر رابط'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'arabic_ocr',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('arabic_ocr'),
+        }),
+    }),
+    trigger_workflow: tool({
+      description:
+        'تشغيل سير عمل خارجي (Activepieces / n8n / Trigger) عبر ويب هوك آمن.',
+      inputSchema: z.object({
+        workflowId: z
+          .string()
+          .describe('معرّف السير أو رابط الويب هوك الكامل'),
+        payload: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('بيانات JSON للإرسال'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'trigger_workflow',
+          params: {
+            workflowId: params.workflowId,
+            payload: params.payload || {},
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('trigger_workflow'),
+        }),
+    }),
   }
 
   // Ensure registry stays the source of truth for known local names
@@ -472,6 +538,7 @@ export async function runAgentEngine(
   let mcpTools: ToolSet = {}
   if (input.includeMcpTools !== false) {
     try {
+      await connectEnvMcpServers()
       mcpTools = await getMCPHostManager().getCombinedToolSet()
     } catch (e) {
       console.warn(
