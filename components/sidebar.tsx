@@ -207,6 +207,43 @@ function SidebarBody({
             <AirGapBadge airGapped={airGapped} />
           </div>
         </div>
+
+        <div className="mt-2.5">
+          <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode('employee')}
+              className={cn(
+                'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                mode === 'employee'
+                  ? 'bg-ab-accent/15 font-semibold text-ab-accent'
+                  : 'text-stone-500'
+              )}
+            >
+              موظف
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('admin')}
+              className={cn(
+                'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                mode === 'admin'
+                  ? 'bg-ab-ink font-semibold text-white'
+                  : 'text-stone-500'
+              )}
+            >
+              مسؤول
+            </button>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
+            {mode === 'employee'
+              ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
+              : airGapped
+                ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
+                : 'واجهة مسؤول · كل الأدوات'}
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={() => {
@@ -425,39 +462,6 @@ function SidebarBody({
 
       <div className="border-t border-ab-border px-3 py-2.5">
         <GuestChip />
-        <div className="mt-2 flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => setMode('employee')}
-            className={cn(
-              'flex-1 rounded px-1.5 py-1 text-[10px]',
-              mode === 'employee'
-                ? 'bg-ab-accent/15 font-semibold text-ab-accent'
-                : 'text-stone-500'
-            )}
-          >
-            موظف
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('admin')}
-            className={cn(
-              'flex-1 rounded px-1.5 py-1 text-[10px]',
-              mode === 'admin'
-                ? 'bg-ab-ink font-semibold text-white'
-                : 'text-stone-500'
-            )}
-          >
-            مسؤول
-          </button>
-        </div>
-        <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
-          {mode === 'employee'
-            ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
-            : airGapped
-              ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-              : 'واجهة مسؤول · كل الأدوات'}
-        </p>
       </div>
     </div>
   )
