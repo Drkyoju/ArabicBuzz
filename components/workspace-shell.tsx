@@ -340,10 +340,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <ConnectedServicesPanel />
             </div>
 
-            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <MacBrainPanel />
-            </div>
-
             <details className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
               <summary className="cursor-pointer text-sm font-semibold text-stone-600">
                 للمطوّر / المسؤول فقط
@@ -351,6 +347,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div className="mt-3 space-y-4">
                 <GoogleSetupChecklist focus="all" />
                 <IntegrationsSetupPanel />
+                <div className="rounded-xl border border-ab-border bg-white p-4">
+                  <MacBrainPanel />
+                </div>
               </div>
             </details>
 
