@@ -1,4 +1,5 @@
 export type ChannelWorkflowKind = 'telegram_webhook' | 'whatsapp_webhook'
+import { getDispatchSharedSecret } from '@/lib/workflows/shared-secret'
 
 export async function dispatchChannelWorkflow(opts: {
   kind: ChannelWorkflowKind
@@ -11,7 +12,7 @@ export async function dispatchChannelWorkflow(opts: {
       : '')
   if (!endpoint) return { queued: false as const }
 
-  const secret = process.env.TRIGGER_DEV_WEBHOOK_SECRET?.trim()
+  const secret = getDispatchSharedSecret()
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {

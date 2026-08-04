@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processTelegramUpdatePayload } from '@/lib/telegram/bot'
 import { processWhatsAppPayload } from '@/lib/whatsapp/webhook-processor'
+import { getDispatchSharedSecret } from '@/lib/workflows/shared-secret'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -13,12 +14,10 @@ type Body = {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.TRIGGER_DEV_WEBHOOK_SECRET?.trim()
-  if (secret) {
-    const auth = req.headers.get('authorization') || ''
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
+  const secret = getDispatchSharedSecret()
+  const auth = req.headers.get('authorization') || ''
+  if (!secret || auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   let body: Body
