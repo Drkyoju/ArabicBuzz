@@ -42,7 +42,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^1.28.0",
     "mammoth": "^1.12.0",
-    "next": "15.5.22",
+    "next": "16.3.0",
     "officeparser": "^7.5.1",
     "openai": "^7.3.0",
     "pdf-parse": "^1.1.1",
