@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { FileText, LayoutGrid, PenLine } from 'lucide-react'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
 import { DocumentEditor } from '@/components/canvas/document-editor'
@@ -21,14 +21,28 @@ export function CanvasWorkspace({
   onPersist,
   onClose,
   className,
+  scopeId,
+  displayName,
 }: {
   onPersist?: (artifact: CanvasArtifact) => void | Promise<void>
   onClose?: () => void
   className?: string
+  /** Enables live co-edit cursors on the document tab */
+  scopeId?: string
+  displayName?: string
 }) {
   const { artifacts, activeId, setContent, upsertArtifact } = useCanvasStore()
   const active = artifacts.find((a) => a.id === activeId) || artifacts[0]
   const [tab, setTab] = useState<Tab>('artifact')
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const schedulePersist = (artifact: CanvasArtifact) => {
+    if (!onPersist) return
+    if (persistTimer.current) clearTimeout(persistTimer.current)
+    persistTimer.current = setTimeout(() => {
+      void onPersist(artifact)
+    }, 1200)
+  }
 
   const diagram = useMemo(() => {
     if (!active || active.type !== 'json') return null
@@ -80,17 +94,30 @@ export function CanvasWorkspace({
           <DocumentEditor
             titleAr={active?.titleAr || 'مستند قابل للتحرير'}
             content={docContent}
+            scopeId={scopeId}
+            docId={active?.id || 'room-doc'}
+            displayName={displayName}
+            liveCollab={Boolean(scopeId)}
             onChange={(html) => {
               if (active && !['code', 'json', 'diff'].includes(active.type)) {
                 setContent(active.id, html)
+                schedulePersist({
+                  ...active,
+                  content: html,
+                  type:
+                    active.type === 'markdown' ? 'markdown' : 'html',
+                })
               } else {
-                upsertArtifact({
-                  id: `doc-${Date.now()}`,
-                  type: 'html',
+                const id = `doc-${Date.now()}`
+                const art = {
+                  id,
+                  type: 'html' as const,
                   titleAr: 'مستند محرّر',
                   content: html,
                   isEditing: true,
-                })
+                }
+                upsertArtifact(art)
+                schedulePersist(art)
               }
             }}
             className="h-full"

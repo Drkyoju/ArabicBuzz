@@ -30,6 +30,13 @@ import {
   executeReadDocument,
   executeReadFile,
 } from '@/lib/agents/tools/document-tools'
+import {
+  executePdfCreate,
+  executePdfFillForm,
+  executePdfListFields,
+  executePdfMerge,
+  executePdfStamp,
+} from '@/lib/agents/tools/pdf-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 import {
   emitNotification,
@@ -173,6 +180,11 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   list_workspace_files: executeListWorkspaceFiles,
   read_document: executeReadDocument,
   edit_document: executeEditDocument,
+  pdf_create: executePdfCreate,
+  pdf_stamp: executePdfStamp,
+  pdf_merge: executePdfMerge,
+  pdf_list_fields: executePdfListFields,
+  pdf_fill_form: executePdfFillForm,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,

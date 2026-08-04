@@ -2,8 +2,11 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { useEffect } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { RemoteCursorsExtension } from '@/lib/canvas/remote-cursors-extension'
+import { useLiveDocCollab } from '@/lib/canvas/use-live-doc-collab'
+import { refreshRemoteCursors } from '@/lib/canvas/remote-cursors-extension'
 
 type Props = {
   content: string
@@ -11,11 +14,17 @@ type Props = {
   editable?: boolean
   className?: string
   titleAr?: string
+  /** Room scope — enables live co-edit cursors */
+  scopeId?: string
+  /** Document / artifact id for the collab channel */
+  docId?: string
+  displayName?: string
+  liveCollab?: boolean
 }
 
 /**
- * RTL TipTap document editor for letters, vouchers, and agent reports.
- * Uses dir="rtl" + StarterKit (no separate @tiptap/extension-rtl package).
+ * RTL TipTap document editor with optional Google Docs–style live cursors
+ * (Supabase broadcast — room-shared, not one account).
  */
 export function DocumentEditor({
   content,
@@ -23,11 +32,23 @@ export function DocumentEditor({
   editable = true,
   className,
   titleAr,
+  scopeId,
+  docId,
+  displayName,
+  liveCollab = true,
 }: Props) {
+  const cursorsFn = useRef<() => ReturnType<typeof useLiveDocCollab>['peers']>(
+    () => []
+  )
+  const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+      }),
+      RemoteCursorsExtension.configure({
+        getCursors: () => cursorsFn.current(),
       }),
     ],
     content: contentToHtml(content),
@@ -46,6 +67,20 @@ export function DocumentEditor({
     },
   })
 
+  const collab = useLiveDocCollab({
+    scopeId,
+    docId,
+    displayName,
+    editor,
+    enabled: Boolean(liveCollab && scopeId && docId),
+  })
+
+  cursorsFn.current = collab.getCursors
+
+  useEffect(() => {
+    if (editor) refreshRemoteCursors(editor)
+  }, [collab.peers, editor])
+
   useEffect(() => {
     if (!editor) return
     const next = contentToHtml(content)
@@ -58,6 +93,40 @@ export function DocumentEditor({
     if (!editor) return
     editor.setEditable(editable)
   }, [editable, editor])
+
+  useEffect(() => {
+    if (!editor || !collab.broadcastCursor) return
+    const sendSel = () => {
+      const { from, to } = editor.state.selection
+      collab.broadcastCursor(from, to)
+    }
+    editor.on('selectionUpdate', sendSel)
+    editor.on('focus', sendSel)
+    const pulse = window.setInterval(sendSel, 2500)
+    return () => {
+      editor.off('selectionUpdate', sendSel)
+      editor.off('focus', sendSel)
+      window.clearInterval(pulse)
+    }
+  }, [editor, collab])
+
+  useEffect(() => {
+    if (!editor || !collab.broadcastContent) return
+    const onUp = () => {
+      collab.markLocalEdit()
+      if (contentTimer.current) clearTimeout(contentTimer.current)
+      contentTimer.current = setTimeout(() => {
+        collab.broadcastContent(editor.getHTML())
+      }, 450)
+    }
+    editor.on('update', onUp)
+    return () => {
+      editor.off('update', onUp)
+      if (contentTimer.current) clearTimeout(contentTimer.current)
+    }
+  }, [editor, collab])
+
+  const peerStrip = useMemo(() => collab.peers.slice(0, 8), [collab.peers])
 
   if (!editor) {
     return (
@@ -73,8 +142,27 @@ export function DocumentEditor({
       dir="rtl"
     >
       {titleAr && (
-        <div className="border-b border-ab-border px-3 py-2 text-sm font-semibold text-ab-ink">
-          {titleAr}
+        <div className="flex items-center justify-between gap-2 border-b border-ab-border px-3 py-2">
+          <p className="text-sm font-semibold text-ab-ink">{titleAr}</p>
+          {scopeId && docId && (
+            <p className="text-[10px] text-stone-400">
+              تحرير مباشر · مؤشرات حية
+            </p>
+          )}
+        </div>
+      )}
+      {peerStrip.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-ab-border bg-stone-50/80 px-2 py-1.5">
+          <span className="text-[10px] text-stone-500">يحرّرون الآن:</span>
+          {peerStrip.map((p) => (
+            <span
+              key={p.clientId}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
+              style={{ backgroundColor: p.color }}
+            >
+              {p.name}
+            </span>
+          ))}
         </div>
       )}
       {editable && (
@@ -108,7 +196,7 @@ export function DocumentEditor({
           />
         </div>
       )}
-      <div className="flex-1 overflow-auto">
+      <div className="relative flex-1 overflow-auto">
         <EditorContent editor={editor} />
       </div>
     </div>

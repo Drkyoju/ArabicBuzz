@@ -116,7 +116,7 @@ export function getNativeAiTools(opts?: {
     }),
     edit_document: tool({
       description:
-        'إنشاء أو استبدال ملف مكتبي بعد التعديل (Word/Excel/PowerPoint/نص) ليعيده المستخدم بالتنزيل. اقرأ الملف أولاً، طبّق طلب المستخدم، ثم مرّر المحتوى الكامل المعدّل.',
+        'إنشاء أو استبدال ملف مكتبي بعد التعديل (Word/Excel/PowerPoint/نص/PDF) ليعيده المستخدم بالتنزيل. اقرأ الملف أولاً، طبّق طلب المستخدم، ثم مرّر المحتوى الكامل المعدّل. لـ PDF يمكن أيضاً pdf_create / pdf_stamp / pdf_fill_form.',
       inputSchema: z.object({
         fileId: z
           .string()
@@ -127,7 +127,7 @@ export function getNativeAiTools(opts?: {
           .optional()
           .describe('اسم الملف الناتج مثل تقرير-معدّل.docx'),
         format: z
-          .enum(['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv'])
+          .enum(['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv', 'pdf'])
           .describe('صيغة الملف الناتج'),
         title: z.string().optional(),
         body: z
@@ -167,6 +167,92 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('edit_document'),
+        }),
+    }),
+    pdf_create: tool({
+      description: 'إنشاء PDF جديد من نص عربي/إنجليزي في ملفات الغرفة.',
+      inputSchema: z.object({
+        title: z.string().optional(),
+        body: z.string().optional(),
+        paragraphs: z.array(z.string()).optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_create',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_create'),
+        }),
+    }),
+    pdf_stamp: tool({
+      description: 'ختم نص على PDF موجود (تعليق/ملاحظة) وحفظ نسخة في الغرفة.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        text: z.string(),
+        pageIndex: z.number().optional(),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        size: z.number().optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_stamp',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_stamp'),
+        }),
+    }),
+    pdf_merge: tool({
+      description: 'دمج عدة ملفات PDF من مساحة الغرفة في ملف واحد.',
+      inputSchema: z.object({
+        fileIds: z.array(z.string()).min(2),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_merge',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_merge'),
+        }),
+    }),
+    pdf_list_fields: tool({
+      description: 'عرض حقول نموذج AcroForm في PDF قبل التعبئة.',
+      inputSchema: z.object({ fileId: z.string() }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_list_fields',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_list_fields'),
+        }),
+    }),
+    pdf_fill_form: tool({
+      description: 'تعبئة حقول نموذج PDF ثم حفظ نسخة في ملفات الغرفة.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        fields: z.record(z.string(), z.union([z.string(), z.boolean()])),
+        flatten: z.boolean().optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_fill_form',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_fill_form'),
         }),
     }),
     memory_search: tool({

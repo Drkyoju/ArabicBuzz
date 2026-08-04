@@ -23,3 +23,47 @@ body {
     radial-gradient(1200px 600px at 80% -10%, rgba(15, 118, 110, 0.06), transparent),
     var(--ab-stage);
 }
+
+/* Google Docs–style remote carets (TipTap) */
+.ab-remote-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1.15em;
+  vertical-align: text-bottom;
+  pointer-events: none;
+  z-index: 20;
+}
+.ab-remote-caret-bar {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  width: 2px;
+  height: 1.15em;
+  background: var(--ab-caret-color, #2563eb);
+  border-radius: 1px;
+}
+.ab-remote-caret-label {
+  position: absolute;
+  top: -1.35rem;
+  inset-inline-start: 0;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 1px 5px;
+  border-radius: 4px 4px 0 4px;
+  color: #fff;
+  background: var(--ab-caret-color, #2563eb);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ab-remote-caret-flip .ab-remote-caret-label {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  border-radius: 4px 4px 4px 0;
+}
+.ab-remote-selection {
+  border-radius: 2px;
+}

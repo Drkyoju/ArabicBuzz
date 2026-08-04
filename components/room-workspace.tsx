@@ -1106,6 +1106,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
           onFocusCapture={() => setPresenceSurface('canvas')}
         >
           <CanvasWorkspace
+            scopeId={activeScopeId}
+            displayName={displayName}
             onClose={() => {
               if (isCanvasFullscreen) toggleCanvasFullscreen()
               else setShowCanvas(false)

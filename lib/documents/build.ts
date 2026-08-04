@@ -3,7 +3,7 @@
  * Round-trips: extract → model revises → rebuild → download.
  */
 
-export type DocFormat = 'docx' | 'xlsx' | 'pptx' | 'txt' | 'md' | 'csv'
+export type DocFormat = 'docx' | 'xlsx' | 'pptx' | 'txt' | 'md' | 'csv' | 'pdf'
 
 export type SheetSpec = {
   name?: string
@@ -33,6 +33,7 @@ const MIME: Record<DocFormat, string> = {
   txt: 'text/plain; charset=utf-8',
   md: 'text/markdown; charset=utf-8',
   csv: 'text/csv; charset=utf-8',
+  pdf: 'application/pdf',
 }
 
 export function mimeForFormat(format: DocFormat): string {
@@ -236,6 +237,15 @@ export async function buildDocumentBuffer(
     case 'csv':
       buffer = buildPlain(input, format)
       break
+    case 'pdf': {
+      const { buildPdfFromText } = await import('@/lib/documents/pdf')
+      buffer = await buildPdfFromText({
+        title: input.title,
+        body: input.body,
+        paragraphs: input.paragraphs,
+      })
+      break
+    }
     default:
       throw new Error(`صيغة غير مدعومة: ${String(format)}`)
   }
@@ -247,6 +257,7 @@ export function inferFormatFromName(name: string): DocFormat | null {
   if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx'
   if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'xlsx'
   if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) return 'pptx'
+  if (lower.endsWith('.pdf')) return 'pdf'
   if (lower.endsWith('.csv')) return 'csv'
   if (lower.endsWith('.md')) return 'md'
   if (lower.endsWith('.txt')) return 'txt'
@@ -257,6 +268,6 @@ export function ensureFilename(name: string, format: DocFormat): string {
   const base = (name || `ملف-معدّل`).replace(/[\\/:*?"<>|]+/g, '_').trim()
   const ext = extensionForFormat(format)
   if (base.toLowerCase().endsWith(ext)) return base
-  const without = base.replace(/\.(docx?|xlsx?|pptx?|csv|md|txt)$/i, '')
+  const without = base.replace(/\.(docx?|xlsx?|pptx?|pdf|csv|md|txt)$/i, '')
   return `${without || 'ملف-معدّل'}${ext}`
 }

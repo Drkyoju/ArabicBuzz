@@ -154,7 +154,7 @@ export async function executeEditDocument(
   }
 
   if (!format) format = 'docx'
-  const allowed: DocFormat[] = ['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv']
+  const allowed: DocFormat[] = ['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv', 'pdf']
   if (!allowed.includes(format)) {
     throw new Error(`صيغة غير مدعومة: ${format}. استخدم: ${allowed.join(', ')}`)
   }

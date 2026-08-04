@@ -36,6 +36,7 @@ const LOW_RISK_TOOLS = new Set([
   'room_calendar_list',
   'room_tasks_list',
   'room_memory_list',
+  'pdf_list_fields',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
@@ -66,6 +67,10 @@ const HIGH_RISK_TOOLS = new Set([
   'room_tasks_update',
   'room_tasks_reconcile',
   'room_memory_add',
+  'pdf_create',
+  'pdf_stamp',
+  'pdf_merge',
+  'pdf_fill_form',
 ])
 
 export function evaluateActionRisk(
