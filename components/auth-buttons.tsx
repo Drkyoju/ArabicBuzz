@@ -207,7 +207,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
+            placeholder="بريدك@مثال.sa"
             className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
             dir="ltr"
           />

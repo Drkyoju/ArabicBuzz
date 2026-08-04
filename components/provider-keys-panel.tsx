@@ -191,10 +191,9 @@ export function ProviderKeysPanel({
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-ab-ink">{p.labelAr}</p>
-                <p className="text-[10px] text-stone-500" dir="ltr">
-                  {p.envName}
-                  {p.maskedHint ? ` · ${p.maskedHint}` : ''}
-                  {p.liveDetail ? ` · ${p.liveDetail}` : ''}
+                <p className="text-[10px] text-stone-500">
+                  {SOURCE_AR[p.source]}
+                  {p.liveDetail ? ` · ${p.liveDetail}` : ' · صالح'}
                 </p>
               </div>
               <div className="flex items-center gap-1.5">

@@ -24,6 +24,50 @@ import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { cn } from '@/lib/utils'
 
+function GuestChip() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const { getBrowserSession, isSupabaseConfigured } = await import(
+          '@/lib/supabase/browser'
+        )
+        if (!isSupabaseConfigured()) {
+          if (!cancelled) setSignedIn(false)
+          return
+        }
+        const s = await getBrowserSession()
+        if (!cancelled) setSignedIn(Boolean(s?.user))
+      } catch {
+        if (!cancelled) setSignedIn(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  if (signedIn === null) return null
+  if (signedIn) {
+    return (
+      <p className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-800">
+        مسجّل الدخول
+      </p>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        window.dispatchEvent(new CustomEvent('ab-nav', { detail: 'settings' }))
+      }
+      className="w-full rounded-md bg-amber-50 px-2 py-1 text-right text-[10px] font-medium text-amber-900 hover:bg-amber-100"
+    >
+      وضع الزائر — سجّل الدخول من الإعدادات
+    </button>
+  )
+}
+
 export type SidebarSection =
   | 'chats'
   | 'files'
@@ -333,7 +377,9 @@ function SidebarBody({
                       active ? 'text-white/70' : 'text-stone-400'
                     )}
                   >
-                    {scope.memberLabelsAr.length} أعضاء
+                    {scope.agentLabelsAr.length > 0
+                      ? `${scope.agentLabelsAr.length} وكلاء`
+                      : 'غرفة مشتركة'}
                   </span>
                 </button>
               </li>
@@ -343,7 +389,8 @@ function SidebarBody({
       </div>
 
       <div className="border-t border-ab-border px-3 py-2.5">
-        <p className="text-[10px] leading-relaxed text-stone-500">
+        <GuestChip />
+        <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
           {airGapped
             ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
             : 'سحابي · Arabic Buzz'}

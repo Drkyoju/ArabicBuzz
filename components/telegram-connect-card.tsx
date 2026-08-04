@@ -115,14 +115,15 @@ export function ConnectedServicesPanel() {
       <TelegramConnectCard />
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">
         <p className="mb-1 font-semibold text-ab-ink">
-          Zoom{' '}
+          اجتماعات Zoom{' '}
           <span className="font-normal text-stone-400">
-            {zoomOk ? '· جاهز للإنشاء التلقائي' : '· اختياري'}
+            {zoomOk ? '· جاهز تلقائياً' : '· اختياري'}
           </span>
         </p>
         <p>
-          يمكنك لصق رابط اجتماع يدوياً عند الحجز. الإنشاء التلقائي يحتاج إعداد
-          المسؤول مرة واحدة.
+          {zoomOk
+            ? 'عند حجز موعد من التقويم يُنشأ رابط Zoom تلقائياً إن تركت الحقل فارغاً. يمكنك أيضاً لصق رابط يدوي.'
+            : 'يمكنك لصق رابط اجتماع يدوياً عند الحجز. الإنشاء التلقائي يفعّله المسؤول مرة واحدة.'}
         </p>
       </div>
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">

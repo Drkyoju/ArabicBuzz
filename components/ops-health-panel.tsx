@@ -90,29 +90,31 @@ export function OpsHealthPanel() {
           detail: `${snap.driveFiles || 0} ملف`,
         },
         {
-          label: 'Zoom API',
+          label: 'اجتماعات Zoom',
           ok: Boolean(snap.zoomConfigured),
           detail: snap.zoomConfigured ? 'مضبوط' : 'اختياري',
         },
         {
-          label: 'Telegram',
+          label: 'تيليجرام',
           ok: Boolean(snap.telegramConfigured),
           detail: snap.telegramConfigured ? 'مضبوط' : 'غير مضبوط',
         },
         {
-          label: 'Telegram مالك',
+          label: 'مالك تيليجرام',
           ok: Boolean(snap.telegramOwnerConfigured),
           detail: snap.telegramOwnerConfigured
             ? 'مضبوط'
             : 'أرسل /start للبوت لربط المحادثة',
         },
         {
-          label: 'مالك القنوات (Google)',
+          label: 'مالك قنوات Google',
           ok: Boolean(snap.channelOwnerConfigured),
-          detail: snap.channelOwnerConfigured ? 'مضبوط' : 'CHANNEL_OWNER_USER_ID',
+          detail: snap.channelOwnerConfigured
+            ? 'مضبوط'
+            : 'يحتاج ربط من المسؤول',
         },
         {
-          label: 'توزيع غير متزامن',
+          label: 'التوزيع غير المتزامن',
           ok: Boolean(snap.triggerDispatchConfigured),
           detail: snap.triggerDispatchConfigured ? 'جاهز' : 'غير مضبوط',
         },

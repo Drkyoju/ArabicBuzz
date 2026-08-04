@@ -482,7 +482,7 @@ export function GoogleCalendarPanel({
           <input
             value={guestInput}
             onChange={(e) => setGuestInput(e.target.value)}
-            placeholder="friend@email.com"
+            placeholder="مثال@شركة.sa"
             dir="ltr"
             className="min-w-[12rem] flex-1 rounded-md border border-ab-border px-2.5 py-1.5 text-xs"
           />

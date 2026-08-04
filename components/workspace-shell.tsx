@@ -122,6 +122,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvalsError, setApprovalsError] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
   const [cronReloadToken, setCronReloadToken] = useState(0)
+  const [showDevOps, setShowDevOps] = useState(false)
+  const [showSdaia, setShowSdaia] = useState(false)
 
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true)
@@ -394,26 +396,40 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <ConnectedServicesPanel />
             </div>
 
-            <details className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
+            <details
+              className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4"
+              onToggle={(e) =>
+                setShowDevOps((e.currentTarget as HTMLDetailsElement).open)
+              }
+            >
               <summary className="cursor-pointer text-sm font-semibold text-stone-600">
                 للمطوّر / المسؤول فقط
               </summary>
-              <div className="mt-3 space-y-4">
-                <GoogleSetupChecklist focus="all" />
-                <IntegrationsSetupPanel />
-                <div className="rounded-xl border border-ab-border bg-white p-4">
-                  <MacBrainPanel />
+              {showDevOps && (
+                <div className="mt-3 space-y-4">
+                  <GoogleSetupChecklist focus="all" />
+                  <IntegrationsSetupPanel />
+                  <div className="rounded-xl border border-ab-border bg-white p-4">
+                    <MacBrainPanel />
+                  </div>
                 </div>
-              </div>
+              )}
             </details>
 
-            <details className="rounded-xl border border-ab-border bg-ab-surface p-4">
+            <details
+              className="rounded-xl border border-ab-border bg-ab-surface p-4"
+              onToggle={(e) =>
+                setShowSdaia((e.currentTarget as HTMLDetailsElement).open)
+              }
+            >
               <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
                 سجل التدقيق (SDAIA)
               </summary>
-              <div className="mt-3">
-                <SdaiaAuditViewer />
-              </div>
+              {showSdaia && (
+                <div className="mt-3">
+                  <SdaiaAuditViewer />
+                </div>
+              )}
             </details>
           </section>
         )}

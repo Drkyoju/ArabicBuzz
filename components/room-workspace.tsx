@@ -197,7 +197,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
       if (!res.ok || cancelled) return
       const data = (await res.json()) as { posts?: RoomPost[] }
       if (data.posts && data.posts.length > 0) {
-        setPostsForScope(activeScopeId, data.posts)
+        const cleaned = data.posts.filter((p) => {
+          const c = p.content || ''
+          if (c.includes('واحدةحدة')) return false
+          if (c.includes('المجلد فارغ أو لا يمكن قراءته')) return false
+          return true
+        })
+        setPostsForScope(activeScopeId, cleaned)
       }
 
       const canvasRes = await fetch(
@@ -1003,7 +1009,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   collabMode === 'team'
                     ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
                     : shared
-                      ? 'اكتب أو تكلم بالميك… جرّب @reports'
+                      ? 'اكتب أو تكلم بالميك… وجّه بـ @اسم الوكيل'
                       : activeScopeId === 'personal-research'
                         ? 'اكتب أو تكلم بالميك… جرّب @research'
                         : 'اكتب أو تكلم بالميك…'
