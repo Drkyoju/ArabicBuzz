@@ -33,7 +33,15 @@ export function SecurityPosturePicker({
             <button
               key={mode}
               type="button"
-              onClick={() => setPosture(mode)}
+              onClick={() => {
+                if (mode === 'DANGEROUS') {
+                  const ok = window.confirm(
+                    'تفعيل الوضع الحر يتخطى موافقات الأدوات عالية المخاطر. هل أنت متأكد؟'
+                  )
+                  if (!ok) return
+                }
+                setPosture(mode)
+              }}
               title={POSTURE_LABELS_AR[mode]}
               className={cn(
                 'rounded-md border text-[11px] transition-colors',

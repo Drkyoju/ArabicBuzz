@@ -257,11 +257,11 @@ export function ComposerMicButton({
         type="button"
         disabled={disabled || state === 'transcribing'}
         onClick={() => void toggle()}
-        aria-label={state === 'recording' ? 'إيقاف التسجيل' : 'تسجيل صوت'}
+        aria-label={state === 'recording' ? 'إيقاف الإملاء' : 'إملاء نص بالصوت'}
         title={
           state === 'recording'
             ? 'إيقاف وكتابة النص في المربع'
-            : 'تحدث — النص يُكتب في مربع الإدخال للمراجعة'
+            : 'إملاء — النص يُكتب في مربع الإدخال للمراجعة (ليس حفظ ملف)'
         }
         className={cn(
           'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40',

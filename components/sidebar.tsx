@@ -208,7 +208,13 @@ function SidebarBody({
                       type="button"
                       className="block w-full rounded px-2 py-1.5 text-right text-[11px] text-ab-warn hover:bg-stone-50"
                       onClick={() => {
-                        archiveScope(scope.id, true)
+                        if (
+                          window.confirm(
+                            `أرشفة الجلسة «${scope.nameAr}»؟ يمكنك استعادتها لاحقاً من الإعدادات إن لزم.`
+                          )
+                        ) {
+                          archiveScope(scope.id, true)
+                        }
                         setMenuId(null)
                       }}
                     >

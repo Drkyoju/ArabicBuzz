@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { TrustBadge } from '@/components/trust-badge'
+import { authHeaders } from '@/lib/supabase/browser'
 
 type Props = {
   approvalId: string
@@ -28,22 +29,25 @@ export function ApprovalCard({
   const disabled = localStatus !== 'PENDING_APPROVAL' || busy
 
   async function decide(decision: 'APPROVE' | 'REJECT', modified?: object) {
+    if (
+      decision === 'APPROVE' &&
+      riskLevel === 'HIGH' &&
+      !window.confirm(
+        `تأكيد تنفيذ إجراء عالي المخاطر «${actionName}»؟ لا يمكن التراجع بعد التنفيذ.`
+      )
+    ) {
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
       const res = await fetch('/api/agent/approve', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'local-owner',
-          'x-org-id': 'org-demo',
-        },
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           approvalId,
           decision,
           modifiedParams: modified,
-          userId: 'local-owner',
-          orgId: 'org-demo',
         }),
       })
       const data = (await res.json().catch(() => ({}))) as {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { MessageCircle, Radio } from 'lucide-react'
+import { authHeaders } from '@/lib/supabase/browser'
 
 type ZoomHint = { configured: boolean }
 
@@ -11,14 +12,16 @@ type ZoomHint = { configured: boolean }
 export function IntegrationsSetupPanel() {
   const [zoom, setZoom] = useState<ZoomHint | null>(null)
   const [macOnline, setMacOnline] = useState<boolean | null>(null)
+  const [macConfigured, setMacConfigured] = useState<boolean | null>(null)
   const [tg, setTg] = useState<boolean | null>(null)
 
   useEffect(() => {
     void (async () => {
       try {
+        const headers = await authHeaders()
         const [z, m] = await Promise.all([
           fetch('/api/integrations/status').then((r) => r.json()).catch(() => null),
-          fetch('/api/mac/status').then((r) => r.json()).catch(() => null),
+          fetch('/api/mac/status', { headers }).then((r) => r.json()).catch(() => null),
         ])
         if (z) {
           setZoom({ configured: Boolean(z.zoomConfigured) })
@@ -26,6 +29,7 @@ export function IntegrationsSetupPanel() {
         } else {
           setZoom({ configured: false })
         }
+        setMacConfigured(Boolean(m?.configured))
         setMacOnline(Boolean(m?.online))
       } catch {
         setZoom({ configured: false })
@@ -180,7 +184,11 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 font-semibold text-ab-ink">
           خزنة الماك{' '}
           <span className="font-normal text-stone-400">
-            {macOnline ? '· متصلة' : '· غير متصلة'}
+            {macConfigured === false
+              ? '· غير مضبوطة'
+              : macOnline
+                ? '· متصلة'
+                : '· مضبوطة · غير متصلة'}
           </span>
         </p>
         <p className="mb-1 text-[11px]">

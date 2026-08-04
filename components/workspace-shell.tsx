@@ -72,6 +72,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvalsError, setApprovalsError] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
   const [waPendingCount, setWaPendingCount] = useState(0)
+  const [cronReloadToken, setCronReloadToken] = useState(0)
 
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true)
@@ -265,13 +266,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <p className="mb-4 text-xs text-stone-500">
                   تنبيهات وملخصات دورية عبر القنوات المضبوطة على Netlify.
                 </p>
-                <CronRegisterForm onCreated={() => undefined} />
+                <CronRegisterForm
+                  onCreated={() => setCronReloadToken((t) => t + 1)}
+                />
               </div>
               <div>
                 <h3 className="mb-3 text-sm font-semibold text-ab-ink">
                   سجل التشغيل
                 </h3>
-                <CronStatusTable />
+                <CronStatusTable reloadToken={cronReloadToken} />
               </div>
             </div>
           </div>
@@ -343,7 +346,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <GoogleSetupChecklist focus="all" />
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleCalendarPanel />
+              <h3 className="mb-1 font-semibold">التقويم · Zoom</h3>
+              <p className="mb-3 text-xs text-stone-500">
+                ربط Google وحجز الاجتماعات من قسم التقويم المخصص لتجنّب تكرار
+                الأزرار هنا.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSection('calendar')}
+                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
+              >
+                فتح التقويم · Zoom
+              </button>
             </div>
             <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
               <GoogleDriveBrainPanel />

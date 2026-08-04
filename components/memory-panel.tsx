@@ -138,7 +138,15 @@ export function MemoryPanel() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => removeMemory(scopeId, i)}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'حذف هذه الذكرى من ذاكرة المساحة؟'
+                          )
+                        ) {
+                          removeMemory(scopeId, i)
+                        }
+                      }}
                       className="rounded border border-ab-border p-1 text-stone-500 hover:text-red-600"
                       aria-label="حذف"
                     >

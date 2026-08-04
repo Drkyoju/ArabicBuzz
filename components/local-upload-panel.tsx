@@ -39,13 +39,16 @@ export function LocalUploadPanel({
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState<StoredFile[]>([])
   const [open, setOpen] = useState(false)
+  const [macConfigured, setMacConfigured] = useState(false)
 
   const refresh = useCallback(async () => {
     const headers = await authHeaders()
-    const listRes = await fetch(
-      `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}`,
-      { headers }
-    )
+    const [listRes, statusRes] = await Promise.all([
+      fetch(`/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}`, {
+        headers,
+      }),
+      fetch('/api/storage/upload?status=1', { headers }),
+    ])
     if (listRes.ok) {
       const data = (await listRes.json()) as {
         files?: StoredFile[]
@@ -53,6 +56,12 @@ export function LocalUploadPanel({
       }
       setFiles(data.files || [])
       if (data.error) setMessage(data.error)
+    }
+    if (statusRes.ok) {
+      const status = (await statusRes.json()) as {
+        macSyncConfigured?: boolean
+      }
+      setMacConfigured(Boolean(status.macSyncConfigured))
     }
   }, [scopeId])
 
@@ -246,7 +255,11 @@ export function LocalUploadPanel({
       const active = await startBrowserRecording()
       mediaRef.current = active
       setRecording(true)
-      setMessage('جاري التسجيل للحفظ على الماك… اضغط مجدداً للإيقاف')
+      setMessage(
+        macConfigured
+          ? 'جاري التسجيل للحفظ على الماك… اضغط مجدداً للإيقاف'
+          : 'جاري التسجيل لحفظ ملف صوتي… اضغط مجدداً للإيقاف'
+      )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'تعذّر الوصول للميكروفون')
     }
@@ -304,7 +317,11 @@ export function LocalUploadPanel({
                 )}
               >
                 <Mic className="h-3 w-3" />
-                {recording ? 'إيقاف' : 'حفظ صوتي'}
+                {recording
+                  ? 'إيقاف'
+                  : macConfigured
+                    ? 'تسجيل للماك'
+                    : 'تسجيل ملف صوتي'}
               </button>
             </div>
             {progress != null && (
@@ -400,7 +417,11 @@ export function LocalUploadPanel({
           )}
         >
           <Mic className="h-3.5 w-3.5" />
-          {recording ? 'إيقاف وحفظ' : 'حفظ صوتي للماك'}
+          {recording
+            ? 'إيقاف وحفظ'
+            : macConfigured
+              ? 'حفظ صوتي للماك'
+              : 'تسجيل ملف صوتي'}
         </button>
       </div>
       <input

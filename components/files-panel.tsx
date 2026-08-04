@@ -145,7 +145,14 @@ export function FilesPanel() {
     const id = f.id
     if (!id) return
     const name = f.originalName || f.name || id
-    if (!window.confirm(`حذف «${name}» من خزنة الماك نهائياً؟`)) return
+    if (
+      !window.confirm(
+        `حذف «${name}» ${
+          source === 'mac' ? 'من خزنة الماك' : 'من التخزين السحابي'
+        } نهائياً؟`
+      )
+    )
+      return
     setBusyId(id)
     setNote('')
     try {

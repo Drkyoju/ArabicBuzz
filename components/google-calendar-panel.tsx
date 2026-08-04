@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   CalendarDays,
-  Copy,
   Link2,
   Loader2,
   Mail,
+  RefreshCw,
   Unlink,
   Users,
 } from 'lucide-react'
@@ -172,6 +172,15 @@ export function GoogleCalendarPanel({
   }
 
   async function disconnect(email?: string) {
+    if (
+      !window.confirm(
+        email
+          ? `فصل حساب التقويم ${email}؟`
+          : 'فصل كل حسابات تقويم Google المرتبطة؟'
+      )
+    ) {
+      return
+    }
     setBusy(true)
     setNote('')
     try {
@@ -400,7 +409,7 @@ export function GoogleCalendarPanel({
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
             >
-              <Copy className="h-3.5 w-3.5" />
+              <RefreshCw className="h-3.5 w-3.5" />
               تحديث
             </button>
             <button
@@ -547,14 +556,6 @@ export function GoogleCalendarPanel({
               className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >
               إنشاء وإرسال دعوات
-            </button>
-            <button
-              type="button"
-              disabled={busy || !status?.connected}
-              onClick={() => void findAlignment()}
-              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
-            >
-              اقترح أوقاتاً للفريق
             </button>
           </div>
         </div>

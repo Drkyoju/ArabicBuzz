@@ -872,11 +872,31 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 {hasArtifacts && (
                   <button
                     type="button"
-                    onClick={() => setShowCanvas((v) => !v)}
-                    className="hidden rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50 md:inline-flex md:items-center md:gap-1"
+                    onClick={() => {
+                      const mobile =
+                        typeof window !== 'undefined' &&
+                        window.matchMedia('(max-width: 767px)').matches
+                      if (mobile) {
+                        if (isCanvasFullscreen) {
+                          toggleCanvasFullscreen()
+                          setShowCanvas(false)
+                        } else {
+                          setShowCanvas(true)
+                          toggleCanvasFullscreen()
+                        }
+                      } else {
+                        setShowCanvas((v) => !v)
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
+                    aria-label={
+                      canvasOpen || isCanvasFullscreen
+                        ? 'إخفاء اللوحة'
+                        : 'فتح اللوحة'
+                    }
                   >
                     <PanelRightOpen className="h-3 w-3" />
-                    {canvasOpen ? 'إخفاء اللوحة' : 'اللوحة'}
+                    {canvasOpen || isCanvasFullscreen ? 'إخفاء اللوحة' : 'اللوحة'}
                   </button>
                 )}
                 {shared && (

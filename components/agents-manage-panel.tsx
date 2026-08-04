@@ -378,6 +378,13 @@ export function AgentsManagePanel({
                         <button
                           type="button"
                           onClick={() => {
+                            if (
+                              !window.confirm(
+                                `إزالة «${agent.nameAr}» من هذه الغرفة؟`
+                              )
+                            ) {
+                              return
+                            }
                             removeAgentFromScope(scopeId, agent.id)
                             setNote(`أُزيل «${agent.nameAr}» من هذه الغرفة.`)
                           }}
@@ -390,6 +397,13 @@ export function AgentsManagePanel({
                           <button
                             type="button"
                             onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `حذف الوكيل المخصص «${agent.nameAr}» نهائياً؟`
+                                )
+                              ) {
+                                return
+                              }
                               deleteCustomAgent(agent.id)
                               setNote(`حُذف «${agent.nameAr}».`)
                               if (editingId === agent.id) resetForm()

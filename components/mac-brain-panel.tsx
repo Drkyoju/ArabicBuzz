@@ -90,12 +90,18 @@ export function MacBrainPanel() {
       <div className="mb-2 flex flex-wrap gap-2 text-[11px]">
         <span
           className={
-            status?.online
-              ? 'rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-800'
-              : 'rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-stone-600'
+            !status?.configured
+              ? 'rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-stone-600'
+              : status.online
+                ? 'rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-800'
+                : 'rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900'
           }
         >
-          {status?.online ? 'الوكيل متصل' : 'الوكيل غير متصل'}
+          {!status?.configured
+            ? 'غير مضبوط — شغّل npm run storage:setup + نفق'
+            : status.online
+              ? 'الوكيل متصل'
+              : 'مضبوط · غير متصل'}
         </span>
         <span className="rounded-md border border-ab-border bg-white px-2 py-1 text-stone-600">
           {status?.primaryMac

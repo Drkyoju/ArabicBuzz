@@ -27,9 +27,11 @@ type Snapshot = {
 export function OpsHealthPanel() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   async function load() {
     setBusy(true)
+    setError('')
     try {
       const h = await authHeaders()
       const [cal, drive, integ, mac, providers, approvals, waInbox] =
@@ -64,8 +66,11 @@ export function OpsHealthPanel() {
           : 0,
         whatsappPending: Number(waInbox?.count || 0),
       })
-    } catch {
-      setSnap({})
+    } catch (e) {
+      setSnap(null)
+      setError(
+        e instanceof Error ? e.message : 'تعذّر تحميل صحة التشغيل'
+      )
     } finally {
       setBusy(false)
     }
@@ -173,6 +178,14 @@ export function OpsHealthPanel() {
           تحديث
         </button>
       </div>
+      {error && (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {error}
+        </p>
+      )}
+      {!snap && !error && !busy && (
+        <p className="mb-3 text-sm text-stone-500">لا بيانات بعد — اضغط تحديث.</p>
+      )}
       <ul className="space-y-2">
         {rows.map((r) => (
           <li

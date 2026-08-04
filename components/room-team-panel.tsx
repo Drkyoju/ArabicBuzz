@@ -332,7 +332,15 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void removeMember(m.id)}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `إزالة العضو «${m.displayNameAr}» من الغرفة؟`
+                          )
+                        ) {
+                          void removeMember(m.id)
+                        }
+                      }}
                       className="rounded p-1 text-stone-400 hover:text-red-600"
                       aria-label={`حذف ${m.displayNameAr}`}
                     >
@@ -400,28 +408,27 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               </button>
               <button
                 type="button"
-                disabled={busy || !canManage || !linkUrl}
+                disabled={busy || !canManage}
                 onClick={() => void inviteViaChannel('telegram')}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
-                title="يرسل رابط الدعوة لشات تيليجرام التجريبي"
+                title="ينشئ رابط دعوة ويرسله إلى تيليجرام المالك"
               >
-                تيليجرام · دعوة
+                تيليجرام · رابط دعوة
               </button>
               <button
                 type="button"
-                disabled={busy || !canManage || !linkUrl}
+                disabled={busy || !canManage}
                 onClick={() => void inviteViaChannel('whatsapp')}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
-                title="يرسل رابط الدعوة لرقم واتساب التجريبي"
+                title="ينشئ رابط دعوة ويرسله إلى واتساب المالك"
               >
-                واتساب · دعوة
+                واتساب · رابط دعوة
               </button>
             </div>
             <p className="text-[10px] leading-relaxed text-stone-500">
-              لا يوجد مُرسل بريد آلي بعد: زر البريد يفتح تطبيق بريدك مع الرابط،
-              أو انسخ الرابط وأرسله واتساب/تيليجرام يدوياً. تيليجرام/واتساب داخل
-              الغرفة = تنبيه لنص الرسالة لرقم/شات تجريبي في الإعدادات —{' '}
-              <strong className="font-medium">مو دعوة للغرفة</strong>.
+              «رابط دعوة» ينشئ رابط انضمام للغرفة. أزرار تيليجرام/واتساب تنشئ
+              الرابط وترسله للقناة المضبوطة. زر البريد يفتح تطبيق بريدك مع
+              الرابط إن لم يتوفر مُرسل آلي.
             </p>
             {linkUrl && (
               <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">

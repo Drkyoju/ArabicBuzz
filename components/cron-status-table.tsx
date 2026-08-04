@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Log = {
   id: string
@@ -11,12 +11,21 @@ type Log = {
   details?: string | null
 }
 
-export function CronStatusTable() {
+export function CronStatusTable({
+  reloadToken = 0,
+}: {
+  reloadToken?: number
+}) {
   const [logs, setLogs] = useState<Log[]>([])
+  const [error, setError] = useState('')
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError('')
     void fetch('/api/crons/logs')
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then((d) =>
         setLogs(
           (d.logs || []).map(
@@ -30,59 +39,48 @@ export function CronStatusTable() {
           )
         )
       )
+      .catch((e) => {
+        setLogs([])
+        setError(e instanceof Error ? e.message : 'تعذّر تحميل السجل')
+      })
   }, [])
 
+  useEffect(() => {
+    load()
+  }, [load, reloadToken])
+
   return (
-    <section className="border-t border-ab-border px-4 py-8">
-      <h2 className="mb-4 text-xl font-bold">سجل المهام الدورية</h2>
-      <div className="overflow-x-auto rounded-lg border border-ab-border bg-ab-surface">
+    <section className="rounded-lg border border-ab-border bg-ab-surface">
+      <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-ab-bg text-stone-600">
             <tr>
-              <th className="px-3 py-2 text-right font-medium">اسم المهمة</th>
-              <th className="px-3 py-2 text-right font-medium">التوقيت</th>
+              <th className="px-3 py-2 text-right font-medium">المهمة</th>
               <th className="px-3 py-2 text-right font-medium">القناة</th>
-              <th className="px-3 py-2 text-right font-medium">حالة التنفيذ</th>
-              <th className="px-3 py-2 text-right font-medium">التفاصيل</th>
+              <th className="px-3 py-2 text-right font-medium">الحالة</th>
+              <th className="px-3 py-2 text-right font-medium">الوقت</th>
             </tr>
           </thead>
           <tbody>
             {logs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}
                   className="px-3 py-6 text-center text-stone-500"
                 >
-                  لا توجد مهام دورية بعد — ستظهر هنا عند تشغيل الـ Cron.
+                  {error || 'لا سجل تشغيل بعد — سجّل مهمة أعلاه ثم انتظر أول تشغيل.'}
                 </td>
               </tr>
             ) : (
-              logs.map((log) => (
-                <tr key={log.id} className="border-t border-ab-border">
-                  <td className="px-3 py-2">{log.taskNameAr}</td>
+              logs.map((l) => (
+                <tr key={l.id} className="border-t border-ab-border">
+                  <td className="px-3 py-2">{l.taskNameAr}</td>
                   <td className="px-3 py-2" dir="ltr">
-                    {new Date(log.ranAt).toLocaleString('ar-SA')}
+                    {l.channel}
                   </td>
-                  <td className="px-3 py-2">{log.channel}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={
-                        log.status === 'success'
-                          ? 'text-emerald-700'
-                          : log.status === 'failed'
-                            ? 'text-red-700'
-                            : 'text-ab-warn'
-                      }
-                    >
-                      {log.status === 'success'
-                        ? 'نجاح'
-                        : log.status === 'failed'
-                          ? 'فشل'
-                          : 'جاري'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 max-w-xs truncate">
-                    {log.details || '—'}
+                  <td className="px-3 py-2">{l.status}</td>
+                  <td className="px-3 py-2" dir="ltr">
+                    {new Date(l.ranAt).toLocaleString('ar-SA')}
                   </td>
                 </tr>
               ))
