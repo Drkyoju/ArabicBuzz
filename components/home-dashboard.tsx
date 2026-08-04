@@ -13,6 +13,7 @@ import {
   ListTodo,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { cn } from '@/lib/utils'
 
@@ -143,6 +144,7 @@ export function HomeDashboard({
   onNavigate?: (section: string) => void
 }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const signedIn = useSignedIn()
   const [data, setData] = useState<Digest | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -155,8 +157,18 @@ export function HomeDashboard({
         `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
         { headers: await authHeaders() }
       )
-      const json = (await res.json()) as Digest & { error?: string }
-      if (!res.ok) throw new Error(json.error || 'فشل التحميل')
+      const json = (await res.json()) as Digest & {
+        error?: string
+        code?: string
+      }
+      if (!res.ok) {
+        if (res.status === 401 || json.code === 'AUTH_REQUIRED') {
+          setData(null)
+          setErr('')
+          return
+        }
+        throw new Error(json.error || 'فشل التحميل')
+      }
       setData(json)
 
       // Soft presence heartbeat for history (at most once / 10 min per browser)
@@ -203,9 +215,10 @@ export function HomeDashboard({
 
   const cal = data?.calendar
   const zoom = data?.zoom
+  const isGuest = signedIn === false
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6" dir="rtl">
+    <section className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6" dir="rtl">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
@@ -219,7 +232,7 @@ export function HomeDashboard({
             type="button"
             disabled={busy}
             onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-700 disabled:opacity-40"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
             تحديث
@@ -241,9 +254,56 @@ export function HomeDashboard({
         </div>
       </header>
 
+      {isGuest && (
+        <div className="rounded-xl border border-ab-accent/25 bg-gradient-to-bl from-ab-accent/5 via-white to-emerald-50/50 px-4 py-5">
+          <p className="text-base font-semibold text-ab-ink">
+            مرحباً بك في Arabic Buzz
+          </p>
+          <p className="mt-1.5 max-w-xl text-sm text-stone-600">
+            منصة غرف ووكلاء للجمعيات: تقويم مشترك، ملفات ومعرفة، موافقات بشرية،
+            ومحاضر باعتماد سدايا. سجّل الدخول لحفظ الجلسة عبر الأجهزة وربط
+            تيليجرام وDrive.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('settings')}
+              className="rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
+            >
+              سجّل الدخول أو ابدأ تجريبياً
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('chats')}
+              className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
+            >
+              جرّب غرفة الفريق
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('calendar')}
+              className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
+            >
+              أضف موعداً نظامياً
+            </button>
+          </div>
+        </div>
+      )}
+
       {err && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
           {err}
+        </p>
+      )}
+
+      {busy && !data && !isGuest && (
+        <p className="text-sm text-stone-500">جاري تحميل لوحة اليوم…</p>
+      )}
+
+      {isGuest && !data && !busy && (
+        <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-5 text-center text-sm text-stone-500">
+          لا بيانات شخصية بعد كزائر — سجّل الدخول لرؤية مواعيد غرفتك والتزاماتها،
+          أو افتح الغرف للتجربة الآن.
         </p>
       )}
 

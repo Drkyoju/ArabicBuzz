@@ -38,10 +38,11 @@ import {
 import { HomeDashboard } from '@/components/home-dashboard'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 
 function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
-  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const signedIn = useSignedIn()
   const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
@@ -50,34 +51,30 @@ function AccountStatus() {
       .then((d: { authRequired?: boolean }) =>
         setRequired(Boolean(d.authRequired))
       )
-      .catch(() => setRequired(null))
+      .catch(() => setRequired(false))
   }, [])
 
   useEffect(() => {
+    if (!signedIn) {
+      setEmail(null)
+      return
+    }
     let cancelled = false
     void (async () => {
       try {
-        const { getBrowserSession, isSupabaseConfigured } = await import(
-          '@/lib/supabase/browser'
-        )
-        if (!isSupabaseConfigured()) {
-          if (!cancelled) setSignedIn(false)
-          return
-        }
+        const { getBrowserSession } = await import('@/lib/supabase/browser')
         const s = await getBrowserSession()
-        if (cancelled) return
-        setSignedIn(Boolean(s?.user))
-        setEmail(s?.user?.email || null)
+        if (!cancelled) setEmail(s?.user?.email || null)
       } catch {
-        if (!cancelled) setSignedIn(false)
+        if (!cancelled) setEmail(null)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [signedIn])
 
-  if (required === null) {
+  if (required === null || signedIn === null) {
     return (
       <p className="text-[11px] text-stone-400">جاري فحص حالة الحساب…</p>
     )
@@ -131,6 +128,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [section, setSection] = useState<SidebarSection>('home')
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const mode = useWorkspaceModeStore((s) => s.mode)
+  const signedIn = useSignedIn()
   const [approvals, setApprovals] = useState<LiveApproval[]>([])
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
@@ -144,6 +142,14 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       setSection('home')
     }
   }, [mode, section])
+
+  // Guests cannot open advanced sections via deep-link
+  useEffect(() => {
+    if (signedIn !== false) return
+    if (section === 'api-keys' || section === 'ops' || section === 'memory') {
+      setSection('settings')
+    }
+  }, [signedIn, section])
 
   useEffect(() => {
     try {
@@ -177,8 +183,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       const data = (await res.json()) as {
         approvals?: LiveApproval[]
         error?: string
+        code?: string
       }
       if (!res.ok) {
+        if (res.status === 401 || data.code === 'AUTH_REQUIRED') {
+          setApprovalsError('GUEST')
+          setApprovals([])
+          setPendingCount(0)
+          return
+        }
         setApprovalsError(data.error || `تعذّر التحميل (HTTP ${res.status})`)
         setApprovals([])
         setPendingCount(0)
@@ -199,10 +212,17 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   }, [])
 
   useEffect(() => {
+    if (signedIn === false) {
+      setApprovals([])
+      setPendingCount(0)
+      setApprovalsLoading(false)
+      setApprovalsError('GUEST')
+      return
+    }
     void loadApprovals()
     const t = setInterval(() => void loadApprovals(), 8000)
     return () => clearInterval(t)
-  }, [loadApprovals])
+  }, [loadApprovals, signedIn])
 
   useEffect(() => {
     const onNav = (e: Event) => {
@@ -276,7 +296,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </section>
         )}
 
-        {section === 'memory' && <MemoryPanel />}
+        {section === 'memory' && signedIn && <MemoryPanel />}
 
         {section === 'approvals' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
@@ -298,13 +318,25 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 تحديث
               </button>
             </div>
-            {approvalsLoading && pendingCount === 0 && (
+            {approvalsLoading && pendingCount === 0 && signedIn !== false && (
               <p className="text-sm text-stone-500">جاري التحميل…</p>
             )}
-            {approvalsError && (
+            {approvalsError && approvalsError !== 'GUEST' && (
               <p className="mb-3 text-sm text-ab-warn">{approvalsError}</p>
             )}
-            {!approvalsLoading && pendingCount === 0 && !approvalsError ? (
+            {(approvalsError === 'GUEST' || signedIn === false) &&
+            !approvalsLoading ? (
+              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
+                <p>لا موافقات للزائر — سجّل الدخول لرؤية طلبات الاعتماد.</p>
+                <button
+                  type="button"
+                  onClick={() => setSection('settings')}
+                  className="mt-3 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  الذهاب للإعدادات
+                </button>
+              </div>
+            ) : !approvalsLoading && pendingCount === 0 && !approvalsError ? (
               <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
                 لا موافقات معلّقة. تظهر هنا عندما يطلب الوكيل إجراءً عالي
                 المخاطر.
@@ -366,7 +398,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </div>
         )}
 
-        {section === 'api-keys' && (
+        {section === 'api-keys' && signedIn && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-1 text-xl font-bold">مفاتيح API والنماذج</h2>
             <p className="mb-6 text-sm text-stone-500">
@@ -379,7 +411,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </section>
         )}
 
-        {section === 'ops' && <OpsHealthPanel />}
+        {section === 'ops' && signedIn && <OpsHealthPanel />}
 
         {section === 'settings' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
@@ -425,20 +457,24 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 >
                   تقويم ومهام الفريق
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSection('api-keys')}
-                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
-                >
-                  مفاتيح النماذج
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSection('ops')}
-                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
-                >
-                  صحة التشغيل
-                </button>
+                {signedIn && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSection('api-keys')}
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                    >
+                      مفاتيح النماذج
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSection('ops')}
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                    >
+                      صحة التشغيل
+                    </button>
+                  </>
+                )}
               </div>
               <div className="mt-4 space-y-4">
                 <AssociationKnowledgePanel />
@@ -450,45 +486,57 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <ConnectedServicesPanel />
             </div>
 
-            <div className="mb-5">
-              <McpServersPanel />
-            </div>
-
-            <details
-              className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4"
-              onToggle={(e) =>
-                setShowDevOps((e.currentTarget as HTMLDetailsElement).open)
-              }
-            >
-              <summary className="cursor-pointer text-sm font-semibold text-stone-600">
-                للمطوّر / المسؤول فقط
-              </summary>
-              {showDevOps && (
-                <div className="mt-3 space-y-4">
-                  <GoogleSetupChecklist focus="all" />
-                  <IntegrationsSetupPanel />
-                  <div className="rounded-xl border border-ab-border bg-white p-4">
-                    <MacBrainPanel />
-                  </div>
+            {signedIn ? (
+              <>
+                <div className="mb-5">
+                  <McpServersPanel />
                 </div>
-              )}
-            </details>
 
-            <details
-              className="rounded-xl border border-ab-border bg-ab-surface p-4"
-              onToggle={(e) =>
-                setShowSdaia((e.currentTarget as HTMLDetailsElement).open)
-              }
-            >
-              <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
-                سجل التدقيق (SDAIA)
-              </summary>
-              {showSdaia && (
-                <div className="mt-3">
-                  <SdaiaAuditViewer />
-                </div>
-              )}
-            </details>
+                <details
+                  className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4"
+                  onToggle={(e) =>
+                    setShowDevOps((e.currentTarget as HTMLDetailsElement).open)
+                  }
+                >
+                  <summary className="cursor-pointer text-sm font-semibold text-stone-600">
+                    للمطوّر / المسؤول فقط
+                  </summary>
+                  {showDevOps && (
+                    <div className="mt-3 space-y-4">
+                      <GoogleSetupChecklist focus="all" />
+                      <IntegrationsSetupPanel />
+                      <div className="rounded-xl border border-ab-border bg-white p-4">
+                        <MacBrainPanel />
+                      </div>
+                    </div>
+                  )}
+                </details>
+
+                <details
+                  className="rounded-xl border border-ab-border bg-ab-surface p-4"
+                  onToggle={(e) =>
+                    setShowSdaia((e.currentTarget as HTMLDetailsElement).open)
+                  }
+                >
+                  <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
+                    سجل التدقيق (SDAIA)
+                  </summary>
+                  {showSdaia && (
+                    <div className="mt-3">
+                      <SdaiaAuditViewer />
+                    </div>
+                  )}
+                </details>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-5 text-sm text-stone-600">
+                <p className="font-medium text-ab-ink">أدوات متقدمة بعد تسجيل الدخول</p>
+                <p className="mt-1 text-xs">
+                  مفاتيح API، خوادم MCP، سجل سدايا، وإعدادات المطوّر تظهر بعد
+                  تسجيل الدخول حتى لا تزدحم الشاشة للزائر.
+                </p>
+              </div>
+            )}
           </section>
         )}
       </div>

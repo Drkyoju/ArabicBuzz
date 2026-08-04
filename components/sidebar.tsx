@@ -28,31 +28,11 @@ import {
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { cn } from '@/lib/utils'
 
 function GuestChip() {
-  const [signedIn, setSignedIn] = useState<boolean | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const { getBrowserSession, isSupabaseConfigured } = await import(
-          '@/lib/supabase/browser'
-        )
-        if (!isSupabaseConfigured()) {
-          if (!cancelled) setSignedIn(false)
-          return
-        }
-        const s = await getBrowserSession()
-        if (!cancelled) setSignedIn(Boolean(s?.user))
-      } catch {
-        if (!cancelled) setSignedIn(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const signedIn = useSignedIn()
   if (signedIn === null) return null
   if (signedIn) {
     return (
@@ -146,7 +126,10 @@ function SidebarBody({
   }, [setMode])
 
   const primaryNav = PRIMARY_NAV.filter((n) => isEmployeeSection(n.id, mode))
-  const moreNav = MORE_NAV.filter((n) => isEmployeeSection(n.id, mode))
+  const signedIn = useSignedIn()
+  const moreNav = MORE_NAV.filter(
+    (n) => isEmployeeSection(n.id, mode) && signedIn === true
+  )
   const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
   const personal = useMemo(
@@ -197,9 +180,9 @@ function SidebarBody({
       <div className="border-b border-ab-border px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-[15px] font-bold tracking-tight text-ab-ink">
+            <p className="text-[15px] font-bold tracking-tight text-ab-ink">
               Arabic Buzz
-            </h1>
+            </p>
             <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
@@ -480,43 +463,51 @@ export function Sidebar({
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-50 flex h-11 items-center justify-between border-b border-ab-border bg-ab-surface/95 px-3 backdrop-blur md:hidden">
-        <button
-          type="button"
-          aria-label="فتح القائمة"
-          onClick={() => setMobileOpen(true)}
-          className="rounded-md p-2 text-ab-ink"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        <span className="text-sm font-bold">Arabic Buzz</span>
-        <span className="w-9" />
-      </div>
+      {/* Hide top bar while drawer is open so only one menu control shows */}
+      {!mobileOpen && (
+        <div className="fixed inset-x-0 top-0 z-50 flex h-11 items-center justify-between border-b border-ab-border bg-ab-surface/95 px-3 backdrop-blur md:hidden">
+          <button
+            type="button"
+            aria-label="فتح القائمة"
+            aria-expanded={false}
+            onClick={() => setMobileOpen(true)}
+            className="rounded-md p-2 text-ab-ink"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="text-sm font-bold">Arabic Buzz</span>
+          <span className="w-9" aria-hidden />
+        </div>
+      )}
 
       {mobileOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-50 bg-black/25 md:hidden"
-          aria-label="إغلاق"
+          className="fixed inset-0 z-[55] bg-black/35 md:hidden"
+          aria-label="إغلاق القائمة"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
         className={cn(
-          'fixed inset-y-0 right-0 z-[60] flex w-[15.5rem] flex-col border-l border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
+          'fixed inset-y-0 right-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-l border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
           mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
         aria-label="الشريط الجانبي"
+        aria-hidden={!mobileOpen ? undefined : undefined}
       >
-        <button
-          type="button"
-          className="absolute left-2 top-2 rounded-md p-1 text-stone-500 md:hidden"
-          aria-label="إغلاق القائمة"
-          onClick={() => setMobileOpen(false)}
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center justify-between border-b border-ab-border px-3 py-2 md:hidden">
+          <span className="text-sm font-bold text-ab-ink">القائمة</span>
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100"
+            aria-label="إغلاق القائمة"
+            onClick={() => setMobileOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
         <SidebarBody
           airGapped={airGapped}
           activeSection={activeSection}

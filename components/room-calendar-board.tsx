@@ -75,11 +75,20 @@ export function RoomCalendarBoard({
       const data = (await res.json()) as {
         events?: RoomEvent[]
         error?: string
+        code?: string
       }
-      if (!res.ok) throw new Error(data.error || 'تعذّر التحميل')
+      if (!res.ok) {
+        if (res.status === 401 || data.code === 'AUTH_REQUIRED') {
+          setEvents([])
+          setErr('GUEST')
+          return
+        }
+        throw new Error(data.error || 'تعذّر التحميل')
+      }
       setEvents(data.events || [])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -314,7 +323,7 @@ export function RoomCalendarBoard({
           {msg}
         </p>
       )}
-      {err && (
+      {err && err !== 'GUEST' && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
           {err}
         </p>
@@ -332,7 +341,12 @@ export function RoomCalendarBoard({
           </button>
         </div>
         {loading ? (
-          <p className="p-4 text-sm text-stone-400">جاري التحميل…</p>
+          <p className="p-4 text-sm text-stone-500">جاري تحميل المواعيد…</p>
+        ) : err === 'GUEST' ? (
+          <p className="p-6 text-center text-sm text-stone-500">
+            سجّل الدخول من الإعدادات لرؤية مواعيد الغرفة المحفوظة، أو أضف موعداً
+            يدوياً أدناه إن كان متاحاً.
+          </p>
         ) : upcoming.length === 0 ? (
           <p className="p-6 text-center text-sm text-stone-400">
             لا مواعيد بعد — أضف يدوياً أو اطلب من الوكيل: «أضف اجتماع غداً
