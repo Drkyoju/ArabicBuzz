@@ -26,6 +26,7 @@ import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { RoomTasksBoard } from '@/components/room-tasks-board'
+import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import {
   isEmployeeSection,
@@ -257,6 +258,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <GoogleCalendarPanel hideTitle />
               </div>
             </details>
+            <ZoomLivePanel />
             <MeetingCopilotPanel />
           </section>
         )}

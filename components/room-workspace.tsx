@@ -20,6 +20,7 @@ import {
 } from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
+import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { OrgRoleTemplates } from '@/components/org-role-templates'
@@ -807,7 +808,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 <h2 className="truncate text-[15px] font-bold text-ab-ink">
                   {activeScope.nameAr}
                 </h2>
-                <div className="mt-0.5">
+                <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
                     typing={typing}
@@ -822,6 +823,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         : 'الوكيل'
                     }
                   />
+                  <ZoomLivePanel compact />
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
