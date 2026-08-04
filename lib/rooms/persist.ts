@@ -193,6 +193,9 @@ export type RoomInvite = {
   invitedBy: string | null
   createdAt: string
   inviteUrl?: string
+  expiresAt?: string | null
+  maxUses?: number
+  usedCount?: number
 }
 
 /** In-memory fallback when Supabase tables aren't migrated yet. */
@@ -340,9 +343,6 @@ export async function assertRoomCanEdit(
   if (role === 'owner' || role === 'editor' || role === 'member') {
     return { ok: true, role }
   }
-  if (!role && userId === 'local-owner') {
-    return { ok: true, role: 'owner' }
-  }
   if (
     !role &&
     DEMO_OPEN_SCOPES.has(scopeId) &&
@@ -371,7 +371,6 @@ export async function assertRoomCanPost(
   ) {
     return { ok: true }
   }
-  if (!role && userId === 'local-owner') return { ok: true }
   if (
     !role &&
     DEMO_OPEN_SCOPES.has(scopeId) &&
@@ -429,34 +428,8 @@ export async function listRoomMembers(scopeId: string): Promise<{
     }
   }
   if (!data?.length) {
-    const seed = demoSeedMembers(scopeId)
-    // Seed all demo members once (owner + teammates)
-    for (const m of seed) {
-      await sb.from('room_members').upsert(
-        {
-          id: m.id,
-          scope_id: m.scopeId,
-          user_id: m.userId,
-          email: m.email,
-          display_name_ar: m.displayNameAr,
-          role: m.role,
-        },
-        { onConflict: 'scope_id,email' }
-      )
-    }
-    const again = await sb
-      .from('room_members')
-      .select('*')
-      .eq('scope_id', scopeId)
-      .order('created_at', { ascending: true })
-    if (again.data?.length) {
-      return {
-        ok: true,
-        source: 'db',
-        members: again.data.map((r) => mapDbMember(r as Record<string, unknown>)),
-      }
-    }
-    return { ok: true, members: seed, source: 'memory' }
+    // Do not seed fake demo members into production tables.
+    return { ok: true, members: [], source: 'db' }
   }
   return {
     ok: true,
@@ -660,6 +633,8 @@ export async function createRoomInvite(opts: {
   }
 
   const inviteUrl = `${appBaseUrl()}/invite/${token}?scope=${encodeURIComponent(opts.scopeId)}`
+  const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString()
+  const maxUses = opts.kind === 'link' ? 5 : 1
   const invite: RoomInvite = {
     id: crypto.randomUUID(),
     scopeId: opts.scopeId,
@@ -670,6 +645,9 @@ export async function createRoomInvite(opts: {
     invitedBy: opts.invitedBy || null,
     createdAt: new Date().toISOString(),
     inviteUrl,
+    expiresAt,
+    maxUses,
+    usedCount: 0,
   }
 
   if (!sb) {
@@ -690,8 +668,8 @@ export async function createRoomInvite(opts: {
         status: 'pending',
         token,
         display_name_ar: opts.displayNameAr || null,
-        expires_at: new Date(Date.now() + 7 * 86400_000).toISOString(),
-        max_uses: opts.kind === 'link' ? 5 : 1,
+        expires_at: expiresAt,
+        max_uses: maxUses,
         used_count: 0,
       },
       { onConflict: 'scope_id,email' }
@@ -806,8 +784,19 @@ export async function acceptInviteByToken(opts: {
   }
   if (!invite) return { ok: false, error: 'رابط الدعوة غير صالح أو منتهٍ' }
   if (invite.status === 'revoked') return { ok: false, error: 'أُلغيت هذه الدعوة' }
-  if (invite.status === 'accepted' && !(invite as { maxUses?: number }).maxUses) {
+
+  // Memory-path expiry / use limits
+  const memExpires = invite.expiresAt
+  if (memExpires && new Date(memExpires).getTime() < Date.now()) {
+    return { ok: false, error: 'انتهت صلاحية رابط الدعوة' }
+  }
+  const memMax = Number(invite.maxUses ?? 1)
+  const memUsed = Number(invite.usedCount ?? 0)
+  if (invite.status === 'accepted' && memMax <= 1) {
     return { ok: false, error: 'استُخدمت هذه الدعوة مسبقاً' }
+  }
+  if (memUsed >= memMax) {
+    return { ok: false, error: 'استُنفدت استخدامات هذه الدعوة' }
   }
 
   // Expiry / use limits (from DB columns when present)
@@ -865,7 +854,9 @@ export async function acceptInviteByToken(opts: {
       })
       .eq('token', opts.token)
   } else if (invite) {
-    invite.status = 'accepted'
+    invite.usedCount = Number(invite.usedCount || 0) + 1
+    const maxUses = Number(invite.maxUses || 1)
+    if (invite.usedCount >= maxUses) invite.status = 'accepted'
   }
 
   return { ok: true, scopeId: invite.scopeId, member: added.member }

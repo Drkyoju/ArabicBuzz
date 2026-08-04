@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveApproval } from '@/lib/agents/resolve-approval'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 import {
@@ -8,6 +9,8 @@ import {
 } from '@/lib/auth/rbac'
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const { approvalId, decision, modifiedParams } = body as {
@@ -15,8 +18,8 @@ export async function POST(req: NextRequest) {
       decision: 'APPROVE' | 'REJECT'
       modifiedParams?: Record<string, unknown>
     }
-    const userId = String(body.userId || req.headers.get('x-user-id') || '')
-    const orgId = String(body.orgId || req.headers.get('x-org-id') || '')
+    const userId = auth.user.id
+    const orgId = body.orgId ? String(body.orgId) : undefined
 
     if (!approvalId || !decision) {
       return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
@@ -26,9 +29,9 @@ export async function POST(req: NextRequest) {
       approvalId,
       decision,
       modifiedParams,
-      approvedBy: userId || undefined,
-      userId: userId || undefined,
-      orgId: orgId || undefined,
+      approvedBy: userId,
+      userId,
+      orgId,
     })
     return NextResponse.json(result)
   } catch (e) {

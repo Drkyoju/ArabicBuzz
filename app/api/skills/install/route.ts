@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { getMarketplaceSkill } from '@/lib/skills/marketplace'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 import {
@@ -13,17 +14,19 @@ import {
 } from '@/lib/auth/rbac'
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const skillId = String(body.skillId || '')
     const targetScopeId = String(body.targetScopeId || '')
-    const userId = String(body.userId || req.headers.get('x-user-id') || '')
-    const orgId = String(body.orgId || req.headers.get('x-org-id') || '')
+    const userId = auth.user.id
+    const orgId = String(body.orgId || '')
 
     if (!skillId || !targetScopeId) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
-    if (!userId || !orgId) {
+    if (!orgId) {
       return NextResponse.json(
         { error: ARABIC_AUTHZ_ERROR, code: 'MISSING_TENANT_CONTEXT' },
         { status: 401 }

@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import {
   arabicMorningToCron,
   registerScheduledTask,
@@ -7,7 +7,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

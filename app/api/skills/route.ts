@@ -6,8 +6,11 @@ import {
   deletePersistedSkill,
   serializeOpenClawSkill,
 } from '@/lib/skills/persist'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
+
+const MAX_CONTENT_LENGTH = 50_000
 
 function slugifyName(input: string): string {
   const base = input
@@ -30,8 +33,26 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
+    if (
+      typeof body.content === 'string' &&
+      body.content.length > MAX_CONTENT_LENGTH
+    ) {
+      return NextResponse.json(
+        { error: 'محتوى المهارة طويل جدًا' },
+        { status: 400 }
+      )
+    }
+    const rawInstructions = String(body.systemInstructions || body.body || '')
+    if (rawInstructions.length > MAX_CONTENT_LENGTH) {
+      return NextResponse.json(
+        { error: 'تعليمات المهارة طويلة جدًا' },
+        { status: 400 }
+      )
+    }
     let skill
     if (typeof body.content === 'string') {
       skill = parseSkillFile(body.content)
@@ -53,9 +74,7 @@ export async function POST(req: NextRequest) {
         description: String(body.description || name).trim(),
         scope: body.scope === 'personal' ? 'personal' : 'shared',
         author: body.author ? String(body.author) : undefined,
-        systemInstructions: String(
-          body.systemInstructions || body.body || ''
-        ).trim(),
+        systemInstructions: rawInstructions.trim(),
         toolsRequired: body.toolsRequired,
       } as const
     }
@@ -73,6 +92,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const id =
       req.nextUrl.searchParams.get('id')?.trim() ||

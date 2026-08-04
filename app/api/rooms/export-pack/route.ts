@@ -1,11 +1,11 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import { buildAccreditationPack } from '@/lib/rooms/accreditation-export'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string

@@ -5,7 +5,7 @@ import {
   type UIMessage,
 } from 'ai'
 import { getModel, UnknownModelError } from '@/lib/ai/providers'
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import {
   DEMO_SCOPES,
   buildPromptContext,
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
     const { warmProviderKeyCache } = await import('@/lib/ai/provider-key-store')
     await warmProviderKeyCache()
 
-    const auth = await requireUser(req)
+    const auth = await requireRealUser(req)
     if (!auth.ok) return auth.response
 
     const body = (await req.json()) as ChatBody

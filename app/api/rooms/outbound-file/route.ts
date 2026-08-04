@@ -1,5 +1,5 @@
-import { requireUser } from '@/lib/auth/session'
-import { insertRoomPost } from '@/lib/rooms/persist'
+import { requireRealUser } from '@/lib/auth/session'
+import { insertRoomPost, assertRoomCanPost } from '@/lib/rooms/persist'
 import { readWorkspaceFile } from '@/lib/documents/workspace'
 import {
   emitNotification,
@@ -15,7 +15,7 @@ export const maxDuration = 60
  * and post a note in the room feed.
  */
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -34,6 +34,11 @@ export async function POST(req: Request) {
 
   if (!fileId) {
     return Response.json({ error: 'يلزم fileId' }, { status: 400 })
+  }
+
+  const gate = await assertRoomCanPost(scopeId, auth.user.id, auth.user.email)
+  if (!gate.ok) {
+    return Response.json({ error: gate.error }, { status: 403 })
   }
 
   let file: Awaited<ReturnType<typeof readWorkspaceFile>>

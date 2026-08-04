@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   addRoomMember,
   assertRoomOwner,
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json()) as {
     scopeId?: string
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'

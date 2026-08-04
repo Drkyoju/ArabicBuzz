@@ -1,15 +1,17 @@
-import { requireUser } from '@/lib/auth/session'
-import { insertRoomPost } from '@/lib/rooms/persist'
+import { requireRealUser } from '@/lib/auth/session'
+import { insertRoomPost, assertRoomCanPost } from '@/lib/rooms/persist'
 import { emitNotification } from '@/lib/notifications/emit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
+const MAX_TEXT_LENGTH = 4000
+
 /**
  * Send a room message out to Telegram/WhatsApp (HITL-friendly outbound).
  */
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json()) as {
     scopeId?: string
@@ -21,6 +23,13 @@ export async function POST(req: Request) {
   const scopeId = body.scopeId || 'shared-ops'
   if (!textAr) {
     return Response.json({ error: 'النص مطلوب' }, { status: 400 })
+  }
+  if (textAr.length > MAX_TEXT_LENGTH) {
+    return Response.json({ error: 'النص طويل جدًا' }, { status: 400 })
+  }
+  const gate = await assertRoomCanPost(scopeId, auth.user.id, auth.user.email)
+  if (!gate.ok) {
+    return Response.json({ error: gate.error }, { status: 403 })
   }
 
   const sent = await emitNotification({

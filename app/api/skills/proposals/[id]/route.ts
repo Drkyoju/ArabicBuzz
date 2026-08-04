@@ -3,6 +3,7 @@ import {
   deletePersistedSkill,
   setSkillStatus,
 } from '@/lib/skills/persist'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,8 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const { id } = await ctx.params
     const body = (await req.json()) as {

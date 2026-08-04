@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import { transcribeArabicSpeech } from '@/lib/audio/transcribe'
 
 export const dynamic = 'force-dynamic'
@@ -8,7 +8,7 @@ export const maxDuration = 60
  * Browser mic → free Arabic/Saudi STT cascade → transcript text.
  */
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

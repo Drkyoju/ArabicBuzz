@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   getStorageStatus,
   isLocalStorageEnabled,
@@ -158,7 +158,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

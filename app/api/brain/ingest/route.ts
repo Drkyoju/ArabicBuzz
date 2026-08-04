@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import {
   extractDocumentText,
   ingestArabicDocument,
@@ -20,7 +20,7 @@ export const maxDuration = 60
  * When BRAIN_PRIMARY=mac (or sensitive/macOnly), text is stored only on the Mac vault.
  */
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

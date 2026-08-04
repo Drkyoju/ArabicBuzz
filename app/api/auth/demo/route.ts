@@ -13,6 +13,13 @@ const DEMO_PASSWORD =
  * Creates the demo user if missing (service role), then returns a session.
  */
 export async function POST() {
+  if (process.env.ALLOW_DEMO_LOGIN !== 'true') {
+    return Response.json(
+      { error: 'الدخول التجريبي معطّل على هذا الخادم.', code: 'DEMO_DISABLED' },
+      { status: 403 }
+    )
+  }
+
   const admin = getSupabaseAdmin()
   if (!admin) {
     return Response.json(

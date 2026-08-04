@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   deleteLocalFile,
   readLocalFile,
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
 
 /** Rename: { scopeId, id, originalName } */
 export async function PATCH(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
@@ -133,7 +133,7 @@ export async function PATCH(req: Request) {
 
 /** Delete: ?scopeId=&id= */
 export async function DELETE(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
@@ -178,7 +178,7 @@ export async function DELETE(req: Request) {
  * Large files: returns directUploadRequired for Mac PUT.
  */
 export async function PUT(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

@@ -7,6 +7,7 @@ import {
   SENSITIVE_ACTION_ROLES,
   withRlsContext,
 } from '@/lib/auth/rbac'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,22 +16,18 @@ export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ threadId: string }> }
 ) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const { threadId } = await ctx.params
     const body = await req.json().catch(() => ({}))
-    const userId = String(
-      (body as { userId?: string }).userId ||
-        req.headers.get('x-user-id') ||
-        ''
-    )
-    const orgId = String(
-      (body as { orgId?: string }).orgId || req.headers.get('x-org-id') || ''
-    )
+    const userId = auth.user.id
+    const orgId = String((body as { orgId?: string }).orgId || '')
 
     if (!threadId) {
       return NextResponse.json({ error: 'Missing threadId' }, { status: 400 })
     }
-    if (!userId || !orgId) {
+    if (!orgId) {
       return NextResponse.json(
         { error: ARABIC_AUTHZ_ERROR, code: 'MISSING_TENANT_CONTEXT' },
         { status: 401 }

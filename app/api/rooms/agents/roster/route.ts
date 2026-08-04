@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   loadUserAgentRoster,
   saveUserAgentRoster,
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   let body: { payload?: AgentRosterPayload }

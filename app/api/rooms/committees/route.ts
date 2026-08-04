@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   COMMITTEE_KEYS,
   COMMITTEE_LABELS_AR,
@@ -9,6 +9,7 @@ import {
   upsertCommitteeChannel,
   type CommitteeKey,
 } from '@/lib/rooms/committee-channels'
+import { assertRoomCanEdit } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
@@ -41,6 +42,10 @@ export async function POST(req: NextRequest) {
     action?: 'upsert' | 'remove'
   }
   const scopeId = body.scopeId || 'shared-demo'
+  const gate = await assertRoomCanEdit(scopeId, auth.user.id, auth.user.email)
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
   const key = body.committeeKey as CommitteeKey
   if (!(COMMITTEE_KEYS as readonly string[]).includes(key)) {
     return NextResponse.json({ error: 'لجنة غير معروفة' }, { status: 400 })

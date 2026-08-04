@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   SYSTEM_DEADLINE_KINDS,
   SYSTEM_DEADLINE_LABELS_AR,
@@ -8,6 +8,7 @@ import {
   upsertSystemDeadline,
   type SystemDeadlineKind,
 } from '@/lib/rooms/system-deadlines'
+import { assertRoomCanEdit } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,13 +32,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
     kind?: string
     dateYmd?: string
     notesAr?: string
+  }
+  const scopeId = body.scopeId || 'shared-demo'
+  const gate = await assertRoomCanEdit(scopeId, auth.user.id, auth.user.email)
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
   }
   const kind = body.kind as SystemDeadlineKind
   if (!(SYSTEM_DEADLINE_KINDS as readonly string[]).includes(kind)) {
@@ -53,7 +59,7 @@ export async function POST(req: NextRequest) {
     )
   }
   const result = await upsertSystemDeadline({
-    scopeId: body.scopeId || 'shared-demo',
+    scopeId,
     kind,
     dateYmd: body.dateYmd!,
     notesAr: body.notesAr,
