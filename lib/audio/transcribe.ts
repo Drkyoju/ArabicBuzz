@@ -23,6 +23,7 @@ export type ArabicSttProvider =
   | 'cohere-hf'
   | 'sada-hf'
   | 'groq'
+  | 'deepgram'
   | 'openai'
   | 'none'
 
@@ -185,6 +186,37 @@ async function transcribeViaGroq(
   return cleanTranscript(data.text || '')
 }
 
+async function transcribeViaDeepgram(
+  buffer: Buffer,
+  mimeType: string
+): Promise<string | null> {
+  const key =
+    resolveProviderKeySync('DEEPGRAM_API_KEY') ||
+    process.env.DEEPGRAM_API_KEY?.trim()
+  if (!key) return null
+  const model = process.env.DEEPGRAM_MODEL?.trim() || 'nova-2'
+  const url = `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(model)}&language=ar&smart_format=true`
+  validateNetworkAccess(url)
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${key}`,
+      'Content-Type': mimeType || 'audio/webm',
+    },
+    body: new Uint8Array(buffer),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) return null
+  const data = (await res.json()) as {
+    results?: {
+      channels?: Array<{ alternatives?: Array<{ transcript?: string }> }>
+    }
+  }
+  const text =
+    data.results?.channels?.[0]?.alternatives?.[0]?.transcript || ''
+  return cleanTranscript(text) || null
+}
+
 /**
  * Transcribe Arabic (incl. Saudi dialect) with paid OpenAI Whisper (fallback).
  */
@@ -230,7 +262,7 @@ export async function transcribeArabicAudioBuffer(
 
 /**
  * Free-first Arabic/Saudi STT cascade for the composer mic.
- * Cohere Arabic (HF) → SADA Saudi Whisper (HF) → Groq Whisper → OpenAI.
+ * Cohere/SADA (HF) → Groq Whisper → Deepgram → OpenAI Whisper.
  */
 export async function transcribeArabicSpeech(
   buffer: Buffer,
@@ -259,7 +291,8 @@ export async function transcribeArabicSpeech(
       ] as const)
 
   for (const step of hfOrder) {
-    if (preferred === 'groq' || preferred === 'openai') break
+    if (preferred === 'groq' || preferred === 'openai' || preferred === 'deepgram')
+      break
     if (preferred === 'sada' && step.provider !== 'sada-hf') continue
     if (preferred === 'cohere' && step.provider !== 'cohere-hf') continue
     try {
@@ -276,7 +309,7 @@ export async function transcribeArabicSpeech(
     }
   }
 
-  if (preferred !== 'openai') {
+  if (preferred !== 'openai' && preferred !== 'deepgram') {
     try {
       const text = await transcribeViaGroq(buffer, mimeType)
       if (text) {
@@ -284,6 +317,21 @@ export async function transcribeArabicSpeech(
           text,
           provider: 'groq',
           providerLabelAr: 'Groq Whisper (مجاني)',
+        }
+      }
+    } catch {
+      /* try next */
+    }
+  }
+
+  if (preferred === 'deepgram' || (preferred !== 'openai' && preferred !== 'groq')) {
+    try {
+      const text = await transcribeViaDeepgram(buffer, mimeType)
+      if (text) {
+        return {
+          text,
+          provider: 'deepgram',
+          providerLabelAr: 'Deepgram',
         }
       }
     } catch {
@@ -301,7 +349,7 @@ export async function transcribeArabicSpeech(
   }
 
   throw new Error(
-    'تعذّر النسخ الصوتي. أضف HF_TOKEN (مجاني للعربية/السعودية) أو GROQ_API_KEY من الإعدادات، أو OPENAI_API_KEY كاحتياطي.'
+    'تعذّر النسخ الصوتي. أضف HF_TOKEN أو GROQ_API_KEY أو DEEPGRAM_API_KEY أو OPENAI_API_KEY من الإعدادات.'
   )
 }
 

@@ -71,6 +71,21 @@ export function MacBrainPanel() {
             استبدال، وحذف من الموقع. الملفات وعقل الشركة على جهازك — الماك يجب
             أن يبقى متصلاً مع النفق.
           </p>
+          <ol className="mt-2 list-decimal space-y-1 pe-4 text-[11px] text-stone-600">
+            <li>
+              شغّل على الماك:{' '}
+              <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
+                npm run storage:sync
+              </code>
+            </li>
+            <li>افتح نفقاً (ngrok) واضبط MAC_SYNC_URL و MAC_SYNC_SECRET على Netlify.</li>
+            <li>
+              للمعرفة الحساسة عيّن{' '}
+              <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
+                BRAIN_PRIMARY=mac
+              </code>
+            </li>
+          </ol>
         </div>
         <button
           type="button"

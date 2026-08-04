@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Globe, Loader2, Users } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 
 /**
  * Association knowledge helpers: pull policy URLs into brain + attendance report.
@@ -99,6 +100,9 @@ export function AssociationKnowledgePanel() {
         اسحب صفحات السياسات والأنظمة (NCNP، وزارة، لوائح داخلية) إلى معرفة الغرفة
         عبر Anybrowse / Firecrawl / جلب مباشر.
       </p>
+      <div className="mb-3">
+        <BrainPrivacyNote compact />
+      </div>
       <label className="mb-1 block text-xs text-stone-600">عنوان اختياري</label>
       <input
         dir="rtl"

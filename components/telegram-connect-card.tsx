@@ -159,10 +159,11 @@ export function ConnectedServicesPanel() {
         </p>
       </div>
       <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4 text-xs text-stone-600">
-        <p className="mb-1 font-semibold text-ab-ink">تفريغ الصوت (لاحقاً)</p>
+        <p className="mb-1 font-semibold text-ab-ink">تفريغ الصوت</p>
         <p>
-          بعد تفعيل Deepgram أو Whisper يمكن إرسال رسالة صوتية من تيليجرام
-          لتفريغها في الغرفة. حالياً الرسائل النصية والملفات مدعومة.
+          الميكروفون في الغرفة يستخدم سلسلة: نماذج عربية مجانية → Groq Whisper →
+          Deepgram (إن وُجد DEEPGRAM_API_KEY) → OpenAI Whisper. عيّن المفتاح في
+          Netlify عند الحاجة.
         </p>
       </div>
     </div>

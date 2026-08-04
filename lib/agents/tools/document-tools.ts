@@ -13,6 +13,9 @@ import {
   readWorkspaceFile,
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
+import { nextVersionFileName } from '@/lib/documents/versions'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { randomUUID } from 'crypto'
 
 const TEXT_PREVIEW_MAX = 24_000
 
@@ -137,19 +140,30 @@ export async function executeEditDocument(
 
   let format = String(params.format || '').toLowerCase() as DocFormat | ''
   let outputName = String(params.outputName || params.filename || '').trim()
+  let versionTag: string | null = null
 
-  if (sourceRef && (!format || !outputName)) {
-    const found = await findWorkspaceFile(scopeId, sourceRef)
-    if (found) {
-      if (!format) {
-        format = (inferFormatFromName(found.originalName) || 'docx') as DocFormat
-      }
-      if (!outputName) {
-        const base = found.originalName.replace(/\.[^.]+$/, '')
-        outputName = replaceSource
-          ? found.originalName
-          : `${base}-معدّل${format ? `.${format}` : ''}`
-      }
+  const sourceFound = sourceRef
+    ? await findWorkspaceFile(scopeId, sourceRef)
+    : null
+
+  if (sourceFound) {
+    if (!format) {
+      format = (inferFormatFromName(sourceFound.originalName) ||
+        'docx') as DocFormat
+    }
+    if (replaceSource) {
+      if (!outputName) outputName = sourceFound.originalName
+    } else if (!outputName) {
+      const existing = await listWorkspaceFiles(scopeId)
+      const next = nextVersionFileName(
+        sourceFound.originalName,
+        existing.map((f) => f.originalName)
+      )
+      outputName = next.fileName
+      versionTag = next.versionTag
+    } else {
+      const m = outputName.match(/-v(\d+\.\d+)(?:\.|$)/i)
+      versionTag = m ? `v${m[1]}` : null
     }
   }
 
@@ -157,6 +171,11 @@ export async function executeEditDocument(
   const allowed: DocFormat[] = ['docx', 'xlsx', 'pptx', 'txt', 'md', 'csv', 'pdf']
   if (!allowed.includes(format)) {
     throw new Error(`صيغة غير مدعومة: ${format}. استخدم: ${allowed.join(', ')}`)
+  }
+
+  if (!versionTag && outputName) {
+    const m = outputName.match(/-v(\d+\.\d+)(?:\.|$)/i)
+    versionTag = m ? `v${m[1]}` : null
   }
 
   const body = params.body != null ? String(params.body) : undefined
@@ -192,9 +211,7 @@ export async function executeEditDocument(
   })
 
   const replaceId =
-    replaceSource && sourceRef
-      ? (await findWorkspaceFile(scopeId, sourceRef))?.id
-      : undefined
+    replaceSource && sourceFound ? sourceFound.id : undefined
 
   const saved = await saveWorkspaceFile({
     scopeId,
@@ -203,6 +220,25 @@ export async function executeEditDocument(
     mimeType: built.mimeType,
     replaceId,
   })
+
+  if (!replaceId && versionTag) {
+    try {
+      const sb = getSupabaseAdmin()
+      if (sb) {
+        await sb.from('workspace_file_versions').insert({
+          id: randomUUID(),
+          scope_id: scopeId,
+          source_file_id: sourceFound?.id || null,
+          version_tag: versionTag,
+          file_id: saved.file.id,
+          original_name: saved.file.originalName,
+          created_by: params.userId ? String(params.userId) : null,
+        })
+      }
+    } catch {
+      /* table may not exist yet */
+    }
+  }
 
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
 
@@ -215,6 +251,7 @@ export async function executeEditDocument(
     format,
     source: saved.source,
     replaced: Boolean(replaceId),
+    versionTag,
     downloadPath,
     downloadUrl: downloadPath,
     attachments: [
@@ -228,7 +265,9 @@ export async function executeEditDocument(
     ],
     messageAr: replaceId
       ? `تم استبدال الملف «${saved.file.originalName}». يمكن تنزيله من قسم الملفات أو من رابط التحميل في الرد.`
-      : `تم حفظ النسخة المعدّلة «${saved.file.originalName}». أخبر المستخدم أنه يستطيع تنزيلها الآن.`,
+      : versionTag
+        ? `حُفظت نسخة ${versionTag}: «${saved.file.originalName}». الأصل لم يُمس.`
+        : `تم حفظ النسخة المعدّلة «${saved.file.originalName}». أخبر المستخدم أنه يستطيع تنزيلها الآن.`,
   }
 }
 

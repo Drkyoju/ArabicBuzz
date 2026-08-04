@@ -57,7 +57,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setSplitRatio,
   } = useCanvasStore()
   const feedRef = useRef<HTMLDivElement>(null)
+  const chatColumnRef = useRef<HTMLElement>(null)
   const dragSplit = useRef(false)
+  const dragChrome = useRef(false)
+  const [seatsMaxPx, setSeatsMaxPx] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem('ab-room-seats-max-px') || '140')
+      return Number.isFinite(n) ? Math.min(280, Math.max(56, n)) : 140
+    } catch {
+      return 140
+    }
+  })
+  const [seatsCollapsed, setSeatsCollapsed] = useState(false)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
@@ -764,6 +775,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     >
       {!isCanvasFullscreen && (
         <section
+          ref={chatColumnRef}
           className={cn(
             'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
             canvasOpen ? 'md:shrink-0' : 'w-full flex-1'
@@ -898,7 +910,24 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <div className="border-b border-ab-border/70 px-3 py-1.5">
+          <div
+            className="shrink-0 border-b border-ab-border/70 px-3 py-1.5"
+            style={
+              seatsCollapsed
+                ? { maxHeight: 36, overflow: 'hidden' }
+                : { maxHeight: seatsMaxPx, overflow: 'auto' }
+            }
+          >
+            <div className="mb-1 flex items-center justify-between gap-2 md:hidden">
+              <span className="text-[10px] text-stone-500">مقاعد الوكلاء</span>
+              <button
+                type="button"
+                className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
+                onClick={() => setSeatsCollapsed((v) => !v)}
+              >
+                {seatsCollapsed ? 'توسيع' : 'طي'}
+              </button>
+            </div>
             <AgentSeatsPanel
               scopeId={activeScopeId}
               activeAgentId={mentionPreview?.id}
@@ -907,6 +936,45 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
               }
             />
+          </div>
+
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="اسحب لتكبير مساحة الدردشة"
+            title="اسحب لأعلى/أسفل لتكبير الدردشة"
+            className="group relative hidden h-2 shrink-0 cursor-row-resize items-center justify-center md:flex"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              dragChrome.current = true
+              const startY = e.clientY
+              const startH = seatsMaxPx
+              const onMove = (ev: MouseEvent) => {
+                if (!dragChrome.current) return
+                const next = Math.min(
+                  280,
+                  Math.max(56, startH + (ev.clientY - startY))
+                )
+                setSeatsMaxPx(next)
+              }
+              const onUpSave = () => {
+                dragChrome.current = false
+                setSeatsMaxPx((h) => {
+                  try {
+                    localStorage.setItem('ab-room-seats-max-px', String(h))
+                  } catch {
+                    /* ignore */
+                  }
+                  return h
+                })
+                window.removeEventListener('mousemove', onMove)
+                window.removeEventListener('mouseup', onUpSave)
+              }
+              window.addEventListener('mousemove', onMove)
+              window.addEventListener('mouseup', onUpSave)
+            }}
+          >
+            <span className="h-0.5 w-10 rounded-full bg-ab-border group-hover:bg-ab-accent" />
           </div>
 
           <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
@@ -1059,18 +1127,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="تغيير عرض اللوحة"
-          className="mx-1 hidden w-1.5 shrink-0 cursor-col-resize rounded-full bg-ab-border hover:bg-ab-accent md:block"
+          aria-label="اسحب لتكبير الدردشة أو اللوحة"
+          title="اسحب يميناً/يساراً لتكبير الدردشة أو اللوحة"
+          className="mx-0.5 hidden w-2.5 shrink-0 cursor-col-resize items-stretch rounded-full bg-ab-border/80 hover:bg-ab-accent md:flex"
           onMouseDown={() => {
             dragSplit.current = true
             const onMove = (e: MouseEvent) => {
               if (!dragSplit.current) return
-              // RTL stage: canvas is on the left visually in flex after chat
-              const stage = feedRef.current?.closest('.ab-stage') as HTMLElement | null
+              const stage = feedRef.current?.closest(
+                '.ab-stage'
+              ) as HTMLElement | null
               const rect = stage?.getBoundingClientRect()
               if (!rect) return
               const x = e.clientX - rect.left
-              // In RTL flex, first child is chat (right side). ratio = canvas share.
               const canvasShare = x / rect.width
               setSplitRatio(Math.min(0.85, Math.max(0.35, canvasShare)))
             }

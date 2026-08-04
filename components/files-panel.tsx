@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
+import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 type ListedFile = {
@@ -290,6 +291,10 @@ export function FilesPanel() {
           <RefreshCw className="h-3 w-3" />
           تحديث
         </button>
+      </div>
+
+      <div className="mb-4">
+        <BrainPrivacyNote compact />
       </div>
 
       <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
