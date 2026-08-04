@@ -209,7 +209,6 @@ export async function findDuplicateAppointments(
     maxResults: opts?.maxResults || 40,
   })
   const groups = findDuplicateGroups(events)
-  const duplicateCount = groups.reduce((n, g) => n + g.events.length, 0)
   return {
     eventsScanned: events.length,
     duplicateCount: groups.length,
@@ -251,7 +250,10 @@ async function googleFetch(
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const { accountEmail: _a, ...rest } = init || {}
+  const rest = init ? { ...init } : {}
+  if ('accountEmail' in rest) {
+    delete (rest as { accountEmail?: string | null }).accountEmail
+  }
   return fetch(url, { ...rest, headers })
 }
 

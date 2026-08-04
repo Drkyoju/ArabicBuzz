@@ -161,7 +161,7 @@ async function evaluateItem(
   if (!output.trim()) output = item.goldenOutputAr || ''
 
   // In offline mode skip the live judge (avoids noisy fallbacks / API calls)
-  let judge =
+  const judge =
     mode === 'live'
       ? await evaluateAgentResponse(
           item.promptAr,

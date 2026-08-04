@@ -130,12 +130,8 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       if (sessionError) throw sessionError
       setUser((await getBrowserSession())?.user ?? null)
       setInfo(data.messageAr || 'تم الدخول التجريبي')
-      router.replace('/')
-      router.refresh()
-      // Hard navigation so home auth gate re-reads session
-      if (typeof window !== 'undefined') {
-        window.location.assign('/')
-      }
+      // Hard navigation so home auth gate re-reads session cookies
+      window.location.href = '/'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذّر الدخول التجريبي')
     } finally {

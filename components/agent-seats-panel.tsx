@@ -36,23 +36,12 @@ export function AgentSeatsPanel({
   // Select stable slices — never return a fresh array from the selector
   // (causes getServerSnapshot infinite loop in production).
   const agentsForScope = useAgentRosterStore((s) => s.agentsForScope)
-  const customAgents = useAgentRosterStore((s) => s.customAgents)
-  const removedFromScope = useAgentRosterStore((s) => s.removedFromScope)
-  const addedToScope = useAgentRosterStore((s) => s.addedToScope)
-  const agentOverrides = useAgentRosterStore((s) => s.agentOverrides)
   const collabMode = useAgentRosterStore(
     (s) => s.collabModeByScope[scopeId] || 'solo'
   )
   const agents = useMemo(
     () => agentsForScope(scopeId),
-    [
-      agentsForScope,
-      scopeId,
-      customAgents,
-      removedFromScope,
-      addedToScope,
-      agentOverrides,
-    ]
+    [agentsForScope, scopeId]
   )
 
   return (

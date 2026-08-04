@@ -251,34 +251,6 @@ export function ChatCanvas({
     }
   }
 
-  async function streamLocalDemo(asstId: string, prompt: string) {
-    const reply = `إليك رداً تجريبياً بالعربية الفصحى حول: «${prompt}».
-
-\`\`\`json
-{
-  "model": "${selectedModel}",
-  "status": "streamed_demo"
-}
-\`\`\`
-`
-    let i = 0
-    while (i < reply.length) {
-      i = Math.min(reply.length, i + 6)
-      const slice = reply.slice(0, i)
-      setExtraMessages((prev) =>
-        prev.map((m) =>
-          m.id === asstId ? { ...m, content: slice, streaming: true } : m
-        )
-      )
-      await new Promise((r) => setTimeout(r, 18))
-    }
-    setExtraMessages((prev) =>
-      prev.map((m) =>
-        m.id === asstId ? { ...m, content: reply, streaming: false } : m
-      )
-    )
-  }
-
   return (
     <div
       dir="rtl"

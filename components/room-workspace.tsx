@@ -93,28 +93,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
   const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
-  const customAgents = useAgentRosterStore((s) => s.customAgents)
-  const removedFromScope = useAgentRosterStore((s) => s.removedFromScope)
-  const addedToScope = useAgentRosterStore((s) => s.addedToScope)
-  const agentOverrides = useAgentRosterStore((s) => s.agentOverrides)
   const collabMode = useAgentRosterStore(
     (s) => s.collabModeByScope[activeScopeId] || 'solo'
   )
   const roomAgents = useMemo(
     () => agentsForScopeFn(activeScopeId),
-    [
-      agentsForScopeFn,
-      activeScopeId,
-      customAgents,
-      removedFromScope,
-      addedToScope,
-      agentOverrides,
-    ]
+    [agentsForScopeFn, activeScopeId]
   )
-  const agentCatalog = useMemo(
-    () => allAgentsFn(),
-    [allAgentsFn, customAgents, agentOverrides]
-  )
+  const agentCatalog = useMemo(() => allAgentsFn(), [allAgentsFn])
 
   // Auto-open canvas when a new artifact appears
   useEffect(() => {

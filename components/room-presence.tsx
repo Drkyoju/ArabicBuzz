@@ -41,6 +41,8 @@ export function RoomPresenceBar({
     track: (payload: Record<string, unknown>) => Promise<unknown>
   } | null>(null)
   const nameRef = useRef(displayName || 'أنت')
+  const typingRef = useRef(typing)
+  const surfaceRef = useRef(surface)
 
   useEffect(() => {
     try {
@@ -54,8 +56,20 @@ export function RoomPresenceBar({
   }, [displayName])
 
   useEffect(() => {
+    typingRef.current = typing
+    surfaceRef.current = surface
+  }, [typing, surface])
+
+  useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setPeers([{ key: 'local', name: nameRef.current, typing, surface }])
+      setPeers([
+        {
+          key: 'local',
+          name: nameRef.current,
+          typing: typingRef.current,
+          surface: surfaceRef.current,
+        },
+      ])
       return
     }
     let cancelled = false
@@ -101,8 +115,8 @@ export function RoomPresenceBar({
         if (status === 'SUBSCRIBED') {
           await channel!.track({
             name: nameRef.current,
-            typing: false,
-            surface,
+            typing: typingRef.current,
+            surface: surfaceRef.current,
             at: Date.now(),
           })
         }
@@ -132,8 +146,9 @@ export function RoomPresenceBar({
   }, [typing, surface])
 
   const typingNames = peers.filter((p) => p.typing).map((p) => p.name)
+  const selfName = displayName || 'أنت'
   const online =
-    peers.length > 0 ? peers : [{ key: 'self', name: nameRef.current, surface }]
+    peers.length > 0 ? peers : [{ key: 'self', name: selfName, surface }]
   const surfaceLabel = (s?: string) =>
     s === 'canvas' ? 'اللوحة' : s === 'composer' ? 'الكتابة' : 'المحادثة'
 
