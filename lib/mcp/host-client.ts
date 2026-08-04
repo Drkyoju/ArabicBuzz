@@ -1,10 +1,7 @@
 /**
  * MCPClientHost — facade over MCPHostManager matching the agent-facing API.
  *
- * Converts connected MCP servers (PostgreSQL, GitHub, Slack, SQLite, FS, …)
- * into Vercel AI SDK tools at execution time.
- *
- * GitHub: modelcontextprotocol/servers · @modelcontextprotocol/sdk
+ * Converts connected MCP servers into Vercel AI SDK tools at execution time.
  */
 
 import {
@@ -12,47 +9,21 @@ import {
   type MCPServerConfig,
   type VercelAITool,
 } from '@/lib/mcp/client-manager'
+import { MCP_CATALOG } from '@/lib/mcp/catalog'
+import { listStoredMcpConnections } from '@/lib/mcp/persist'
 
 export type { MCPServerConfig }
 
-/** Preset HTTP/SSE MCP server templates (user still supplies URL / secrets). */
-export const MCP_SERVER_PRESETS = [
-  {
-    id: 'filesystem',
-    nameAr: 'نظام الملفات',
-    name: 'Filesystem',
-    hint: 'npx -y @modelcontextprotocol/server-filesystem /path',
-    transport: 'stdio' as const,
-  },
-  {
-    id: 'postgres',
-    nameAr: 'PostgreSQL',
-    name: 'PostgreSQL',
-    hint: 'npx -y @modelcontextprotocol/server-postgres $DATABASE_URL',
-    transport: 'stdio' as const,
-  },
-  {
-    id: 'github',
-    nameAr: 'GitHub',
-    name: 'GitHub',
-    hint: 'npx -y @modelcontextprotocol/server-github',
-    transport: 'stdio' as const,
-  },
-  {
-    id: 'sqlite',
-    nameAr: 'SQLite',
-    name: 'SQLite',
-    hint: 'npx -y mcp-server-sqlite --db-path ./data.db',
-    transport: 'stdio' as const,
-  },
-  {
-    id: 'slack',
-    nameAr: 'Slack',
-    name: 'Slack',
-    hint: 'Remote SSE/HTTP Slack MCP URL',
-    transport: 'sse' as const,
-  },
-] as const
+/** @deprecated Prefer MCP_CATALOG — kept for older imports. */
+export const MCP_SERVER_PRESETS = MCP_CATALOG.filter(
+  (c) => c.id === 'filesystem' || c.id === 'postgres' || c.id === 'github' || c.id === 'sqlite' || c.id === 'slack'
+).map((c) => ({
+  id: c.id,
+  nameAr: c.nameAr,
+  name: c.nameEn,
+  hint: c.setupHintAr,
+  transport: c.transport,
+}))
 
 export class MCPClientHost {
   private host = getMCPHostManager()
@@ -69,12 +40,10 @@ export class MCPClientHost {
     return this.host.listServers()
   }
 
-  /** Array form — useful for inspection UIs. */
   async getCombinedTools(): Promise<VercelAITool[]> {
     return this.host.getCombinedTools()
   }
 
-  /** Keyed ToolSet for generateText / streamText. */
   async getCombinedToolSet(): Promise<Record<string, VercelAITool>> {
     return this.host.getCombinedToolSet()
   }
@@ -94,6 +63,7 @@ export class MCPClientHost {
 
 const globalForHost = globalThis as unknown as {
   __arabicBuzzMcpClientHost?: MCPClientHost
+  __arabicBuzzMcpEnvConnected?: boolean
 }
 
 export function getMCPClientHost(): MCPClientHost {
@@ -103,33 +73,82 @@ export function getMCPClientHost(): MCPClientHost {
   return globalForHost.__arabicBuzzMcpClientHost
 }
 
-/** Auto-connect optional remote MCP URLs from env (HTTP/SSE only on Netlify). */
+/** Auto-connect remote MCP URLs from env + persisted DB (HTTP/SSE on Netlify). */
 export async function connectEnvMcpServers(): Promise<string[]> {
   const host = getMCPClientHost()
   const connected: string[] = []
-  const raw = process.env.MCP_REMOTE_SERVERS?.trim()
-  if (!raw) return connected
-  try {
-    const list = JSON.parse(raw) as Array<{
-      id: string
-      name?: string
-      url: string
-    }>
-    for (const item of list) {
-      if (!item?.id || !item?.url) continue
+
+  // Already wired this process instance
+  if (globalForHost.__arabicBuzzMcpEnvConnected) {
+    return host.listServers().map((s) => s.id)
+  }
+
+  const tryConnect = async (
+    id: string,
+    name: string,
+    url: string
+  ): Promise<boolean> => {
+    try {
       await host.connectServer({
-        id: item.id,
-        name: item.name || item.id,
+        id,
+        name,
         transport: 'sse',
-        commandOrUrl: item.url,
+        commandOrUrl: url,
       })
-      connected.push(item.id)
+      connected.push(id)
+      return true
+    } catch (e) {
+      console.warn(
+        `[mcp] connect ${id} failed:`,
+        e instanceof Error ? e.message : e
+      )
+      return false
+    }
+  }
+
+  // 1) Env JSON
+  const raw = process.env.MCP_REMOTE_SERVERS?.trim()
+  if (raw) {
+    try {
+      const list = JSON.parse(raw) as Array<{
+        id: string
+        name?: string
+        url: string
+      }>
+      for (const item of list) {
+        if (!item?.id || !item?.url) continue
+        await tryConnect(item.id, item.name || item.id, item.url)
+      }
+    } catch (e) {
+      console.warn(
+        '[mcp] MCP_REMOTE_SERVERS parse failed',
+        e instanceof Error ? e.message : e
+      )
+    }
+  }
+
+  // 2) Persisted connections
+  try {
+    const stored = await listStoredMcpConnections()
+    for (const row of stored) {
+      if (connected.includes(row.id)) continue
+      await tryConnect(row.id, row.nameAr, row.url)
     }
   } catch (e) {
     console.warn(
-      '[mcp] MCP_REMOTE_SERVERS parse/connect failed',
+      '[mcp] stored reconnect failed',
       e instanceof Error ? e.message : e
     )
   }
+
+  // 3) Optional free defaults if explicitly enabled
+  if (process.env.MCP_AUTO_ANYBROWSE === '1') {
+    const item = MCP_CATALOG.find((c) => c.id === 'anybrowse')
+    if (item?.defaultUrl && !connected.includes('anybrowse')) {
+      await tryConnect('anybrowse', item.nameAr, item.defaultUrl)
+    }
+  }
+
+  globalForHost.__arabicBuzzMcpEnvConnected = true
   return connected
 }

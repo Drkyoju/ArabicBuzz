@@ -1,12 +1,25 @@
 import { isZoomCreateConfigured } from '@/lib/zoom/create-meeting'
 import { isAuthRequired } from '@/lib/auth/session'
 import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
+import { connectEnvMcpServers } from '@/lib/mcp/host-client'
+import { getMCPHostManager } from '@/lib/mcp/client-manager'
+import { MCP_CATALOG } from '@/lib/mcp/catalog'
 
 export const dynamic = 'force-dynamic'
 
 /** Public-ish status of optional integrations (no secrets). */
 export async function GET() {
   const telegramOwnerConfigured = await hasTelegramOwnerTarget()
+  let mcpServers = 0
+  let mcpTools = 0
+  try {
+    await connectEnvMcpServers()
+    const list = getMCPHostManager().listServers()
+    mcpServers = list.length
+    mcpTools = list.reduce((n, s) => n + s.tools.length, 0)
+  } catch {
+    /* ignore */
+  }
   return Response.json({
     zoomConfigured: isZoomCreateConfigured(),
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
@@ -44,5 +57,8 @@ export async function GET() {
         process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
     ),
     authRequired: isAuthRequired(),
+    mcpCatalogCount: MCP_CATALOG.length,
+    mcpConnectedServers: mcpServers,
+    mcpConnectedTools: mcpTools,
   })
 }

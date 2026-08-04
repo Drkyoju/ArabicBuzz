@@ -9,6 +9,7 @@ import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
 import { getNativeAiTools } from '@/lib/agents/engine'
 import { getHarnessModel } from '@/lib/ai/router'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
+import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
 import { resolveApproval, listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { handleInboundVoiceNote } from '@/lib/audio/voice-pipeline'
@@ -70,6 +71,7 @@ async function bindTelegramTools(opts: {
   })
   let mcpTools: ToolSet = {}
   try {
+    await connectEnvMcpServers()
     mcpTools = await getMCPHostManager().getCombinedToolSet()
   } catch {
     /* optional */

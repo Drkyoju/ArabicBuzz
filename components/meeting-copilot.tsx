@@ -158,8 +158,8 @@ export function MeetingCopilotPanel() {
         مساعد الاجتماعات السعودي
       </h3>
       <p className="mb-3 text-[11px] text-stone-500">
-        الصق نص الاجتماع (أو تفريغ Zoom يدوياً) → محضر فصحى → اعتماد قبل Drive
-        وتيليجرام. انضمام البوت لـ Zoom قادم لاحقاً.
+        الصق نص الاجتماع (أو تفريغ Zoom) → محضر فصحى → اعتماد قبل Drive
+        وتيليجرام. حالة Zoom المباشر تظهر في لوحة اليوم والتقويم.
       </p>
       <textarea
         className="mb-2 min-h-[9rem] w-full rounded-lg border border-ab-border bg-white p-3 text-sm leading-relaxed"

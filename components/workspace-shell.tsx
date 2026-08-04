@@ -33,6 +33,7 @@ import {
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { HomeDashboard } from '@/components/home-dashboard'
+import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { authHeaders } from '@/lib/supabase/browser'
 
 function AccountStatus() {
@@ -446,6 +447,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
             <div className="mb-5">
               <ConnectedServicesPanel />
+            </div>
+
+            <div className="mb-5">
+              <McpServersPanel />
             </div>
 
             <details

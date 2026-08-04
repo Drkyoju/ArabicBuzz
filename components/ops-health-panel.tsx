@@ -16,6 +16,9 @@ type Snapshot = {
   macConfigured?: boolean
   modelsReady?: number
   pendingApprovals?: number
+  mcpConnectedServers?: number
+  mcpConnectedTools?: number
+  mcpCatalogCount?: number
 }
 
 /**
@@ -57,6 +60,9 @@ export function OpsHealthPanel() {
               (a: { status?: string }) => a.status === 'PENDING_APPROVAL'
             ).length
           : 0,
+        mcpConnectedServers: Number(integ?.mcpConnectedServers || 0),
+        mcpConnectedTools: Number(integ?.mcpConnectedTools || 0),
+        mcpCatalogCount: Number(integ?.mcpCatalogCount || 0),
       })
     } catch (e) {
       setSnap(null)
@@ -126,6 +132,11 @@ export function OpsHealthPanel() {
             : snap.macConfigured
               ? 'مضبوطة · غير متصلة'
               : 'اختياري',
+        },
+        {
+          label: 'أدوات MCP',
+          ok: (snap.mcpConnectedServers || 0) > 0,
+          detail: `${snap.mcpConnectedServers || 0} خادم · ${snap.mcpConnectedTools || 0} أداة · كتالوج ${snap.mcpCatalogCount || 0}`,
         },
         {
           label: 'موافقات معلّقة',

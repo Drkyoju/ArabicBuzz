@@ -42,6 +42,7 @@ const MIGRATIONS = [
   'supabase/migrations/017_room_calendar.sql',
   'supabase/migrations/018_room_memory_tasks.sql',
   'supabase/migrations/019_room_home_history.sql',
+  'supabase/migrations/020_mcp_connections.sql',
 ]
 
 function present(v?: string): boolean {
