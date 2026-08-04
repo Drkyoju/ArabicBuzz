@@ -41,7 +41,7 @@ export async function runAgentPipeline(input: {
   const baseSystem =
     'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية مع الحفاظ على المصطلحات التقنية المحلية عند الحاجة.'
 
-  const system = buildScopedSystemPrompt(baseSystem, input.scopeCtx)
+  const system = await buildScopedSystemPrompt(baseSystem, input.scopeCtx)
 
   let output: string
   if (wantsParallel(normalized.normalizedPromptAr, input.mode)) {

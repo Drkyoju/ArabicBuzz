@@ -34,6 +34,10 @@ import type {
   RoomFileAttachment,
   RoomPost,
 } from '@/lib/scopes/types'
+import {
+  extractCitationsFromToolOutput,
+  extractPausedApprovalId,
+} from '@/lib/agents/citation-events'
 import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
@@ -457,39 +461,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 out.output && typeof out.output === 'object'
                   ? (out.output as Record<string, unknown>)
                   : out
-              if (
-                nested.status === 'paused' &&
-                typeof nested.approvalId === 'string'
-              ) {
-                pendingApprovalId = nested.approvalId
-              }
-              const docs = (nested.documents || out.documents) as
-                | Array<{
-                    citation?: string
-                    titleAr?: string
-                    excerpt?: string
-                    url?: string
-                    metadata?: { url?: string; sourceUrl?: string }
-                  }>
-                | undefined
-              if (Array.isArray(docs)) {
-                for (const d of docs) {
-                  const label =
-                    d.citation ||
-                    (d.titleAr ? `[مصدر: ${d.titleAr}]` : '') ||
-                    ''
-                  const url =
-                    d.url ||
-                    d.metadata?.url ||
-                    d.metadata?.sourceUrl ||
-                    undefined
-                  if (label && !citations.some((c) => c.labelAr === label)) {
-                    citations.push({
-                      labelAr: label,
-                      excerpt: d.excerpt,
-                      url,
-                    })
-                  }
+              const pausedId = extractPausedApprovalId(toolOut)
+              if (pausedId) pendingApprovalId = pausedId
+              for (const c of extractCitationsFromToolOutput(toolOut)) {
+                if (!citations.some((x) => x.labelAr === c.labelAr)) {
+                  citations.push(c)
                 }
               }
               const attachList = (nested.attachments || out.attachments) as

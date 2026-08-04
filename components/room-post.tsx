@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, BookmarkPlus, Download, User } from 'lucide-react'
+import { Bot, BookmarkPlus, Download, Sparkles, User } from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -91,6 +91,8 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [memNote, setMemNote] = useState('')
+  const [skillNote, setSkillNote] = useState('')
+  const [skillBusy, setSkillBusy] = useState(false)
 
   const attachments = (() => {
     const fromPost = post.attachments || []
@@ -182,7 +184,9 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         </ReactMarkdown>
       </div>
       {post.citations && post.citations.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
+        <div className="mt-2 space-y-1" dir="rtl">
+          <p className="text-[10px] font-semibold text-stone-500">المصادر</p>
+          <div className="flex flex-wrap gap-1.5">
           {post.citations.map((c, i) =>
             c.url ? (
               <a
@@ -205,10 +209,11 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
               </span>
             )
           )}
+          </div>
         </div>
       )}
       {post.authorKind === 'human' || post.authorKind === 'agent' ? (
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => {
@@ -228,8 +233,72 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
             <BookmarkPlus className="h-3 w-3" />
             احفظ في الذاكرة
           </button>
-          {memNote && (
-            <p className="mt-1 text-[10px] text-emerald-700">{memNote}</p>
+          {post.authorKind === 'agent' && (
+            <button
+              type="button"
+              disabled={skillBusy}
+              onClick={() => {
+                void (async () => {
+                  setSkillBusy(true)
+                  setSkillNote('')
+                  try {
+                    const posts = useWorkspaceStore
+                      .getState()
+                      .postsByScope[post.scopeId] || []
+                    const idx = posts.findIndex((p) => p.id === post.id)
+                    const windowPosts = posts.slice(Math.max(0, idx - 4), idx + 1)
+                    const threadMessages = windowPosts
+                      .filter(
+                        (p) =>
+                          p.authorKind === 'human' || p.authorKind === 'agent'
+                      )
+                      .map((p) => ({
+                        role:
+                          p.authorKind === 'human'
+                            ? ('user' as const)
+                            : ('assistant' as const),
+                        content: (p.content || '').slice(0, 1200),
+                      }))
+                    const res = await fetch('/api/skills/propose', {
+                      method: 'POST',
+                      headers: await authHeaders({
+                        'Content-Type': 'application/json',
+                      }),
+                      body: JSON.stringify({
+                        threadMessages,
+                        scope: post.scopeId.startsWith('personal')
+                          ? 'personal'
+                          : 'shared',
+                      }),
+                    })
+                    const data = (await res.json()) as {
+                      error?: string
+                      messageAr?: string
+                    }
+                    if (!res.ok) throw new Error(data.error || 'فشل الاقتراح')
+                    setSkillNote(
+                      data.messageAr || 'أُرسل الاقتراح — راجعه في المهارات.'
+                    )
+                  } catch (e) {
+                    setSkillNote(
+                      e instanceof Error ? e.message : 'فشل اقتراح المهارة'
+                    )
+                  } finally {
+                    setSkillBusy(false)
+                    window.setTimeout(() => setSkillNote(''), 4000)
+                  }
+                })()
+              }}
+              className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent disabled:opacity-40"
+            >
+              <Sparkles className="h-3 w-3" />
+              {skillBusy ? 'جاري الاقتراح…' : 'اقتراح مهارة'}
+            </button>
+          )}
+          {(memNote || skillNote) && (
+            <p className="w-full text-[10px] text-emerald-700">
+              {skillNote || memNote}
+            </p>
           )}
         </div>
       ) : null}

@@ -16,7 +16,12 @@ const META_PROMPT =
 
 export async function distillThreadToSkill(
   threadMessages: ThreadMessage[],
-  opts?: { scope?: 'personal' | 'shared'; modelSlug?: string }
+  opts?: {
+    scope?: 'personal' | 'shared'
+    modelSlug?: string
+    /** When false, only return the draft (default true for legacy). */
+    persist?: boolean
+  }
 ): Promise<OpenClawSkill> {
   const modelSlug =
     opts?.modelSlug || process.env.HERMES_MODEL || 'hermes-3-405b'
@@ -32,6 +37,12 @@ export async function distillThreadToSkill(
 
   const skill = parseSkillFile(text)
   if (opts?.scope) skill.scope = opts.scope
-  saveSkillToWorkspace(skill)
+  if (opts?.persist !== false) {
+    try {
+      saveSkillToWorkspace(skill)
+    } catch {
+      /* ignore */
+    }
+  }
   return skill
 }

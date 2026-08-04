@@ -124,6 +124,11 @@ export function IntegrationsSetupPanel() {
               https://arabicbuzz.netlify.app/api/webhooks/telegram
             </code>
           </li>
+          <li>
+            من الهاتف: أرسل نصاً أو صوتاً · أوامر{' '}
+            <code dir="ltr">/help</code> · <code dir="ltr">/rooms</code> ·{' '}
+            <code dir="ltr">/approve</code>
+          </li>
         </ol>
       </div>
 

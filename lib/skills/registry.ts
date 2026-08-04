@@ -1,23 +1,20 @@
 import type { ActiveScopeContext } from '@/lib/scopes/types'
-import {
-  OpenClawSkill,
-  loadAllOpenClawSkills,
-} from '@/lib/skills/openclaw'
+import type { OpenClawSkill } from '@/lib/skills/openclaw'
+import { loadAllSkillsMerged } from '@/lib/skills/persist'
 import { buildPromptContext } from '@/lib/scopes/manager'
 
-export function loadSkillsForScope(ctx: ActiveScopeContext): OpenClawSkill[] {
-  const all = loadAllOpenClawSkills()
+export async function loadSkillsForScope(
+  ctx: ActiveScopeContext
+): Promise<OpenClawSkill[]> {
+  const all = await loadAllSkillsMerged()
   return all.filter((skill) => {
-    const scopeOk =
-      skill.scope === ctx.kind ||
-      (skill as OpenClawSkill & { scope?: string }).scope === undefined
-    if (!scopeOk && skill.scope !== ctx.kind) {
-      // allow personal skills only in personal; shared in shared
-      if (ctx.kind === 'personal' && skill.scope === 'shared') return false
-      if (ctx.kind === 'shared' && skill.scope === 'personal') return false
-    }
+    if (ctx.kind === 'personal' && skill.scope === 'shared') return false
+    if (ctx.kind === 'shared' && skill.scope === 'personal') return false
     if (ctx.kind === 'shared' && ctx.allowedSkills?.length) {
-      return ctx.allowedSkills.includes(skill.id) || ctx.allowedSkills.includes(skill.name)
+      return (
+        ctx.allowedSkills.includes(skill.id) ||
+        ctx.allowedSkills.includes(skill.name)
+      )
     }
     return skill.scope === ctx.kind || ctx.kind === 'shared'
   })
@@ -36,17 +33,17 @@ export function appendSkillsToSystemPrompt(
   return `${baseSystemPrompt}\n\n${blocks}`
 }
 
-export function buildScopedSystemPrompt(
+export async function buildScopedSystemPrompt(
   baseSystemPrompt: string,
   ctx: ActiveScopeContext
-): string {
+): Promise<string> {
   const withMemory = `${baseSystemPrompt}\n\n${buildPromptContext(ctx)}`
-  return appendSkillsToSystemPrompt(withMemory, loadSkillsForScope(ctx))
+  return appendSkillsToSystemPrompt(withMemory, await loadSkillsForScope(ctx))
 }
 
-export function runSkillAugmentation(
+export async function runSkillAugmentation(
   ctx: ActiveScopeContext,
   basePrompt: string
-): string {
+): Promise<string> {
   return buildScopedSystemPrompt(basePrompt, ctx)
 }

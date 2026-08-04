@@ -33,15 +33,37 @@ export function SkillMarketplace({
   const [installBusy, setInstallBusy] = useState<string | null>(null)
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null)
   const [mine, setMine] = useState<InstalledSkill[]>([])
-  const [showCatalog, setShowCatalog] = useState(false)
+  const [showCatalog, setShowCatalog] = useState(true)
+  const [proposals, setProposals] = useState<
+    Array<{
+      id: string
+      name: string
+      description: string
+      previewInstructions?: string
+    }>
+  >([])
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/skills?scope=${scopeKind}`)
-      const data = (await res.json()) as { skills?: InstalledSkill[] }
+      const [skillsRes, propRes] = await Promise.all([
+        fetch(`/api/skills?scope=${scopeKind}`),
+        fetch('/api/skills/proposals'),
+      ])
+      const data = (await skillsRes.json()) as { skills?: InstalledSkill[] }
+      const props = (await propRes.json()) as {
+        proposals?: Array<{
+          id: string
+          name: string
+          description: string
+          previewInstructions?: string
+        }>
+      }
       setMine(Array.isArray(data.skills) ? data.skills : [])
+      setProposals(Array.isArray(props.proposals) ? props.proposals : [])
     } catch {
       setMine([])
+      setProposals([])
     }
   }, [scopeKind])
 
@@ -145,6 +167,30 @@ export function SkillMarketplace({
     }
   }
 
+  async function decideProposal(
+    id: string,
+    decision: 'APPROVE' | 'REJECT'
+  ) {
+    setProposalBusy(id)
+    setMessage('')
+    setError('')
+    try {
+      const res = await fetch(`/api/skills/proposals/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      })
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل')
+      setMessage(data.messageAr || 'تم')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل')
+    } finally {
+      setProposalBusy(null)
+    }
+  }
+
   return (
     <section dir="rtl">
       <form
@@ -210,6 +256,51 @@ export function SkillMarketplace({
         </p>
       )}
 
+      {proposals.length > 0 && (
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-ab-ink">
+            اقتراحات معلّقة ({proposals.length})
+          </h3>
+          <p className="mb-3 text-[11px] text-stone-600">
+            مهارات مستخرجة من المحادثة — اعتمدها قبل أن تدخل حيّز الاستخدام.
+          </p>
+          <ul className="space-y-2">
+            {proposals.map((p) => (
+              <li
+                key={p.id}
+                className="rounded-lg border border-amber-200/80 bg-white px-3 py-2"
+              >
+                <p className="text-sm font-semibold">{p.name}</p>
+                <p className="text-xs text-stone-500">{p.description}</p>
+                {p.previewInstructions && (
+                  <p className="mt-1 line-clamp-3 text-[11px] text-stone-600">
+                    {p.previewInstructions}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={proposalBusy === p.id}
+                    onClick={() => void decideProposal(p.id, 'APPROVE')}
+                    className="rounded-md bg-ab-ink px-2.5 py-1 text-[11px] text-white disabled:opacity-40"
+                  >
+                    اعتماد المهارة
+                  </button>
+                  <button
+                    type="button"
+                    disabled={proposalBusy === p.id}
+                    onClick={() => void decideProposal(p.id, 'REJECT')}
+                    className="rounded-md border border-ab-border px-2.5 py-1 text-[11px] disabled:opacity-40"
+                  >
+                    رفض الاقتراح
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mb-8">
         <h3 className="mb-2 text-sm font-semibold text-ab-ink">
           مهاراتك الحالية ({mine.length})
@@ -253,14 +344,15 @@ export function SkillMarketplace({
         >
           <span className="inline-flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-ab-accent" aria-hidden />
-            اقتراحات جاهزة (اختياري)
+            حزمة المملكة الجاهزة ({KSA_SKILL_CATALOG.length})
           </span>
           <span className="text-xs font-normal text-stone-500">
             {showCatalog ? 'إخفاء' : 'عرض'}
           </span>
         </button>
         <p className="mt-1 text-[11px] text-stone-500">
-          مو إجبارية — تقدر تنسخ الفكرة أو تضيف مهارة باسمك من الفورم فوق.
+          حجوزات، ملخص اجتماع، مهام يومية، مراجعة معرفة، وامتثال سعودي — ثبّت
+          ما تحتاجه.
         </p>
         {showCatalog && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

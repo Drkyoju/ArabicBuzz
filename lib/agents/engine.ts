@@ -7,6 +7,7 @@ import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
 import type { SecurityPostureMode } from '@/lib/security/posture'
 import { withSpan } from '@/lib/observability/trace'
+import { extractFromAgentSteps } from '@/lib/agents/citation-events'
 
 /** Local stub tools exposed as Vercel AI SDK schemas. */
 export function getNativeAiTools(opts?: {
@@ -446,6 +447,8 @@ export type AgentEngineResult = {
   modelSlug: string
   toolNames: string[]
   steps: number
+  citations: import('@/lib/scopes/types').RoomCitation[]
+  pendingApprovalIds: string[]
 }
 
 /**
@@ -494,18 +497,22 @@ export async function runAgentEngine(
         model: getHarnessModel(modelSlug),
         system:
           input.system ||
-          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية.',
+          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. عند استخدام search_knowledge_base اذكر المصادر.',
         prompt: input.prompt,
         tools,
         stopWhen: stepCountIs(input.maxSteps ?? 5),
       })
   )
 
+  const extracted = extractFromAgentSteps(result.steps)
+
   return {
     text: result.text,
     modelSlug,
     toolNames,
     steps: result.steps?.length ?? 1,
+    citations: extracted.citations,
+    pendingApprovalIds: extracted.pendingApprovalIds,
   }
 }
 
