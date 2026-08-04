@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import {
   listDriveBrainPreview,
   syncDriveFolderToBrain,
@@ -11,11 +11,12 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * Google Drive folder → company brain.
- * Default folder: ملفات الجمعية (GOOGLE_DRIVE_BRAIN_FOLDER_ID).
+ * Google Drive folder → cloud company brain (Supabase).
+ * Default: ملفات الجمعية
+ * https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW
  */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)
@@ -27,8 +28,9 @@ export async function GET(req: Request) {
       connected: false,
       folderId,
       folderUrl: `https://drive.google.com/drive/folders/${folderId}`,
+      brainMode: 'cloud',
       error:
-        'اربط Google من الإعدادات (تقويم/Drive) ثم امنح صلاحية قراءة Drive.',
+        'اربط Google من الإعدادات (تقويم/Drive) ثم امنح صلاحية قراءة Drive. المجلد: ملفات الجمعية.',
     })
   }
 
@@ -37,6 +39,7 @@ export async function GET(req: Request) {
     return Response.json({
       connected: true,
       email: tokens.email,
+      brainMode: 'cloud',
       ...preview,
       count: preview.files.length,
     })
@@ -44,6 +47,7 @@ export async function GET(req: Request) {
     return Response.json(
       {
         connected: true,
+        brainMode: 'cloud',
         folderId,
         folderUrl: `https://drive.google.com/drive/folders/${folderId}`,
         error: e instanceof Error ? e.message : 'فشل قراءة المجلد',
@@ -54,15 +58,17 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
     folderId?: string
     maxFiles?: number
+    force?: boolean
   }
   const scopeId = body.scopeId || 'shared-demo'
+  // Always the association brain folder unless explicitly overridden
   const folderId = body.folderId || getDriveBrainFolderId()
 
   const tokens = await getGoogleTokenRow(auth.user.id)
@@ -70,7 +76,7 @@ export async function POST(req: Request) {
     return Response.json(
       {
         error:
-          'Google غير مربوط. من الإعدادات اضغط «ربط تقويم Google» (يشمل Drive).',
+          'Google غير مربوط. من الإعدادات اضغط «ربط تقويم Google» (يشمل Drive) بحساب يملك صلاحية على مجلد ملفات الجمعية.',
       },
       { status: 400 }
     )
@@ -82,15 +88,20 @@ export async function POST(req: Request) {
       scopeId,
       folderId,
       maxFiles: body.maxFiles,
+      force: Boolean(body.force),
     })
 
-    await insertRoomPost({
-      scopeId,
-      authorKind: 'system',
-      authorId: 'company-brain',
-      authorNameAr: 'عقل الشركة',
-      content: `📁 ${result.messageAr}\n${result.folderUrl}`,
-    })
+    try {
+      await insertRoomPost({
+        scopeId,
+        authorKind: 'system',
+        authorId: 'company-brain',
+        authorNameAr: 'عقل الشركة',
+        content: `📁 ${result.messageAr}\n${result.folderUrl}`,
+      })
+    } catch {
+      /* post is optional if guest write blocked */
+    }
 
     return Response.json(result)
   } catch (e) {

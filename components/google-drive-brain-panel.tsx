@@ -9,6 +9,9 @@ import {
 } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
+const BRAIN_FOLDER_URL =
+  'https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
+
 type DriveFile = {
   id: string
   name: string
@@ -24,6 +27,7 @@ type Preview = {
   files?: DriveFile[]
   error?: string
   email?: string | null
+  brainMode?: string
 }
 
 export function GoogleDriveBrainPanel() {
@@ -56,21 +60,40 @@ export function GoogleDriveBrainPanel() {
 
   async function sync() {
     setSyncing(true)
-    setNote('جاري مزامنة مجلد Drive إلى عقل الشركة…')
+    setNote('مزامنة سحابية من مجلد «ملفات الجمعية» (بدون ماك)…')
     try {
-      const res = await fetch('/api/google/drive/brain', {
-        method: 'POST',
-        headers: await authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ scopeId, maxFiles: 40 }),
-      })
-      const data = (await res.json()) as {
-        error?: string
-        messageAr?: string
-        ingested?: number
-        scanned?: number
+      let rounds = 0
+      let totalIngested = 0
+      let lastMessage = ''
+      // Auto-continue batches until folder is fully indexed (cap rounds)
+      while (rounds < 12) {
+        rounds += 1
+        const res = await fetch('/api/google/drive/brain', {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ scopeId, maxFiles: 8 }),
+        })
+        const data = (await res.json()) as {
+          error?: string
+          messageAr?: string
+          ingested?: number
+          scanned?: number
+          hasMore?: boolean
+          remaining?: number
+          alreadyIndexed?: number
+        }
+        if (!res.ok) throw new Error(data.error || 'فشلت المزامنة')
+        totalIngested += data.ingested || 0
+        lastMessage = data.messageAr || ''
+        setNote(
+          `${lastMessage}${data.hasMore ? ` (جولة ${rounds}…)` : ''}`
+        )
+        if (!data.hasMore) break
       }
-      if (!res.ok) throw new Error(data.error || 'فشلت المزامنة')
-      setNote(data.messageAr || `تمت مزامنة ${data.ingested}/${data.scanned}`)
+      setNote(
+        lastMessage ||
+          `اكتملت المزامنة السحابية · ${totalIngested} ملف في هذه الجلسة`
+      )
       await load()
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'فشلت المزامنة')
@@ -79,18 +102,20 @@ export function GoogleDriveBrainPanel() {
     }
   }
 
+  const folderUrl = preview?.folderUrl || BRAIN_FOLDER_URL
+
   return (
     <div dir="rtl">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 font-semibold">
             <FolderOpen className="h-4 w-4 text-ab-accent" aria-hidden />
-            عقل الشركة من Google Drive
+            عقل الشركة — مجلد Drive (سحابي)
           </h3>
           <p className="mt-1 text-xs leading-relaxed text-stone-600">
-            Gemini يتعلّم ويجيب من ملفات هذا المجلد في Drive فقط. ارفع ملفاتك
-            هنا ثم اضغط «مزامنة إلى العقل» — لن تُستخدم رفعات محلية أو روابط
-            ويب في إجابات المعرفة.
+            المصدر الوحيد لـ Gemini هو مجلد{' '}
+            <strong>ملفات الجمعية</strong> على Google Drive — فهرسة في السحابة
+            بدون ماك. سجّل الدخول، اربط Google، ثم زامن.
           </p>
         </div>
         <button
@@ -108,24 +133,20 @@ export function GoogleDriveBrainPanel() {
         </button>
       </div>
 
-      {preview?.folderUrl && (
-        <p className="mb-2 text-[11px]">
-          <a
-            href={preview.folderUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-ab-accent underline"
-            dir="ltr"
-          >
-            فتح المجلد في Drive
-          </a>
-          {typeof preview.count === 'number' ? (
-            <span className="mr-2 text-stone-500">
-              · {preview.count} ملف
-            </span>
-          ) : null}
-        </p>
-      )}
+      <p className="mb-2 text-[11px]">
+        <a
+          href={folderUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-ab-accent underline"
+          dir="ltr"
+        >
+          {folderUrl.replace('?usp=sharing', '')}
+        </a>
+        {typeof preview?.count === 'number' ? (
+          <span className="mr-2 text-stone-500">· {preview.count} ملف في Drive</span>
+        ) : null}
+      </p>
 
       <div className="mb-3 flex flex-wrap gap-2">
         {!preview?.connected ? (
@@ -149,7 +170,7 @@ export function GoogleDriveBrainPanel() {
             }}
             className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
           >
-            ربط Google (Drive + تقويم)
+            ١) ربط Google (Drive)
           </button>
         ) : (
           <button
@@ -158,7 +179,9 @@ export function GoogleDriveBrainPanel() {
             disabled={syncing}
             className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
           >
-            {syncing ? 'جاري المزامنة…' : 'مزامنة المجلد → عقل الشركة'}
+            {syncing
+              ? 'جاري الفهرسة السحابية…'
+              : '٢) مزامنة المجلد → عقل الشركة (سحابي)'}
           </button>
         )}
       </div>
@@ -169,38 +192,27 @@ export function GoogleDriveBrainPanel() {
 
       {!preview?.connected && (
         <p className="mb-3 text-[11px] leading-snug text-stone-500">
-          غير مربوط — من قسم التقويم أو الزر أعلاه اربط Google، أو راجع خطوات
-          الإعداد في الإعدادات.
+          استخدم حساب Google الذي يملك وصولاً لمجلد المشاركة أعلاه، ثم اضغط
+          المزامنة. لا حاجة لخزنة الماك.
         </p>
       )}
 
       {preview?.connected && (preview.count === 0 || !preview.files?.length) && (
         <div className="mb-3 rounded-xl border border-dashed border-ab-border bg-gradient-to-bl from-stone-50 to-emerald-50/40 px-4 py-6 text-center">
-          <p className="text-sm font-semibold text-ab-ink">المجلد فارغ أو لم يُزامَن</p>
-          <p className="mx-auto mt-1 max-w-sm text-[11px] leading-relaxed text-stone-500">
-            افتح مجلد «ملفات الجمعية» في Drive، ارفع مستندات الشركة، ثم اضغط
-            «مزامنة المجلد → عقل الشركة» هنا.
+          <p className="text-sm font-semibold text-ab-ink">
+            لم تظهر ملفات — تحقق من صلاحية المجلد
           </p>
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {preview.folderUrl && (
-              <a
-                href={preview.folderUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] font-medium text-ab-accent"
-              >
-                فتح المجلد في Drive
-              </a>
-            )}
-            <button
-              type="button"
-              onClick={() => void sync()}
-              disabled={syncing}
-              className="rounded-md bg-ab-accent px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
-            >
-              {syncing ? 'جاري المزامنة…' : 'مزامنة الآن'}
-            </button>
-          </div>
+          <p className="mx-auto mt-1 max-w-sm text-[11px] leading-relaxed text-stone-500">
+            افتح الرابط وتأكد أن الحساب المربوط يرى الملفات، ثم زامن مرة أخرى.
+          </p>
+          <a
+            href={folderUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] font-medium text-ab-accent"
+          >
+            فتح ملفات الجمعية
+          </a>
         </div>
       )}
 
@@ -209,11 +221,16 @@ export function GoogleDriveBrainPanel() {
           {preview.files.slice(0, 30).map((f) => (
             <li key={f.id} className="truncate text-stone-700">
               {f.name}
-              <span className="text-stone-400"> · {f.mimeType.split('.').pop()}</span>
+              <span className="text-stone-400">
+                {' '}
+                · {f.mimeType.split('.').pop()}
+              </span>
             </li>
           ))}
           {preview.files.length > 30 && (
-            <li className="text-stone-400">…و{preview.files.length - 30} أخرى</li>
+            <li className="text-stone-400">
+              …و{preview.files.length - 30} أخرى
+            </li>
           )}
         </ul>
       )}
