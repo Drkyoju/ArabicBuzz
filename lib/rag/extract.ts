@@ -109,12 +109,12 @@ async function extractWithOfficeParser(
       data?: unknown
     }
     for (const v of [maybe.value, maybe.text, maybe.content, maybe.data]) {
-      if (typeof v === 'string' && v.trim()) return v.trim()
+      if (typeof v === 'string' && v.trim().length > 0) return v.trim()
     }
     // Never persist "[object Object]" into the brain
     throw new Error('تعذّر استخراج نص من المستند (صيغة غير مدعومة)')
   }
-  return String(ast || '').trim()
+  return String(ast ?? '').trim()
 }
 
 async function extractPdf(buffer: Buffer): Promise<string> {
