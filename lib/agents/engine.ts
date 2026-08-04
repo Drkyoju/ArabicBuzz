@@ -6,6 +6,7 @@ import { getToolExecutor, toolRegistry } from '@/lib/agents/tools'
 import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
 import type { SecurityPostureMode } from '@/lib/security/posture'
+import { withSpan } from '@/lib/observability/trace'
 
 /** Local stub tools exposed as Vercel AI SDK schemas. */
 export function getNativeAiTools(opts?: {
@@ -480,15 +481,25 @@ export async function runAgentEngine(
   const tools: ToolSet = { ...native, ...mcpTools }
   const toolNames = Object.keys(tools)
 
-  const result = await generateText({
-    model: getHarnessModel(modelSlug),
-    system:
-      input.system ||
-      'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية.',
-    prompt: input.prompt,
-    tools,
-    stopWhen: stepCountIs(input.maxSteps ?? 5),
-  })
+  const result = await withSpan(
+    'agent.run',
+    {
+      'ab.model': modelSlug,
+      'ab.scope_id': input.scopeId,
+      'ab.tool_count': toolNames.length,
+      'ab.include_mcp': input.includeMcpTools !== false,
+    },
+    async () =>
+      generateText({
+        model: getHarnessModel(modelSlug),
+        system:
+          input.system ||
+          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية.',
+        prompt: input.prompt,
+        tools,
+        stopWhen: stepCountIs(input.maxSteps ?? 5),
+      })
+  )
 
   return {
     text: result.text,

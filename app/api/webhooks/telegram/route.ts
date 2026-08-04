@@ -1,4 +1,6 @@
 import { createTelegramWebhookHandler } from '@/lib/telegram/bot'
+import { enforceWebhookRateLimit } from '@/lib/reliability/rate-limit'
+import { dispatchChannelWorkflow } from '@/lib/workflows/channel-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -11,11 +13,29 @@ export const maxDuration = 30
  */
 export async function POST(req: Request) {
   try {
+    const limit = await enforceWebhookRateLimit({ req, channel: 'telegram' })
+    if (!limit.ok) {
+      return Response.json(
+        { error: 'rate_limited', retryAfterMs: Math.max(0, limit.reset - Date.now()) },
+        { status: 429 }
+      )
+    }
     if (!process.env.TELEGRAM_BOT_TOKEN) {
       return Response.json(
         { error: 'TELEGRAM_BOT_TOKEN is not configured' },
         { status: 503 }
       )
+    }
+    const cloned = req.clone()
+    const payload = await cloned.json().catch(() => null)
+    if (payload) {
+      const queued = await dispatchChannelWorkflow({
+        kind: 'telegram_webhook',
+        payload,
+      })
+      if (queued.queued) {
+        return Response.json({ ok: true, queued: true }, { status: 202 })
+      }
     }
     const handler = createTelegramWebhookHandler()
     return await handler(req)
