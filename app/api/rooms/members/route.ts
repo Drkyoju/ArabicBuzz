@@ -36,12 +36,39 @@ export async function POST(req: Request) {
     scopeId?: string
     displayNameAr?: string
     email?: string
+    phone?: string
+    committee?: string
+    notesAr?: string
+    memberId?: string
+    action?: 'add' | 'update'
   }
   const scopeId = body.scopeId || 'shared-demo'
   const gate = await assertRoomOwner(scopeId, auth.user.id, auth.user.email)
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: 403 })
   }
+
+  if (body.action === 'update' && body.memberId) {
+    const { updateRoomMember } = await import('@/lib/rooms/persist')
+    const result = await updateRoomMember({
+      scopeId,
+      memberId: body.memberId,
+      displayNameAr: body.displayNameAr,
+      email: body.email,
+      phone: body.phone,
+      committee: body.committee,
+      notesAr: body.notesAr,
+    })
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: 400 })
+    }
+    return Response.json({
+      ok: true,
+      member: result.member,
+      messageAr: 'حُدّث سجل العضو',
+    })
+  }
+
   const name = String(body.displayNameAr || '').trim()
   if (!name) {
     return Response.json({ error: 'اكتب اسم العضو' }, { status: 400 })
@@ -50,6 +77,9 @@ export async function POST(req: Request) {
     scopeId,
     displayNameAr: name,
     email: body.email || null,
+    phone: body.phone || null,
+    committee: body.committee || null,
+    notesAr: body.notesAr || null,
     role: 'member',
   })
   if (!result.ok) {
@@ -58,7 +88,7 @@ export async function POST(req: Request) {
   return Response.json({
     ok: true,
     member: result.member,
-    messageAr: `أُضيف «${name}» إلى الغرفة`,
+    messageAr: `أُضيف «${name}» إلى سجل الأعضاء`,
   })
 }
 

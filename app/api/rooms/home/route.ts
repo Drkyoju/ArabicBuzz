@@ -10,6 +10,8 @@ import {
 } from '@/lib/rooms/home-log'
 import { getLiveZoomSnapshot } from '@/lib/zoom/live-status'
 import { listRoomPosts } from '@/lib/rooms/persist'
+import { upcomingSystemDeadlines } from '@/lib/rooms/system-deadlines'
+import { isSystemDeadline } from '@/lib/rooms/system-deadlines'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
   const weekStart = dayBounds(0)
   const weekEnd = dayBounds(6)
 
-  const [events, tasks, activity, zoomSessions, posts, zoomSnap] =
+  const [events, tasks, activity, zoomSessions, posts, zoomSnap, deadlines] =
     await Promise.all([
       listRoomCalendarEvents({
         scopeId,
@@ -72,6 +74,7 @@ export async function GET(req: NextRequest) {
       listZoomSessions(scopeId, 15),
       listRoomPosts(scopeId, 30).then((r) => r.posts).catch(() => []),
       getLiveZoomSnapshot({ scopeId }).catch(() => null),
+      upcomingSystemDeadlines(scopeId, 90).catch(() => []),
     ])
 
   if (zoomSnap?.meetings) {
@@ -156,6 +159,36 @@ export async function GET(req: NextRequest) {
     (t) => t.status === 'open' || t.status === 'in_progress'
   )
 
+  const weekEvents = events.filter((e) =>
+    inRange(e.startsAt, weekStart.start, weekEnd.end)
+  )
+  const weekTasks = openTasks.filter((t) => {
+    if (!t.dueAt) return true
+    return inRange(t.dueAt, weekStart.start, weekEnd.end) || new Date(t.dueAt) < weekEnd.end
+  })
+  const commitments = [
+    ...weekEvents.map((e) => ({
+      id: `cal-${e.id}`,
+      kind: isSystemDeadline(e) ? ('deadline' as const) : ('event' as const),
+      titleAr: e.titleAr,
+      whenAt: e.startsAt,
+      whenAtAr: fmtTime(e.startsAt),
+      detailAr: e.locationAr,
+    })),
+    ...weekTasks.map((t) => ({
+      id: `task-${t.id}`,
+      kind: 'task' as const,
+      titleAr: t.titleAr,
+      whenAt: t.dueAt,
+      whenAtAr: t.dueAt ? fmtTime(t.dueAt) : 'بدون موعد',
+      detailAr: t.assigneeAr,
+    })),
+  ].sort((a, b) => {
+    const ta = a.whenAt ? new Date(a.whenAt).getTime() : Number.MAX_SAFE_INTEGER
+    const tb = b.whenAt ? new Date(b.whenAt).getTime() : Number.MAX_SAFE_INTEGER
+    return ta - tb
+  })
+
   return NextResponse.json({
     scopeId,
     timezone: TZ,
@@ -166,6 +199,18 @@ export async function GET(req: NextRequest) {
       dayAfter: dayAfter.ymd,
     },
     calendar: byDay,
+    commitments: {
+      count: commitments.length,
+      items: commitments.slice(0, 20),
+    },
+    systemDeadlines: deadlines.slice(0, 8).map((d) => ({
+      id: d.id,
+      kind: d.kind,
+      labelAr: d.labelAr,
+      startsAt: d.startsAt,
+      startsAtAr: fmtTime(d.startsAt),
+      daysLeft: d.daysLeft,
+    })),
     zoom: {
       liveNow: zoomLiveNow,
       liveCount: liveZoom.length || zoomSnap?.liveCount || 0,
@@ -205,7 +250,7 @@ export async function GET(req: NextRequest) {
       at: p.createdAt,
       atAr: fmtTime(new Date(p.createdAt).toISOString()),
     })),
-    messageAr: 'لوحة اليوم — ماذا حدث وماذا سيحدث.',
+    messageAr: 'لوحة اليوم — ماذا حدث وماذا سيحدث · التزامات هذا الأسبوع.',
   })
 }
 

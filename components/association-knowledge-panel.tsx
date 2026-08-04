@@ -183,6 +183,21 @@ export function AssociationKnowledgePanel() {
           {note}
         </p>
       ) : null}
+
+      <ol className="mt-4 list-decimal space-y-1 border-t border-ab-border pe-4 pt-3 text-xs text-stone-600">
+        <li>
+          املأ Drive عقل الجمعية بسياسات NCNP + اللائحة الأساسية + نماذج
+          المحاضر (من لوحة Drive أعلاه أو السحب بالروابط).
+        </li>
+        <li>
+          فعّل Anybrowse من «أدوات MCP» — وتفريغ الصوت (Deepgram/Whisper)
+          يُفعَّل لاحقاً من الإعدادات.
+        </li>
+        <li>
+          ابنِ سجل الأعضاء من لوحة الغرفة (اسم · جوال · لجنة) — هذا يفرق عن
+          أدوات الدردشة العامة.
+        </li>
+      </ol>
     </div>
   )
 }

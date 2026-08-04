@@ -51,6 +51,22 @@ type Digest = {
     dayAfter: CalEvent[]
     week: CalEvent[]
   }
+  commitments?: {
+    count: number
+    items: Array<{
+      id: string
+      kind: 'event' | 'task' | 'deadline'
+      titleAr: string
+      whenAtAr: string
+      detailAr?: string | null
+    }>
+  }
+  systemDeadlines?: Array<{
+    id: string
+    labelAr: string
+    daysLeft: number
+    startsAtAr: string
+  }>
   zoom?: {
     liveNow: boolean
     liveCount: number
@@ -299,6 +315,65 @@ export function HomeDashboard({
             events={cal?.dayAfter || []}
           />
         </div>
+      </div>
+
+      {/* Commitments this week */}
+      <div className="rounded-xl border border-ab-border bg-white p-4">
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+          <ListTodo className="h-4 w-4 text-ab-accent" />
+          التزامات هذا الأسبوع
+        </h2>
+        <p className="mb-3 text-[11px] text-stone-500">
+          من المهام + المواعيد + مواعيد النظام ({data?.commitments?.count || 0})
+        </p>
+        {(data?.commitments?.items || []).length === 0 ? (
+          <p className="text-xs text-stone-400">
+            لا التزامات ظاهرة — أضف مهاماً أو مواعيد نظام من التقويم.
+          </p>
+        ) : (
+          <ul className="divide-y divide-ab-border">
+            {(data?.commitments?.items || []).map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
+              >
+                <span>
+                  <span className="ms-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
+                    {c.kind === 'task'
+                      ? 'مهمة'
+                      : c.kind === 'deadline'
+                        ? 'نظام'
+                        : 'موعد'}
+                  </span>
+                  <span className="font-medium text-ab-ink">{c.titleAr}</span>
+                </span>
+                <span className="text-[11px] text-stone-500">
+                  {c.whenAtAr}
+                  {c.detailAr ? ` · ${c.detailAr}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(data?.systemDeadlines || []).length > 0 && (
+          <div className="mt-3 border-t border-ab-border pt-3">
+            <p className="mb-1 text-[11px] font-semibold text-stone-600">
+              مواعيد النظام القادمة
+            </p>
+            <ul className="space-y-1 text-xs">
+              {(data?.systemDeadlines || []).map((d) => (
+                <li key={d.id} className="flex justify-between gap-2">
+                  <span>{d.labelAr}</span>
+                  <span className="text-stone-500">
+                    {d.daysLeft < 0
+                      ? `متأخر ${Math.abs(d.daysLeft)}ي`
+                      : `${d.daysLeft} يوم`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Week */}

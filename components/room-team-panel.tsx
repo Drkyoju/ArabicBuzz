@@ -9,6 +9,9 @@ type Member = {
   displayNameAr: string
   email: string | null
   role: string
+  phone?: string | null
+  committee?: string | null
+  notesAr?: string | null
 }
 
 type Invite = {
@@ -63,6 +66,9 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
   const [now, setNow] = useState<NowSnap | null>(null)
   const [nameAr, setNameAr] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [committee, setCommittee] = useState('')
+  const [notesAr, setNotesAr] = useState('')
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
@@ -135,6 +141,9 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           scopeId,
           displayNameAr: nameAr.trim(),
           email: email.trim() || undefined,
+          phone: phone.trim() || undefined,
+          committee: committee.trim() || undefined,
+          notesAr: notesAr.trim() || undefined,
         }),
       })
       const data = (await res.json()) as { error?: string; messageAr?: string }
@@ -142,6 +151,9 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
       setMsg(data.messageAr || 'تمت الإضافة')
       setNameAr('')
       setEmail('')
+      setPhone('')
+      setCommittee('')
+      setNotesAr('')
       await refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'فشل')
@@ -325,8 +337,20 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{m.displayNameAr}</p>
                     <p className="truncate text-[10px] text-stone-400" dir="ltr">
-                      {m.email || m.role}
+                      {[m.email, m.phone].filter(Boolean).join(' · ') || m.role}
                     </p>
+                    {(m.committee || m.notesAr) && (
+                      <p className="truncate text-[10px] text-stone-500">
+                        {m.committee === 'finance'
+                          ? 'مالية'
+                          : m.committee === 'programs'
+                            ? 'برامج'
+                            : m.committee === 'board'
+                              ? 'مجلس'
+                              : m.committee || ''}
+                        {m.notesAr ? ` · ${m.notesAr}` : ''}
+                      </p>
+                    )}
                   </div>
                   {m.role !== 'owner' && canManage ? (
                     <button
@@ -357,7 +381,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           </div>
 
           <div className="rounded-md border border-ab-border bg-white p-2 space-y-2">
-            <p className="font-semibold text-ab-ink">إضافة يدوياً</p>
+            <p className="font-semibold text-ab-ink">سجل أعضاء الغرفة</p>
             {!canManage && (
               <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
                 الدعوة وإدارة الأعضاء للمالك فقط.
@@ -378,6 +402,32 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               className="w-full rounded border border-ab-border px-2 py-1.5 disabled:opacity-50"
               dir="ltr"
             />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="الجوال (اختياري)"
+              disabled={!canManage}
+              className="w-full rounded border border-ab-border px-2 py-1.5 disabled:opacity-50"
+              dir="ltr"
+            />
+            <select
+              value={committee}
+              onChange={(e) => setCommittee(e.target.value)}
+              disabled={!canManage}
+              className="w-full rounded border border-ab-border px-2 py-1.5 text-xs disabled:opacity-50"
+            >
+              <option value="">بدون لجنة</option>
+              <option value="finance">اللجنة المالية</option>
+              <option value="programs">لجنة البرامج</option>
+              <option value="board">مجلس الإدارة</option>
+            </select>
+            <input
+              value={notesAr}
+              onChange={(e) => setNotesAr(e.target.value)}
+              placeholder="ملاحظة قصيرة"
+              disabled={!canManage}
+              className="w-full rounded border border-ab-border px-2 py-1.5 disabled:opacity-50"
+            />
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -393,7 +443,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                 className="inline-flex items-center gap-1 rounded-md bg-ab-ink px-2.5 py-1.5 text-white disabled:opacity-40"
               >
                 <UserPlus className="h-3 w-3" />
-                أضف للغرفة
+                أضف للسجل
               </button>
               <button
                 type="button"

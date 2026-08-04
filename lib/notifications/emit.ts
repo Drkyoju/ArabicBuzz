@@ -25,11 +25,32 @@ export function clearUiNotifications() {
 async function resolveTelegramTarget(meta?: Record<string, unknown>) {
   const explicit =
     process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
-  if (explicit) return explicit
-  const scopeId =
-    (meta?.scopeId && String(meta.scopeId)) ||
-    process.env.TELEGRAM_DEFAULT_SCOPE_ID ||
-    'shared-demo'
+  const scopeId = String(
+    meta?.scopeId ||
+      process.env.TELEGRAM_DEFAULT_SCOPE_ID ||
+      'shared-demo'
+  )
+  const committeeKeyRaw = meta?.committeeKey
+    ? String(meta.committeeKey)
+    : ''
+  const committeeKey =
+    committeeKeyRaw === 'finance' ||
+    committeeKeyRaw === 'programs' ||
+    committeeKeyRaw === 'board'
+      ? committeeKeyRaw
+      : ''
+  if (committeeKey) {
+    try {
+      const { resolveCommitteeChatId } = await import(
+        '@/lib/rooms/committee-channels'
+      )
+      const cid = await resolveCommitteeChatId(scopeId, committeeKey)
+      if (cid) return cid
+    } catch {
+      /* fall through */
+    }
+  }
+  if (explicit && !committeeKey) return explicit
   try {
     const { getSupabaseAdmin } = await import('@/lib/supabase/server')
     const { findLatestTelegramChatId } = await import(

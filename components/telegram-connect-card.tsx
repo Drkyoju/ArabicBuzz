@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MessageCircle, CheckCircle2, Circle } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { CommitteeTelegramPanel } from '@/components/committee-telegram-panel'
 
 /**
  * User-facing Telegram status — deep-link bind via ?start=scope_<id>.
@@ -127,6 +128,7 @@ export function ConnectedServicesPanel() {
   return (
     <div className="space-y-3" dir="rtl">
       <TelegramConnectCard />
+      <CommitteeTelegramPanel />
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">
         <p className="mb-1 font-semibold text-ab-ink">
           اجتماعات Zoom{' '}
@@ -154,6 +156,13 @@ export function ConnectedServicesPanel() {
         <p>
           لتخزين الملفات الكبيرة على جهازك. من قسم «ملفات» بعد تفعيل المسؤول
           للنفق.
+        </p>
+      </div>
+      <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4 text-xs text-stone-600">
+        <p className="mb-1 font-semibold text-ab-ink">تفريغ الصوت (لاحقاً)</p>
+        <p>
+          بعد تفعيل Deepgram أو Whisper يمكن إرسال رسالة صوتية من تيليجرام
+          لتفريغها في الغرفة. حالياً الرسائل النصية والملفات مدعومة.
         </p>
       </div>
     </div>

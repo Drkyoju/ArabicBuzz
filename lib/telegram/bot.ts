@@ -230,8 +230,14 @@ export function getTelegramBot() {
       let boundScopeId = scope.scope.id
       let boundName = scope.scope.nameAr
       if (payload) {
-        // Deep link: /start <scopeId> or /start scope_<id>
-        const scopeId = payload.replace(/^scope[_-]/i, '')
+        // Deep link: /start scope_<id> or /start scope_<id>__c_<committee>
+        const {
+          parseCommitteeStartPayload,
+          upsertCommitteeChannel,
+          COMMITTEE_LABELS_AR,
+        } = await import('@/lib/rooms/committee-channels')
+        const parsed = parseCommitteeStartPayload(payload)
+        const scopeId = parsed?.scopeId || payload.replace(/^scope[_-]/i, '')
         const resolved = await resolveTelegramScope({
           chatId,
           userId,
@@ -246,6 +252,22 @@ export function getTelegramBot() {
             scopeId: boundScopeId,
             userId,
           })
+          if (parsed?.committeeKey) {
+            await upsertCommitteeChannel({
+              scopeId: boundScopeId,
+              committeeKey: parsed.committeeKey,
+              chatId,
+            })
+            await ctx.reply(
+              [
+                'مرحباً — بوت Arabic Buzz جاهز.',
+                `رُبطت قناة «${COMMITTEE_LABELS_AR[parsed.committeeKey]}» بالغرفة: ${boundName}`,
+                `معرّف المحادثة: ${chatId}`,
+                'الرسائل هنا تظهر في نفس الغرفة على الموقع.',
+              ].join('\n')
+            )
+            return
+          }
         }
       }
       await ctx.reply(

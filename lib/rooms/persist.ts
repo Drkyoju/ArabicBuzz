@@ -176,6 +176,10 @@ export type RoomMember = {
   email: string | null
   displayNameAr: string
   role: RoomMemberRole
+  phone: string | null
+  /** finance | programs | board | null */
+  committee: string | null
+  notesAr: string | null
   createdAt: string
 }
 
@@ -205,6 +209,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
         email: 'owner@arabicbuzz.local',
         displayNameAr: 'المالك',
         role: 'owner',
+        phone: null,
+        committee: 'board',
+        notesAr: null,
         createdAt: new Date().toISOString(),
       },
       {
@@ -214,6 +221,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
         email: 'sara@example.com',
         displayNameAr: 'سارة',
         role: 'member',
+        phone: null,
+        committee: 'finance',
+        notesAr: 'اللجنة المالية',
         createdAt: new Date().toISOString(),
       },
       {
@@ -223,6 +233,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
         email: 'fahad@example.com',
         displayNameAr: 'فهد',
         role: 'member',
+        phone: null,
+        committee: 'programs',
+        notesAr: null,
         createdAt: new Date().toISOString(),
       },
     ]
@@ -236,6 +249,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
         email: 'owner@arabicbuzz.local',
         displayNameAr: 'المالك',
         role: 'owner',
+        phone: null,
+        committee: 'board',
+        notesAr: null,
         createdAt: new Date().toISOString(),
       },
       {
@@ -245,6 +261,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
         email: 'sara@example.com',
         displayNameAr: 'سارة',
         role: 'member',
+        phone: null,
+        committee: null,
+        notesAr: null,
         createdAt: new Date().toISOString(),
       },
     ]
@@ -257,6 +276,9 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
       email: 'owner@arabicbuzz.local',
       displayNameAr: 'المالك',
       role: 'owner',
+      phone: null,
+      committee: null,
+      notesAr: null,
       createdAt: new Date().toISOString(),
     },
   ]
@@ -341,6 +363,21 @@ export async function assertRoomCanPost(
   return { ok: true }
 }
 
+function mapDbMember(r: Record<string, unknown>): RoomMember {
+  return {
+    id: r.id as string,
+    scopeId: r.scope_id as string,
+    userId: (r.user_id as string) || null,
+    email: (r.email as string) || null,
+    displayNameAr: r.display_name_ar as string,
+    role: r.role as RoomMember['role'],
+    phone: (r.phone as string) || null,
+    committee: (r.committee as string) || null,
+    notesAr: (r.notes_ar as string) || null,
+    createdAt: r.created_at as string,
+  }
+}
+
 export async function listRoomMembers(scopeId: string): Promise<{
   ok: boolean
   members: RoomMember[]
@@ -390,15 +427,7 @@ export async function listRoomMembers(scopeId: string): Promise<{
       return {
         ok: true,
         source: 'db',
-        members: again.data.map((r) => ({
-          id: r.id as string,
-          scopeId: r.scope_id as string,
-          userId: (r.user_id as string) || null,
-          email: (r.email as string) || null,
-          displayNameAr: r.display_name_ar as string,
-          role: r.role as RoomMember['role'],
-          createdAt: r.created_at as string,
-        })),
+        members: again.data.map((r) => mapDbMember(r as Record<string, unknown>)),
       }
     }
     return { ok: true, members: seed, source: 'memory' }
@@ -406,15 +435,7 @@ export async function listRoomMembers(scopeId: string): Promise<{
   return {
     ok: true,
     source: 'db',
-    members: data.map((r) => ({
-      id: r.id as string,
-      scopeId: r.scope_id as string,
-      userId: (r.user_id as string) || null,
-      email: (r.email as string) || null,
-      displayNameAr: r.display_name_ar as string,
-      role: r.role as RoomMember['role'],
-      createdAt: r.created_at as string,
-    })),
+    members: data.map((r) => mapDbMember(r as Record<string, unknown>)),
   }
 }
 
@@ -424,6 +445,9 @@ export async function addRoomMember(opts: {
   email?: string | null
   userId?: string | null
   role?: RoomMember['role']
+  phone?: string | null
+  committee?: string | null
+  notesAr?: string | null
 }): Promise<{ ok: boolean; member?: RoomMember; error?: string }> {
   const name = opts.displayNameAr.trim()
   if (!name) return { ok: false, error: 'الاسم مطلوب' }
@@ -435,6 +459,9 @@ export async function addRoomMember(opts: {
     email,
     displayNameAr: name,
     role: opts.role || 'member',
+    phone: opts.phone?.trim() || null,
+    committee: opts.committee?.trim() || null,
+    notesAr: opts.notesAr?.trim() || null,
     createdAt: new Date().toISOString(),
   }
 
@@ -458,6 +485,9 @@ export async function addRoomMember(opts: {
         email: member.email,
         display_name_ar: member.displayNameAr,
         role: member.role,
+        phone: member.phone,
+        committee: member.committee,
+        notes_ar: member.notesAr,
       },
       { onConflict: 'scope_id,email' }
     )
@@ -465,7 +495,7 @@ export async function addRoomMember(opts: {
     .single()
 
   if (error) {
-    // Fallback memory
+    // Fallback memory — columns may not exist yet
     const list = ensureMemMembers(opts.scopeId)
     list.push(member)
     return { ok: true, member, error: error.message }
@@ -481,16 +511,54 @@ export async function addRoomMember(opts: {
 
   return {
     ok: true,
-    member: {
-      id: data.id as string,
-      scopeId: data.scope_id as string,
-      userId: (data.user_id as string) || null,
-      email: (data.email as string) || null,
-      displayNameAr: data.display_name_ar as string,
-      role: data.role as RoomMember['role'],
-      createdAt: data.created_at as string,
-    },
+    member: mapDbMember(data as Record<string, unknown>),
   }
+}
+
+export async function updateRoomMember(opts: {
+  scopeId: string
+  memberId: string
+  displayNameAr?: string
+  email?: string | null
+  phone?: string | null
+  committee?: string | null
+  notesAr?: string | null
+  role?: RoomMember['role']
+}): Promise<{ ok: boolean; member?: RoomMember; error?: string }> {
+  const sb = getSupabaseAdmin()
+  const patch: Record<string, unknown> = {}
+  if (opts.displayNameAr != null) patch.display_name_ar = opts.displayNameAr.trim()
+  if (opts.email !== undefined) patch.email = opts.email?.trim().toLowerCase() || null
+  if (opts.phone !== undefined) patch.phone = opts.phone?.trim() || null
+  if (opts.committee !== undefined) patch.committee = opts.committee?.trim() || null
+  if (opts.notesAr !== undefined) patch.notes_ar = opts.notesAr?.trim() || null
+  if (opts.role) patch.role = opts.role
+
+  if (!sb) {
+    const list = ensureMemMembers(opts.scopeId)
+    const m = list.find((x) => x.id === opts.memberId)
+    if (!m) return { ok: false, error: 'العضو غير موجود' }
+    if (opts.displayNameAr != null) m.displayNameAr = opts.displayNameAr.trim()
+    if (opts.email !== undefined) m.email = opts.email?.trim().toLowerCase() || null
+    if (opts.phone !== undefined) m.phone = opts.phone?.trim() || null
+    if (opts.committee !== undefined) m.committee = opts.committee?.trim() || null
+    if (opts.notesAr !== undefined) m.notesAr = opts.notesAr?.trim() || null
+    if (opts.role) m.role = opts.role
+    return { ok: true, member: m }
+  }
+
+  const { data, error } = await sb
+    .from('room_members')
+    .update(patch)
+    .eq('id', opts.memberId)
+    .eq('scope_id', opts.scopeId)
+    .select('*')
+    .single()
+
+  if (error || !data) {
+    return { ok: false, error: error?.message || 'تعذّر التحديث' }
+  }
+  return { ok: true, member: mapDbMember(data as Record<string, unknown>) }
 }
 
 export async function removeRoomMember(opts: {
