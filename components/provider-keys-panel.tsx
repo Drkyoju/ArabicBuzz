@@ -35,7 +35,7 @@ type Snapshot = {
 
 const SOURCE_AR: Record<ProviderStatus['source'], string> = {
   override: 'محفوظ من الواجهة',
-  environment: 'من البيئة / Netlify',
+  environment: 'من إعدادات الاستضافة',
   absent: 'غير مضبوط',
 }
 
@@ -367,8 +367,8 @@ function ProviderEditor({
       </p>
       {p.configured && p.liveOk === false && p.source === 'environment' && (
         <p className="mb-2 text-[11px] text-amber-800">
-          المفتاح على Netlify فاسد — الصق مفتاحاً صالحاً هنا (يُحفظ كتجاوز) أو
-          احذفه من Netlify Environment variables.
+          المفتاح من الاستضافة غير صالح — الصق مفتاحاً صالحاً هنا (يُحفظ
+          كتجاوز) أو حدّثه لدى المسؤول.
         </p>
       )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

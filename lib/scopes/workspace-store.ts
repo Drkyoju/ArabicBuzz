@@ -9,114 +9,11 @@ import {
 import type { RoomPost, Scope } from '@/lib/scopes/types'
 
 function seedPosts(): Record<string, RoomPost[]> {
-  const now = Date.now()
   return {
-    'personal-demo': [
-      {
-        id: 'p-seed-1',
-        scopeId: 'personal-demo',
-        authorKind: 'agent',
-        authorId: 'agent-desk',
-        authorNameAr: 'الوكيل الشخصي',
-        content:
-          'هذه مساحتك الشخصية اليومية — خاصة بك فقط (لا زملاء ولا دعوات). الذاكرة والملفات هنا منفصلة عن «مكتب البحث» وعن غرف الفريق. اكتب مهمة سريعة وسأساعدك.',
-        createdAt: now - 60_000,
-      },
-    ],
-    'personal-research': [
-      {
-        id: 'pr-seed-1',
-        scopeId: 'personal-research',
-        authorKind: 'agent',
-        authorId: 'agent-research',
-        authorNameAr: 'وكيل البحث',
-        content:
-          'مرحباً في مكتب البحث. هنا للمسودات والتحليل قبل المشاركة مع الفريق — جرب أفكاراً، قارن خيارات، وصِغ مسودة. عندما تصبح جاهزة، انقلها يدوياً إلى «غرفة الفريق».',
-        createdAt: now - 50_000,
-      },
-    ],
-    'shared-demo': [
-      {
-        id: 's-seed-1',
-        scopeId: 'shared-demo',
-        authorKind: 'human',
-        authorId: 'user-2',
-        authorNameAr: 'سارة',
-        content:
-          'السلام عليكم — نحتاج ملخص قرار الأسبوع بالعربية الفصحى قبل اجتماع الغد.',
-        createdAt: now - 120_000,
-      },
-      {
-        id: 's-seed-2',
-        scopeId: 'shared-demo',
-        authorKind: 'agent',
-        authorId: 'agent-reports',
-        authorNameAr: 'وكيل التقارير',
-        content:
-          'تم استلام الطلب. سأعتمد ذاكرة الغرفة المشتركة وأجهّز مسودة الملخص للمراجعة البشرية.',
-        createdAt: now - 90_000,
-      },
-      {
-        id: 's-seed-3',
-        scopeId: 'shared-demo',
-        authorKind: 'human',
-        authorId: 'user-3',
-        authorNameAr: 'فهد',
-        content: 'أضف فقرة عن سياسة الموافقات منخفضة المخاطر إن وُجدت في الذاكرة.',
-        createdAt: now - 70_000,
-      },
-      {
-        id: 's-seed-4',
-        scopeId: 'shared-demo',
-        authorKind: 'agent',
-        authorId: 'agent-compliance',
-        authorNameAr: 'وكيل الامتثال',
-        content:
-          'ملاحظة: أي إجراء عالي المخاطر سيظهر في سجل الموافقات قبل التنفيذ.',
-        createdAt: now - 40_000,
-      },
-    ],
-    'shared-ops': [
-      {
-        id: 'o-seed-1',
-        scopeId: 'shared-ops',
-        authorKind: 'system',
-        authorId: 'system',
-        authorNameAr: 'النظام',
-        content:
-          'مرحباً في غرفة العمليات. هنا تتابع التشغيل: الـ Cron، تنبيهات القنوات، وحالة الإرسال — القرارات والاجتماعات تكون في «غرفة الفريق».',
-        createdAt: now - 100_000,
-      },
-      {
-        id: 'o-seed-2',
-        scopeId: 'shared-ops',
-        authorKind: 'agent',
-        authorId: 'agent-cron',
-        authorNameAr: 'وكيل الجدولة',
-        content:
-          'آخر تشغيل للـ Cron نجح. الملخص الصباحي مجدول الساعة 09:00 بتوقيت الرياض. اسألني عن سجل التشغيل أو أعد الجدولة.',
-        createdAt: now - 80_000,
-      },
-      {
-        id: 'o-seed-3',
-        scopeId: 'shared-ops',
-        authorKind: 'human',
-        authorId: 'user-2',
-        authorNameAr: 'سارة',
-        content: 'هل ربط تيليجرام ما زال على هذه الغرفة؟',
-        createdAt: now - 55_000,
-      },
-      {
-        id: 'o-seed-4',
-        scopeId: 'shared-ops',
-        authorKind: 'agent',
-        authorId: 'agent-channels',
-        authorNameAr: 'وكيل القنوات',
-        content:
-          'نعم — تيليجرام للتنبيه فقط (مو دعوة أعضاء). الموافقات عالية المخاطر تصل كأزرار مضمنة إن وُجدت.',
-        createdAt: now - 30_000,
-      },
-    ],
+    'personal-demo': [],
+    'personal-research': [],
+    'shared-demo': [],
+    'shared-ops': [],
   }
 }
 

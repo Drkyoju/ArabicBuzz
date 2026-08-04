@@ -26,6 +26,7 @@ export const useTeamCalendarStore = create<TeamCalendarState>()(
       addEmail: (email) => {
         const e = normalizeEmail(email)
         if (!isEmail(e)) return false
+        if (e.endsWith('@example.com')) return false
         if (get().memberEmails.includes(e)) return true
         set({ memberEmails: [...get().memberEmails, e] })
         return true
@@ -39,12 +40,22 @@ export const useTeamCalendarStore = create<TeamCalendarState>()(
       setEmails: (emails) => {
         const next = [
           ...new Set(
-            emails.map(normalizeEmail).filter((e) => isEmail(e))
+            emails
+              .map(normalizeEmail)
+              .filter((e) => isEmail(e) && !e.endsWith('@example.com'))
           ),
         ]
         set({ memberEmails: next })
       },
     }),
-    { name: 'arabic-buzz-team-calendar' }
+    {
+      name: 'arabic-buzz-team-calendar',
+      onRehydrateStorage: () => (state) => {
+        if (!state) return
+        state.memberEmails = state.memberEmails.filter(
+          (e) => !e.endsWith('@example.com')
+        )
+      },
+    }
   )
 )

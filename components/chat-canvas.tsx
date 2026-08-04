@@ -211,7 +211,7 @@ export function ChatCanvas({
 
         if (!assembled) {
           assembled =
-            'تعذّر بث الرد من بوابة النماذج. تحقق من مفاتيح OPENROUTER/GEMINI/PERPLEXITY في Netlify.'
+            'تعذّر بث الرد. تحقق من مفاتيح النماذج في قسم «مفاتيح API».'
         }
 
         setExtraMessages((prev) =>

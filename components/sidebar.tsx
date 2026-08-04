@@ -35,20 +35,27 @@ export type SidebarSection =
   | 'ops'
   | 'settings'
 
-const NAV: Array<{
+const PRIMARY_NAV: Array<{
   id: SidebarSection
   labelAr: string
   icon: LucideIcon
 }> = [
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
-  { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
-  { id: 'calendar', labelAr: 'التقويم · Zoom', icon: CalendarDays },
+  { id: 'calendar', labelAr: 'التقويم', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
+  { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
+]
+
+const MORE_NAV: Array<{
+  id: SidebarSection
+  labelAr: string
+  icon: LucideIcon
+}> = [
+  { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
   { id: 'api-keys', labelAr: 'مفاتيح API', icon: KeyRound },
   { id: 'ops', labelAr: 'صحة التشغيل', icon: Activity },
-  { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
 
 function SidebarBody({
@@ -82,7 +89,16 @@ function SidebarBody({
   )
   const [menuId, setMenuId] = useState<string | null>(null)
   const [createErr, setCreateErr] = useState('')
+  const [showMoreNav, setShowMoreNav] = useState(() =>
+    MORE_NAV.some((n) => n.id === activeSection)
+  )
   const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (MORE_NAV.some((n) => n.id === activeSection)) {
+      setShowMoreNav(true)
+    }
+  }, [activeSection])
 
   useEffect(() => {
     if (!menuId) return
@@ -142,7 +158,7 @@ function SidebarBody({
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
         <ul className="space-y-0.5">
-          {NAV.map(({ id, labelAr, icon: Icon }) => {
+          {PRIMARY_NAV.map(({ id, labelAr, icon: Icon }) => {
             const active = activeSection === id
             return (
               <li key={id}>
@@ -166,6 +182,43 @@ function SidebarBody({
             )
           })}
         </ul>
+        <button
+          type="button"
+          onClick={() => setShowMoreNav((v) => !v)}
+          className="mt-1 w-full rounded-md px-2.5 py-1.5 text-right text-[11px] text-stone-500 hover:bg-stone-50"
+        >
+          {showMoreNav ? 'إخفاء المزيد' : 'المزيد…'}
+        </button>
+        {showMoreNav && (
+          <ul className="mt-0.5 space-y-0.5">
+            {MORE_NAV.map(({ id, labelAr, icon: Icon }) => {
+              const active = activeSection === id
+              return (
+                <li key={id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSectionChange?.(id)
+                      onNavigate?.()
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors',
+                      active
+                        ? 'bg-ab-accent/10 font-semibold text-ab-accent'
+                        : 'text-ab-ink hover:bg-stone-100'
+                    )}
+                  >
+                    <Icon
+                      className="h-3.5 w-3.5 shrink-0 opacity-70"
+                      aria-hidden
+                    />
+                    <span>{labelAr}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </nav>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -196,21 +249,12 @@ function SidebarBody({
                   <span className="block text-[13px] font-medium">
                     {scope.nameAr}
                   </span>
-                  {scope.descriptionAr && (
-                    <span
-                      className={cn(
-                        'mt-0.5 block truncate text-[10px] leading-snug',
-                        active ? 'text-white/70' : 'text-stone-400'
-                      )}
-                    >
-                      {scope.descriptionAr}
-                    </span>
-                  )}
                 </button>
                 <button
                   type="button"
                   className="absolute left-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
                   aria-label="خيارات الجلسة"
+                  title={scope.descriptionAr || 'خيارات الجلسة'}
                   onClick={(e) => {
                     e.stopPropagation()
                     setMenuId((v) => (v === scope.id ? null : scope.id))
@@ -289,8 +333,7 @@ function SidebarBody({
                       active ? 'text-white/70' : 'text-stone-400'
                     )}
                   >
-                    {scope.memberLabelsAr.length} بشر ·{' '}
-                    {scope.agentLabelsAr.length} وكلاء
+                    {scope.memberLabelsAr.length} أعضاء
                   </span>
                 </button>
               </li>

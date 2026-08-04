@@ -20,10 +20,12 @@ import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
+import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
+import { HelpTip } from '@/components/help-tip'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
-function AuthRequiredStatus() {
+function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
   useEffect(() => {
     void fetch('/api/integrations/status')
@@ -35,7 +37,7 @@ function AuthRequiredStatus() {
   }, [])
   if (required === null) {
     return (
-      <p className="text-[11px] text-stone-400">جاري فحص وضع المصادقة…</p>
+      <p className="text-[11px] text-stone-400">جاري فحص حالة الحساب…</p>
     )
   }
   return (
@@ -47,8 +49,8 @@ function AuthRequiredStatus() {
       }
     >
       {required
-        ? 'AUTH_REQUIRED مفعّل — يلزم تسجيل الدخول للـ API'
-        : 'AUTH_REQUIRED معطّل — الوضع الشخصي مفتوح (يُغيَّر من Netlify)'}
+        ? 'يلزم تسجيل الدخول لاستخدام المنصة.'
+        : 'يمكنك البدء فوراً — سجّل الدخول لاحقاً لحفظ حسابك عبر الأجهزة.'}
     </p>
   )
 }
@@ -172,7 +174,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">الموافقات</h2>
+                <h2 className="flex items-center gap-1.5 text-xl font-bold">
+                  الموافقات
+                  <HelpTip textAr="عند وضع الأمان «صارم» أو «تلقائي» تظهر هنا طلبات قبل تنفيذ الأدوات الحساسة. غيّر الوضع من الإعدادات." />
+                </h2>
                 <p className="mt-1 text-sm text-stone-500">
                   الإجراءات عالية المخاطر تنتظر موافقتك قبل التنفيذ.
                 </p>
@@ -222,9 +227,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'skills' && (
           <div className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <div className="mb-6">
-              <h2 className="text-xl font-bold">المهارات والمهام</h2>
+              <h2 className="flex items-center gap-1.5 text-xl font-bold">
+                المهارات والمهام
+                <HelpTip textAr="المهارة = تعليمات ثابتة للوكيل في هذه المساحة. يمكنك اقتراح مهارة من المحادثة أيضاً." />
+              </h2>
               <p className="mt-1 text-sm text-stone-500">
-                ثبّت مهارات للوكلاء أو سجّل مهمة مجدولة للعربية.
+                ثبّت مهارات للوكلاء أو سجّل تذكيراً يومياً.
               </p>
             </div>
             <SkillMarketplace targetScopeId={activeScopeId} />
@@ -234,7 +242,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   المهام المجدولة
                 </h3>
                 <p className="mb-4 text-xs text-stone-500">
-                  تنبيهات وملخصات دورية عبر القنوات المضبوطة على Netlify.
+                  ملخصات وتنبيهات يومية عبر تيليجرام عند تفعيله.
                 </p>
                 <CronRegisterForm
                   onCreated={() => setCronReloadToken((t) => t + 1)}
@@ -269,54 +277,91 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>
             <p className="mb-6 text-sm text-stone-500">
-              الحساب، المفاتيح، ووضع الأمان للموقع السحابي.
+              حسابك، الأمان، والربط بالخدمات — بدون تفاصيل تقنية.
             </p>
 
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h3 className="font-semibold">الموقع</h3>
+                <h3 className="font-semibold">الحساب</h3>
                 <AirGapBadge airGapped={airGapped} />
               </div>
-              <p className="text-xs leading-relaxed text-stone-600">
-                {airGapped
-                  ? 'وضع محلي مغلق: النماذج والملفات تبقى على الجهاز قدر الإمكان.'
-                  : 'تعمل على arabicbuzz.netlify.app — الملفات والذاكرة في السحابة وعقل الشركة.'}
-              </p>
-            </div>
-
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
-              <h3 className="mb-2 font-semibold">الوصول والحساب</h3>
-              <AuthRequiredStatus />
+              <AccountStatus />
               <p className="mb-3 mt-2 text-xs text-stone-600">
-                لغرف متعددة المستخدمين فعّل{' '}
-                <code dir="ltr">AUTH_REQUIRED=true</code> على Netlify ثم سجّل
-                الدخول من{' '}
-                <a href="/auth/login" className="text-ab-accent underline">
-                  صفحة الدخول
-                </a>
-                .
+                سجّل الدخول لحفظ جلستك عبر الأجهزة، أو ابدأ تجريبياً الآن.
               </p>
               <AuthButtons compact />
             </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleSetupChecklist focus="all" />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <GoogleDriveBrainPanel />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <MacBrainPanel />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <IntegrationsSetupPanel />
-            </div>
-            <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-              <h3 className="mb-3 font-semibold">وضع الأمان</h3>
+
+            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <h3 className="mb-1 flex items-center gap-1.5 font-semibold">
+                وضع الأمان
+                <HelpTip textAr="صارم = موافقة على معظم الأدوات. تلقائي = موافقة للخطر العالي فقط. حر = تنفيذ أسرع مع مخاطر أعلى." />
+              </h3>
+              <p className="mb-3 text-xs text-stone-500">
+                يحدد متى يطلب الوكيل موافقتك قبل تنفيذ إجراء.
+              </p>
               <SecurityPosturePicker />
             </div>
-            <div className="mt-8">
-              <SdaiaAuditViewer />
+
+            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <h3 className="mb-1 font-semibold">تقويم Google و Drive</h3>
+              <p className="mb-3 text-xs text-stone-500">
+                اربط حسابك لحجز المواعيد ومزامنة ملفات العقل.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSection('calendar')}
+                  className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  فتح التقويم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSection('api-keys')}
+                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                >
+                  مفاتيح النماذج
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSection('ops')}
+                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                >
+                  صحة التشغيل
+                </button>
+              </div>
+              <div className="mt-4">
+                <GoogleDriveBrainPanel />
+              </div>
             </div>
+
+            <div className="mb-5">
+              <ConnectedServicesPanel />
+            </div>
+
+            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
+              <MacBrainPanel />
+            </div>
+
+            <details className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-stone-600">
+                للمطوّر / المسؤول فقط
+              </summary>
+              <div className="mt-3 space-y-4">
+                <GoogleSetupChecklist focus="all" />
+                <IntegrationsSetupPanel />
+              </div>
+            </details>
+
+            <details className="rounded-xl border border-ab-border bg-ab-surface p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
+                سجل التدقيق (SDAIA)
+              </summary>
+              <div className="mt-3">
+                <SdaiaAuditViewer />
+              </div>
+            </details>
           </section>
         )}
       </div>

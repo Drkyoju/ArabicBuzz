@@ -52,7 +52,7 @@ export function CronRegisterForm({ onCreated }: { onCreated?: () => void }) {
     >
       <h3 className="mb-2 font-semibold text-ab-ink">جدولة مهمة جديدة</h3>
       <p className="mb-3 text-[11px] text-stone-500">
-        للمساحة الحالية ({scopeId}). التشغيل عبر Cron runner على Netlify.
+        للمساحة الحالية. يُشغَّل يومياً في الوقت المحدد (توقيت الرياض).
       </p>
       <div className="space-y-2">
         <input

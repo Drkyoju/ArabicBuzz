@@ -23,8 +23,8 @@ import { RoomPresenceBar } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
-import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ModelPicker } from '@/components/model-picker'
+import { HelpTip } from '@/components/help-tip'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
@@ -531,7 +531,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       (assembled ||
         (pendingApprovalId
           ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
-          : 'تعذّر بث الرد. تحقق من مفاتيح النماذج على Netlify.')) +
+          : 'تعذّر بث الرد. تحقق من مفاتيح النماذج في الإعدادات.')) +
       (assembled ? fileFooter : '')
 
     updatePost(activeScopeId, opts.postId, {
@@ -795,8 +795,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                <ModelPicker compact />
-                <SecurityPosturePicker compact />
+                <span className="inline-flex items-center gap-1">
+                  <ModelPicker compact />
+                  <HelpTip textAr="اختر نموذج الرد. يظهر فقط المزوّدون الذين لديهم مفتاح يعمل." />
+                </span>
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -854,7 +856,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </p>
                 {!telegramReady ? (
                   <p className="text-[10px] text-stone-500">
-                    تيليجرام غير مضبوط — راجع الإعدادات ← التكاملات.
+                    تيليجرام غير مفعّل — افتح الإعدادات لربط البوت.
                   </p>
                 ) : (
                   <button

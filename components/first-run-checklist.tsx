@@ -77,21 +77,21 @@ export function FirstRunChecklist({
     () => [
       {
         id: 'keys',
-        labelAr: 'مفتاح نموذج يعمل (Gemini أو GLM)',
+        labelAr: 'فعّل نموذجاً (أضف مفتاح API)',
         done: keysOk,
         action: () => onNavigate?.('api-keys'),
-        actionLabelAr: 'مفاتيح API',
+        actionLabelAr: 'المفاتيح',
       },
       {
         id: 'google',
-        labelAr: 'ربط تقويم Google',
+        labelAr: 'اربط تقويم Google',
         done: googleOk,
         action: () => onNavigate?.('calendar'),
         actionLabelAr: 'التقويم',
       },
       {
         id: 'drive',
-        labelAr: 'ملفات في مجلد Drive + مزامنة عقل الشركة',
+        labelAr: 'أضف ملفاً لعقل الشركة (Drive)',
         done: driveCount > 0,
         action: () => onNavigate?.('settings'),
         actionLabelAr: 'الإعدادات',
@@ -104,18 +104,18 @@ export function FirstRunChecklist({
         actionLabelAr: 'الغرف',
       },
       {
-        id: 'zoom',
-        labelAr: 'Zoom تلقائي (اختياري)',
-        done: zoomOk,
-        action: () => onNavigate?.('settings'),
-        actionLabelAr: 'تكاملات',
-      },
-      {
         id: 'telegram',
-        labelAr: 'قناة تيليجرام (اختياري)',
+        labelAr: 'اربط تيليجرام للجوال (اختياري)',
         done: telegramOk,
         action: () => onNavigate?.('settings'),
-        actionLabelAr: 'تكاملات',
+        actionLabelAr: 'الإعدادات',
+      },
+      {
+        id: 'zoom',
+        labelAr: 'Zoom للاجتماعات (اختياري)',
+        done: zoomOk,
+        action: () => onNavigate?.('settings'),
+        actionLabelAr: 'الإعدادات',
       },
     ],
     [keysOk, googleOk, driveCount, chatted, zoomOk, telegramOk, onNavigate]
@@ -150,10 +150,12 @@ export function FirstRunChecklist({
         <div>
           <p className="flex items-center gap-1.5 font-semibold text-ab-ink">
             <Sparkles className="h-4 w-4 text-ab-accent" aria-hidden />
-            ابدأ هنا ({doneCount}/{steps.length})
+            مرحباً بك في Arabic Buzz
           </p>
           <p className="mt-0.5 text-[11px] text-stone-500">
-            {loading ? 'جاري فحص الحالة…' : 'أكمل الخطوات لتشغيل المنصة بالكامل.'}
+            {loading
+              ? 'جاري فحص الحالة…'
+              : `ثلاث دقائق للبدء — (${doneCount}/${steps.length}) مكتمل`}
           </p>
         </div>
         {onDismiss && (

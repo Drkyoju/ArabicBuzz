@@ -33,7 +33,8 @@ export function SkillMarketplace({
   const [installBusy, setInstallBusy] = useState<string | null>(null)
   const [deleteBusy, setDeleteBusy] = useState<string | null>(null)
   const [mine, setMine] = useState<InstalledSkill[]>([])
-  const [showCatalog, setShowCatalog] = useState(true)
+  const [showCatalog, setShowCatalog] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
   const [proposals, setProposals] = useState<
     Array<{
       id: string
@@ -193,57 +194,70 @@ export function SkillMarketplace({
 
   return (
     <section dir="rtl">
-      <form
-        onSubmit={(e) => void createCustom(e)}
-        className="mb-8 rounded-xl border border-ab-border bg-white p-4"
-      >
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Plus className="h-4 w-4" aria-hidden />
-          أضف مهارة باسمك
-        </h3>
-        <label className="mb-3 block">
-          <span className="mb-1 block text-[11px] font-medium text-stone-500">
-            الاسم (اختَر أنت)
-          </span>
-          <input
-            value={nameAr}
-            onChange={(e) => setNameAr(e.target.value)}
-            placeholder="مثال: مراجع عقود الشركة، مساعد المبيعات…"
-            className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
-            required
-          />
-        </label>
-        <label className="mb-3 block">
-          <span className="mb-1 block text-[11px] font-medium text-stone-500">
-            وصف مختصر
-          </span>
-          <input
-            value={descriptionAr}
-            onChange={(e) => setDescriptionAr(e.target.value)}
-            placeholder="ماذا تفعل هذه المهارة؟"
-            className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="mb-4 block">
-          <span className="mb-1 block text-[11px] font-medium text-stone-500">
-            تعليمات للوكيل (اختياري)
-          </span>
-          <textarea
-            value={instructionsAr}
-            onChange={(e) => setInstructionsAr(e.target.value)}
-            rows={4}
-            placeholder="كيف يتصرف الوكيل عند استخدام هذه المهارة…"
-            className="w-full resize-y rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
-          />
-        </label>
+      <div className="mb-8">
         <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-ab-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          type="button"
+          onClick={() => setShowCreate((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 rounded-xl border border-ab-border bg-white px-4 py-3 text-sm font-semibold text-ab-ink"
         >
-          {busy ? 'جاري الحفظ…' : 'حفظ المهارة'}
+          <span className="inline-flex items-center gap-2">
+            <Plus className="h-4 w-4" aria-hidden />
+            أضف مهارة باسمك
+          </span>
+          <span className="text-xs font-normal text-stone-500">
+            {showCreate ? 'إخفاء' : 'فتح'}
+          </span>
         </button>
-      </form>
+        {showCreate && (
+          <form
+            onSubmit={(e) => void createCustom(e)}
+            className="mt-2 rounded-xl border border-ab-border bg-white p-4"
+          >
+            <label className="mb-3 block">
+              <span className="mb-1 block text-[11px] font-medium text-stone-500">
+                الاسم
+              </span>
+              <input
+                value={nameAr}
+                onChange={(e) => setNameAr(e.target.value)}
+                placeholder="مثال: مراجع عقود الشركة، مساعد المبيعات…"
+                className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+                required
+              />
+            </label>
+            <label className="mb-3 block">
+              <span className="mb-1 block text-[11px] font-medium text-stone-500">
+                وصف مختصر
+              </span>
+              <input
+                value={descriptionAr}
+                onChange={(e) => setDescriptionAr(e.target.value)}
+                placeholder="ماذا تفعل هذه المهارة؟"
+                className="w-full rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="mb-4 block">
+              <span className="mb-1 block text-[11px] font-medium text-stone-500">
+                تعليمات للوكيل (اختياري)
+              </span>
+              <textarea
+                value={instructionsAr}
+                onChange={(e) => setInstructionsAr(e.target.value)}
+                rows={4}
+                placeholder="كيف يتصرف الوكيل عند استخدام هذه المهارة…"
+                className="w-full resize-y rounded-md border border-ab-border bg-ab-stage px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-md bg-ab-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {busy ? 'جاري الحفظ…' : 'حفظ المهارة'}
+            </button>
+          </form>
+        )}
+      </div>
 
       {message && (
         <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -307,7 +321,7 @@ export function SkillMarketplace({
         </h3>
         {mine.length === 0 ? (
           <p className="text-xs text-stone-500">
-            لا يوجد بعد — أضف أول مهارة بالاسم اللي تبيه فوق.
+            لا مهارات بعد — افتح «أضف مهارة» أو ثبّت من الحزمة الجاهزة.
           </p>
         ) : (
           <ul className="space-y-2">
