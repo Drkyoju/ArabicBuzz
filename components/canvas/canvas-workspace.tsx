@@ -115,7 +115,7 @@ function TabBtn({
 }: {
   active: boolean
   onClick: () => void
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
 }) {
   return (
