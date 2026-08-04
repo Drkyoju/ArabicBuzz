@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, BookmarkPlus, Download, Sparkles, User } from 'lucide-react'
+import { Bot, BookmarkPlus, Download, Send, Sparkles, User } from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -22,6 +22,21 @@ function parseFileMarkers(content: string, scopeId: string): RoomFileAttachment[
     })
   }
   return out
+}
+
+async function shareAttachmentTelegram(a: RoomFileAttachment) {
+  const res = await fetch('/api/rooms/outbound-file', {
+    method: 'POST',
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      scopeId: a.scopeId,
+      fileId: a.fileId,
+      channel: 'telegram',
+      captionAr: `ملف من الغرفة: ${a.name}`,
+    }),
+  })
+  const data = (await res.json().catch(() => ({}))) as { error?: string }
+  if (!res.ok) throw new Error(data.error || `تعذّر الإرسال (${res.status})`)
 }
 
 async function downloadAttachment(a: RoomFileAttachment) {
@@ -305,27 +320,46 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       {attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
           {attachments.map((a) => (
-            <button
-              key={a.fileId}
-              type="button"
-              dir="ltr"
-              disabled={busyId === a.fileId}
-              onClick={() => {
-                setDlError('')
-                setBusyId(a.fileId)
-                void downloadAttachment(a)
-                  .catch((e) =>
-                    setDlError(e instanceof Error ? e.message : 'فشل التنزيل')
-                  )
-                  .finally(() => setBusyId(null))
-              }}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-            >
-              <Download className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="truncate">
-                {busyId === a.fileId ? 'جاري التنزيل…' : a.name}
-              </span>
-            </button>
+            <span key={a.fileId} className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                dir="ltr"
+                disabled={busyId === a.fileId}
+                onClick={() => {
+                  setDlError('')
+                  setBusyId(a.fileId)
+                  void downloadAttachment(a)
+                    .catch((e) =>
+                      setDlError(e instanceof Error ? e.message : 'فشل التنزيل')
+                    )
+                    .finally(() => setBusyId(null))
+                }}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+              >
+                <Download className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">
+                  {busyId === a.fileId ? 'جاري…' : a.name}
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={busyId === `tg-${a.fileId}`}
+                title="إرسال لتيليجرام"
+                onClick={() => {
+                  setDlError('')
+                  setBusyId(`tg-${a.fileId}`)
+                  void shareAttachmentTelegram(a)
+                    .then(() => setDlError(''))
+                    .catch((e) =>
+                      setDlError(e instanceof Error ? e.message : 'فشل الإرسال')
+                    )
+                    .finally(() => setBusyId(null))
+                }}
+                className="rounded-md border border-ab-border bg-white p-1.5 text-ab-accent hover:bg-stone-50 disabled:opacity-60"
+              >
+                <Send className="h-3 w-3" aria-hidden />
+              </button>
+            </span>
           ))}
         </div>
       )}

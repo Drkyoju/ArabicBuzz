@@ -114,6 +114,44 @@ export async function emitNotification(opts: {
   }
 }
 
+/** Send a binary document via Telegram Bot API (multipart). */
+export async function emitTelegramDocument(opts: {
+  buffer: Buffer
+  filename: string
+  captionAr?: string
+  to?: string
+  meta?: Record<string, unknown>
+}): Promise<{ ok: boolean; error?: string }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = opts.to || (await resolveTelegramTarget(opts.meta))
+  if (!token || !chatId) {
+    return { ok: false, error: 'تيليجرام غير مضبوط أو لا محادثة مربوطة' }
+  }
+  try {
+    const form = new FormData()
+    form.append('chat_id', chatId)
+    if (opts.captionAr) form.append('caption', opts.captionAr.slice(0, 1000))
+    const blob = new Blob([new Uint8Array(opts.buffer)], {
+      type: 'application/octet-stream',
+    })
+    form.append('document', blob, opts.filename || 'file.bin')
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/sendDocument`,
+      { method: 'POST', body: form }
+    )
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      return { ok: false, error: `Telegram HTTP ${res.status}: ${t.slice(0, 200)}` }
+    }
+    return { ok: true }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'فشل إرسال الملف',
+    }
+  }
+}
+
 async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = await resolveTelegramTarget({ scopeId: payload.scopeId })

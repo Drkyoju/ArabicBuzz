@@ -462,6 +462,88 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Browser-use / RPA bridge — Netlify calls POST {task,url} here
+  if (req.method === 'POST' && url.pathname === '/task') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        task?: string
+        url?: string
+        maxSteps?: number
+      }
+      const task = String(body.task || '').trim()
+      const target = String(body.url || '').trim()
+      const logs = [
+        `[mac] received task: ${task.slice(0, 120)}`,
+        `[mac] url: ${target}`,
+      ]
+      const script =
+        process.env.BROWSER_USE_SCRIPT ||
+        `${process.env.HOME || ''}/ArabicBuzz/scripts/browser-use-task.py`
+      const { existsSync } = await import('node:fs')
+      if (existsSync(script) && task && target) {
+        const { spawn } = await import('node:child_process')
+        const result = await new Promise<{
+          ok: boolean
+          stdout: string
+          stderr: string
+        }>((resolve) => {
+          const child = spawn('python3', [script, target, task], {
+            timeout: 90_000,
+          })
+          let stdout = ''
+          let stderr = ''
+          child.stdout?.on('data', (d) => {
+            stdout += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            stderr += String(d)
+          })
+          child.on('close', (code) => {
+            resolve({ ok: code === 0, stdout, stderr })
+          })
+          child.on('error', (e) => {
+            resolve({ ok: false, stdout: '', stderr: e.message })
+          })
+        })
+        logs.push(result.stderr.slice(0, 500))
+        let extracted: Record<string, unknown> = {}
+        try {
+          extracted = JSON.parse(result.stdout) as Record<string, unknown>
+        } catch {
+          extracted = { raw: result.stdout.slice(0, 4000) }
+        }
+        json(res, 200, {
+          ok: result.ok,
+          extracted,
+          currentUrl: target,
+          logs,
+          messageAr: result.ok
+            ? 'اكتملت مهمة المتصفح على الماك.'
+            : 'فشل سكربت browser-use المحلي.',
+        })
+        return
+      }
+      json(res, 200, {
+        ok: false,
+        extracted: {},
+        currentUrl: target,
+        logs,
+        messageAr:
+          'جسر الماك جاهز لكن لا سكربت browser-use. ضع BROWSER_USE_SCRIPT أو ~/ArabicBuzz/scripts/browser-use-task.py',
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'task failed',
+      })
+    }
+    return
+  }
+
   json(res, 404, { error: 'not found' })
 })
 
@@ -473,6 +555,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  GET|PUT|PATCH|DELETE /files/:id  (shared Mac drive)`)
   console.log(`  POST /sync    (JSON base64)`)
   console.log(`  POST /brain/ingest | /brain/search`)
+  console.log(`  POST /task    (browser-use RPA bridge)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)
   console.log(`  tunnel tip: npx ngrok http ${PORT}`)

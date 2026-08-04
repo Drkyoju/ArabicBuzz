@@ -22,6 +22,10 @@ import {
 import { AirGapBadge } from '@/components/airgap-badge'
 import { SdaiaBadge } from '@/components/sdaia-badge'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import {
+  isEmployeeSection,
+  useWorkspaceModeStore,
+} from '@/lib/scopes/workspace-mode-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { cn } from '@/lib/utils'
 
@@ -118,6 +122,28 @@ function SidebarBody({
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
   const createPersonalDesk = useWorkspaceStore((s) => s.createPersonalDesk)
   const renameScope = useWorkspaceStore((s) => s.renameScope)
+  const mode = useWorkspaceModeStore((s) => s.mode)
+  const setMode = useWorkspaceModeStore((s) => s.setMode)
+  const roleHint = useWorkspaceModeStore((s) => s.roleHint)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/me/role')
+      .then((r) => r.json())
+      .then((d: { uiMode?: 'admin' | 'employee'; role?: string }) => {
+        if (cancelled) return
+        if (d.role) useWorkspaceModeStore.getState().setRoleHint(d.role)
+        // Only auto-switch guests/members into employee; owners stay admin unless they toggle
+        if (d.uiMode === 'employee') setMode('employee')
+      })
+      .catch(() => null)
+    return () => {
+      cancelled = true
+    }
+  }, [setMode])
+
+  const primaryNav = PRIMARY_NAV.filter((n) => isEmployeeSection(n.id, mode))
+  const moreNav = MORE_NAV.filter((n) => isEmployeeSection(n.id, mode))
   const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
   const personal = useMemo(
@@ -206,7 +232,7 @@ function SidebarBody({
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
         <ul className="space-y-0.5">
-          {PRIMARY_NAV.map(({ id, labelAr, icon: Icon }) => {
+          {primaryNav.map(({ id, labelAr, icon: Icon }) => {
             const active = activeSection === id
             return (
               <li key={id}>
@@ -230,16 +256,18 @@ function SidebarBody({
             )
           })}
         </ul>
-        <button
-          type="button"
-          onClick={() => setShowMoreNav((v) => !v)}
-          className="mt-1 w-full rounded-md px-2.5 py-1.5 text-right text-[11px] text-stone-500 hover:bg-stone-50"
-        >
-          {showMoreNav ? 'إخفاء المزيد' : 'المزيد…'}
-        </button>
-        {showMoreNav && (
+        {moreNav.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowMoreNav((v) => !v)}
+            className="mt-1 w-full rounded-md px-2.5 py-1.5 text-right text-[11px] text-stone-500 hover:bg-stone-50"
+          >
+            {showMoreNav ? 'إخفاء المزيد' : 'المزيد…'}
+          </button>
+        )}
+        {showMoreNav && moreNav.length > 0 && (
           <ul className="mt-0.5 space-y-0.5">
-            {MORE_NAV.map(({ id, labelAr, icon: Icon }) => {
+            {moreNav.map(({ id, labelAr, icon: Icon }) => {
               const active = activeSection === id
               return (
                 <li key={id}>
@@ -394,10 +422,38 @@ function SidebarBody({
 
       <div className="border-t border-ab-border px-3 py-2.5">
         <GuestChip />
+        <div className="mt-2 flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode('employee')}
+            className={cn(
+              'flex-1 rounded px-1.5 py-1 text-[10px]',
+              mode === 'employee'
+                ? 'bg-ab-accent/15 font-semibold text-ab-accent'
+                : 'text-stone-500'
+            )}
+          >
+            موظف
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('admin')}
+            className={cn(
+              'flex-1 rounded px-1.5 py-1 text-[10px]',
+              mode === 'admin'
+                ? 'bg-ab-ink font-semibold text-white'
+                : 'text-stone-500'
+            )}
+          >
+            مسؤول
+          </button>
+        </div>
         <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
-          {airGapped
-            ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-            : 'سحابي · Arabic Buzz'}
+          {mode === 'employee'
+            ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
+            : airGapped
+              ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
+              : 'واجهة مسؤول · كل الأدوات'}
         </p>
       </div>
     </div>

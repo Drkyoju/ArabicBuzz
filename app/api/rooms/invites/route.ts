@@ -85,7 +85,15 @@ export async function POST(req: Request) {
     ? body.notifyChannels
     : []
   const channelResults: Record<string, boolean> = {}
-  const inviteText = `دعوة إلى «${roomNameAr}» على Arabic Buzz\n${inviteUrl}`
+  const inviteText = [
+    `📨 دعوة للانضمام إلى «${roomNameAr}» على Arabic Buzz`,
+    ``,
+    `من: ${inviterNameAr}`,
+    `افتح الرابط (يعمل على الجوال والمتصفح):`,
+    inviteUrl,
+    ``,
+    `بعد الدخول ستظهر الغرفة المشتركة والتقويم والملفات.`,
+  ].join('\n')
   for (const ch of channels) {
     if (ch !== 'telegram' && ch !== 'whatsapp') continue
     const r = await emitNotification({

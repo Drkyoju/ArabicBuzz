@@ -29,9 +29,16 @@ async function viaBrowserUseBridge(
   targetUrl: string,
   logs: string[]
 ): Promise<BrowserTaskResult | null> {
-  const base = (process.env.BROWSER_USE_URL || '').replace(/\/$/, '')
+  const base = (
+    process.env.BROWSER_USE_URL ||
+    process.env.MAC_SYNC_URL ||
+    ''
+  ).replace(/\/$/, '')
   if (!base) return null
-  const secret = process.env.BROWSER_USE_SECRET?.trim() || ''
+  const secret =
+    process.env.BROWSER_USE_SECRET?.trim() ||
+    process.env.MAC_SYNC_SECRET?.trim() ||
+    ''
   pushLog(logs, `Calling browser-use bridge ${base}`)
   try {
     const res = await fetch(`${base}/task`, {
@@ -258,6 +265,8 @@ export async function executeBrowserTask(
 
 export function isBrowserRpaConfigured() {
   return Boolean(
-    process.env.BROWSER_USE_URL?.trim() || process.env.STEEL_API_KEY?.trim()
+    process.env.BROWSER_USE_URL?.trim() ||
+      process.env.MAC_SYNC_URL?.trim() ||
+      process.env.STEEL_API_KEY?.trim()
   )
 }

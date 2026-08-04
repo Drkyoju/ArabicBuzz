@@ -23,14 +23,23 @@ import {
   executeReadFile,
 } from '@/lib/agents/tools/document-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
-import { emitNotification } from '@/lib/notifications/emit'
+import {
+  emitNotification,
+  emitTelegramDocument,
+} from '@/lib/notifications/emit'
 import {
   deleteWorkspaceFile,
+  readWorkspaceFile,
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
 import { executeBrowserTask } from '@/lib/tools/browser-rpa'
 import { parseArabicDocument } from '@/lib/tools/arabic-ocr'
 import { triggerExternalWorkflow } from '@/lib/tools/workflow-bridge'
+import {
+  executeWebFetch,
+  executeWebSearch,
+} from '@/lib/agents/tools/web-tools'
+import { sendResendEmail } from '@/lib/email/resend'
 
 export type ToolExecutor = (
   toolName: string,
@@ -38,17 +47,6 @@ export type ToolExecutor = (
 ) => Promise<unknown>
 
 const stubResults: Record<string, (params: Record<string, unknown>) => unknown> = {
-  web_search: (p) => ({
-    stub: true,
-    messageAr: 'بحث الويب التجريبي غير متصل بمزوّد حي — النتائج محاكاة.',
-    results: [`نتائج بحث تجريبية عن: ${String(p.query || '')}`],
-  }),
-  web_fetch: (p) => ({
-    stub: true,
-    messageAr: 'جلب الصفحات تجريبي.',
-    url: p.url,
-    content: 'محتوى مقروء (تجريبي)',
-  }),
   query_db_readonly: () => ({
     stub: true,
     messageAr: 'استعلام قاعدة البيانات التجريبي غير مفعّل.',
@@ -168,6 +166,8 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   room_calendar_update: executeRoomCalendarUpdate,
   room_calendar_cancel: executeRoomCalendarCancel,
   room_calendar_ingest: executeRoomCalendarIngest,
+  web_search: executeWebSearch,
+  web_fetch: executeWebFetch,
   drive_sync_brain: async (_n, params) => {
     const userId = String(params.userId || '')
     if (!userId || userId === 'local-owner') {
@@ -233,6 +233,60 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       messageAr: sent.ok
         ? 'تم إرسال الرسالة عبر القناة.'
         : 'تعذّر الإرسال. تحقق من إعدادات القناة والمستلم.',
+    }
+  },
+  send_file: async (_n, params) => {
+    const scopeId = String(params.scopeId || 'shared-demo')
+    const fileId = String(params.fileId || '').trim()
+    if (!fileId) throw new Error('يلزم fileId')
+    const channel = String(params.channel || 'telegram') as
+      | 'telegram'
+      | 'email'
+      | 'both'
+    const file = await readWorkspaceFile(scopeId, fileId)
+    const caption =
+      String(params.captionAr || params.messageAr || '').trim() ||
+      `ملف: ${file.meta.originalName}`
+    const out: Record<string, unknown> = { file: file.meta }
+
+    if (channel === 'telegram' || channel === 'both') {
+      const tg = await emitTelegramDocument({
+        buffer: file.buffer,
+        filename: file.meta.originalName,
+        captionAr: caption,
+        meta: { scopeId },
+        to: params.to ? String(params.to) : undefined,
+      })
+      out.telegram = tg
+      if (!tg.ok && channel === 'telegram') {
+        throw new Error(tg.error || 'تعذّر إرسال الملف لتيليجرام')
+      }
+    }
+    if (channel === 'email' || channel === 'both') {
+      const toEmail = String(params.toEmail || params.email || '').trim()
+      if (!toEmail.includes('@')) {
+        throw new Error('يلزم toEmail لإرسال المرفق بالبريد')
+      }
+      const mail = await sendResendEmail({
+        to: toEmail,
+        subject: caption.slice(0, 120),
+        text: `${caption}\n\n— Arabic Buzz`,
+        attachments: [
+          {
+            filename: file.meta.originalName,
+            contentBase64: file.buffer.toString('base64'),
+          },
+        ],
+      })
+      out.email = mail
+      if (!mail.ok && channel === 'email') {
+        throw new Error(mail.error || 'تعذّر إرسال البريد')
+      }
+    }
+    return {
+      ok: true,
+      ...out,
+      messageAr: `أُرسل «${file.meta.originalName}» عبر ${channel}.`,
     }
   },
   browser_rpa: async (_n, params) => {

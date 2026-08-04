@@ -43,6 +43,9 @@ export function RoomPresenceBar({
   agentName?: string
 }) {
   const [peers, setPeers] = useState<Peer[]>([])
+  const [remoteAgentTyping, setRemoteAgentTyping] = useState<{
+    name: string
+  } | null>(null)
   const channelRef = useRef<{
     track: (payload: Record<string, unknown>) => Promise<unknown>
   } | null>(null)
@@ -168,6 +171,44 @@ export function RoomPresenceBar({
     })
   }, [typing, surface])
 
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+    const sb = createBrowserSupabaseClient()
+    const ch = sb.channel(`agent-typing:${scopeId}`)
+    ch.on('broadcast', { event: 'typing' }, ({ payload }) => {
+      const p = payload as { name?: string; typing?: boolean }
+      if (p?.typing) setRemoteAgentTyping({ name: p.name || 'الوكيل' })
+      else setRemoteAgentTyping(null)
+    })
+    void ch.subscribe()
+    return () => {
+      void sb.removeChannel(ch)
+    }
+  }, [scopeId])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+    const sb = createBrowserSupabaseClient()
+    const ch = sb.channel(`agent-typing:${scopeId}`)
+    void ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        void ch.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { name: agentName, typing: agentTyping },
+        })
+      }
+    })
+    return () => {
+      void ch.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { name: agentName, typing: false },
+      })
+      void sb.removeChannel(ch)
+    }
+  }, [agentTyping, agentName, scopeId])
+
   const humans = peers.filter((p) => p.kind !== 'agent')
   const selfName = displayName || 'أنت'
   const online =
@@ -178,7 +219,11 @@ export function RoomPresenceBar({
   const surfaceLabel = (s?: string) =>
     s === 'canvas' ? 'اللوحة' : s === 'composer' ? 'الكتابة' : 'المحادثة'
 
-  const agentLine = agentTyping ? `${agentName} يكتب…` : null
+  const showAgent = agentTyping || Boolean(remoteAgentTyping)
+  const agentDisplay = agentTyping
+    ? agentName
+    : remoteAgentTyping?.name || 'الوكيل'
+  const agentLine = showAgent ? `${agentDisplay} يكتب…` : null
   const humanLine =
     humanTyping.length > 0 ? `${humanTyping.join('، ')} يكتب…` : null
 
@@ -195,7 +240,7 @@ export function RoomPresenceBar({
         />
         <span>
           بشر ({online.length})
-          {agentTyping ? (
+          {showAgent ? (
             <span className="mr-1 text-violet-700"> · AI نشط</span>
           ) : online.length === 1 ? (
             ` · ${online[0].name}`
@@ -204,7 +249,7 @@ export function RoomPresenceBar({
           )}
         </span>
         {(agentLine || humanLine) && (
-          <span className={agentTyping ? 'text-violet-700' : 'text-ab-accent'}>
+          <span className={showAgent ? 'text-violet-700' : 'text-ab-accent'}>
             — {agentLine || humanLine}
           </span>
         )}
@@ -228,9 +273,9 @@ export function RoomPresenceBar({
             {initials(p.name)}
           </span>
         ))}
-        {agentTyping && (
+        {showAgent && (
           <span
-            title={`${agentName} · ذكاء اصطناعي`}
+            title={`${agentDisplay} · ذكاء اصطناعي`}
             className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-violet-600 text-[9px] font-bold text-white"
             style={{ zIndex: 1 }}
           >
@@ -250,14 +295,14 @@ export function RoomPresenceBar({
         <span className="mr-1 text-ab-ink">
           {online.map((p) => p.name).join(' · ')}
         </span>
-        {agentTyping && (
+        {showAgent && (
           <span className="mr-1 font-medium text-violet-700">
-            · AI: {agentName}
+            · AI: {agentDisplay}
           </span>
         )}
       </span>
       {(agentLine || humanLine) && (
-        <span className={agentTyping ? 'text-violet-700' : 'text-ab-accent'}>
+        <span className={showAgent ? 'text-violet-700' : 'text-ab-accent'}>
           — {agentLine || humanLine}
         </span>
       )}

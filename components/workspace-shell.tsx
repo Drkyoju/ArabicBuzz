@@ -26,6 +26,10 @@ import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import {
+  isEmployeeSection,
+  useWorkspaceModeStore,
+} from '@/lib/scopes/workspace-mode-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
 function AccountStatus() {
@@ -119,6 +123,7 @@ type LiveApproval = {
 export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [section, setSection] = useState<SidebarSection>('chats')
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const mode = useWorkspaceModeStore((s) => s.mode)
   const [approvals, setApprovals] = useState<LiveApproval[]>([])
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
@@ -126,6 +131,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [cronReloadToken, setCronReloadToken] = useState(0)
   const [showDevOps, setShowDevOps] = useState(false)
   const [showSdaia, setShowSdaia] = useState(false)
+
+  useEffect(() => {
+    if (!isEmployeeSection(section, mode)) {
+      setSection('chats')
+    }
+  }, [mode, section])
 
   useEffect(() => {
     try {

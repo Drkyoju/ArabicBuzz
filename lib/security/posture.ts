@@ -44,6 +44,7 @@ const HIGH_RISK_TOOLS = new Set([
   'db_insert',
   'db_delete',
   'send_message',
+  'send_file',
   'http_mutate',
   'keychain_write',
   'delete_database',

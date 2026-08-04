@@ -24,7 +24,7 @@ export function getNativeAiTools(opts?: {
 
   const native: ToolSet = {
     web_search: tool({
-      description: 'بحث ويب عربي/إنجليزي عن استعلام.',
+      description: 'بحث ويب حي عن استعلام عربي/إنجليزي وإرجاع روابط.',
       inputSchema: z.object({
         query: z.string().describe('نص البحث'),
       }),
@@ -39,7 +39,8 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     web_fetch: tool({
-      description: 'جلب محتوى صفحة ويب عبر URL.',
+      description:
+        'جلب محتوى صفحة ويب حقيقي من رابط http(s) واستخراج النص للقراءة.',
       inputSchema: z.object({
         url: z.string().url(),
       }),
@@ -218,6 +219,25 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('send_message'),
+        }),
+    }),
+    send_file: tool({
+      description:
+        'إرسال ملف من مساحة العمل كمرفق تيليجرام و/أو بريد إلكتروني لزميل.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        channel: z.enum(['telegram', 'email', 'both']).optional(),
+        toEmail: z.string().optional(),
+        captionAr: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'send_file',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('send_file'),
         }),
     }),
     search_knowledge_base: tool({
