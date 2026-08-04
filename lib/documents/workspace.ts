@@ -4,6 +4,7 @@ import {
   readLocalFile,
   replaceLocalFile,
   saveLocalFile,
+  deleteLocalFile,
   type StoredFileMeta,
 } from '@/lib/storage/local'
 import {
@@ -15,6 +16,7 @@ import {
   getMacSyncConfig,
   macReadFile,
   macReplaceFile,
+  macDeleteFile,
   macSyncConfigured,
   NETLIFY_MAC_HOP_MAX,
 } from '@/lib/storage/mac-sync-client'
@@ -198,6 +200,55 @@ export async function readWorkspaceFile(
       scopeId,
       source: 'cloud',
     },
+  }
+}
+
+export async function deleteWorkspaceFile(
+  scopeId: string,
+  id: string
+): Promise<{ ok: true; source: 'local' | 'mac' | 'cloud'; messageAr: string }> {
+  if (macSyncConfigured()) {
+    try {
+      await macDeleteFile(scopeId, id)
+      return {
+        ok: true,
+        source: 'mac',
+        messageAr: 'تم حذف الملف من خزنة الماك.',
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (isLocalStorageEnabled()) {
+    try {
+      const result = deleteLocalFile(scopeId, id)
+      if (result.ok) {
+        return {
+          ok: true,
+          source: 'local',
+          messageAr: 'تم حذف الملف من الخزنة المحلية.',
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const sb = getSupabaseAdmin()
+  if (!sb) {
+    throw new Error('تعذّر حذف الملف — لا مخزن متاح.')
+  }
+  const { error } = await sb
+    .from('workspace_files')
+    .delete()
+    .eq('id', id)
+    .eq('scope_id', scopeId)
+  if (error) throw new Error(error.message)
+  return {
+    ok: true,
+    source: 'cloud',
+    messageAr: 'تم حذف الملف من المخزن السحابي.',
   }
 }
 

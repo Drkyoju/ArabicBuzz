@@ -10,6 +10,8 @@ type Snapshot = {
   zoomConfigured?: boolean
   telegramConfigured?: boolean
   telegramOwnerConfigured?: boolean
+  channelOwnerConfigured?: boolean
+  triggerDispatchConfigured?: boolean
   whatsappConfigured?: boolean
   whatsappOwnerConfigured?: boolean
   macOnline?: boolean
@@ -48,6 +50,8 @@ export function OpsHealthPanel() {
         zoomConfigured: Boolean(integ?.zoomConfigured),
         telegramConfigured: Boolean(integ?.telegramConfigured),
         telegramOwnerConfigured: Boolean(integ?.telegramOwnerConfigured),
+        channelOwnerConfigured: Boolean(integ?.channelOwnerConfigured),
+        triggerDispatchConfigured: Boolean(integ?.triggerDispatchConfigured),
         whatsappConfigured: Boolean(integ?.whatsappConfigured),
         whatsappOwnerConfigured: Boolean(integ?.whatsappOwnerConfigured),
         macOnline: Boolean(mac?.online),
@@ -101,7 +105,19 @@ export function OpsHealthPanel() {
         {
           label: 'Telegram مالك',
           ok: Boolean(snap.telegramOwnerConfigured),
-          detail: snap.telegramOwnerConfigured ? 'مضبوط' : 'غير مضبوط',
+          detail: snap.telegramOwnerConfigured
+            ? 'مضبوط'
+            : 'أرسل /start للبوت لربط المحادثة',
+        },
+        {
+          label: 'مالك القنوات (Google)',
+          ok: Boolean(snap.channelOwnerConfigured),
+          detail: snap.channelOwnerConfigured ? 'مضبوط' : 'CHANNEL_OWNER_USER_ID',
+        },
+        {
+          label: 'توزيع غير متزامن',
+          ok: Boolean(snap.triggerDispatchConfigured),
+          detail: snap.triggerDispatchConfigured ? 'جاهز' : 'غير مضبوط',
         },
         {
           label: 'WhatsApp',

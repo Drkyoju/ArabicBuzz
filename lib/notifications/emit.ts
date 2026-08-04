@@ -23,7 +23,8 @@ export function clearUiNotifications() {
 }
 
 async function resolveTelegramTarget(meta?: Record<string, unknown>) {
-  const explicit = process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
+  const explicit =
+    process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
   if (explicit) return explicit
   const scopeId =
     (meta?.scopeId && String(meta.scopeId)) ||
@@ -31,17 +32,22 @@ async function resolveTelegramTarget(meta?: Record<string, unknown>) {
     'shared-demo'
   try {
     const { getSupabaseAdmin } = await import('@/lib/supabase/server')
+    const { findLatestTelegramChatId } = await import(
+      '@/lib/channels/bindings'
+    )
     const sb = getSupabaseAdmin()
-    if (!sb) return ''
-    const { data } = await sb
-      .from('channel_bindings')
-      .select('external_id')
-      .eq('channel', 'telegram')
-      .eq('scope_id', scopeId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    return data?.external_id ? String(data.external_id) : ''
+    if (sb) {
+      const { data } = await sb
+        .from('channel_bindings')
+        .select('external_id')
+        .eq('channel', 'telegram')
+        .eq('scope_id', scopeId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (data?.external_id) return String(data.external_id)
+    }
+    return findLatestTelegramChatId()
   } catch {
     return ''
   }

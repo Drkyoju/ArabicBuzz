@@ -17,6 +17,10 @@ import {
 } from '@/lib/agents/tools/document-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 import { emitNotification } from '@/lib/notifications/emit'
+import {
+  deleteWorkspaceFile,
+  saveWorkspaceFile,
+} from '@/lib/documents/workspace'
 
 export type ToolExecutor = (
   toolName: string,
@@ -37,56 +41,45 @@ const stubResults: Record<string, (params: Record<string, unknown>) => unknown> 
   }),
   query_db_readonly: () => ({
     stub: true,
-    messageAr: 'استعلام قاعدة البيانات تجريبي.',
+    messageAr: 'استعلام قاعدة البيانات التجريبي غير مفعّل.',
     rows: [],
-  }),
-  write_file: () => ({
-    stub: true,
-    ok: false,
-    unavailable: true,
-    messageAr: 'أداة write_file غير مفعّلة في هذا الإصدار.',
-  }),
-  delete_file: () => ({
-    stub: true,
-    ok: false,
-    unavailable: true,
-    messageAr: 'أداة delete_file غير مفعّلة في هذا الإصدار.',
   }),
   db_update: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة db_update غير مفعّلة في هذا الإصدار.',
+    messageAr:
+      'db_update غير متاح عمداً — استخدم أدوات الملفات/التقويم المعتمدة مع موافقة بشرية.',
   }),
   db_insert: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة db_insert غير مفعّلة في هذا الإصدار.',
+    messageAr: 'db_insert غير متاح عمداً في هذا المنتج.',
   }),
   db_delete: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة db_delete غير مفعّلة في هذا الإصدار.',
+    messageAr: 'db_delete غير متاح عمداً في هذا المنتج.',
   }),
   delete_database: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة delete_database غير مفعّلة في هذا الإصدار.',
+    messageAr: 'delete_database محظور — لن يُنفَّذ أبداً من الوكيل.',
   }),
   transfer_funds: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة transfer_funds غير مفعّلة في هذا الإصدار.',
+    messageAr: 'transfer_funds غير مدعوم — لا تحويلات مالية عبر الوكيل.',
   }),
   change_user_roles: () => ({
     stub: true,
     ok: false,
     unavailable: true,
-    messageAr: 'أداة change_user_roles غير مفعّلة في هذا الإصدار.',
+    messageAr: 'change_user_roles غير مدعوم — غيّر الأدوار من الإعدادات يدوياً.',
   }),
   text_generate: (p) => ({ text: String(p.prompt || '') }),
 }
@@ -174,6 +167,36 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       maxFiles:
         typeof params.maxFiles === 'number' ? params.maxFiles : undefined,
     })
+  },
+  write_file: async (_n, params) => {
+    const scopeId = String(params.scopeId || 'shared-demo')
+    const name = String(
+      params.name || params.filename || params.path || 'note.txt'
+    ).trim()
+    const content = String(params.content || params.text || '')
+    if (!content) {
+      throw new Error('يلزم content لكتابة الملف.')
+    }
+    const saved = await saveWorkspaceFile({
+      scopeId,
+      buffer: Buffer.from(content, 'utf8'),
+      originalName: name,
+      mimeType: String(params.mimeType || 'text/plain; charset=utf-8'),
+      replaceId: params.fileId ? String(params.fileId) : undefined,
+    })
+    return {
+      ok: true,
+      fileId: saved.file.id,
+      name: saved.file.originalName,
+      source: saved.source,
+      messageAr: `تم حفظ الملف «${saved.file.originalName}».`,
+    }
+  },
+  delete_file: async (_n, params) => {
+    const scopeId = String(params.scopeId || 'shared-demo')
+    const fileId = String(params.fileId || params.id || '').trim()
+    if (!fileId) throw new Error('يلزم fileId لحذف الملف.')
+    return deleteWorkspaceFile(scopeId, fileId)
   },
   send_message: async (_n, params) => {
     const channel = String(params.channel || 'telegram') as

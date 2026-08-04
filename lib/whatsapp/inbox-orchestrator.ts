@@ -1,6 +1,6 @@
 import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
 import { runAgentEngine } from '@/lib/agents/engine'
-import { resolveChannelOwnerUserId } from '@/lib/channels/owner-context'
+import { resolveChannelOwnerUserIdAsync } from '@/lib/channels/owner-context'
 import { insertRoomPost } from '@/lib/rooms/persist'
 import { saveWhatsAppTurnToSupabase } from '@/lib/supabase/server'
 import { sendWhatsAppText } from '@/lib/whatsapp/client'
@@ -95,7 +95,7 @@ async function runOwnerAgent(opts: {
 لا تدّعِ تنفيذ إجراءات حساسة دون موافقة HITL المعتادة.`,
     modelSlug,
     scopeId: opts.scopeId,
-    requesterId: resolveChannelOwnerUserId(opts.requesterPhone),
+    requesterId: await resolveChannelOwnerUserIdAsync(opts.requesterPhone),
     includeMcpTools: true,
   })
   return {

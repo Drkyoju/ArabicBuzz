@@ -11,6 +11,7 @@
     "setup:supabase": "tsx scripts/setup-supabase.ts",
     "storage:open": "open \"$HOME/ArabicBuzz/data\"",
     "storage:sync": "tsx scripts/mac-sync-agent.ts",
+    "storage:setup": "bash scripts/setup-mac-sync.sh",
     "ocr:qari": "python3 scripts/qari-ocr-bridge.py",
     "brain:migrate": "npx prisma db execute --file supabase/migrations/007_company_brain.sql --schema prisma/schema.prisma",
     "supabase": "supabase",

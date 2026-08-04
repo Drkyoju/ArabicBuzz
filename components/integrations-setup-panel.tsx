@@ -102,7 +102,14 @@ export function IntegrationsSetupPanel() {
             Netlify: <code dir="ltr">TELEGRAM_BOT_TOKEN</code>
           </li>
           <li>
-            مالك القناة (أساسي): <code dir="ltr">TELEGRAM_OWNER_CHAT_ID</code>
+            مالك القناة: أرسل <code dir="ltr">/start</code> للبوت — سيرد
+            بمعرّف المحادثة. أو اضبط{' '}
+            <code dir="ltr">TELEGRAM_OWNER_CHAT_ID</code> على Netlify
+          </li>
+          <li>
+            أدوات المالك (تقويم/Drive):{' '}
+            <code dir="ltr">CHANNEL_OWNER_USER_ID</code> = معرّف مستخدم Supabase
+            بعد ربط Google
           </li>
           <li>
             اختياري للاختبار: <code dir="ltr">TELEGRAM_TEST_CHAT_ID</code>
@@ -181,8 +188,8 @@ export function IntegrationsSetupPanel() {
         </p>
         <ol className="list-decimal space-y-1 pe-4">
           <li>
-            على الماك في مجلد المشروع:{' '}
-            <code dir="ltr">MAC_SYNC_SECRET=ab-secret npm run storage:sync</code>
+            على الماك: <code dir="ltr">npm run storage:setup</code> (يشغّل الوكيل
+            ويطبع السر)
           </li>
           <li>
             نفق: <code dir="ltr">npx ngrok http 7420</code> → انسخ الرابط

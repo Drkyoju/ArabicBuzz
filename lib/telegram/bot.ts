@@ -1,6 +1,9 @@
 import { Bot, InlineKeyboard, InputFile, webhookCallback } from 'grammy'
-import { resolveChannelScope } from '@/lib/channels/bindings'
-import { resolveChannelOwnerUserId } from '@/lib/channels/owner-context'
+import {
+  resolveChannelScope,
+  upsertChannelBinding,
+} from '@/lib/channels/bindings'
+import { resolveChannelOwnerUserIdAsync } from '@/lib/channels/owner-context'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
 import { runAgentEngine } from '@/lib/agents/engine'
 import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
@@ -53,6 +56,26 @@ export function getTelegramBot() {
       return
     }
 
+    void upsertChannelBinding({
+      channel: 'telegram',
+      externalId: chatId,
+      scopeId: scope.scope.id,
+      userId,
+    })
+
+    // Help owner capture chat id for Netlify TELEGRAM_OWNER_CHAT_ID
+    if (/^\/(start|owner|معرف|id)(?:@\w+)?$/i.test(rawText.trim())) {
+      await ctx.reply(
+        [
+          'مرحباً — بوت Arabic Buzz جاهز.',
+          `معرّف هذه المحادثة: ${chatId}`,
+          'أضفه في Netlify كـ TELEGRAM_OWNER_CHAT_ID إن أردت تثبيت مالك التنبيهات.',
+          'أو فقط راسل البوت — سنربط المحادثة تلقائياً.',
+        ].join('\n')
+      )
+      return
+    }
+
     try {
       // Dialect normalize (transcribe meaning) → Agent Engine
       const normalized = await normalizeArabicPrompt(rawText)
@@ -65,7 +88,7 @@ export function getTelegramBot() {
           'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية بإيجاز، واطلب الموافقة عند الإجراءات عالية المخاطر.',
         modelSlug,
         scopeId: scope.scope.id,
-        requesterId: resolveChannelOwnerUserId(userId),
+        requesterId: await resolveChannelOwnerUserIdAsync(userId),
         includeMcpTools: true,
       })
 
