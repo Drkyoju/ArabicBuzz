@@ -141,10 +141,10 @@ export async function validateProviderKey(
       }
       case 'GLM_API_KEY': {
         const base =
-          process.env.GLM_BASE_URL || 'https://api.z.ai/api/paas/v4'
+          process.env.GLM_BASE_URL ||
+          'https://api.z.ai/api/coding/paas/v4'
         const root = base.replace(/\/$/, '')
-        // /models alone can succeed while chat is blocked (code 1113 balance/package).
-        // Always probe a tiny completion so "صالح" means usable for replies.
+        // Coding Pro quota is on /api/coding/paas/v4 — pay-as-you-go /api/paas/v4 returns 1113.
         const chat = await fetch(`${root}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -158,7 +158,7 @@ export async function validateProviderKey(
           }),
           signal: AbortSignal.timeout(12000),
         })
-        if (chat.ok) return { ok: true, detail: 'صالح' }
+        if (chat.ok) return { ok: true, detail: 'صالح (Coding Plan)' }
         let detail = `مرفوض (${chat.status})`
         try {
           const body = (await chat.json()) as {
@@ -168,7 +168,8 @@ export async function validateProviderKey(
           const code = body.error?.code
           const msg = body.error?.message || body.message || ''
           if (String(code) === '1113' || /balance|resource package|余额/i.test(msg)) {
-            detail = 'الرصيد/باقة API غير كافية للدردشة'
+            detail =
+              'باقة Coding Plan لا تُحسب على /api/paas — استخدم GLM_BASE_URL=…/coding/paas/v4'
           } else if (msg) {
             detail = msg.slice(0, 80)
           }

@@ -74,11 +74,12 @@ export function getCloudProviders() {
     openaiCloud: createOpenAI({
       apiKey: resolveProviderKeySync('OPENAI_API_KEY'),
     }),
-    /** Z.AI / Zhipu GLM — OpenAI-compatible (https://api.z.ai/api/paas/v4) */
+    /** Z.AI GLM — Coding Plan uses /api/coding/paas/v4 (not pay-as-you-go /api/paas/v4). */
     glm: createOpenAI({
       apiKey: resolveProviderKeySync('GLM_API_KEY'),
       baseURL:
-        process.env.GLM_BASE_URL || 'https://api.z.ai/api/paas/v4',
+        process.env.GLM_BASE_URL ||
+        'https://api.z.ai/api/coding/paas/v4',
     }),
   }
 }
@@ -153,10 +154,15 @@ const OPENROUTER_IDS: Record<string, string> = {
 }
 
 const GLM_IDS: Record<string, string> = {
+  'glm-5': 'glm-5',
+  'glm-5-turbo': 'glm-5-turbo',
+  'glm-5.1': 'glm-5.1',
+  'glm-5.2': 'glm-5.2',
   'glm-4.5': 'glm-4.5',
   'glm-4.5-air': 'glm-4.5-air',
-  'glm-4-flash': 'glm-4-flash',
-  glm: 'glm-4.5',
+  'glm-4.7': 'glm-4.7',
+  'glm-4-flash': 'glm-4.5-air',
+  glm: 'glm-5',
 }
 
 const GOOGLE_IDS: Record<string, string> = {

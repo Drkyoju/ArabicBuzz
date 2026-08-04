@@ -11,6 +11,7 @@ export type HarnessModelSlug =
   | 'gemini-2.5-flash'
   | 'kimi-k2'
   | 'glm-4.5'
+  | 'glm-5'
   | 'ollama-local'
   | 'perplexity-sonar'
   | 'hermes-3-405b'
@@ -40,6 +41,14 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     labelEn: 'Gemini 2.5 Flash',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'glm-5',
+    labelAr: 'GLM-5',
+    labelEn: 'Zhipu GLM-5',
+    provider: 'glm',
+    requiresKey: 'GLM_API_KEY',
     airGapSafe: false,
   },
   {
