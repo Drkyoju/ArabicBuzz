@@ -26,7 +26,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req)
+  const { requireRealUser } = await import('@/lib/auth/session')
+  const { assertRoomCanEdit } = await import('@/lib/rooms/persist')
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
+  const user = auth.user
   const body = (await req.json().catch(() => ({}))) as {
     action?: string
     scopeId?: string
@@ -50,11 +54,15 @@ export async function POST(req: NextRequest) {
   }
 
   const scopeId = String(body.scopeId || 'shared-demo')
+  const gate = await assertRoomCanEdit(scopeId, user.id, user.email)
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
   const action = String(body.action || 'create')
-  const createdBy = user?.id || 'local-owner'
+  const createdBy = user.id
   const createdByAr =
-    (user?.user_metadata?.full_name as string) ||
-    user?.email?.split('@')[0] ||
+    (user.user_metadata?.full_name as string) ||
+    user.email?.split('@')[0] ||
     'عضو'
 
   try {

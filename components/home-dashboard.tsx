@@ -19,6 +19,7 @@ import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
+import { AssociationRecipes } from '@/components/association-recipes'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -324,6 +325,8 @@ export function HomeDashboard({
         </div>
       </div>
 
+      <AssociationRecipes onNavigate={onNavigate} />
+
       {/* Pending approvals strip */}
       {(demoTyped?.pendingApprovals?.length || 0) > 0 && (
         <button
@@ -386,28 +389,57 @@ export function HomeDashboard({
         </div>
       )}
 
-      {/* Live agent activity */}
-      {demoTyped?.agentActivity && demoTyped.agentActivity.length > 0 && (
-        <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
-          <p className="mb-2 text-[11px] font-semibold text-stone-500">
-            نشاط الوكلاء الآن
-          </p>
-          <ul className="flex flex-wrap gap-2">
-            {demoTyped.agentActivity.map((a) => (
-              <li
-                key={a.agentAr}
-                className="rounded-lg border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-1.5 text-[12px]"
-              >
-                <span className="font-semibold text-ab-ink">{a.agentAr}</span>
-                <span className="text-ab-accent"> · {a.statusAr}</span>
-                <span className="block text-[10px] text-stone-500">
-                  {a.detailAr}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Live agent activity — demo seed or signed-in digest */}
+      {(() => {
+        const demoActs = demoTyped?.agentActivity || []
+        const liveActs = [
+          ...(liveData?.activity || [])
+            .filter(
+              (a) =>
+                a.kind === 'agent' ||
+                a.kind === 'hitl' ||
+                a.kind === 'message' ||
+                a.kind === 'system'
+            )
+            .slice(0, 4)
+            .map((a) => ({
+              agentAr: a.actorAr,
+              statusAr: a.actionAr,
+              detailAr: a.detailAr || a.atAr,
+            })),
+          ...(liveData?.recentPosts || [])
+            .filter((p) => p.kind === 'agent')
+            .slice(0, 4)
+            .map((p) => ({
+              agentAr: p.authorAr,
+              statusAr: 'نشر في الغرفة',
+              detailAr: p.content,
+            })),
+        ].slice(0, 6)
+        const acts = isGuestDemo ? demoActs : liveActs
+        if (!acts.length) return null
+        return (
+          <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
+            <p className="mb-2 text-[11px] font-semibold text-stone-500">
+              نشاط الوكلاء الآن
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {acts.map((a, i) => (
+                <li
+                  key={`${a.agentAr}-${i}`}
+                  className="rounded-lg border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-1.5 text-[12px]"
+                >
+                  <span className="font-semibold text-ab-ink">{a.agentAr}</span>
+                  <span className="text-ab-accent"> · {a.statusAr}</span>
+                  <span className="block text-[10px] text-stone-500">
+                    {a.detailAr}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
 
       {err && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">

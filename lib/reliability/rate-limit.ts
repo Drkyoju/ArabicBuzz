@@ -62,3 +62,20 @@ export async function enforceWebhookRateLimit(opts: {
   return { ok: local.success, remaining: local.remaining, reset: local.reset }
 }
 
+/** Generic API rate limit (posts, settings mutations). */
+export async function enforceApiRateLimit(opts: {
+  req: Request
+  bucket: string
+  limit?: number
+  windowMs?: number
+}) {
+  const limit = opts.limit ?? Number(process.env.API_RATE_LIMIT_PER_MIN || 40)
+  const windowMs = opts.windowMs ?? 60_000
+  const ip = parseIp(opts.req.headers.get('x-forwarded-for'))
+  const auth = opts.req.headers.get('authorization') || ''
+  const who = auth.slice(0, 32) || ip
+  const key = `api:${opts.bucket}:${who}`
+  const local = inMemoryLimit(key, limit, windowMs)
+  return { ok: local.success, remaining: local.remaining, reset: local.reset }
+}
+

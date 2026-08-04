@@ -59,6 +59,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { enforceApiRateLimit } = await import('@/lib/reliability/rate-limit')
+  const rl = await enforceApiRateLimit({
+    req,
+    bucket: 'providers-put',
+    limit: 20,
+  })
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'تجاوزت حد الطلبات. حاول بعد لحظات.', code: 'RATE_LIMITED' },
+      { status: 429 }
+    )
+  }
   const auth = await requireKeyAdmin(req)
   if (!auth.ok) return auth.response
 

@@ -256,6 +256,10 @@ export async function GET(req: NextRequest) {
 
 /** Log presence / manual activity from the client. */
 export async function POST(req: NextRequest) {
+  const { requireRealUser } = await import('@/lib/auth/session')
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
+
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
     kind?: string
@@ -276,8 +280,13 @@ export async function POST(req: NextRequest) {
       body.kind === 'system'
         ? body.kind
         : 'presence',
-    actorAr: String(body.actorAr || 'مجهول'),
-    actorEmail: body.actorEmail || null,
+    actorAr: String(
+      body.actorAr ||
+        auth.user.user_metadata?.full_name ||
+        auth.user.email ||
+        'عضو'
+    ),
+    actorEmail: body.actorEmail || auth.user.email || null,
     actionAr: String(body.actionAr || 'تواجد في الغرفة'),
     detailAr: body.detailAr || null,
   })

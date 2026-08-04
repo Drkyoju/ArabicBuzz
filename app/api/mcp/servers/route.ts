@@ -9,6 +9,7 @@ import {
   disableStoredMcpConnection,
   upsertStoredMcpConnection,
 } from '@/lib/mcp/persist'
+import { requireRealUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -47,7 +48,9 @@ function parseServerConfig(body: unknown): MCPServerConfig {
 }
 
 /** GET — catalog (Arabic) + connected servers. */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     await connectEnvMcpServers()
   } catch {
@@ -67,6 +70,8 @@ export async function GET() {
 
 /** POST — connect MCP server (remote URL preferred on Netlify). */
 export async function POST(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const catalogId = String(
@@ -77,7 +82,11 @@ export async function POST(req: NextRequest) {
       : undefined
 
     let config: MCPServerConfig
-    if (catalog && !(body as { commandOrUrl?: string }).commandOrUrl && !(body as { url?: string }).url) {
+    if (
+      catalog &&
+      !(body as { commandOrUrl?: string }).commandOrUrl &&
+      !(body as { url?: string }).url
+    ) {
       if (!catalog.defaultUrl) {
         return NextResponse.json(
           {
@@ -144,6 +153,8 @@ export async function POST(req: NextRequest) {
 
 /** DELETE — disconnect + disable persistence. */
 export async function DELETE(req: NextRequest) {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth.response
   const id = new URL(req.url).searchParams.get('id')?.trim()
   if (!id) {
     return NextResponse.json({ error: 'id مطلوب' }, { status: 400 })

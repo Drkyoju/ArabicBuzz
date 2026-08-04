@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireUser, requireRealUser } from '@/lib/auth/session'
 import {
   assertRoomCanEdit,
   listCanvasArtifacts,
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json()) as {
     id?: string
@@ -49,6 +49,9 @@ export async function POST(req: Request) {
   }
   if (!body.id || !body.content) {
     return Response.json({ error: 'id و content مطلوبان' }, { status: 400 })
+  }
+  if (String(body.content).length > 200_000) {
+    return Response.json({ error: 'المحتوى طويل جداً' }, { status: 400 })
   }
   const scopeId = body.scopeId || 'shared-demo'
   const gate = await assertRoomCanEdit(

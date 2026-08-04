@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AGENT_MODEL_PRESETS,
   type RoomAgent,
@@ -10,6 +10,8 @@ import { AgentsManagePanel } from '@/components/agents-manage-panel'
 import { AgentProfileDrawer } from '@/components/agent-profile-drawer'
 import { CollabModeToggle } from '@/components/collab-mode-toggle'
 import { buildGuestDemoDigest } from '@/lib/demo/guest-digest'
+import { authHeaders } from '@/lib/supabase/browser'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { cn } from '@/lib/utils'
 
 function shortCapability(slug?: string) {
@@ -44,6 +46,8 @@ export function AgentSeatsPanel({
     [agentsForScope, scopeId]
   )
   const [profileAgent, setProfileAgent] = useState<RoomAgent | null>(null)
+  const signedIn = useSignedIn()
+  const [liveActions, setLiveActions] = useState<string[]>([])
 
   const demoActions = useMemo(() => {
     const dig = buildGuestDemoDigest()
@@ -51,6 +55,53 @@ export function AgentSeatsPanel({
       .filter((a) => a.kind === 'agent' || a.kind === 'hitl')
       .map((a) => `${a.actionAr}${a.detailAr ? ` — ${a.detailAr}` : ''}`)
   }, [])
+
+  useEffect(() => {
+    if (signedIn === false) {
+      setLiveActions([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
+          { headers: await authHeaders() }
+        )
+        if (!res.ok || cancelled) return
+        const json = (await res.json()) as {
+          activity?: Array<{
+            actorAr: string
+            actionAr: string
+            detailAr?: string | null
+            kind: string
+          }>
+          recentPosts?: Array<{
+            authorAr: string
+            content: string
+            kind: string
+          }>
+        }
+        const fromActivity = (json.activity || [])
+          .filter((a) => a.kind === 'agent' || a.kind === 'hitl')
+          .map((a) => `${a.actionAr}${a.detailAr ? ` — ${a.detailAr}` : ''}`)
+        const fromPosts = (json.recentPosts || [])
+          .filter((p) => p.kind === 'agent')
+          .map((p) => `${p.authorAr}: ${p.content}`)
+        if (!cancelled) {
+          setLiveActions([...fromActivity, ...fromPosts].slice(0, 8))
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [scopeId, signedIn, answeringAgentId])
+
+  const recentPool =
+    signedIn && liveActions.length > 0 ? liveActions : demoActions
 
   return (
     <div className={cn('space-y-1', className)} dir="rtl">
@@ -66,6 +117,7 @@ export function AgentSeatsPanel({
             agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
             answering ? 'يجيب الآن…' : null,
+            signedIn ? 'حضور حقيقي' : 'معاينة',
           ]
             .filter(Boolean)
             .join(' · ')
@@ -116,6 +168,7 @@ export function AgentSeatsPanel({
         <p className="truncate text-[10px] text-stone-400">
           اضغط مقعد وكيل لرؤية الهوية والصلاحيات وسجل التدقيق ·{' '}
           {collabMode === 'team' ? 'وضع تعاون نشط' : 'وضع منفصل نشط'}
+          {signedIn ? ' · حضور حي' : ''}
         </p>
       )}
       {agents.some((a) => a.taskAr) && (
@@ -137,11 +190,25 @@ export function AgentSeatsPanel({
         }
         recentActionsAr={
           profileAgent
-            ? demoActions.filter((_, i) =>
-                profileAgent.nameAr.includes('امتثال')
-                  ? i === 1 || i === 0
-                  : true
-              ).slice(0, 3)
+            ? recentPool
+                .filter((line) =>
+                  profileAgent.nameAr
+                    ? line.includes(profileAgent.nameAr) ||
+                      line.includes(profileAgent.slug)
+                    : true
+                )
+                .slice(0, 3)
+                .concat(
+                  recentPool
+                    .filter(
+                      (line) =>
+                        !profileAgent.nameAr ||
+                        (!line.includes(profileAgent.nameAr) &&
+                          !line.includes(profileAgent.slug))
+                    )
+                    .slice(0, 3)
+                )
+                .slice(0, 3)
             : []
         }
       />

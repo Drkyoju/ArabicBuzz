@@ -322,6 +322,14 @@ export async function assertRoomOwner(
   }
 }
 
+/** Demo scopes open to any real signed-in user (Buzz-style starter rooms). */
+export const DEMO_OPEN_SCOPES = new Set([
+  'shared-demo',
+  'shared-ops',
+  'personal-demo',
+  'personal-research',
+])
+
 /** Canvas / content edits: owner, editor, member. */
 export async function assertRoomCanEdit(
   scopeId: string,
@@ -332,9 +340,16 @@ export async function assertRoomCanEdit(
   if (role === 'owner' || role === 'editor' || role === 'member') {
     return { ok: true, role }
   }
-  // Personal mode / unlisted scope: local owner may not be in members yet
   if (!role && userId === 'local-owner') {
     return { ok: true, role: 'owner' }
+  }
+  if (
+    !role &&
+    DEMO_OPEN_SCOPES.has(scopeId) &&
+    userId &&
+    userId !== 'local-owner'
+  ) {
+    return { ok: true, role: 'member' }
   }
   return {
     ok: false,
@@ -357,10 +372,21 @@ export async function assertRoomCanPost(
     return { ok: true }
   }
   if (!role && userId === 'local-owner') return { ok: true }
+  if (
+    !role &&
+    DEMO_OPEN_SCOPES.has(scopeId) &&
+    userId &&
+    userId !== 'local-owner'
+  ) {
+    return { ok: true }
+  }
   if (role === 'viewer') {
     return { ok: false, error: 'دور المشاهد لا يسمح بالنشر.' }
   }
-  return { ok: true }
+  return {
+    ok: false,
+    error: 'لست عضواً في هذه الغرفة — اطلب دعوة من المالك.',
+  }
 }
 
 function mapDbMember(r: Record<string, unknown>): RoomMember {
@@ -664,6 +690,9 @@ export async function createRoomInvite(opts: {
         status: 'pending',
         token,
         display_name_ar: opts.displayNameAr || null,
+        expires_at: new Date(Date.now() + 7 * 86400_000).toISOString(),
+        max_uses: opts.kind === 'link' ? 5 : 1,
+        used_count: 0,
       },
       { onConflict: 'scope_id,email' }
     )
@@ -777,6 +806,31 @@ export async function acceptInviteByToken(opts: {
   }
   if (!invite) return { ok: false, error: 'رابط الدعوة غير صالح أو منتهٍ' }
   if (invite.status === 'revoked') return { ok: false, error: 'أُلغيت هذه الدعوة' }
+  if (invite.status === 'accepted' && !(invite as { maxUses?: number }).maxUses) {
+    return { ok: false, error: 'استُخدمت هذه الدعوة مسبقاً' }
+  }
+
+  // Expiry / use limits (from DB columns when present)
+  if (sb) {
+    const { data: fresh } = await sb
+      .from('room_invites')
+      .select('expires_at, max_uses, used_count, status')
+      .eq('token', opts.token)
+      .maybeSingle()
+    if (fresh) {
+      if (fresh.status === 'revoked') {
+        return { ok: false, error: 'أُلغيت هذه الدعوة' }
+      }
+      if (fresh.expires_at && new Date(fresh.expires_at).getTime() < Date.now()) {
+        return { ok: false, error: 'انتهت صلاحية رابط الدعوة' }
+      }
+      const maxUses = Number(fresh.max_uses ?? 1)
+      const used = Number(fresh.used_count ?? 0)
+      if (used >= maxUses) {
+        return { ok: false, error: 'استُنفدت استخدامات هذه الدعوة' }
+      }
+    }
+  }
 
   const email =
     invite.email && !invite.email.includes('@invite.local')
@@ -793,13 +847,21 @@ export async function acceptInviteByToken(opts: {
   if (!added.ok) return { ok: false, error: added.error }
 
   if (sb) {
+    const { data: cur } = await sb
+      .from('room_invites')
+      .select('used_count, max_uses')
+      .eq('token', opts.token)
+      .maybeSingle()
+    const next = Number(cur?.used_count || 0) + 1
+    const maxUses = Number(cur?.max_uses || 1)
     await sb
       .from('room_invites')
       .update({
-        status: 'accepted',
+        status: next >= maxUses ? 'accepted' : 'pending',
         accepted_at: new Date().toISOString(),
         accepted_by: opts.userId || name,
         display_name_ar: name,
+        used_count: next,
       })
       .eq('token', opts.token)
   } else if (invite) {

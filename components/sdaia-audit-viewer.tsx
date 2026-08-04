@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { authHeaders } from '@/lib/supabase/browser'
 
 type AuditRow = {
   id: string
@@ -15,19 +16,18 @@ export function SdaiaAuditViewer() {
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [scopeId, setScopeId] = useState('')
   const [risk, setRisk] = useState('')
+  const [err, setErr] = useState('')
 
   async function load() {
-    const secret =
-      process.env.NEXT_PUBLIC_AUDIT_EXPORT_SECRET ||
-      process.env.NEXT_PUBLIC_CRON_SECRET ||
-      'change-me'
+    setErr('')
     const qs = new URLSearchParams()
     if (scopeId) qs.set('scopeId', scopeId)
     const res = await fetch(`/api/audit/export?${qs.toString()}`, {
-      headers: { Authorization: `Bearer ${secret}` },
+      headers: await authHeaders(),
     })
     if (!res.ok) {
       setLogs([])
+      setErr('سجّل الدخول لعرض سجل التدقيق الحقيقي.')
       return
     }
     const data = await res.json()
@@ -46,25 +46,25 @@ export function SdaiaAuditViewer() {
   )
 
   function exportCsv() {
-    const secret =
-      process.env.NEXT_PUBLIC_AUDIT_EXPORT_SECRET ||
-      process.env.NEXT_PUBLIC_CRON_SECRET ||
-      'change-me'
     const qs = new URLSearchParams({ format: 'csv' })
     if (scopeId) qs.set('scopeId', scopeId)
-    window.open(`/api/audit/export?${qs.toString()}&auth=1`, '_blank')
-    // Prefer fetch download with auth header
-    void fetch(`/api/audit/export?${qs.toString()}`, {
-      headers: { Authorization: `Bearer ${secret}` },
-    }).then(async (res) => {
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'sdaia-audit.csv'
-      a.click()
-      URL.revokeObjectURL(url)
-    })
+    void authHeaders().then((h) =>
+      fetch(`/api/audit/export?${qs.toString()}`, { headers: h }).then(
+        async (res) => {
+          if (!res.ok) {
+            setErr('تعذّر التصدير — سجّل الدخول أولاً.')
+            return
+          }
+          const blob = await res.blob()
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'sdaia-audit.csv'
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      )
+    )
   }
 
   return (
@@ -79,6 +79,9 @@ export function SdaiaAuditViewer() {
           تصدير التقرير التنظيمي (CSV)
         </button>
       </div>
+      {err && (
+        <p className="mb-3 text-xs text-amber-800">{err}</p>
+      )}
       <div className="mb-4 flex flex-wrap gap-2">
         <input
           value={scopeId}
@@ -100,45 +103,40 @@ export function SdaiaAuditViewer() {
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-md border border-ab-border px-3 py-2 text-sm"
+          className="rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
         >
           تحديث
         </button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-ab-border bg-ab-surface">
-        <table className="min-w-full text-sm">
-          <thead className="bg-ab-bg text-stone-600">
+      <div className="overflow-x-auto rounded-xl border border-ab-border">
+        <table className="w-full min-w-[40rem] text-right text-sm" dir="rtl">
+          <thead className="bg-stone-50 text-[11px] text-stone-500">
             <tr>
-              <th className="px-3 py-2 text-right">معرف العملية</th>
-              <th className="px-3 py-2 text-right">تاريخ التنفيذ</th>
-              <th className="px-3 py-2 text-right">تصنيف المخاطر (SDAIA)</th>
-              <th className="px-3 py-2 text-right">موقع معالجة البيانات</th>
-              <th className="px-3 py-2 text-right">توقيع التحقق</th>
+              <th className="px-3 py-2 font-medium">الوقت</th>
+              <th className="px-3 py-2 font-medium">النطاق</th>
+              <th className="px-3 py-2 font-medium">الخطر</th>
+              <th className="px-3 py-2 font-medium">المحلية</th>
+              <th className="px-3 py-2 font-medium">الختم</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-stone-500"
-                >
-                  لا توجد سجلات تدقيق بعد — ستُملأ عند تشغيل الوكلاء.
+                <td colSpan={5} className="px-3 py-6 text-center text-stone-400">
+                  لا سجلات بعد — ستظهر هنا بعد تنفيذ الوكلاء لإجراءات.
                 </td>
               </tr>
             ) : (
-              filtered.map((row) => (
-                <tr key={row.id} className="border-t border-ab-border">
-                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">
-                    {row.id.slice(0, 8)}…
+              filtered.map((l) => (
+                <tr key={l.id} className="border-t border-ab-border">
+                  <td className="px-3 py-2 text-[11px] text-stone-600" dir="ltr">
+                    {l.timestamp}
                   </td>
-                  <td className="px-3 py-2">
-                    {new Date(row.timestamp).toLocaleString('ar-SA')}
-                  </td>
-                  <td className="px-3 py-2">{row.riskTier}</td>
-                  <td className="px-3 py-2">{row.dataLocality}</td>
-                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">
-                    {row.watermarkSignature.slice(0, 16)}…
+                  <td className="px-3 py-2">{l.scopeId || '—'}</td>
+                  <td className="px-3 py-2 text-[11px]">{l.riskTier}</td>
+                  <td className="px-3 py-2 text-[11px]">{l.dataLocality}</td>
+                  <td className="px-3 py-2 font-mono text-[10px]" dir="ltr">
+                    {l.watermarkSignature?.slice(0, 24)}…
                   </td>
                 </tr>
               ))

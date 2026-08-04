@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma, withPrismaFallback } from '@/lib/db'
 import { getMemoryAuditLogs } from '@/lib/audit/logger'
+import { getUserFromRequest, isSyntheticUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
-function authorize(req: NextRequest) {
+function authorizeSecret(req: NextRequest) {
   const header = req.headers.get('authorization') || ''
   const secret =
     process.env.AUDIT_EXPORT_SECRET ||
     process.env.CRON_SECRET ||
-    process.env.NEXT_PUBLIC_AUDIT_EXPORT_SECRET ||
-    'change-me'
-  return header === `Bearer ${secret}` || header === 'Bearer change-me'
+    ''
+  if (!secret || secret === 'change-me') return false
+  return header === `Bearer ${secret}`
 }
 
 export async function GET(req: NextRequest) {
-  if (!authorize(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await getUserFromRequest(req)
+  const secretOk = authorizeSecret(req)
+  const sessionOk = Boolean(user && !isSyntheticUser(user))
+  if (!secretOk && !sessionOk) {
+    return NextResponse.json(
+      { error: 'يلزم تسجيل الدخول أو مفتاح تصدير التدقيق' },
+      { status: 401 }
+    )
   }
+
   const scopeId = req.nextUrl.searchParams.get('scopeId') || undefined
   const from = req.nextUrl.searchParams.get('from')
   const to = req.nextUrl.searchParams.get('to')
@@ -86,5 +94,5 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ logs })
+  return NextResponse.json({ logs, count: logs.length })
 }

@@ -26,6 +26,16 @@ export function localOwnerUser(): User {
   } as User
 }
 
+/** True for soft-auth placeholder / guest without a real Supabase session. */
+export function isSyntheticUser(user: User | null | undefined): boolean {
+  if (!user) return true
+  return (
+    user.id === 'local-owner' ||
+    user.app_metadata?.provider === 'local' ||
+    user.email === 'owner@arabicbuzz.local'
+  )
+}
+
 function adminOrAnonClient() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const key =
@@ -77,4 +87,43 @@ export async function requireUser(req: Request): Promise<
       { status: 401 }
     ),
   }
+}
+
+/**
+ * Require a real Supabase session (not local-owner). Use for mutations that
+ * must not hit production tables from anonymous guests.
+ */
+export async function requireRealUser(req: Request): Promise<
+  | { ok: true; user: User }
+  | { ok: false; response: Response }
+> {
+  const header = req.headers.get('authorization') || ''
+  if (!/^Bearer\s+\S+/i.test(header)) {
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          error: 'يلزم تسجيل الدخول لتنفيذ هذا الإجراء.',
+          code: 'AUTH_REQUIRED',
+          loginUrl: '/auth/login',
+        },
+        { status: 401 }
+      ),
+    }
+  }
+  const user = await getUserFromRequest(req)
+  if (!user || isSyntheticUser(user)) {
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          error: 'جلسة غير صالحة — سجّل الدخول بحساب حقيقي.',
+          code: 'AUTH_REQUIRED',
+          loginUrl: '/auth/login',
+        },
+        { status: 401 }
+      ),
+    }
+  }
+  return { ok: true, user }
 }
