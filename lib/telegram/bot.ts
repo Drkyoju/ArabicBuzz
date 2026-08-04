@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard, InputFile, webhookCallback, type Context } from 'grammy'
+import { Bot, InlineKeyboard, InputFile, type Context } from 'grammy'
 import { streamText, stepCountIs, type ToolSet } from 'ai'
 import {
   resolveChannelScope,
@@ -22,6 +22,10 @@ import {
   formatCitationsFooterAr,
 } from '@/lib/agents/citation-events'
 import { buildScopedSystemPrompt } from '@/lib/skills/registry'
+import {
+  ARABIC_AUTHZ_ERROR,
+  AuthorizationError,
+} from '@/lib/auth/rbac'
 import type { RoomCitation } from '@/lib/scopes/types'
 
 let bot: Bot | null = null
@@ -276,7 +280,7 @@ export function getTelegramBot() {
           `معرّف هذه المحادثة: ${chatId}`,
           `المساحة: ${boundName}`,
           payload ? 'تم ربط هذه المحادثة عبر رابط الدعوة.' : '',
-          'أوامر: /help · /rooms · /approve',
+          'أوامر: /help · /rooms · /approve · /status',
           'أضفه في Netlify كـ TELEGRAM_OWNER_CHAT_ID إن أردت تثبيت مالك التنبيهات.',
         ]
           .filter(Boolean)
@@ -288,14 +292,37 @@ export function getTelegramBot() {
     if (/^\/help(?:@\w+)?$/i.test(cmd)) {
       await ctx.reply(
         [
-          'أوامر Arabic Buzz:',
-          '/help — هذه القائمة',
-          '/rooms — المساحة المربوطة حالياً',
-          '/approve — الموافقات المعلّقة',
-          '/start — معرّف المحادثة',
+          'بوت Arabic Buzz — بوت واحد يكفي (لا حاجة لبوت ثانٍ).',
           '',
-          'أرسل نصاً أو رسالة صوتية لتنفيذ طلب عبر الوكيل.',
-          'عند إجراء عالي المخاطر تظهر أزرار موافقة/رفض هنا.',
+          'الأوامر:',
+          '/help — هذه القائمة',
+          '/start — معرّف المحادثة وربط المساحة',
+          '/rooms — المساحة المربوطة حالياً',
+          '/approve — عرض الموافقات المعلّقة مع أزرار القرار',
+          '/status — حالة الربط والإعداد',
+          '',
+          'ماذا يفعل البوت؟',
+          '• دردشة نصية مع وكيل الجمعية (أدوات + معرفة)',
+          '• رسائل صوتية → تفريغ ورد',
+          '• تنبيهات موافقة بشرية (HITL) مع ✅ موافقة / ❌ رفض',
+          '• عند الموافقة يُنفَّذ الإجراء المعلّق فعلياً',
+          '',
+          'أرسل أي نص غير أمر ليُعالَج كطلب للوكيل.',
+        ].join('\n')
+      )
+      return
+    }
+
+    if (/^\/status(?:@\w+)?$/i.test(cmd)) {
+      const pending = await listPendingApprovals().catch(() => [])
+      await ctx.reply(
+        [
+          'حالة Arabic Buzz عبر تيليجرام:',
+          `المحادثة: ${chatId}`,
+          `المساحة: ${scope.scope.nameAr} (${scope.scope.id})`,
+          `موافقات معلّقة: ${pending.length}`,
+          'الوكيل: جاهز لاستقبال النص والصوت',
+          'الموقع: https://arabicbuzz.netlify.app/',
         ].join('\n')
       )
       return
@@ -307,6 +334,7 @@ export function getTelegramBot() {
           `المساحة النشطة: ${scope.scope.nameAr}`,
           `المعرّف: ${scope.scope.id}`,
           'غيّر الربط من الموقع أو بمراسلة البوت من حساب مرتبط.',
+          'أوامر أخرى: /help · /approve · /status',
         ].join('\n')
       )
       return
@@ -443,6 +471,18 @@ export function getTelegramBot() {
       return
     }
 
+    // Answer immediately so Telegram stops the spinner even if execution is slow.
+    try {
+      await ctx.answerCallbackQuery({
+        text:
+          decision === 'APPROVE'
+            ? 'جاري الموافقة والتنفيذ…'
+            : 'جاري تسجيل الرفض…',
+      })
+    } catch {
+      /* already answered */
+    }
+
     const telegramUserId = String(ctx.from?.id || 'telegram')
     const rbacUserId =
       process.env.TELEGRAM_APPROVER_USER_ID || 'user-1'
@@ -457,14 +497,10 @@ export function getTelegramBot() {
         orgId,
       })
 
-      const statusAr =
-        result.status === 'APPROVED'
-          ? 'تمت الموافقة والتنفيذ'
-          : 'تم رفض الإجراء'
       const detailAr =
         result.status === 'APPROVED'
-          ? `✅ تمت الموافقة على الإجراء (${actionId}) وتنفيذه بنجاح.`
-          : `❌ تم رفض الإجراء (${actionId}). لن يتم التنفيذ.`
+          ? `✅ تمت الموافقة على الإجراء (${actionId.slice(0, 8)}…) وتنفيذه بنجاح.`
+          : `❌ تم رفض الإجراء (${actionId.slice(0, 8)}…). لن يتم التنفيذ.`
 
       await updateApprovalInSupabase({
         approvalId: actionId,
@@ -473,31 +509,44 @@ export function getTelegramBot() {
         decisionNoteAr: detailAr,
       })
 
-      await ctx.answerCallbackQuery({ text: statusAr })
-      await ctx.editMessageText(detailAr, {
-        reply_markup: { inline_keyboard: [] },
-      })
+      try {
+        await ctx.editMessageText(detailAr, {
+          reply_markup: { inline_keyboard: [] },
+        })
+      } catch {
+        await ctx.reply(detailAr)
+      }
     } catch (e) {
       console.error('[telegram] callback', e)
-      const msg =
-        e instanceof Error && e.message === 'MISSING_TENANT_CONTEXT'
-          ? 'عفواً، لا تملك الصلاحية الكافية لتنفيذ هذا الإجراء.'
-          : 'تعذّر تسجيل قرار الموافقة. حاول مرة أخرى.'
-      await ctx.answerCallbackQuery({ text: msg, show_alert: true })
+      let msg = 'تعذّر تسجيل قرار الموافقة. حاول مرة أخرى.'
+      if (e instanceof AuthorizationError) {
+        msg = e.message || ARABIC_AUTHZ_ERROR
+      } else if (e instanceof Error) {
+        if (e.message === 'NOT_FOUND') {
+          msg =
+            'لم يُعثر على طلب الموافقة (انتهت صلاحيته أو عولج مسبقاً أو فشل حفظه في قاعدة البيانات).'
+        } else if (e.message === 'ALREADY_RESOLVED') {
+          msg = 'تم البت في هذا الطلب مسبقاً.'
+        } else if (e.message === 'MISSING_TENANT_CONTEXT') {
+          msg = ARABIC_AUTHZ_ERROR
+        } else if (e.message.startsWith('Unknown tool')) {
+          msg = `فشل التنفيذ: الأداة غير معروفة (${e.message}).`
+        } else {
+          msg = `تعذّر التنفيذ: ${e.message.slice(0, 140)}`
+        }
+      }
+      try {
+        await ctx.reply(msg)
+      } catch {
+        /* ignore */
+      }
     }
   })
 
   return bot
 }
 
-export function createTelegramWebhookHandler() {
-  const instance = getTelegramBot()
-  return webhookCallback(instance, 'std/http', {
-    secretToken: process.env.TELEGRAM_WEBHOOK_SECRET,
-  })
-}
-
-/** Process a Telegram update payload directly (used by async workflow dispatch). */
+/** Process a Telegram update payload directly (webhook + async workflow dispatch). */
 export async function processTelegramUpdatePayload(payload: unknown) {
   const instance = getTelegramBot()
   const update = payload as Parameters<typeof instance.handleUpdate>[0]

@@ -83,6 +83,14 @@ Set `NEXT_PUBLIC_APP_URL=https://arabicbuzz.netlify.app` on Netlify. Invites, au
 - `https://arabicbuzz.netlify.app/api/webhooks/telegram`
 - `https://arabicbuzz.netlify.app/api/webhooks/whatsapp`
 
+لتسجيل webhook تيليجرام مع `secret_token` (موصى به إن وُجد `TELEGRAM_WEBHOOK_SECRET`):
+
+```bash
+npx tsx scripts/set-telegram-webhook.ts
+```
+
+البوت الواحد يدعم: دردشة الوكيل، الصوت، `/approve` للمعلّق، وأزرار موافقة/رفض التي **تنفّذ** الإجراء بعد القرار.
+
 ## Multiplayer simulation
 
 ```bash

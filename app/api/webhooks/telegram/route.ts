@@ -1,4 +1,10 @@
-import { createTelegramWebhookHandler } from '@/lib/telegram/bot'
+import {
+  processTelegramUpdatePayload,
+} from '@/lib/telegram/bot'
+import {
+  telegramUpdateHasCallback,
+  verifyTelegramWebhookSecret,
+} from '@/lib/telegram/webhook-auth'
 import { enforceWebhookRateLimit } from '@/lib/reliability/rate-limit'
 import { dispatchChannelWorkflow } from '@/lib/workflows/channel-dispatch'
 
@@ -9,7 +15,14 @@ export const maxDuration = 30
 
 /**
  * Netlify-compatible Telegram webhook.
- * grammy parses updates; text → Agent Engine; callbacks → approve_/reject_.
+ *
+ * Important: do NOT use grammy webhookCallback's strict secretToken gate.
+ * That returns opaque 401 when TELEGRAM_WEBHOOK_SECRET is set but setWebhook
+ * was registered without secret_token — outbound approve buttons work, clicks
+ * silently no-op. We verify mismatch only; missing header is allowed (compat).
+ *
+ * Callback queries (Approve/Reject) always run inline so answerCallbackQuery
+ * is guaranteed; text/voice may optionally queue via workflow dispatch.
  */
 export async function POST(req: Request) {
   try {
@@ -26,9 +39,22 @@ export async function POST(req: Request) {
         { status: 503 }
       )
     }
-    const cloned = req.clone()
-    const payload = await cloned.json().catch(() => null)
-    if (payload) {
+
+    const secretCheck = verifyTelegramWebhookSecret(req)
+    if (!secretCheck.ok) {
+      return new Response('unauthorized', { status: 401 })
+    }
+
+    const payload = await req.json().catch(() => null)
+    if (!payload) {
+      return Response.json({ error: 'invalid_json' }, { status: 400 })
+    }
+
+    const isCallback = telegramUpdateHasCallback(payload)
+
+    // HITL approve/reject must run in this request — async dispatch often
+    // "succeeds" without answering the callback, which looks like a no-op.
+    if (!isCallback) {
       const queued = await dispatchChannelWorkflow({
         kind: 'telegram_webhook',
         payload,
@@ -37,8 +63,9 @@ export async function POST(req: Request) {
         return Response.json({ ok: true, queued: true }, { status: 202 })
       }
     }
-    const handler = createTelegramWebhookHandler()
-    return await handler(req)
+
+    await processTelegramUpdatePayload(payload)
+    return Response.json({ ok: true, processed: isCallback ? 'callback' : 'update' })
   } catch (e) {
     console.error('[telegram webhook]', e)
     return Response.json(
@@ -50,11 +77,13 @@ export async function POST(req: Request) {
   }
 }
 
-/** Optional health check for Netlify / ngrok wiring. */
+/** Optional health check for Netlify / webhook wiring. */
 export async function GET() {
   return Response.json({
     ok: true,
     channel: 'telegram',
     configured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+    secretConfigured: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET?.trim()),
+    secretMode: 'compat_missing_header_ok',
   })
 }

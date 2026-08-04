@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { evaluateActionRisk, SecurityPostureMode } from '@/lib/security/posture'
 import { resolveToolAutonomy } from '@/lib/agents/trust-evaluator'
 import { recordToolExecution } from '@/lib/security/trust'
-import { prisma, withPrismaFallback } from '@/lib/db'
+import { prisma } from '@/lib/db'
 import {
   emitApprovalNotification,
   emitPassiveNotification,
@@ -47,22 +47,27 @@ export async function interceptToolExecution(opts: {
       scopeId,
     }
 
-    await withPrismaFallback(
-      () =>
-        prisma.pendingApproval.create({
-          data: {
-            id: approvalId,
-            actionName: opts.toolName,
-            params: opts.params as object,
-            riskLevel: risk.riskLevel,
-            status: 'PENDING_APPROVAL',
-            requesterId: opts.requesterId,
-            threadId: opts.threadId,
-            scopeId,
-          },
-        }),
-      null
-    )
+    let persisted: unknown = null
+    try {
+      persisted = await prisma.pendingApproval.create({
+        data: {
+          id: approvalId,
+          actionName: opts.toolName,
+          params: opts.params as object,
+          riskLevel: risk.riskLevel,
+          status: 'PENDING_APPROVAL',
+          requesterId: opts.requesterId,
+          threadId: opts.threadId,
+          scopeId,
+        },
+      })
+    } catch (e) {
+      console.error(
+        '[interceptor] pendingApproval.create failed — Telegram approve may return NOT_FOUND on another instance',
+        { approvalId, tool: opts.toolName, error: e instanceof Error ? e.message : e }
+      )
+    }
+    void persisted
     seedMemoryApproval({
       id: approvalId,
       actionName: opts.toolName,
