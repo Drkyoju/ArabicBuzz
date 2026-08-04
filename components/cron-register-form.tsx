@@ -4,17 +4,31 @@ import { useState } from 'react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
+const DEFAULT_MORNING = {
+  nameAr: 'ملخص صباحي',
+  prompt:
+    'لخّص نشاط الغرفة لليوم بالعربية الفصحى، واذكر المعلّقات والمواعيد.',
+  hour: 9,
+}
+
 /** Compact form to register a scheduled morning/ops task. */
 export function CronRegisterForm({ onCreated }: { onCreated?: () => void }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
-  const [nameAr, setNameAr] = useState('ملخص صباحي')
-  const [prompt, setPrompt] = useState('لخّص نشاط الغرفة لليوم بالعربية الفصحى.')
-  const [hour, setHour] = useState(9)
+  const [nameAr, setNameAr] = useState(DEFAULT_MORNING.nameAr)
+  const [prompt, setPrompt] = useState(DEFAULT_MORNING.prompt)
+  const [hour, setHour] = useState(DEFAULT_MORNING.hour)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
 
-  async function submit() {
+  async function submit(override?: {
+    nameAr?: string
+    prompt?: string
+    hour?: number
+  }) {
+    const nextName = (override?.nameAr ?? nameAr).trim()
+    const nextPrompt = (override?.prompt ?? prompt).trim()
+    const nextHour = override?.hour ?? hour
     setBusy(true)
     setMsg('')
     setErr('')
@@ -24,9 +38,9 @@ export function CronRegisterForm({ onCreated }: { onCreated?: () => void }) {
         headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           scopeId,
-          nameAr: nameAr.trim(),
-          prompt: prompt.trim(),
-          hour,
+          nameAr: nextName,
+          prompt: nextPrompt,
+          hour: nextHour,
           notifyChannels: ['telegram'],
         }),
       })
@@ -54,6 +68,19 @@ export function CronRegisterForm({ onCreated }: { onCreated?: () => void }) {
       <p className="mb-3 text-[11px] text-stone-500">
         للمساحة الحالية. يُشغَّل يومياً في الوقت المحدد (توقيت الرياض).
       </p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setNameAr(DEFAULT_MORNING.nameAr)
+          setPrompt(DEFAULT_MORNING.prompt)
+          setHour(DEFAULT_MORNING.hour)
+          void submit(DEFAULT_MORNING)
+        }}
+        className="mb-3 w-full rounded-md border border-ab-accent/30 bg-ab-accent/5 px-3 py-2 text-xs font-semibold text-ab-accent disabled:opacity-40"
+      >
+        تفعيل الملخص الصباحي الافتراضي (٩ ص — تيليجرام)
+      </button>
       <div className="space-y-2">
         <input
           value={nameAr}

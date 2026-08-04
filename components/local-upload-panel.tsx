@@ -187,7 +187,7 @@ export function LocalUploadPanel({
       const via =
         status.macSyncConfigured
           ? 'عبر وكيل الماك إن وُجد'
-          : 'تخزين سحابي (حدود الحجم على Netlify)'
+          : 'تخزين سحابي (حد أقصى لحجم الملف على الاستضافة)'
       setMessage(`${data.messageAr || 'تم الحفظ'} · ${via}`)
       await refresh()
       onUploaded?.()

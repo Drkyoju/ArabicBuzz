@@ -134,3 +134,55 @@ export async function downloadDriveFile(
   const buf = Buffer.from(await res.arrayBuffer())
   return { buffer: buf, filename, mimeType }
 }
+
+/** Upload a plain-text / markdown file into the brain folder (or parent). */
+export async function uploadDriveTextFile(
+  userId: string,
+  opts: {
+    name: string
+    content: string
+    mimeType?: string
+    folderId?: string
+  }
+): Promise<DriveFileMeta> {
+  const tok = await getValidGoogleAccessToken(userId)
+  if (!tok.ok) throw new Error(tok.error)
+  const folderId = opts.folderId || getDriveBrainFolderId()
+  const mimeType = opts.mimeType || 'text/plain'
+  const metadata = {
+    name: opts.name,
+    parents: [folderId],
+    mimeType,
+  }
+  const boundary = `ab-${Date.now().toString(36)}`
+  const body =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}; charset=UTF-8\r\n\r\n` +
+    `${opts.content}\r\n` +
+    `--${boundary}--`
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink,modifiedTime',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok.accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  )
+  const data = (await res.json()) as DriveFileMeta & {
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message || `فشل رفع Drive (HTTP ${res.status})`
+    )
+  }
+  return data
+}
+

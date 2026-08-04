@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useCanvasStore, type CanvasArtifact } from '@/lib/canvas/store'
+import { authHeaders } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
 export function CanvasViewer({
@@ -25,6 +26,7 @@ export function CanvasViewer({
   } = useCanvasStore()
   const active = artifacts.find((a) => a.id === activeId) || artifacts[0]
   const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
 
   if (!active) {
     return (
@@ -69,6 +71,62 @@ export function CanvasViewer({
     URL.revokeObjectURL(url)
   }
 
+  function downloadPdf() {
+    const title = active!.titleAr || 'مستند'
+    const w = window.open('', '_blank', 'noopener,noreferrer')
+    if (!w) {
+      setStatus('اسمح بالنوافذ المنبثقة لتصدير PDF')
+      return
+    }
+    const escaped = active!.content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"/><title>${title}</title>
+<style>
+  body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;padding:24px;line-height:1.7;color:#1c1917}
+  h1{font-size:18px;margin-bottom:16px}
+  pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;direction:ltr;text-align:left}
+</style></head><body>
+<h1>${title}</h1>
+<pre>${escaped}</pre>
+<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script>
+</body></html>`)
+    w.document.close()
+    setStatus('افتح حوار الطباعة واختر «حفظ كـ PDF»')
+  }
+
+  async function saveToDrive() {
+    setBusy(true)
+    setStatus('جاري الحفظ في Drive…')
+    try {
+      const res = await fetch('/api/google/drive/artifact', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          titleAr: active!.titleAr,
+          content: active!.content,
+          type: active!.type,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        webViewLink?: string | null
+      }
+      if (!res.ok) throw new Error(data.error || 'فشل الحفظ')
+      setStatus(data.messageAr || 'حُفظ في Drive')
+      if (data.webViewLink) {
+        window.open(data.webViewLink, '_blank', 'noopener,noreferrer')
+      }
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'فشل الحفظ في Drive')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function persist() {
     if (!onPersist) {
       setStatus('المشاركة غير مفعّلة')
@@ -91,14 +149,17 @@ export function CanvasViewer({
           {active.titleAr}
         </h2>
         {(active.updatedBy || active.updatedAt) && (
-          <p className="hidden max-w-[10rem] truncate text-[10px] text-stone-400 sm:block" dir="ltr">
+          <p
+            className="hidden max-w-[10rem] truncate text-[10px] text-stone-400 sm:block"
+            dir="ltr"
+          >
             {active.updatedBy || '—'}
             {active.updatedAt
               ? ` · ${new Date(active.updatedAt).toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}`
               : ''}
           </p>
         )}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <button
             type="button"
             onClick={() => void copy()}
@@ -126,6 +187,23 @@ export function CanvasViewer({
             className="rounded px-2 py-1 text-[11px] text-ab-accent hover:bg-stone-50"
           >
             تحميل
+          </button>
+          <button
+            type="button"
+            onClick={downloadPdf}
+            className="rounded px-2 py-1 text-[11px] text-ab-accent hover:bg-stone-50"
+            title="يفتح نافذة الطباعة لحفظ PDF"
+          >
+            PDF
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void saveToDrive()}
+            className="rounded px-2 py-1 text-[11px] text-ab-accent hover:bg-stone-50 disabled:opacity-40"
+            title="يحفظ الملف في مجلد عقل الشركة على Drive"
+          >
+            Drive
           </button>
           <button
             type="button"

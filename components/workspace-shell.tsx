@@ -22,11 +22,15 @@ import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
 import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
+import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
 function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
+
   useEffect(() => {
     void fetch('/api/integrations/status')
       .then((r) => r.json())
@@ -35,23 +39,68 @@ function AccountStatus() {
       )
       .catch(() => setRequired(null))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const { getBrowserSession, isSupabaseConfigured } = await import(
+          '@/lib/supabase/browser'
+        )
+        if (!isSupabaseConfigured()) {
+          if (!cancelled) setSignedIn(false)
+          return
+        }
+        const s = await getBrowserSession()
+        if (cancelled) return
+        setSignedIn(Boolean(s?.user))
+        setEmail(s?.user?.email || null)
+      } catch {
+        if (!cancelled) setSignedIn(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   if (required === null) {
     return (
       <p className="text-[11px] text-stone-400">جاري فحص حالة الحساب…</p>
     )
   }
+
+  if (signedIn) {
+    return (
+      <p className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800">
+        مسجّل الدخول
+        {email ? (
+          <>
+            {' '}
+            · <span dir="ltr">{email}</span>
+          </>
+        ) : null}
+      </p>
+    )
+  }
+
   return (
-    <p
-      className={
-        required
-          ? 'rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900'
-          : 'rounded-md bg-emerald-50 px-2.5 py-1.5 text-[11px] text-emerald-800'
-      }
-    >
-      {required
-        ? 'يلزم تسجيل الدخول لاستخدام المنصة.'
-        : 'يمكنك البدء فوراً — سجّل الدخول لاحقاً لحفظ حسابك عبر الأجهزة.'}
-    </p>
+    <div className="space-y-1.5">
+      <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
+        وضع الزائر — الجلسة على هذا الجهاز فقط
+      </p>
+      <p
+        className={
+          required
+            ? 'rounded-md bg-amber-50/80 px-2.5 py-1.5 text-[11px] text-amber-900'
+            : 'rounded-md bg-stone-50 px-2.5 py-1.5 text-[11px] text-stone-600'
+        }
+      >
+        {required
+          ? 'يلزم تسجيل الدخول لاستخدام المنصة.'
+          : 'سجّل الدخول أدناه لحفظ غرفك ومفاتيحك عبر الأجهزة.'}
+      </p>
+    </div>
   )
 }
 
@@ -159,7 +208,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
             <p className="mb-4 text-sm text-stone-500">
-              ربط Google مرة واحدةحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
+              ربط Google مرة واحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
               وُجد).
             </p>
             <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
@@ -236,6 +285,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               </p>
             </div>
             <SkillMarketplace targetScopeId={activeScopeId} />
+            <div className="mt-8">
+              <OrgRoleTemplates
+                onDone={() => setCronReloadToken((t) => t + 1)}
+              />
+            </div>
             <div className="mt-10 space-y-6 border-t border-ab-border pt-8">
               <div>
                 <h3 className="mb-1 text-base font-semibold text-ab-ink">

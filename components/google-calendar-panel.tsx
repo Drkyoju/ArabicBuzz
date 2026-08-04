@@ -386,7 +386,7 @@ export function GoogleCalendarPanel({
               تقويم الجمعية · Zoom
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-stone-600">
-              <strong>أنت</strong> تربط Google مرة واحدةحدة. أضف بريد
+              <strong>أنت</strong> تربط Google مرة واحدة. أضف بريد
               الأصدقاء/الموظفين أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ
               AI يقترح الوقت ثم تُرسل دعوة (+ رابط Zoom إن لصقته).
             </p>
@@ -572,7 +572,7 @@ export function GoogleCalendarPanel({
             </p>
           ) : (
             <p className="text-[10px] text-stone-400">
-              للصق رابط يدوياً، أو اضبط Zoom API من الإعدادات → تكاملات.
+              للصق رابط يدوياً، أو اربط Zoom من الإعدادات.
             </p>
           )}
           <div className="flex flex-wrap gap-2">

@@ -346,7 +346,7 @@ function SidebarBody({
         <p className="text-[10px] leading-relaxed text-stone-500">
           {airGapped
             ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-            : 'سحابي · arabicbuzz.netlify.app'}
+            : 'سحابي · Arabic Buzz'}
         </p>
       </div>
     </div>

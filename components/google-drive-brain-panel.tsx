@@ -89,8 +89,8 @@ export function GoogleDriveBrainPanel() {
           </h3>
           <p className="mt-1 text-xs leading-relaxed text-stone-600">
             مجلد «ملفات الجمعية» يصبح مصدر المعرفة: يُستخرج النص ويُفهرس للبحث
-            في الدردشة (ومع{' '}
-            <code dir="ltr">BRAIN_PRIMARY=mac</code> يُحفظ الفهرس على الماك).
+            في الدردشة. يمكنك أيضاً حفظ الفهرس على جهازك عبر خزنة الماك (من
+            إعدادات المسؤول).
           </p>
         </div>
         <button

@@ -382,6 +382,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               <button
                 type="button"
                 disabled={busy || !canManage || !nameAr.trim()}
+                title={
+                  !canManage
+                    ? 'للمالك فقط'
+                    : !nameAr.trim()
+                      ? 'أدخل الاسم الظاهر أولاً'
+                      : 'إضافة عضو للاسم الظاهر'
+                }
                 onClick={() => void addMember()}
                 className="inline-flex items-center gap-1 rounded-md bg-ab-ink px-2.5 py-1.5 text-white disabled:opacity-40"
               >
@@ -391,6 +398,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               <button
                 type="button"
                 disabled={busy || !canManage || !email.trim()}
+                title={
+                  !canManage
+                    ? 'للمالك فقط'
+                    : !email.trim()
+                      ? 'أدخل البريد أولاً لإنشاء دعوة بريدية'
+                      : 'يرسل دعوة بالبريد مع رابط انضمام'
+                }
                 onClick={() => void inviteByEmail()}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
               >
@@ -400,6 +414,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               <button
                 type="button"
                 disabled={busy || !canManage}
+                title={!canManage ? 'للمالك فقط' : 'ينشئ رابط انضمام يمكن نسخه'}
                 onClick={() => void createLink()}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
               >
@@ -411,14 +426,29 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                 disabled={busy || !canManage}
                 onClick={() => void inviteViaTelegram()}
                 className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
-                title="ينشئ رابط دعوة ويرسله إلى تيليجرام المالك"
+                title={
+                  !canManage
+                    ? 'للمالك فقط'
+                    : 'ينشئ رابط دعوة ويرسله إلى تيليجرام المالك'
+                }
               >
                 تيليجرام · رابط دعوة
               </button>
             </div>
+            {canManage && (!nameAr.trim() || !email.trim()) && (
+              <p className="text-[10px] text-amber-800">
+                {!nameAr.trim()
+                  ? 'لإضافة عضو يدوياً: اكتب الاسم الظاهر ثم «أضف للغرفة».'
+                  : null}
+                {nameAr.trim() && !email.trim()
+                  ? ' لدعوة بالبريد: أدخل البريد ثم «دعوة بريد + رابط». أو استخدم «رابط دعوة» بدون بريد.'
+                  : null}
+              </p>
+            )}
             <p className="text-[10px] leading-relaxed text-stone-500">
-              «رابط دعوة» ينشئ رابط انضمام. زر تيليجرام يرسل الرابط للقناة
-              المضبوطة. زر البريد يفتح تطبيق بريدك مع الرابط.
+              «رابط دعوة» يكفي لمشاركة الانضمام فوراً (بدون Google). البريد يفتح
+              تطبيق بريدك إن لم تُضبط خدمة الإرسال. تيليجرام يرسل الرابط للقناة
+              المضبوطة.
             </p>
             {linkUrl && (
               <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">

@@ -11,7 +11,8 @@ export function TelegramConnectCard() {
   const [ready, setReady] = useState<boolean | null>(null)
   const [ownerOk, setOwnerOk] = useState(false)
   const botUrl =
-    process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL || 'https://t.me/'
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL ||
+    'https://t.me/alhuda14bot'
 
   useEffect(() => {
     let cancelled = false
@@ -121,7 +122,7 @@ export function ConnectedServicesPanel() {
         </p>
         <p>
           يمكنك لصق رابط اجتماع يدوياً عند الحجز. الإنشاء التلقائي يحتاج إعداد
-          المسؤول مرة واحدةحدة.
+          المسؤول مرة واحدة.
         </p>
       </div>
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">

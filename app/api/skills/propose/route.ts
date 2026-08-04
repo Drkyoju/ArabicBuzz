@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       : []
     if (messages.length < 1) {
       return NextResponse.json(
-        { error: 'أضف رسالة واحدةحدة على الأقل من المحادثة' },
+        { error: 'أضف رسالة واحدة على الأقل من المحادثة' },
         { status: 400 }
       )
     }

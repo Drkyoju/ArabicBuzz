@@ -76,7 +76,7 @@ export function SdaiaAuditViewer() {
           onClick={() => void exportCsv()}
           className="rounded-md bg-ab-ink px-3 py-2 text-sm text-white"
         >
-          تصدير التقرير التنظيمي (SDAIA Audit Export)
+          تصدير التقرير التنظيمي (CSV)
         </button>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -92,10 +92,10 @@ export function SdaiaAuditViewer() {
           className="rounded-md border border-ab-border px-3 py-2 text-sm"
         >
           <option value="">كل التصنيفات</option>
-          <option value="TIER_1_LOW">TIER_1_LOW</option>
-          <option value="TIER_2_MEDIUM">TIER_2_MEDIUM</option>
-          <option value="TIER_3_HIGH">TIER_3_HIGH</option>
-          <option value="TIER_4_CRITICAL">TIER_4_CRITICAL</option>
+          <option value="TIER_1_LOW">منخفض (١)</option>
+          <option value="TIER_2_MEDIUM">متوسط (٢)</option>
+          <option value="TIER_3_HIGH">مرتفع (٣)</option>
+          <option value="TIER_4_CRITICAL">حرج (٤)</option>
         </select>
         <button
           type="button"
