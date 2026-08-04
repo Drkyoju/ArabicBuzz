@@ -29,6 +29,21 @@ import {
 import type { RoomCitation } from '@/lib/scopes/types'
 
 let bot: Bot | null = null
+let botInitPromise: Promise<void> | null = null
+
+async function ensureTelegramBotReady(): Promise<Bot> {
+  const instance = getTelegramBot()
+  if (!botInitPromise) {
+    botInitPromise = instance.init().then(() => undefined)
+  }
+  try {
+    await botInitPromise
+  } catch (e) {
+    botInitPromise = null
+    throw e
+  }
+  return instance
+}
 
 function resolveTelegramScope(opts: {
   chatId: string
@@ -548,7 +563,7 @@ export function getTelegramBot() {
 
 /** Process a Telegram update payload directly (webhook + async workflow dispatch). */
 export async function processTelegramUpdatePayload(payload: unknown) {
-  const instance = getTelegramBot()
+  const instance = await ensureTelegramBotReady()
   const update = payload as Parameters<typeof instance.handleUpdate>[0]
   await instance.handleUpdate(update)
 }
