@@ -141,12 +141,32 @@ export async function connectEnvMcpServers(): Promise<string[]> {
     )
   }
 
-  // 3) Optional free defaults if explicitly enabled
-  if (process.env.MCP_AUTO_ANYBROWSE === '1') {
-    const item = MCP_CATALOG.find((c) => c.id === 'anybrowse')
-    if (item?.defaultUrl && !connected.includes('anybrowse')) {
-      await tryConnect('anybrowse', item.nameAr, item.defaultUrl)
+  // 3) Free/recommended defaults for associations (+ Context7 for builders)
+  const autoDefaults =
+    process.env.MCP_AUTO_DEFAULTS !== '0' &&
+    process.env.MCP_AUTO_ANYBROWSE !== '0'
+  if (autoDefaults) {
+    for (const id of ['anybrowse', 'context7'] as const) {
+      const item = MCP_CATALOG.find((c) => c.id === id)
+      if (item?.defaultUrl && !connected.includes(id)) {
+        await tryConnect(id, item.nameAr, item.defaultUrl)
+      }
     }
+  }
+
+  // Firecrawl remote MCP when API key present
+  const firecrawlKey = process.env.FIRECRAWL_API_KEY?.trim()
+  if (firecrawlKey && !connected.includes('firecrawl')) {
+    const fireUrl =
+      process.env.FIRECRAWL_MCP_URL?.trim() ||
+      `https://mcp.firecrawl.dev/${firecrawlKey}/v2/mcp`
+    await tryConnect('firecrawl', 'Firecrawl', fireUrl)
+  }
+
+  // Supabase official MCP URL (project-specific)
+  const supabaseMcp = process.env.SUPABASE_MCP_URL?.trim()
+  if (supabaseMcp && !connected.includes('supabase')) {
+    await tryConnect('supabase', 'Supabase', supabaseMcp)
   }
 
   globalForHost.__arabicBuzzMcpEnvConnected = true

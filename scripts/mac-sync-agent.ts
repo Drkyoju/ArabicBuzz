@@ -462,7 +462,90 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // Browser-use / RPA bridge — Netlify calls POST {task,url} here
+  // MarkItDown — convert PDF/Office → markdown for decision deep-read
+  if (req.method === 'POST' && url.pathname === '/markitdown') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        filename?: string
+        contentBase64?: string
+        mimeType?: string
+      }
+      const b64 = String(body.contentBase64 || '')
+      if (!b64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const { writeFileSync, unlinkSync, mkdtempSync } =
+        await import('node:fs')
+      const { join } = await import('node:path')
+      const { tmpdir } = await import('node:os')
+      const { spawn } = await import('node:child_process')
+      const dir = mkdtempSync(join(tmpdir(), 'ab-md-'))
+      const fname = (body.filename || 'doc.pdf').replace(/[^\w.\u0600-\u06FF-]+/g, '_')
+      const inPath = join(dir, fname)
+      writeFileSync(inPath, Buffer.from(b64, 'base64'))
+
+      const tryCmd = async (
+        cmd: string,
+        args: string[]
+      ): Promise<{ ok: boolean; out: string; err: string }> =>
+        new Promise((resolve) => {
+          const child = spawn(cmd, args, { timeout: 90_000 })
+          let out = ''
+          let err = ''
+          child.stdout?.on('data', (d) => {
+            out += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            err += String(d)
+          })
+          child.on('close', (code) => {
+            resolve({ ok: code === 0, out, err })
+          })
+          child.on('error', (e) => {
+            resolve({ ok: false, out: '', err: e.message })
+          })
+        })
+
+      // Prefer `markitdown` CLI (pip install markitdown)
+      let result = await tryCmd('markitdown', [inPath])
+      if (!result.ok) {
+        result = await tryCmd('python3', ['-m', 'markitdown', inPath])
+      }
+      try {
+        unlinkSync(inPath)
+      } catch {
+        /* ignore */
+      }
+      if (!result.ok || !result.out.trim()) {
+        json(res, 200, {
+          ok: false,
+          markdown: '',
+          messageAr:
+            'MarkItDown غير متاح على الماك. ثبّت: pip install "markitdown[all]"',
+          error: result.err.slice(0, 400),
+        })
+        return
+      }
+      json(res, 200, {
+        ok: true,
+        markdown: result.out.slice(0, 200_000),
+        messageAr: 'حُوّل المستند عبر MarkItDown على الماك.',
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'markitdown failed',
+      })
+    }
+    return
+  }
+
+  // Browser-use / Playwright RPA bridge — Netlify calls POST {task,url} here
   if (req.method === 'POST' && url.pathname === '/task') {
     if (!checkAuth(req)) {
       json(res, 401, { error: 'unauthorized' })
@@ -474,6 +557,7 @@ const server = createServer(async (req, res) => {
         task?: string
         url?: string
         maxSteps?: number
+        engine?: 'playwright' | 'browser-use' | 'auto'
       }
       const task = String(body.task || '').trim()
       const target = String(body.url || '').trim()
@@ -481,20 +565,18 @@ const server = createServer(async (req, res) => {
         `[mac] received task: ${task.slice(0, 120)}`,
         `[mac] url: ${target}`,
       ]
-      const script =
-        process.env.BROWSER_USE_SCRIPT ||
-        `${process.env.HOME || ''}/ArabicBuzz/scripts/browser-use-task.py`
       const { existsSync } = await import('node:fs')
-      if (existsSync(script) && task && target) {
-        const { spawn } = await import('node:child_process')
-        const result = await new Promise<{
-          ok: boolean
-          stdout: string
-          stderr: string
-        }>((resolve) => {
-          const child = spawn('python3', [script, target, task], {
-            timeout: 90_000,
-          })
+      const { spawn } = await import('node:child_process')
+      const { fileURLToPath } = await import('node:url')
+      const { dirname, join } = await import('node:path')
+      const here = dirname(fileURLToPath(import.meta.url))
+
+      const runSpawn = (
+        cmd: string,
+        args: string[]
+      ): Promise<{ ok: boolean; stdout: string; stderr: string }> =>
+        new Promise((resolve) => {
+          const child = spawn(cmd, args, { timeout: 120_000 })
           let stdout = ''
           let stderr = ''
           child.stdout?.on('data', (d) => {
@@ -510,6 +592,51 @@ const server = createServer(async (req, res) => {
             resolve({ ok: false, stdout: '', stderr: e.message })
           })
         })
+
+      const prefer =
+        body.engine ||
+        (process.env.BROWSER_ENGINE as 'playwright' | 'browser-use' | 'auto') ||
+        'auto'
+
+      const pwScript =
+        process.env.PLAYWRIGHT_SCRIPT ||
+        join(here, 'playwright-task.mjs')
+      const buScript =
+        process.env.BROWSER_USE_SCRIPT ||
+        `${process.env.HOME || ''}/ArabicBuzz/scripts/browser-use-task.py`
+
+      const tryPlaywright = prefer !== 'browser-use' && existsSync(pwScript)
+      const tryBrowserUse = prefer !== 'playwright' && existsSync(buScript)
+
+      if (task && target && tryPlaywright) {
+        logs.push('[mac] engine=playwright')
+        const result = await runSpawn('node', [pwScript, target, task])
+        logs.push(result.stderr.slice(0, 500))
+        let parsed: Record<string, unknown> = {}
+        try {
+          parsed = JSON.parse(result.stdout) as Record<string, unknown>
+        } catch {
+          parsed = { raw: result.stdout.slice(0, 4000) }
+        }
+        json(res, 200, {
+          ok: result.ok && parsed.ok !== false,
+          extracted: (parsed.extracted as Record<string, unknown>) || parsed,
+          currentUrl: (parsed.currentUrl as string) || target,
+          screenshotBase64: parsed.screenshotBase64 || null,
+          logs: [...logs, ...((parsed.logs as string[]) || [])],
+          messageAr:
+            (parsed.messageAr as string) ||
+            (result.ok
+              ? 'اكتملت مهمة Playwright على الماك — راجع اللقطة (HITL).'
+              : 'فشل Playwright المحلي.'),
+          provider: 'playwright',
+        })
+        return
+      }
+
+      if (task && target && tryBrowserUse) {
+        logs.push('[mac] engine=browser-use')
+        const result = await runSpawn('python3', [buScript, target, task])
         logs.push(result.stderr.slice(0, 500))
         let extracted: Record<string, unknown> = {}
         try {
@@ -525,16 +652,18 @@ const server = createServer(async (req, res) => {
           messageAr: result.ok
             ? 'اكتملت مهمة المتصفح على الماك.'
             : 'فشل سكربت browser-use المحلي.',
+          provider: 'browser-use',
         })
         return
       }
+
       json(res, 200, {
         ok: false,
         extracted: {},
         currentUrl: target,
         logs,
         messageAr:
-          'جسر الماك جاهز لكن لا سكربت browser-use. ضع BROWSER_USE_SCRIPT أو ~/ArabicBuzz/scripts/browser-use-task.py',
+          'جسر الماك جاهز لكن لا سكربت. ضع scripts/playwright-task.mjs أو BROWSER_USE_SCRIPT.',
       })
     } catch (e) {
       json(res, 500, {
@@ -555,7 +684,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  GET|PUT|PATCH|DELETE /files/:id  (shared Mac drive)`)
   console.log(`  POST /sync    (JSON base64)`)
   console.log(`  POST /brain/ingest | /brain/search`)
-  console.log(`  POST /task    (browser-use RPA bridge)`)
+  console.log(`  POST /task       (Playwright / browser-use RPA)`)
+  console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)
   console.log(`  tunnel tip: npx ngrok http ${PORT}`)

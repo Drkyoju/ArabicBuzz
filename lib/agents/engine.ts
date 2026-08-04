@@ -743,7 +743,7 @@ export function getNativeAiTools(opts?: {
     }),
     browser_rpa: tool({
       description:
-        'أتمتة متصفح خارجي (browser-use / Steel): تسجيل دخول، تعبئة نماذج، استخراج بيانات منظمة من مواقع.',
+        'أتمتة متصفح عبر جسر الماك (Playwright) أو Steel — لتعبئة بوابات حكومية متكررة بحذر. يتطلب موافقة بشرية (HITL). لا تُدخل بيانات سرية دون تأكيد المستخدم.',
       inputSchema: z.object({
         taskPrompt: z.string().describe('وصف المهمة بالعربية أو الإنجليزية'),
         targetUrl: z.string().url().describe('رابط الصفحة المستهدفة'),
@@ -758,9 +758,66 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('browser_rpa'),
         }),
     }),
+    ingest_url_to_brain: tool({
+      description:
+        'سحب صفحة سياسات/أنظمة (Anybrowse أو Firecrawl أو جلب مباشر) وإضافتها لمعرفة الغرفة.',
+      inputSchema: z.object({
+        url: z.string().url().optional().describe('رابط واحد'),
+        urls: z
+          .array(z.string().url())
+          .optional()
+          .describe('عدة روابط (حتى 8)'),
+        titleAr: z.string().optional().describe('عنوان عربي للمستند في المعرفة'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'ingest_url_to_brain',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('ingest_url_to_brain'),
+        }),
+    }),
+    read_decision_document: tool({
+      description:
+        'قراءة قرار طويل أو ممسوح (PDF) عبر OCR/MarkItDown وإضافته للمعرفة افتراضياً.',
+      inputSchema: z.object({
+        fileId: z.string().optional().describe('معرّف ملف من مساحة الغرفة'),
+        fileUrl: z.string().optional(),
+        contentBase64: z.string().optional(),
+        titleAr: z.string().optional(),
+        ingestToBrain: z.boolean().optional().describe('افتراضي true'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'read_decision_document',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('read_decision_document'),
+        }),
+    }),
+    report_room_attendance: tool({
+      description:
+        'تقرير أعضاء الغرفة ونشاطهم وحضور الاجتماعات/Zoom من قاعدة البيانات.',
+      inputSchema: z.object({
+        days: z.number().optional().describe('عدد الأيام — افتراضي 14'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'report_room_attendance',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('report_room_attendance'),
+        }),
+    }),
     arabic_ocr: tool({
       description:
-        'تحليل OCR/تخطيط لمستندات عربية ممسوحة (هوية، سند، PDF) عبر Marker/Surya أو Qari/Gemini. يعيد Markdown منظماً.',
+        'تحليل OCR/تخطيط لمستندات عربية ممسوحة (هوية، سند، PDF) عبر Marker/Surya أو Qari/Gemini. يعيد Markdown منظماً. للقرارات الطويلة فضّل read_decision_document.',
       inputSchema: z.object({
         fileUrl: z
           .string()

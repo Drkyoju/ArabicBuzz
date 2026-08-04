@@ -14,6 +14,7 @@ import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
 import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
 import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
+import { AssociationKnowledgePanel } from '@/components/association-knowledge-panel'
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
 import { FilesPanel } from '@/components/files-panel'
@@ -440,7 +441,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   صحة التشغيل
                 </button>
               </div>
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
+                <AssociationKnowledgePanel />
                 <GoogleDriveBrainPanel />
               </div>
             </div>

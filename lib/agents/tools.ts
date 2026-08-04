@@ -55,6 +55,12 @@ import {
   executeWebSearch,
 } from '@/lib/agents/tools/web-tools'
 import { sendResendEmail } from '@/lib/email/resend'
+import {
+  ingestUrlToBrain,
+  ingestUrlsToBrain,
+} from '@/lib/tools/web-to-brain'
+import { readDecisionDocument } from '@/lib/tools/decision-read'
+import { reportRoomMembersAttendance } from '@/lib/rooms/association-reports'
 
 export type ToolExecutor = (
   toolName: string,
@@ -332,6 +338,47 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       String(params.taskPrompt || params.task || ''),
       String(params.targetUrl || params.url || '')
     )
+  },
+  ingest_url_to_brain: async (_n, params) => {
+    const scopeId = String(params.scopeId || 'shared-demo')
+    const urls = Array.isArray(params.urls)
+      ? params.urls.map(String)
+      : params.url
+        ? [String(params.url)]
+        : []
+    if (urls.length > 1) {
+      return ingestUrlsToBrain({
+        scopeId,
+        urls,
+        titlePrefixAr: params.titleAr
+          ? String(params.titleAr)
+          : undefined,
+      })
+    }
+    if (!urls[0]) throw new Error('يلزم url أو urls')
+    return ingestUrlToBrain({
+      scopeId,
+      url: urls[0],
+      titleAr: params.titleAr ? String(params.titleAr) : undefined,
+    })
+  },
+  read_decision_document: async (_n, params) => {
+    return readDecisionDocument({
+      scopeId: String(params.scopeId || 'shared-demo'),
+      fileId: params.fileId ? String(params.fileId) : undefined,
+      fileUrl: params.fileUrl ? String(params.fileUrl) : undefined,
+      contentBase64: params.contentBase64
+        ? String(params.contentBase64)
+        : undefined,
+      titleAr: params.titleAr ? String(params.titleAr) : undefined,
+      ingestToBrain: params.ingestToBrain !== false,
+    })
+  },
+  report_room_attendance: async (_n, params) => {
+    return reportRoomMembersAttendance({
+      scopeId: String(params.scopeId || 'shared-demo'),
+      days: params.days ? Number(params.days) : 14,
+    })
   },
   arabic_ocr: async (_n, params) => {
     const src =

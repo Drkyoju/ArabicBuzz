@@ -258,7 +258,7 @@ export async function executeBrowserTask(
     currentUrl: url,
     logs,
     messageAr:
-      'أتمتة المتصفح غير مفعّلة. اضبط BROWSER_USE_URL (جسر محلي لـ browser-use) أو STEEL_API_KEY.',
+      'أتمتة المتصفح غير مفعّلة. اضبط MAC_SYNC_URL (Playwright على الماك) أو BROWSER_USE_URL أو STEEL_API_KEY.',
     provider: 'none',
   }
 }
