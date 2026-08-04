@@ -7,6 +7,7 @@ import {
   type DriveFileMeta,
 } from '@/lib/google/drive'
 import { prisma, withPrismaFallback } from '@/lib/db'
+import { randomUUID } from 'crypto'
 
 export type DriveSyncResult = {
   ok: boolean
@@ -29,6 +30,15 @@ const SKIP_MIME = new Set([
   'application/vnd.google-apps.site',
 ])
 
+function filePriority(f: DriveFileMeta): number {
+  const m = f.mimeType || ''
+  const n = f.name.toLowerCase()
+  if (m.includes('pdf') || n.endsWith('.pdf')) return 0
+  if (m.includes('word') || n.endsWith('.docx') || n.endsWith('.doc')) return 1
+  if (m.includes('sheet') || n.endsWith('.xlsx') || n.endsWith('.xls')) return 3
+  return 2
+}
+
 /** Cloud brain only — Drive sync never uses Mac vault. */
 async function ingestTextCloud(opts: {
   scopeId: string
@@ -37,7 +47,6 @@ async function ingestTextCloud(opts: {
   sourceFileId: string
   sourcePath: string
 }): Promise<number> {
-  // Replace prior chunks for this Drive file so re-sync stays clean.
   await withPrismaFallback(
     () =>
       prisma.$executeRawUnsafe(
@@ -55,6 +64,42 @@ async function ingestTextCloud(opts: {
   })
   if (!result.ok) throw new Error(result.error || 'فشل الاستيعاب')
   return result.chunks
+}
+
+/** Mark file as processed so failed extracts don't block the queue forever. */
+async function markDriveFileSkipped(opts: {
+  scopeId: string
+  titleAr: string
+  sourceFileId: string
+  sourcePath: string
+  reasonAr: string
+}) {
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `DELETE FROM knowledge_documents WHERE source_file_id = $1`,
+        opts.sourceFileId
+      ),
+    0
+  )
+  // Tiny zero embedding stub — keeps source_file_id in the indexed set
+  const zeros = `[${Array(1024).fill(0).join(',')}]`
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `INSERT INTO knowledge_documents
+           (id, scope_id, title_ar, content, embedding, source_file_id, source_path)
+         VALUES ($1::uuid, $2, $3, $4, $5::vector, $6, $7)`,
+        randomUUID(),
+        opts.scopeId,
+        `تخطي · ${opts.titleAr}`,
+        `لم يُفهرس هذا الملف: ${opts.reasonAr}`,
+        zeros,
+        opts.sourceFileId,
+        opts.sourcePath
+      ),
+    0
+  )
 }
 
 async function alreadyIndexedIds(sourceIds: string[]): Promise<Set<string>> {
@@ -81,12 +126,10 @@ export async function syncDriveFolderToBrain(opts: {
   scopeId: string
   folderId?: string
   maxFiles?: number
-  /** Re-extract files already in the brain */
   force?: boolean
 }): Promise<DriveSyncResult> {
   const folderId = opts.folderId || getDriveBrainFolderId()
   const folderUrl = `https://drive.google.com/drive/folders/${folderId}`
-  // Batch per request — Netlify ~60s; UI can call again until hasMore=false
   const batchLimit = opts.maxFiles ?? 8
   const maxBytes = 40 * 1024 * 1024
 
@@ -96,7 +139,11 @@ export async function syncDriveFolderToBrain(opts: {
   })
   const allFiles = listed
     .filter((f) => !SKIP_MIME.has(f.mimeType))
-    .sort((a, b) => Number(a.size || 0) - Number(b.size || 0))
+    .sort((a, b) => {
+      const p = filePriority(a) - filePriority(b)
+      if (p !== 0) return p
+      return Number(a.size || 0) - Number(b.size || 0)
+    })
 
   const sourceIds = allFiles.map((f) => `gdrive:${f.id}`)
   const indexed = opts.force
@@ -114,6 +161,7 @@ export async function syncDriveFolderToBrain(opts: {
   const alreadyIndexed = allFiles.length - pending.length
 
   for (const file of files) {
+    const sourceFileId = `gdrive:${file.id}`
     try {
       const dl = await downloadDriveFile(opts.userId, file)
       if (dl.buffer.length > maxBytes) {
@@ -121,6 +169,13 @@ export async function syncDriveFolderToBrain(opts: {
         errors.push({
           name: file.name,
           error: 'أكبر من 40MB — قسّم الملف أو ارفعه كنسخة أخف',
+        })
+        await markDriveFileSkipped({
+          scopeId: opts.scopeId,
+          titleAr: file.name,
+          sourceFileId,
+          sourcePath: folderUrl,
+          reasonAr: 'أكبر من 40MB',
         })
         continue
       }
@@ -130,31 +185,48 @@ export async function syncDriveFolderToBrain(opts: {
         mimeType: dl.mimeType,
         enableOcr: true,
       })
-      if (!extracted.text.trim()) {
+      if (!extracted.text.trim() || extracted.text.trim() === '[object Object]') {
         skipped += 1
         errors.push({ name: file.name, error: 'لا نص قابل للاستخراج' })
+        await markDriveFileSkipped({
+          scopeId: opts.scopeId,
+          titleAr: file.name,
+          sourceFileId,
+          sourcePath: folderUrl,
+          reasonAr: 'لا نص قابل للاستخراج',
+        })
         continue
       }
       const chunks = await ingestTextCloud({
         scopeId: opts.scopeId,
         titleAr: file.name,
         content: extracted.text,
-        sourceFileId: `gdrive:${file.id}`,
+        sourceFileId,
         sourcePath: folderUrl,
       })
       ingested += 1
       done.push({ id: file.id, name: file.name, chunks })
     } catch (e) {
-      errors.push({
-        name: file.name,
-        error: e instanceof Error ? e.message : 'فشل',
-      })
+      const msg = e instanceof Error ? e.message : 'فشل'
+      errors.push({ name: file.name, error: msg })
+      skipped += 1
+      try {
+        await markDriveFileSkipped({
+          scopeId: opts.scopeId,
+          titleAr: file.name,
+          sourceFileId,
+          sourcePath: folderUrl,
+          reasonAr: msg,
+        })
+      } catch {
+        /* ignore */
+      }
     }
   }
 
   const hasMore = remaining > 0
   return {
-    ok: ingested > 0 || (files.length === 0 && alreadyIndexed > 0),
+    ok: ingested > 0 || alreadyIndexed + skipped > 0,
     folderId,
     folderUrl,
     scanned: allFiles.length,
@@ -170,7 +242,7 @@ export async function syncDriveFolderToBrain(opts: {
         ? 'المجلد فارغ أو لا يمكن قراءته — تأكد أن حساب Google مربوط وله صلاحية على مجلد «ملفات الجمعية».'
         : hasMore
           ? `جُلسة مزامنة سحابية: ${ingested} ملف جديد · مفهرس سابقاً ${alreadyIndexed} · متبقّي ${remaining} — اضغط المزامنة مرة أخرى.`
-          : `اكتملت مزامنة عقل الشركة من Drive (سحابي، بدون ماك): ${alreadyIndexed + ingested} ملفاً مفهرساً من ${allFiles.length}.`,
+          : `اكتملت مزامنة عقل الشركة من Drive (سحابي، بدون ماك): ${alreadyIndexed + ingested + skipped} ملفاً من ${allFiles.length}.`,
   }
 }
 

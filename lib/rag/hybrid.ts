@@ -154,20 +154,28 @@ export async function hybridArabicSearch(
     const tsQuery = buildArabicTsQuery(trimmed)
     const fetchLimit = Math.max(limit * 4, 20)
 
-    const queryEmbedding = await embedQuery(trimmed)
-    const embeddingLiteral = toPgVectorLiteral(queryEmbedding)
+    let bm25Hits: RankedHit[] = []
+    let vectorHits: RankedHit[] = []
 
-    const [bm25Hits, vectorHits] = await Promise.all([
-      lexicalBm25Search(tsQuery, scopeId, fetchLimit, source).catch(
-        () => [] as RankedHit[]
-      ),
-      vectorSimilaritySearch(
+    bm25Hits = await lexicalBm25Search(tsQuery, scopeId, fetchLimit, source).catch(
+      () => [] as RankedHit[]
+    )
+
+    try {
+      const queryEmbedding = await embedQuery(trimmed)
+      const embeddingLiteral = toPgVectorLiteral(queryEmbedding)
+      vectorHits = await vectorSimilaritySearch(
         embeddingLiteral,
         scopeId,
         fetchLimit,
         source
-      ).catch(() => [] as RankedHit[]),
-    ])
+      ).catch(() => [] as RankedHit[])
+    } catch {
+      // Embeddings unavailable (no Cohere key) — BM25-only is fine
+      vectorHits = []
+    }
+
+    if (bm25Hits.length === 0 && vectorHits.length === 0) return []
 
     const byId = new Map<
       string,

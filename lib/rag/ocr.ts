@@ -158,7 +158,8 @@ async function ocrViaGemini(
 
   try {
     const { google } = getCloudProviders()
-    const modelId = process.env.OCR_GEMINI_MODEL || 'gemini-3.1-pro'
+    // Flash is reliable for OCR; avoid preview IDs that return structured junk
+    const modelId = process.env.OCR_GEMINI_MODEL || 'gemini-2.5-flash'
     const isImage = looksLikeImage(mime, filename)
     const isPdf = looksLikePdf(mime, filename)
 
@@ -185,7 +186,21 @@ async function ocrViaGemini(
       messages: [{ role: 'user', content }],
     })
 
-    return { text: (result.text || '').trim(), provider: 'gemini' }
+    const raw = result.text as unknown
+    let text = ''
+    if (typeof raw === 'string') text = raw.trim()
+    else if (raw && typeof raw === 'object' && 'text' in (raw as object)) {
+      text = String((raw as { text?: unknown }).text || '').trim()
+    }
+    if (!text || text === '[object Object]') {
+      return {
+        text: '',
+        provider: 'gemini',
+        error: 'Gemini OCR لم يُرجع نصاً صالحاً',
+      }
+    }
+
+    return { text, provider: 'gemini' }
   } catch (e) {
     return {
       text: '',

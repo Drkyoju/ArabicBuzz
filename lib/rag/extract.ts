@@ -22,6 +22,33 @@ export type ExtractResult = {
   ocrProvider?: string
 }
 
+async function extractXlsx(buffer: Buffer): Promise<string> {
+  const ExcelJS = await import('exceljs')
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.load(buffer as never)
+  const parts: string[] = []
+  wb.eachSheet((sheet) => {
+    parts.push(`## ${sheet.name}`)
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      const vals = (row.values as unknown[])
+        .slice(1)
+        .map((v) => {
+          if (v == null) return ''
+          if (typeof v === 'object' && v !== null && 'text' in (v as object)) {
+            return String((v as { text?: string }).text || '')
+          }
+          if (typeof v === 'object' && v !== null && 'result' in (v as object)) {
+            return String((v as { result?: unknown }).result ?? '')
+          }
+          return String(v)
+        })
+        .filter((s) => String(s).trim())
+      if (vals.length) parts.push(vals.join('\t'))
+    })
+  })
+  return parts.join('\n').trim()
+}
+
 async function extractDocx(buffer: Buffer): Promise<string> {
   const mammoth = await import('mammoth')
   const result = await mammoth.extractRawText({ buffer })
@@ -72,6 +99,20 @@ async function extractWithOfficeParser(
   }
   if (ast && typeof (ast as { toText?: () => string }).toText === 'function') {
     return String((ast as { toText: () => string }).toText()).trim()
+  }
+  if (typeof ast === 'string') return ast.trim()
+  if (ast && typeof ast === 'object') {
+    const maybe = ast as {
+      value?: unknown
+      text?: unknown
+      content?: unknown
+      data?: unknown
+    }
+    for (const v of [maybe.value, maybe.text, maybe.content, maybe.data]) {
+      if (typeof v === 'string' && v.trim()) return v.trim()
+    }
+    // Never persist "[object Object]" into the brain
+    throw new Error('تعذّر استخراج نص من المستند (صيغة غير مدعومة)')
   }
   return String(ast || '').trim()
 }
@@ -157,7 +198,11 @@ export async function extractDocumentText(opts: {
         text = opts.buffer.toString('utf8').trim()
         method = 'plain'
       } else {
-        text = await extractWithOfficeParser(opts.buffer, filename)
+        try {
+          text = await extractXlsx(opts.buffer)
+        } catch {
+          text = await extractWithOfficeParser(opts.buffer, filename)
+        }
         method = 'xlsx'
       }
     } else {

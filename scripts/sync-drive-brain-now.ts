@@ -15,29 +15,46 @@ async function loadNetlifyGoogleCreds() {
   if (!res.ok) throw new Error(`Netlify env HTTP ${res.status}`)
   const list = (await res.json()) as Array<{
     key: string
-    values?: Array<{ value?: string; context?: string }>
+    values?: Array<{ value?: string }>
   }>
   const get = (key: string) => {
     const row = list.find((e) => e.key === key)
-    const v =
-      row?.values?.find((x) => x.context === 'all' || !x.context)?.value ||
-      row?.values?.[0]?.value
+    const v = row?.values?.[0]?.value
     if (!v) throw new Error(`env ${key} missing on Netlify`)
     return v
   }
   process.env.GOOGLE_CLIENT_ID = get('GOOGLE_CLIENT_ID')
   process.env.GOOGLE_CLIENT_SECRET = get('GOOGLE_CLIENT_SECRET')
+  // Prefer Netlify keys for embeddings + PDF OCR during local sync
+  for (const k of [
+    'COHERE_API_KEY',
+    'GEMINI_API_KEY',
+    'GOOGLE_GENERATIVE_AI_API_KEY',
+    'EMBEDDING_PROVIDER',
+  ] as const) {
+    try {
+      const v = get(k)
+      if (v) process.env[k] = v
+    } catch {
+      /* optional */
+    }
+  }
+  if (!process.env.EMBEDDING_PROVIDER && process.env.COHERE_API_KEY) {
+    process.env.EMBEDDING_PROVIDER = 'cohere'
+  }
+  process.env.OCR_GEMINI_MODEL =
+    process.env.OCR_GEMINI_MODEL || 'gemini-2.5-flash'
   const folder = list.find((e) => e.key === 'GOOGLE_DRIVE_BRAIN_FOLDER_ID')
     ?.values?.[0]?.value
-  if (folder) process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID = folder
+  process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID =
+    process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID ||
+    folder ||
+    '1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
+  process.env.BRAIN_PRIMARY = ''
 }
 
 async function main() {
   await loadNetlifyGoogleCreds()
-  process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID =
-    process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID ||
-    '1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
-  process.env.BRAIN_PRIMARY = ''
 
   const USER_ID = 'bc4522fe-30a5-4e7a-9a85-5ac969d7b9ca'
   const FOLDER = '1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
@@ -51,6 +68,15 @@ async function main() {
     process.exit(1)
   }
   console.log('Google OK for', access.email)
+
+  // Wipe prior Drive chunks (includes broken "[object Object]" rows) then reindex.
+  const { PrismaClient } = await import('@prisma/client')
+  const wipe = new PrismaClient()
+  await wipe.$executeRawUnsafe(
+    `DELETE FROM knowledge_documents WHERE source_file_id LIKE 'gdrive:%'`
+  )
+  console.log('Cleared prior gdrive knowledge rows')
+  await wipe.$disconnect()
 
   let round = 0
   while (round < 20) {
@@ -77,12 +103,12 @@ async function main() {
     if (!result.hasMore) break
   }
 
-  const { PrismaClient } = await import('@prisma/client')
   const p = new PrismaClient()
   const counts = await p.$queryRawUnsafe(
     `SELECT count(*)::int AS n,
             count(*) FILTER (WHERE source_file_id LIKE 'gdrive:%')::int AS drive_n,
-            count(DISTINCT source_file_id) FILTER (WHERE source_file_id LIKE 'gdrive:%')::int AS drive_files
+            count(DISTINCT source_file_id) FILTER (WHERE source_file_id LIKE 'gdrive:%')::int AS drive_files,
+            count(*) FILTER (WHERE content = '[object Object]')::int AS bad
      FROM knowledge_documents`
   )
   console.log('DB', counts)

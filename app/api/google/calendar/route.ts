@@ -144,6 +144,31 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: 500 })
     }
+
+    // Connect Drive folder ↔ cloud brain automatically after Google link.
+    void (async () => {
+      try {
+        const { syncDriveFolderToBrain } = await import(
+          '@/lib/google/drive-brain'
+        )
+        const { getDriveBrainFolderId } = await import('@/lib/google/drive')
+        let hasMore = true
+        let guard = 0
+        while (hasMore && guard < 8) {
+          guard += 1
+          const r = await syncDriveFolderToBrain({
+            userId: auth.user.id,
+            scopeId: 'shared-demo',
+            folderId: getDriveBrainFolderId(),
+            maxFiles: 6,
+          })
+          hasMore = r.hasMore
+        }
+      } catch {
+        /* background */
+      }
+    })()
+
     const accounts = await listGoogleAccounts(auth.user.id)
     return Response.json({
       ok: true,
@@ -151,6 +176,8 @@ export async function POST(req: Request) {
       email: result.email,
       emails: accounts.map((a) => a.email),
       accountCount: accounts.length,
+      messageAr:
+        'تم ربط Google — جاري فهرسة مجلد ملفات الجمعية إلى عقل الشركة (سحابي).',
     })
   }
 

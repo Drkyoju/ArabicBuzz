@@ -37,7 +37,16 @@ export async function ingestArabicDocument(opts: {
   sourceFileId?: string
   sourcePath?: string
 }): Promise<{ ok: boolean; chunks: number; error?: string }> {
-  const chunks = chunkText(opts.content)
+  const raw =
+    typeof opts.content === 'string'
+      ? opts.content
+      : opts.content == null
+        ? ''
+        : JSON.stringify(opts.content)
+  if (!raw.trim() || raw.trim() === '[object Object]') {
+    return { ok: false, chunks: 0, error: 'لا يوجد نص صالح للاستيعاب' }
+  }
+  const chunks = chunkText(raw)
   if (chunks.length === 0) {
     return { ok: false, chunks: 0, error: 'لا يوجد نص للاستيعاب' }
   }
