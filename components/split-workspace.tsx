@@ -18,7 +18,7 @@ export function SplitWorkspace({ items }: { items: ThreadItem[] }) {
     <div dir="rtl" className="flex h-[calc(100vh-4rem)] w-full">
       {!isCanvasFullscreen && (
         <div
-          className="relative h-full border-l border-ab-border"
+          className="relative h-full border-s border-ab-border"
           style={{ width: `${(1 - splitRatio) * 100}%` }}
         >
           <ChatThreadBar

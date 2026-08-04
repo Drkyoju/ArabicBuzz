@@ -170,6 +170,12 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+    if (text.length > 500_000) {
+      return Response.json(
+        { error: 'النص المستخرج كبير جداً (حد ٥٠٠ ألف حرف)' },
+        { status: 400 }
+      )
+    }
 
     const macOnly = isBrainPrimaryMac() || sensitive
     if (macOnly) {

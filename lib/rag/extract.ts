@@ -22,9 +22,42 @@ export type ExtractResult = {
   ocrProvider?: string
 }
 
+function cellValueToString(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+    return String(v)
+  }
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  if (typeof v !== 'object') return String(v)
+  const o = v as Record<string, unknown>
+  if (Array.isArray(o.richText)) {
+    return (o.richText as Array<{ text?: string }>)
+      .map((t) => t?.text || '')
+      .join('')
+  }
+  if ('text' in o && o.text != null) return String(o.text)
+  if ('result' in o) return cellValueToString(o.result)
+  if ('formula' in o) return cellValueToString(o.result ?? '')
+  if ('sharedFormula' in o) return cellValueToString(o.result ?? '')
+  if ('error' in o && o.error != null) return String(o.error)
+  if ('hyperlink' in o) return String(o.text ?? o.hyperlink ?? '')
+  try {
+    const json = JSON.stringify(o)
+    return json && json !== '{}' ? json : ''
+  } catch {
+    return ''
+  }
+}
+
 async function extractXlsx(buffer: Buffer): Promise<string> {
   const ExcelJS = await import('exceljs')
-  const wb = new ExcelJS.Workbook()
+  // exceljs CJS/ESM interop: Workbook often lives on `default`
+  const WorkbookCtor =
+    (ExcelJS as { Workbook?: new () => import('exceljs').Workbook }).Workbook ||
+    (ExcelJS as { default?: { Workbook: new () => import('exceljs').Workbook } })
+      .default?.Workbook
+  if (!WorkbookCtor) throw new Error('exceljs.Workbook unavailable')
+  const wb = new WorkbookCtor()
   await wb.xlsx.load(buffer as never)
   const parts: string[] = []
   wb.eachSheet((sheet) => {
@@ -32,17 +65,8 @@ async function extractXlsx(buffer: Buffer): Promise<string> {
     sheet.eachRow({ includeEmpty: false }, (row) => {
       const vals = (row.values as unknown[])
         .slice(1)
-        .map((v) => {
-          if (v == null) return ''
-          if (typeof v === 'object' && v !== null && 'text' in (v as object)) {
-            return String((v as { text?: string }).text || '')
-          }
-          if (typeof v === 'object' && v !== null && 'result' in (v as object)) {
-            return String((v as { result?: unknown }).result ?? '')
-          }
-          return String(v)
-        })
-        .filter((s) => String(s).trim())
+        .map((v) => cellValueToString(v))
+        .filter((s) => s.trim())
       if (vals.length) parts.push(vals.join('\t'))
     })
   })
@@ -109,11 +133,18 @@ async function extractWithOfficeParser(
       data?: unknown
     }
     for (const v of [maybe.value, maybe.text, maybe.content, maybe.data]) {
-      if (typeof v === 'string' && v.trim().length > 0) return v.trim()
+      if (typeof v === 'string' && v.trim().length > 0) {
+        const t = v.trim()
+        if (t !== '[object Object]') return t
+      }
     }
     throw new Error('تعذّر استخراج نص من المستند (صيغة غير مدعومة)')
   }
-  return String(ast ?? '').trim()
+  const asString = String(ast ?? '').trim()
+  if (!asString || asString === '[object Object]') {
+    throw new Error('تعذّر استخراج نص من المستند (صيغة غير مدعومة)')
+  }
+  return asString
 }
 
 async function extractPdf(buffer: Buffer): Promise<string> {
@@ -202,6 +233,14 @@ export async function extractDocumentText(opts: {
         } catch {
           text = await extractWithOfficeParser(opts.buffer, filename)
         }
+        if (!text.trim() || text.trim() === '[object Object]') {
+          try {
+            text = await extractWithOfficeParser(opts.buffer, filename)
+          } catch {
+            text = ''
+          }
+        }
+        if (text.trim() === '[object Object]') text = ''
         method = 'xlsx'
       }
     } else {

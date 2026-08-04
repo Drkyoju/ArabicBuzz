@@ -468,14 +468,15 @@ export function HomeDashboard({
       })()}
 
       {isGuest && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ab-border bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-ab-ink">
               وضع الزائر — جلسة على هذا الجهاز فقط
             </p>
-            <p className="mt-0.5 max-w-xl text-[12px] text-stone-500">
-              المعاينة تُظهر دورة جمعية: موافقات، ترخيص، وكلاء. سجّل الدخول
-              لحفظ الغرف وربط Drive وتيليجرام.
+            <p className="mt-0.5 max-w-xl text-[12px] text-amber-950/70">
+              المعاينة تُظهر دورة جمعية: موافقات، ترخيص، وكلاء. البيانات أدناه
+              تجريبية ولن تُحفظ على السحابة. سجّل الدخول لحفظ الغرف وربط Drive
+              وتيليجرام وتنفيذ الموافقات.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -488,12 +489,18 @@ export function HomeDashboard({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate?.('audit')}
+              onClick={() => onNavigate?.('approvals')}
               className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
             >
-              سجل التدقيق
+              معاينة الموافقات
             </button>
           </div>
+        </div>
+      )}
+
+      {!isGuest && signedIn === true && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-[12px] text-emerald-900">
+          جلسة مسجّلة — الغرف والموافقات والربط بـ Drive/تيليجرام تُحفظ لحسابك.
         </div>
       )}
 

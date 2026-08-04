@@ -16,8 +16,24 @@ export async function POST(req: NextRequest) {
     workflowId?: string
     payload?: Record<string, unknown>
   }
+  const workflowId = String(body.workflowId || '').trim()
+  if (!workflowId || workflowId.length > 200) {
+    return NextResponse.json(
+      { ok: false, error: 'workflowId مطلوب (حد ٢٠٠ حرف)' },
+      { status: 400 }
+    )
+  }
+  if (
+    body.payload &&
+    JSON.stringify(body.payload).length > 100_000
+  ) {
+    return NextResponse.json(
+      { ok: false, error: 'الحمولة كبيرة جداً' },
+      { status: 400 }
+    )
+  }
   const result = await triggerExternalWorkflow(
-    String(body.workflowId || ''),
+    workflowId,
     body.payload && typeof body.payload === 'object' ? body.payload : {}
   )
   return NextResponse.json(result, { status: result.ok ? 200 : 502 })

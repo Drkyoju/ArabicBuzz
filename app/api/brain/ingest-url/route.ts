@@ -31,6 +31,28 @@ export async function POST(req: Request) {
       { status: 400 }
     )
   }
+  if (urls.length > 20) {
+    return Response.json(
+      { error: 'حد أقصى ٢٠ رابطاً في الطلب الواحد' },
+      { status: 400 }
+    )
+  }
+  for (const u of urls) {
+    if (u.length > 2048) {
+      return Response.json({ error: 'رابط طويل جداً' }, { status: 400 })
+    }
+    try {
+      const parsed = new URL(u)
+      if (!/^https?:$/i.test(parsed.protocol)) {
+        return Response.json(
+          { error: 'يُقبل http/https فقط' },
+          { status: 400 }
+        )
+      }
+    } catch {
+      return Response.json({ error: `رابط غير صالح: ${u.slice(0, 80)}` }, { status: 400 })
+    }
+  }
 
   if (urls.length === 1) {
     const result = await ingestUrlToBrain({

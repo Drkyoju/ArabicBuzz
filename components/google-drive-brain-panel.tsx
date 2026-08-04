@@ -144,7 +144,7 @@ export function GoogleDriveBrainPanel() {
           {folderUrl.replace('?usp=sharing', '')}
         </a>
         {typeof preview?.count === 'number' ? (
-          <span className="mr-2 text-stone-500">· {preview.count} ملف في Drive</span>
+          <span className="ms-2 text-stone-500">· {preview.count} ملف في Drive</span>
         ) : null}
       </p>
 

@@ -36,6 +36,7 @@ import {
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { HomeDashboard } from '@/components/home-dashboard'
+import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -263,7 +264,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         }
       />
 
-      <div className="mr-0 min-h-dvh pt-11 md:mr-[15.5rem] md:pt-0">
+      <div className="me-0 min-h-dvh pt-11 md:me-[15.5rem] md:pt-0">
         {pendingCount > 0 && section !== 'approvals' && signedIn !== false && (
           <button
             type="button"
@@ -548,6 +549,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 يحدد متى يطلب الوكيل موافقتك قبل تنفيذ إجراء.
               </p>
               <SecurityPosturePicker />
+            </div>
+
+            <div className="mb-5">
+              <HijriPreferenceToggle />
             </div>
 
             <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">

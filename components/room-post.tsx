@@ -124,10 +124,10 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       className={cn(
         'mb-3 px-1 py-1.5',
         isAgent
-          ? 'border-r-2 border-ab-accent/40 pr-2.5'
+          ? 'border-e-2 border-ab-accent/40 pe-2.5'
           : isChannel
             ? 'rounded-md border border-dashed border-stone-300 bg-stone-50/80 px-2.5 py-2'
-            : 'border-r-2 border-transparent pr-2.5'
+            : 'border-e-2 border-transparent pe-2.5'
       )}
       dir="rtl"
     >

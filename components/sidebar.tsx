@@ -384,7 +384,7 @@ function SidebarBody({
                 </button>
                 <button
                   type="button"
-                  className="absolute left-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
+                  className="absolute start-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
                   aria-label="خيارات الجلسة"
                   title={scope.descriptionAr || 'خيارات الجلسة'}
                   onClick={(e) => {
@@ -398,7 +398,7 @@ function SidebarBody({
                 {menuId === scope.id && (
                   <div
                     ref={menuRef}
-                    className="absolute left-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
+                    className="absolute start-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
                   >
                     <button
                       type="button"
@@ -545,7 +545,7 @@ export function Sidebar({
 
       <aside
         className={cn(
-          'fixed inset-y-0 right-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-l border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
+          'fixed inset-y-0 start-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-e border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
           mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
         aria-label="الشريط الجانبي"

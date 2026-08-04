@@ -7,10 +7,42 @@
  * Requires TELEGRAM_BOT_TOKEN. Uses TELEGRAM_WEBHOOK_SECRET when set
  * (recommended). Default URL: https://arabicbuzz.netlify.app/api/webhooks/telegram
  */
-import 'dotenv/config'
+import { config } from 'dotenv'
+config({ path: '.env.local' })
+config() // fallback .env
 
 async function main() {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+  let token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+  let secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
+
+  // Prefer Netlify live values when local env is incomplete
+  if (
+    (!token || !secret) &&
+    process.env.NETLIFY_SITE_ID &&
+    process.env.NETLIFY_AUTH_TOKEN
+  ) {
+    const res = await fetch(
+      `https://api.netlify.com/api/v1/sites/${process.env.NETLIFY_SITE_ID}/env`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.NETLIFY_AUTH_TOKEN}`,
+        },
+      }
+    )
+    if (res.ok) {
+      const list = (await res.json()) as Array<{
+        key: string
+        values?: Array<{ value?: string }>
+      }>
+      const get = (k: string) =>
+        list.find((e) => e.key === k)?.values?.[0]?.value?.trim()
+      token = token || get('TELEGRAM_BOT_TOKEN')
+      secret = secret || get('TELEGRAM_WEBHOOK_SECRET')
+      if (token) process.env.TELEGRAM_BOT_TOKEN = token
+      if (secret) process.env.TELEGRAM_WEBHOOK_SECRET = secret
+    }
+  }
+
   if (!token) {
     console.error('TELEGRAM_BOT_TOKEN missing')
     process.exit(1)
@@ -19,8 +51,6 @@ async function main() {
   const url =
     process.env.TELEGRAM_WEBHOOK_URL?.trim() ||
     `${(process.env.NEXT_PUBLIC_APP_URL || 'https://arabicbuzz.netlify.app').replace(/\/+$/, '')}/api/webhooks/telegram`
-
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
 
   const body: Record<string, unknown> = {
     url,
@@ -35,10 +65,14 @@ async function main() {
     body: JSON.stringify(body),
   })
   const json = (await res.json()) as { ok?: boolean; description?: string }
-  console.log(JSON.stringify({ url, secretConfigured: Boolean(secret), result: json }, null, 2))
+  console.log(
+    JSON.stringify({ url, secretConfigured: Boolean(secret), result: json }, null, 2)
+  )
   if (!json.ok) process.exit(1)
 
-  const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)
+  const infoRes = await fetch(
+    `https://api.telegram.org/bot${token}/getWebhookInfo`
+  )
   const info = await infoRes.json()
   console.log('getWebhookInfo:', JSON.stringify(info, null, 2))
 }

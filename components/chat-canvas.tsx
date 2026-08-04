@@ -41,7 +41,7 @@ function StreamingAssistantBubble({
   qualityWarning?: boolean
 }) {
   return (
-    <div className="mb-4 border-r-2 border-ab-border pr-3" dir="rtl">
+    <div className="mb-4 border-e-2 border-ab-border pe-3" dir="rtl">
       <div className="mb-1 text-xs text-stone-500">الوكيل</div>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
@@ -270,7 +270,7 @@ export function ChatCanvas({
     >
       {!isCanvasFullscreen && (
         <section
-          className="relative flex h-full flex-col border-l border-ab-border bg-ab-surface"
+          className="relative flex h-full flex-col border-s border-ab-border bg-ab-surface"
           style={{ width: `${(1 - splitRatio) * 100}%` }}
           aria-label="بث المحادثة"
         >

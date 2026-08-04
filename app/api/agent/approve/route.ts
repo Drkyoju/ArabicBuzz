@@ -24,6 +24,21 @@ export async function POST(req: NextRequest) {
     if (!approvalId || !decision) {
       return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
     }
+    if (approvalId.length > 128) {
+      return NextResponse.json({ error: 'approvalId طويل جداً' }, { status: 400 })
+    }
+    if (decision !== 'APPROVE' && decision !== 'REJECT') {
+      return NextResponse.json({ error: 'decision غير صالح' }, { status: 400 })
+    }
+    if (
+      modifiedParams &&
+      JSON.stringify(modifiedParams).length > 50_000
+    ) {
+      return NextResponse.json(
+        { error: 'المعاملات المعدّلة كبيرة جداً' },
+        { status: 400 }
+      )
+    }
 
     const result = await resolveApproval({
       approvalId,

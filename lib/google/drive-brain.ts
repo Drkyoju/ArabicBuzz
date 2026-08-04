@@ -109,7 +109,9 @@ async function alreadyIndexedIds(sourceIds: string[]): Promise<Set<string>> {
       prisma.$queryRawUnsafe<Array<{ source_file_id: string }>>(
         `SELECT DISTINCT source_file_id
          FROM knowledge_documents
-         WHERE source_file_id = ANY($1::text[])`,
+         WHERE source_file_id = ANY($1::text[])
+           AND title_ar NOT LIKE 'تخطي · %'
+           AND content NOT LIKE 'لم يُفهرس هذا الملف:%'`,
         sourceIds
       ),
     [] as Array<{ source_file_id: string }>

@@ -201,7 +201,7 @@ export function RoomTasksBoard() {
                   {t.titleAr}
                 </p>
                 <p className="mt-0.5 text-[11px] text-stone-500">
-                  <ListOrdered className="mr-1 inline h-3 w-3" />
+                  <ListOrdered className="me-1 inline h-3 w-3" />
                   أولوية {t.priority} · {fmtDue(t.dueAt)}
                   {t.assigneeAr ? ` · ${t.assigneeAr}` : ''}
                   {t.source === 'ai' ? ' · وكيل' : ''}

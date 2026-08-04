@@ -42,7 +42,7 @@ export function ChatThreadBar({
     return (
       <button
         onClick={onToggle}
-        className="h-full w-10 border-r border-ab-border bg-ab-surface text-sm text-ab-accent"
+        className="h-full w-10 border-e border-ab-border bg-ab-surface text-sm text-ab-accent"
       >
         المحادثة
       </button>
@@ -50,7 +50,7 @@ export function ChatThreadBar({
   }
 
   return (
-    <div className="flex h-full flex-col border-r border-ab-border bg-ab-surface">
+    <div className="flex h-full flex-col border-e border-ab-border bg-ab-surface">
       <div className="flex items-center justify-between border-b border-ab-border px-4 py-3">
         <h2 className="font-semibold">خيط المحادثة</h2>
         <button onClick={onToggle} className="text-sm text-stone-500">

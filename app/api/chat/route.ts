@@ -139,6 +139,23 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+    if (rawPrompt.length > 40_000) {
+      return Response.json(
+        { error: 'النص طويل جداً (حد ٤٠ ألف حرف).' },
+        { status: 400 }
+      )
+    }
+    if (hasMessages) {
+      const total = (body.messages || [])
+        .map((m) => String((m as { content?: string }).content || ''))
+        .join('').length
+      if (total > 120_000) {
+        return Response.json(
+          { error: 'سجل المحادثة طويل جداً.' },
+          { status: 400 }
+        )
+      }
+    }
 
     const handoff = resolveMentionHandoff(rawPrompt || '')
     const mentioned =
