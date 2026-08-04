@@ -39,6 +39,16 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     docsUrl: 'https://openrouter.ai/keys',
   },
   {
+    envName: 'AGENTROUTER_API_KEY',
+    aliases: ['AGENT_ROUTER_TOKEN'],
+    labelAr: 'AgentRouter',
+    labelEn: 'AgentRouter',
+    kind: 'llm',
+    hintAr:
+      'بوابة agentrouter.org — Opus 4.8 و GPT عبر مفتاحك (يتطلب ترويسة عميل مسموح)',
+    docsUrl: 'https://agentrouter.org/console/token',
+  },
+  {
     envName: 'OPENAI_API_KEY',
     labelAr: 'OpenAI',
     labelEn: 'OpenAI',

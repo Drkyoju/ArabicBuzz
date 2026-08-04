@@ -17,8 +17,9 @@ export type AgentCollabMode = 'solo' | 'team'
 
 export const AGENT_MODEL_PRESETS = [
   { slug: 'gemini-3.1-pro', labelAr: 'تحليل معمق · Gemini', provider: 'google' },
+  { slug: 'claude-opus-4-8', labelAr: 'تحليل معمق · Opus (AgentRouter)', provider: 'agentrouter' },
+  { slug: 'gpt-5.6-sol', labelAr: 'متوازن · GPT (AgentRouter)', provider: 'agentrouter' },
   { slug: 'claude-sonnet-4', labelAr: 'تحليل معمق · Claude 4', provider: 'openrouter' },
-  { slug: 'claude-3.5-sonnet', labelAr: 'تحليل معمق · Claude', provider: 'openrouter' },
   { slug: 'glm-4.5', labelAr: 'متوازن · GLM', provider: 'glm' },
 ] as const
 

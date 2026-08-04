@@ -3,6 +3,8 @@ export type HarnessModelSlug =
   | 'openai-gpt-4o-mini'
   | 'claude-3.5-sonnet'
   | 'claude-sonnet-4'
+  | 'claude-opus-4-8'
+  | 'gpt-5.6-sol'
   | 'deepseek-v3'
   | 'deepseek-r1'
   | 'qwen-2.5-72b'
@@ -21,7 +23,14 @@ export type HarnessModelMeta = {
   slug: HarnessModelSlug
   labelAr: string
   labelEn: string
-  provider: 'openai' | 'google' | 'openrouter' | 'ollama' | 'perplexity' | 'glm'
+  provider:
+    | 'openai'
+    | 'google'
+    | 'openrouter'
+    | 'agentrouter'
+    | 'ollama'
+    | 'perplexity'
+    | 'glm'
   requiresKey: string
   airGapSafe: boolean
 }
@@ -57,6 +66,22 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     labelEn: 'Zhipu GLM-4.5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'claude-opus-4-8',
+    labelAr: 'تحليل معمق · Opus (AgentRouter)',
+    labelEn: 'Claude Opus 4.8',
+    provider: 'agentrouter',
+    requiresKey: 'AGENTROUTER_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'gpt-5.6-sol',
+    labelAr: 'متوازن · GPT (AgentRouter)',
+    labelEn: 'GPT-5.6 Sol',
+    provider: 'agentrouter',
+    requiresKey: 'AGENTROUTER_API_KEY',
     airGapSafe: false,
   },
   {

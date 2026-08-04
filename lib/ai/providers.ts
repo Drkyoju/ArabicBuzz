@@ -65,6 +65,21 @@ export function getCloudProviders() {
     openrouter: createOpenRouter({
       apiKey: resolveProviderKeySync('OPENROUTER_API_KEY'),
     }),
+    /**
+     * AgentRouter gateway (agentrouter.org). Requires Claude-Code-like
+     * User-Agent; generic clients get "unauthorized client detected".
+     */
+    agentrouter: createOpenAI({
+      apiKey: resolveProviderKeySync('AGENTROUTER_API_KEY'),
+      baseURL:
+        process.env.AGENTROUTER_BASE_URL || 'https://agentrouter.org/v1',
+      headers: {
+        'User-Agent': 'claude-cli/2.1.158 (external, sdk-cli)',
+        'x-app': 'cli',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      name: 'agentrouter',
+    }),
     google: createGoogleGenerativeAI({
       apiKey: resolveProviderKeySync('GEMINI_API_KEY'),
     }),
@@ -111,6 +126,14 @@ export function assertModelKeyConfigured(modelId: string) {
     },
     {
       match: (s) =>
+        s.startsWith('agentrouter') ||
+        s === 'claude-opus-4-8' ||
+        s === 'gpt-5.6-sol',
+      env: 'AGENTROUTER_API_KEY',
+      label: 'AgentRouter',
+    },
+    {
+      match: (s) =>
         s.includes('/') ||
         s.startsWith('claude') ||
         s.startsWith('deepseek') ||
@@ -138,6 +161,14 @@ export function resolveAirGapModelId(preferred?: string): string {
     process.env.OLLAMA_MODEL || AIRGAP_ALLOWED_MODELS[0] || 'qwen2.5:32b'
   if (preferred && AIRGAP_ALLOWED_MODELS.includes(preferred)) return preferred
   return fallback
+}
+
+const AGENTROUTER_IDS: Record<string, string> = {
+  'claude-opus-4-8': 'claude-opus-4-8',
+  'gpt-5.6-sol': 'gpt-5.6-sol',
+  // common aliases
+  'claude-opus-4': 'claude-opus-4-8',
+  'gpt-5.6': 'gpt-5.6-sol',
 }
 
 const OPENROUTER_IDS: Record<string, string> = {
@@ -237,6 +268,11 @@ export function getModel(modelId: string) {
   const openaiId = OPENAI_IDS[id]
   if (openaiId) {
     return getCloudProviders().openaiCloud(openaiId)
+  }
+
+  const agentRouterId = AGENTROUTER_IDS[id]
+  if (agentRouterId) {
+    return getCloudProviders().agentrouter(agentRouterId)
   }
 
   const orId = OPENROUTER_IDS[id]

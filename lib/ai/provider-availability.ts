@@ -95,6 +95,52 @@ export async function validateProviderKey(
           detail: res.ok ? 'صالح' : `رفض المزوّد (${res.status})`,
         }
       }
+      case 'AGENTROUTER_API_KEY': {
+        if (key.startsWith('eyJ')) {
+          return { ok: false, detail: 'يبدو مفتاح جلسة وليس AgentRouter' }
+        }
+        // AgentRouter rejects generic clients; probe with Claude-Code wire image.
+        const res = await fetch('https://agentrouter.org/v1/models', {
+          headers: {
+            'x-api-key': key,
+            Authorization: `Bearer ${key}`,
+            'User-Agent': 'claude-cli/2.1.158 (external, sdk-cli)',
+            'x-app': 'cli',
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          signal: AbortSignal.timeout(10000),
+        })
+        if (!res.ok) {
+          let detail = `رفض المزوّد (${res.status})`
+          try {
+            const body = (await res.json()) as {
+              error?: { message?: string; type?: string }
+              message?: string
+              type?: string
+            }
+            const msg = body.error?.message || body.message || ''
+            if (/unauthorized client/i.test(msg)) {
+              detail = 'العميل غير مسموح — استخدم ترويسة Claude Code'
+            } else if (msg) {
+              detail = msg.slice(0, 100)
+            }
+          } catch {
+            /* ignore */
+          }
+          return { ok: false, detail }
+        }
+        try {
+          const body = (await res.json()) as { data?: Array<{ id?: string }> }
+          const n = Array.isArray(body.data) ? body.data.length : 0
+          return {
+            ok: true,
+            detail: n > 0 ? `صالح · ${n} نموذج` : 'صالح',
+          }
+        } catch {
+          return { ok: true, detail: 'صالح' }
+        }
+      }
       case 'GEMINI_API_KEY': {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
