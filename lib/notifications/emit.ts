@@ -4,6 +4,7 @@ export type ApprovalNotificationPayload = {
   params: Record<string, unknown>
   riskLevel: 'LOW' | 'HIGH'
   messageAr: string
+  scopeId?: string
 }
 
 export type PassiveNotifyPayload = {
@@ -19,6 +20,31 @@ export function getUiNotifications() {
 
 export function clearUiNotifications() {
   uiInbox.length = 0
+}
+
+async function resolveTelegramTarget(meta?: Record<string, unknown>) {
+  const explicit = process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
+  if (explicit) return explicit
+  const scopeId =
+    (meta?.scopeId && String(meta.scopeId)) ||
+    process.env.TELEGRAM_DEFAULT_SCOPE_ID ||
+    'shared-demo'
+  try {
+    const { getSupabaseAdmin } = await import('@/lib/supabase/server')
+    const sb = getSupabaseAdmin()
+    if (!sb) return ''
+    const { data } = await sb
+      .from('channel_bindings')
+      .select('external_id')
+      .eq('channel', 'telegram')
+      .eq('scope_id', scopeId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return data?.external_id ? String(data.external_id) : ''
+  } catch {
+    return ''
+  }
 }
 
 export async function emitApprovalNotification(
@@ -44,10 +70,7 @@ export async function emitNotification(opts: {
 }): Promise<{ ok: boolean }> {
   if (opts.channel === 'telegram') {
     const token = process.env.TELEGRAM_BOT_TOKEN
-    const chatId =
-      opts.to ||
-      process.env.TELEGRAM_OWNER_CHAT_ID ||
-      process.env.TELEGRAM_TEST_CHAT_ID
+    const chatId = opts.to || (await resolveTelegramTarget(opts.meta))
     if (!token || !chatId) return { ok: false }
     try {
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -87,8 +110,7 @@ export async function emitNotification(opts: {
 
 async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId =
-    process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
+  const chatId = await resolveTelegramTarget({ scopeId: payload.scopeId })
   if (!token || !chatId) return
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {

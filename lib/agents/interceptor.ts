@@ -44,6 +44,7 @@ export async function interceptToolExecution(opts: {
       params: opts.params,
       riskLevel: risk.riskLevel,
       messageAr: `إجراء يحتاج موافقة: ${opts.toolName}`,
+      scopeId,
     }
 
     await withPrismaFallback(
