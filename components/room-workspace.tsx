@@ -23,7 +23,6 @@ import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
-import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { HelpTip } from '@/components/help-tip'
@@ -789,15 +788,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   )
                 }}
                 onDismiss={dismissOnboarding}
-              />
-              <OrgRoleTemplates
-                onDone={() => {
-                  try {
-                    localStorage.setItem('ab-template-picked', '1')
-                  } catch {
-                    /* ignore */
-                  }
-                }}
               />
             </div>
           )}

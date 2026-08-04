@@ -26,7 +26,6 @@ import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
 import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
-import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { RoomTasksBoard } from '@/components/room-tasks-board'
@@ -345,11 +344,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               </p>
             </div>
             <SkillMarketplace targetScopeId={activeScopeId} />
-            <div className="mt-8">
-              <OrgRoleTemplates
-                onDone={() => setCronReloadToken((t) => t + 1)}
-              />
-            </div>
             <div className="mt-10 space-y-6 border-t border-ab-border pt-8">
               <div>
                 <h3 className="mb-1 text-base font-semibold text-ab-ink">
