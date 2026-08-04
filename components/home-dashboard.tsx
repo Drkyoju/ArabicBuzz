@@ -19,6 +19,7 @@ import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
 import { AssociationRecipes } from '@/components/association-recipes'
+import { DateDual } from '@/components/date-dual'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -141,12 +142,14 @@ function DayBlock({
 
 
 /**
- * لوحة اليوم — نظرة سريعة على ما حدث وماذا سيحدث.
+ * لوحة اليوم — غرفة عمليات الجمعية: قرار معلّق، مواعيد نظام، وكلاء يعملون.
  */
 export function HomeDashboard({
   onNavigate,
+  pendingApprovalsCount = 0,
 }: {
   onNavigate?: (section: string) => void
+  pendingApprovalsCount?: number
 }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
@@ -239,14 +242,14 @@ export function HomeDashboard({
 
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6" dir="rtl">
+    <section className="mx-auto w-full max-w-5xl space-y-5 px-4 py-5 md:px-6" dir="rtl">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
-          <p className="mt-1 text-sm text-stone-500">
-            ماذا حدث أمس · ماذا يحدث اليوم · ماذا غداً وبعده — مع Zoom وآخر
-            التعديلات والحضور.
+          <p className="mt-1 max-w-lg text-sm text-stone-500">
+            ما الذي ينتظر قرارك، وما المواعيد النظامية، ومن يعمل الآن.
           </p>
+          <DateDual className="mt-2" />
           {isGuestDemo && (
             <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-ab-accent/10 px-2 py-0.5 text-[11px] font-medium text-ab-accent">
               معاينة تجريبية — بيانات حية للتجربة
@@ -254,6 +257,18 @@ export function HomeDashboard({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              document.getElementById('ab-recipes')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }
+            className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            تشغيل وصفة
+          </button>
           {!isGuest && (
             <button
               type="button"
@@ -269,7 +284,7 @@ export function HomeDashboard({
             <button
               type="button"
               onClick={() => onNavigate?.('settings')}
-              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-semibold text-ab-ink"
             >
               سجّل الدخول
             </button>
@@ -277,72 +292,199 @@ export function HomeDashboard({
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
-            className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
-          >
-            التقويم الكامل
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('chats')}
             className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
           >
-            الغرف
+            التقويم
           </button>
         </div>
       </header>
 
-      <AssociationRecipes onNavigate={onNavigate} />
+      {/* Ops cockpit — above the fold: قرار · نظام · وكلاء */}
+      {(() => {
+        const approvals = demoTyped?.pendingApprovals || []
+        const livePending = !isGuestDemo ? pendingApprovalsCount : 0
+        const deadlines = (viewData.systemDeadlines || []).slice(0, 4)
+        const demoActs = demoTyped?.agentActivity || []
+        const liveActs = [
+          ...(liveData?.activity || [])
+            .filter(
+              (a) =>
+                a.kind === 'agent' ||
+                a.kind === 'hitl' ||
+                a.kind === 'message' ||
+                a.kind === 'system'
+            )
+            .slice(0, 3)
+            .map((a) => ({
+              agentAr: a.actorAr,
+              statusAr: a.actionAr,
+              detailAr: a.detailAr || a.atAr,
+            })),
+        ]
+        const acts = isGuestDemo ? demoActs : liveActs
 
-      {/* Pending approvals strip */}
-      {(demoTyped?.pendingApprovals?.length || 0) > 0 && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.('approvals')}
-          className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-right transition-colors hover:bg-amber-100/80"
-        >
-          <div className="flex items-start gap-2">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" />
-            <div>
-              <p className="text-sm font-bold text-amber-950">
-                {demoTyped!.pendingApprovals.length} موافقة معلّقة
-              </p>
-              <p className="text-[11px] text-amber-900/80">
-                {demoTyped!.pendingApprovals
-                  .map((a) => `${a.agentAr}: ${a.messageAr}`)
-                  .join(' · ')}
-              </p>
+        return (
+          <div className="grid gap-3 lg:grid-cols-12">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 lg:col-span-5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-amber-950">
+                  <ShieldCheck className="h-4 w-4" />
+                  يحتاج قرارك
+                  <span className="tabular-nums text-amber-800">
+                    (
+                    {isGuestDemo
+                      ? approvals.length
+                      : livePending}
+                    )
+                  </span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('approvals')}
+                  className="text-[11px] font-semibold text-amber-900 underline"
+                >
+                  صندوق الموافقات
+                </button>
+              </div>
+              {isGuestDemo && approvals.length > 0 ? (
+                <ul className="mt-2.5 space-y-2">
+                  {approvals.slice(0, 3).map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200/80 bg-white/80 px-2.5 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-semibold text-ab-ink">
+                          {a.messageAr}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-amber-900/80">
+                          {a.agentAr}
+                          <span className="ms-1 rounded bg-amber-100 px-1 py-0.5 font-medium">
+                            {a.riskLevel === 'HIGH' ? 'عالي' : 'منخفض'}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate?.('approvals')}
+                        className="shrink-0 rounded-md bg-amber-900 px-2.5 py-1 text-[10px] font-semibold text-white"
+                      >
+                        مراجعة
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : livePending > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('approvals')}
+                  className="mt-2.5 w-full rounded-lg border border-amber-200 bg-white/80 px-3 py-3 text-right text-[12px] font-semibold text-amber-950 hover:bg-white"
+                >
+                  {livePending} موافقة معلّقة — افتح صندوق HITL للاعتماد أو الرفض
+                </button>
+              ) : (
+                <p className="mt-3 text-xs text-amber-900/70">
+                  لا موافقات معلّقة الآن. الإجراءات الحساسة تظهر هنا قبل التنفيذ.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-4">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+                  <CalendarDays className="h-4 w-4 text-ab-accent" />
+                  مواعيد نظامية
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('calendar')}
+                  className="text-[11px] text-ab-accent underline"
+                >
+                  التقويم
+                </button>
+              </div>
+              {deadlines.length === 0 ? (
+                <p className="mt-3 text-xs text-stone-400">
+                  لا مواعيد ترخيص أو إفصاح ظاهرة — أضفها من التقويم.
+                </p>
+              ) : (
+                <ul className="mt-2.5 space-y-2">
+                  {deadlines.map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex items-baseline justify-between gap-2 text-[12px]"
+                    >
+                      <span className="font-medium text-ab-ink">{d.labelAr}</span>
+                      <span
+                        className={cn(
+                          'shrink-0 tabular-nums text-[11px]',
+                          d.daysLeft < 0
+                            ? 'font-semibold text-ab-danger'
+                            : d.daysLeft <= 14
+                              ? 'font-semibold text-ab-warn'
+                              : 'text-stone-500'
+                        )}
+                      >
+                        {d.daysLeft < 0
+                          ? `متأخر ${Math.abs(d.daysLeft)}ي`
+                          : `متبقٍ ${d.daysLeft} يوم`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-3">
+              <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+                <Radio className="h-4 w-4 text-ab-accent" />
+                يعمل الآن
+              </h2>
+              {acts.length === 0 ? (
+                <p className="mt-3 text-xs text-stone-400">
+                  لا وكلاء نشطين — افتح غرفة لتشغيل مهمة.
+                </p>
+              ) : (
+                <ul className="mt-2.5 space-y-2">
+                  {acts.slice(0, 3).map((a, i) => (
+                    <li key={`${a.agentAr}-${i}`} className="text-[12px]">
+                      <p className="font-semibold text-ab-ink">{a.agentAr}</p>
+                      <p className="text-[11px] text-ab-accent">{a.statusAr}</p>
+                      <p className="text-[10px] text-stone-500">{a.detailAr}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigate?.('chats')}
+                className="mt-3 text-[11px] font-medium text-ab-accent underline"
+              >
+                الغرف
+              </button>
             </div>
           </div>
-          <span className="rounded-md bg-amber-900 px-2.5 py-1 text-[10px] font-semibold text-white">
-            مراجعة HITL
-          </span>
-        </button>
-      )}
+        )
+      })()}
 
       {isGuest && (
-        <div className="rounded-xl border border-ab-accent/25 bg-gradient-to-bl from-ab-accent/5 via-white to-emerald-50/50 px-4 py-5">
-          <p className="text-base font-semibold text-ab-ink">
-            مرحباً بك في Arabic Buzz
-          </p>
-          <p className="mt-1.5 max-w-xl text-sm text-stone-600">
-            نظام تشغيل للجمعيات السعودية: غرف بشر ووكلاء، موافقات بشرية، سجل
-            سدايا، وتقويم على الجوال. المعاينة أدناه تُظهر جمعية تعمل الآن —
-            سجّل الدخول لحفظ جلستك وربط تيليجرام وDrive.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ab-border bg-white px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-ab-ink">
+              وضع الزائر — جلسة على هذا الجهاز فقط
+            </p>
+            <p className="mt-0.5 max-w-xl text-[12px] text-stone-500">
+              المعاينة تُظهر دورة جمعية: موافقات، ترخيص، وكلاء. سجّل الدخول
+              لحفظ الغرف وربط Drive وتيليجرام.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onNavigate?.('settings')}
               className="rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
             >
-              سجّل الدخول أو ابدأ تجريبياً
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('chats')}
-              className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
-            >
-              جرّب غرفة الفريق
+              سجّل الدخول
             </button>
             <button
               type="button"
@@ -355,57 +497,7 @@ export function HomeDashboard({
         </div>
       )}
 
-      {/* Live agent activity — demo seed or signed-in digest */}
-      {(() => {
-        const demoActs = demoTyped?.agentActivity || []
-        const liveActs = [
-          ...(liveData?.activity || [])
-            .filter(
-              (a) =>
-                a.kind === 'agent' ||
-                a.kind === 'hitl' ||
-                a.kind === 'message' ||
-                a.kind === 'system'
-            )
-            .slice(0, 4)
-            .map((a) => ({
-              agentAr: a.actorAr,
-              statusAr: a.actionAr,
-              detailAr: a.detailAr || a.atAr,
-            })),
-          ...(liveData?.recentPosts || [])
-            .filter((p) => p.kind === 'agent')
-            .slice(0, 4)
-            .map((p) => ({
-              agentAr: p.authorAr,
-              statusAr: 'نشر في الغرفة',
-              detailAr: p.content,
-            })),
-        ].slice(0, 6)
-        const acts = isGuestDemo ? demoActs : liveActs
-        if (!acts.length) return null
-        return (
-          <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
-            <p className="mb-2 text-[11px] font-semibold text-stone-500">
-              نشاط الوكلاء الآن
-            </p>
-            <ul className="flex flex-wrap gap-2">
-              {acts.map((a, i) => (
-                <li
-                  key={`${a.agentAr}-${i}`}
-                  className="rounded-lg border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-1.5 text-[12px]"
-                >
-                  <span className="font-semibold text-ab-ink">{a.agentAr}</span>
-                  <span className="text-ab-accent"> · {a.statusAr}</span>
-                  <span className="block text-[10px] text-stone-500">
-                    {a.detailAr}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      })()}
+      <AssociationRecipes onNavigate={onNavigate} />
 
       {err && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
@@ -536,7 +628,7 @@ export function HomeDashboard({
               {(viewData.systemDeadlines || []).map((d) => (
                 <li key={d.id} className="flex justify-between gap-2">
                   <span>{d.labelAr}</span>
-                  <span className="text-stone-500">
+                  <span className="tabular-nums text-stone-500">
                     {d.daysLeft < 0
                       ? `متأخر ${Math.abs(d.daysLeft)}ي`
                       : `${d.daysLeft} يوم`}
@@ -589,6 +681,9 @@ export function HomeDashboard({
               العرض الكامل
             </button>
           </div>
+          <p className="mb-2 text-[11px] text-stone-500">
+            ختم لكل إجراء — جاهز للمراجعة دون تصدير منفصل.
+          </p>
           <ul className="space-y-2">
             {demoTyped.auditEntries.slice(0, 4).map((a) => (
               <li

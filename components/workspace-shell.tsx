@@ -285,7 +285,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'home' && (
-          <HomeDashboard onNavigate={(s) => setSection(s as SidebarSection)} />
+          <HomeDashboard
+            onNavigate={(s) => setSection(s as SidebarSection)}
+            pendingApprovalsCount={pendingCount}
+          />
         )}
 
         {section === 'chats' && <RoomWorkspace />}
@@ -421,8 +424,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 سجل التدقيق
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم سدايا. هذا
-                جواب «هل هذا قابل للمراجعة؟».
+                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم سدايا.
+                قابل للمراجعة دون تقرير إداري منفصل: هذا فرق الامتثال أمام
+                الأدوات الأفقية.
               </p>
             </div>
 

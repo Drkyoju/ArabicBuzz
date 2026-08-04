@@ -10,7 +10,8 @@ const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
 
 export const metadata: Metadata = {
   title: 'Arabic Buzz',
-  description: 'منصة الوكيل العربي للمساحات الشخصية والمشتركة',
+  description:
+    'مساحة عمل عربية للجمعيات — غرف بشر ووكلاء، موافقات بشرية، مواعيد نظام، وسجل تدقيق قابل للمراجعة',
   applicationName: 'Arabic Buzz',
   manifest: '/manifest.json',
   appleWebApp: {
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0f766e',
+  themeColor: '#0e5a46',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

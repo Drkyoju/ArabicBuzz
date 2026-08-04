@@ -8,12 +8,13 @@ module.exports = {
     extend: {
       colors: {
         ab: {
-          bg: '#f8f7f4',
+          bg: '#f6f7f6',
           surface: '#ffffff',
-          border: '#e5e2da',
-          ink: '#1f1e1b',
-          accent: '#0f766e',
+          border: '#e2e5e3',
+          ink: '#1a1f1c',
+          accent: '#0e5a46',
           warn: '#b45309',
+          danger: '#b42318',
         },
       },
       fontFamily: {

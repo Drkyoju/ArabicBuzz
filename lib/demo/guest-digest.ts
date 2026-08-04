@@ -269,6 +269,12 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
         startsAtAr: ymd(new Date(today.getTime() + 18 * 86400000)),
       },
       {
+        id: 'sd3',
+        labelAr: 'الإفصاح الربعي',
+        daysLeft: 6,
+        startsAtAr: ymd(new Date(today.getTime() + 6 * 86400000)),
+      },
+      {
         id: 'sd2',
         labelAr: 'إفصاح سدايا السنوي',
         daysLeft: 42,
@@ -434,7 +440,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
     agentActivity: [
       {
         agentAr: 'وكيل التقارير',
-        statusAr: 'أنهى للتو',
+        statusAr: 'الخطوة ٢ من ٥',
         detailAr: 'ملخص قرارات اجتماع الأمس',
       },
       {

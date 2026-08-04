@@ -6,39 +6,43 @@ const RECIPES = [
   {
     id: 'board',
     titleAr: 'تحضير اجتماع مجلس',
-    detailAr: 'غرفة الفريق + Zoom + ملخص قرارات من الوكلاء.',
+    detailAr: 'غرفة الفريق + Zoom + ملخص قرارات يوقّعه الوكيل في سجل التدقيق.',
     section: 'chats',
     icon: Users,
   },
   {
     id: 'deadlines',
-    titleAr: 'مواعيد النظام والتذكير',
-    detailAr: 'تقويم + تيليجرام لتجديد الترخيص والإفصاح.',
+    titleAr: 'ترخيص وإفصاح',
+    detailAr: 'مواعيد النظام + تذكير تيليجرام قبل انتهاء الترخيص أو الإفصاح.',
     section: 'calendar',
     icon: CalendarDays,
   },
   {
     id: 'hitl',
     titleAr: 'موافقة بشرية حساسة',
-    detailAr: 'راجع HITL قبل مزامنة Drive أو إرسال جماعي.',
+    detailAr: 'راجع HITL قبل مزامنة Drive أو إرسال جماعي — لا تنفيذ بلا اعتماد.',
     section: 'approvals',
     icon: ShieldCheck,
   },
 ] as const
 
-/** Association one-click workflows (Opus 5 vertical bet). */
+/** Association one-click workflows — governance cycle, not generic agent chat. */
 export function AssociationRecipes({
   onNavigate,
 }: {
   onNavigate?: (section: string) => void
 }) {
   return (
-    <div className="rounded-xl border border-ab-border bg-white p-4" dir="rtl">
+    <div
+      id="ab-recipes"
+      className="rounded-xl border border-ab-border bg-white p-4"
+      dir="rtl"
+    >
       <h2 className="text-sm font-bold text-ab-ink">وصفات عمل الجمعية</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        مسارات جاهزة — ابدأ بنقرة واحدة (ما يميّزنا عن Buzz الأفقي و QM).
+        مسارات جاهزة لدورة الحوكمة: مجلس → موافقة بشرية → إفصاح وترخيص.
       </p>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
         {RECIPES.map((r) => {
           const Icon = r.icon
           return (

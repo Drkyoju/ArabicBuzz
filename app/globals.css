@@ -3,24 +3,37 @@
 @tailwind utilities;
 
 :root {
-  --ab-bg: #f8f7f4;
+  --ab-bg: #f6f7f6;
   --ab-surface: #ffffff;
-  --ab-border: #e5e2da;
-  --ab-ink: #1f1e1b;
-  --ab-accent: #0f766e;
+  --ab-border: #e2e5e3;
+  --ab-ink: #1a1f1c;
+  --ab-accent: #0e5a46;
   --ab-warn: #b45309;
-  --ab-stage: #efece6;
+  --ab-danger: #b42318;
+  --ab-stage: #eef1ef;
 }
 
 body {
   background: var(--ab-bg);
   color: var(--ab-ink);
+  line-height: 1.75;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.45;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* QM-like stage behind session tiles */
 .ab-stage {
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(15, 118, 110, 0.06), transparent),
+    radial-gradient(1200px 600px at 80% -10%, rgba(14, 90, 70, 0.06), transparent),
     var(--ab-stage);
 }
 
