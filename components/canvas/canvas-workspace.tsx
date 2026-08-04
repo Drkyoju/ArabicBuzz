@@ -23,6 +23,7 @@ export function CanvasWorkspace({
   className,
   scopeId,
   displayName,
+  onSurfaceChange,
 }: {
   onPersist?: (artifact: CanvasArtifact) => void | Promise<void>
   onClose?: () => void
@@ -30,11 +31,19 @@ export function CanvasWorkspace({
   /** Enables live co-edit cursors on the document tab */
   scopeId?: string
   displayName?: string
+  onSurfaceChange?: (surface: string) => void
 }) {
   const { artifacts, activeId, setContent, upsertArtifact } = useCanvasStore()
   const active = artifacts.find((a) => a.id === activeId) || artifacts[0]
   const [tab, setTab] = useState<Tab>('artifact')
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const selectTab = (t: Tab) => {
+    setTab(t)
+    onSurfaceChange?.(
+      t === 'document' ? 'document' : t === 'whiteboard' ? 'canvas' : 'canvas'
+    )
+  }
 
   const schedulePersist = (artifact: CanvasArtifact) => {
     if (!onPersist) return
@@ -60,19 +69,19 @@ export function CanvasWorkspace({
       <div className="flex items-center gap-1 border-b border-ab-border px-2 py-1.5">
         <TabBtn
           active={tab === 'artifact'}
-          onClick={() => setTab('artifact')}
+          onClick={() => selectTab('artifact')}
           icon={<FileText className="h-3.5 w-3.5" />}
           label="مخرجات"
         />
         <TabBtn
           active={tab === 'document'}
-          onClick={() => setTab('document')}
+          onClick={() => selectTab('document')}
           icon={<PenLine className="h-3.5 w-3.5" />}
           label="مستند"
         />
         <TabBtn
           active={tab === 'whiteboard'}
-          onClick={() => setTab('whiteboard')}
+          onClick={() => selectTab('whiteboard')}
           icon={<LayoutGrid className="h-3.5 w-3.5" />}
           label="لوحة"
         />

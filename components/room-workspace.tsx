@@ -19,7 +19,7 @@ import {
   useWorkspaceStore,
 } from '@/lib/scopes/workspace-store'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
-import { RoomPresenceBar } from '@/components/room-presence'
+import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { OrgRoleTemplates } from '@/components/org-role-templates'
@@ -634,6 +634,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
       createdAt: Date.now(),
     })
 
+    void broadcastRoomEdit(activeScopeId, {
+      actorAr: displayName,
+      actionAr: 'أرسل رسالة',
+      detailAr: prompt.slice(0, 80),
+      at: Date.now(),
+    })
+
     runAbortRef.current?.abort()
     const abort = new AbortController()
     runAbortRef.current = abort
@@ -1108,6 +1115,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           <CanvasWorkspace
             scopeId={activeScopeId}
             displayName={displayName}
+            onSurfaceChange={setPresenceSurface}
             onClose={() => {
               if (isCanvasFullscreen) toggleCanvasFullscreen()
               else setShowCanvas(false)
@@ -1125,6 +1133,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   titleAr: artifact.titleAr,
                   content: artifact.content,
                   language: artifact.language,
+                  updatedBy: displayName,
                 }),
               })
               if (!res.ok) {
@@ -1133,6 +1142,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 }
                 throw new Error(data.error || `فشل الحفظ (HTTP ${res.status})`)
               }
+              void broadcastRoomEdit(activeScopeId, {
+                id: `canvas-${artifact.id}-${Date.now()}`,
+                actorAr: displayName,
+                actionAr: 'عدّل اللوحة',
+                detailAr: artifact.titleAr,
+                at: Date.now(),
+              })
             }}
           />
         </section>
