@@ -128,6 +128,7 @@ export function assertModelKeyConfigured(modelId: string) {
       match: (s) =>
         s.startsWith('agentrouter') ||
         s === 'claude-opus-4-8' ||
+        s === 'claude-opus-5' ||
         s === 'gpt-5.6-sol',
       env: 'AGENTROUTER_API_KEY',
       label: 'AgentRouter',
@@ -135,7 +136,9 @@ export function assertModelKeyConfigured(modelId: string) {
     {
       match: (s) =>
         s.includes('/') ||
-        s.startsWith('claude') ||
+        (s.startsWith('claude') &&
+          s !== 'claude-opus-4-8' &&
+          s !== 'claude-opus-5') ||
         s.startsWith('deepseek') ||
         s.startsWith('qwen') ||
         s.startsWith('kimi') ||
@@ -164,10 +167,12 @@ export function resolveAirGapModelId(preferred?: string): string {
 }
 
 const AGENTROUTER_IDS: Record<string, string> = {
+  'claude-opus-5': 'claude-opus-5',
   'claude-opus-4-8': 'claude-opus-4-8',
   'gpt-5.6-sol': 'gpt-5.6-sol',
   // common aliases
   'claude-opus-4': 'claude-opus-4-8',
+  'opus-5': 'claude-opus-5',
   'gpt-5.6': 'gpt-5.6-sol',
 }
 

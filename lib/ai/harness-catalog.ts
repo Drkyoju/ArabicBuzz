@@ -4,6 +4,7 @@ export type HarnessModelSlug =
   | 'claude-3.5-sonnet'
   | 'claude-sonnet-4'
   | 'claude-opus-4-8'
+  | 'claude-opus-5'
   | 'gpt-5.6-sol'
   | 'deepseek-v3'
   | 'deepseek-r1'
@@ -66,6 +67,14 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     labelEn: 'Zhipu GLM-4.5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
+    airGapSafe: false,
+  },
+  {
+    slug: 'claude-opus-5',
+    labelAr: 'أعلى دقة · Opus 5',
+    labelEn: 'Claude Opus 5',
+    provider: 'agentrouter',
+    requiresKey: 'AGENTROUTER_API_KEY',
     airGapSafe: false,
   },
   {

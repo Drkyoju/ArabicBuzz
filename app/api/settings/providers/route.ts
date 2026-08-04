@@ -10,8 +10,47 @@ import {
   getProvidersSnapshot,
   validateProviderKey,
 } from '@/lib/ai/provider-availability'
+import { getUserFromRequest, isAuthRequired } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
+
+/** Mutating provider keys requires a real signed-in Bearer session. */
+async function requireKeyAdmin(req: NextRequest) {
+  const header = req.headers.get('authorization') || ''
+  if (!/^Bearer\s+\S+/i.test(header)) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          error: 'يلزم جلسة مسجّلة لإضافة أو حذف مفاتيح API.',
+          code: 'AUTH_REQUIRED',
+        },
+        { status: 401 }
+      ),
+    }
+  }
+
+  const user = await getUserFromRequest(req)
+  const isSynthetic =
+    !user ||
+    user.id === 'local-owner' ||
+    user.app_metadata?.provider === 'local'
+
+  if (isSynthetic || (isAuthRequired() && !user)) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          error: 'يلزم تسجيل الدخول لإدارة مفاتيح API.',
+          code: 'AUTH_REQUIRED',
+        },
+        { status: 401 }
+      ),
+    }
+  }
+
+  return { ok: true as const, user }
+}
 
 export async function GET(req: NextRequest) {
   const fresh = req.nextUrl.searchParams.get('fresh') === '1'
@@ -20,6 +59,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireKeyAdmin(req)
+  if (!auth.ok) return auth.response
+
   let body: { envName?: string; apiKey?: string; skipValidate?: boolean }
   try {
     body = await req.json()
@@ -62,6 +104,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireKeyAdmin(req)
+  if (!auth.ok) return auth.response
+
   const envName =
     req.nextUrl.searchParams.get('envName')?.trim() ||
     ((await req.json().catch(() => ({}))) as { envName?: string }).envName?.trim()

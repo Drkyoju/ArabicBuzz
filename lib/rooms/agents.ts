@@ -16,6 +16,7 @@ export type RoomAgent = {
 export type AgentCollabMode = 'solo' | 'team'
 
 export const AGENT_MODEL_PRESETS = [
+  { slug: 'claude-opus-5', labelAr: 'أعلى دقة · Opus 5', provider: 'agentrouter' },
   { slug: 'gemini-3.1-pro', labelAr: 'أعلى دقة', provider: 'google' },
   { slug: 'claude-opus-4-8', labelAr: 'أعلى دقة · تحليل', provider: 'agentrouter' },
   { slug: 'gpt-5.6-sol', labelAr: 'متوازن · عام', provider: 'agentrouter' },
