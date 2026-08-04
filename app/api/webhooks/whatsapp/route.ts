@@ -3,16 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { extractWhatsAppMessages, type WaMessage } from '@/lib/whatsapp/parse'
 import { resolveChannelScope } from '@/lib/channels/bindings'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
-import { runAgentEngine } from '@/lib/agents/engine'
-import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
 import { transcribeWhatsAppVoiceNote } from '@/lib/audio/transcribe'
 import { sendWhatsAppText } from '@/lib/whatsapp/client'
 import { resolveApproval } from '@/lib/agents/resolve-approval'
-import {
-  saveWhatsAppTurnToSupabase,
-  updateApprovalInSupabase,
-} from '@/lib/supabase/server'
-import { mirrorChannelTurnToRoom } from '@/lib/rooms/channel-mirror'
+import { updateApprovalInSupabase } from '@/lib/supabase/server'
+import { processWhatsAppInboxMessage } from '@/lib/whatsapp/inbox-orchestrator'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -31,31 +26,6 @@ async function resolveWhatsAppScope(from: string) {
     scopeId: process.env.WHATSAPP_DEFAULT_SCOPE_ID || 'shared-demo',
     scopes: DEMO_SCOPES,
   })
-}
-
-async function runArabicAgent(opts: {
-  promptAr: string
-  scopeId: string
-  requesterId: string
-}) {
-  const normalized = await normalizeArabicPrompt(opts.promptAr)
-  const modelSlug =
-    process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash'
-  const engine = await runAgentEngine({
-    prompt: normalized.normalizedPromptAr,
-    system:
-      'أنت وكيل Arabic Buzz عبر واتساب. أجب بالعربية الفصحى المهنية بإيجاز ووضوح.',
-    modelSlug,
-    scopeId: opts.scopeId,
-    requesterId: opts.requesterId,
-    includeMcpTools: true,
-  })
-  return {
-    text:
-      engine.text?.trim() ||
-      'تم استلام رسالتك، لكن لم يُنتَج رد نصي. حاول مرة أخرى.',
-    modelSlug,
-  }
 }
 
 async function handleInteractive(message: WaMessage) {
@@ -119,35 +89,15 @@ async function handleInboundMessage(message: WaMessage) {
     return
   }
 
-  // Voice notes → Meta download → Whisper (ar) → Agent Engine → Supabase → reply
   if (message.type === 'audio' && message.audio?.id) {
     try {
       const { transcript } = await transcribeWhatsAppVoiceNote(message.audio.id)
-      const { text, modelSlug } = await runArabicAgent({
-        promptAr: transcript,
-        scopeId: scope.scope.id,
-        requesterId: message.from,
-      })
-      await saveWhatsAppTurnToSupabase({
+      await processWhatsAppInboxMessage({
         from: message.from,
-        scopeId: scope.scope.id,
+        textAr: transcript,
         inboundType: 'audio',
-        transcriptOrText: transcript,
-        agentReplyAr: text,
-        modelSlug,
-      })
-      void mirrorChannelTurnToRoom({
         scopeId: scope.scope.id,
-        channel: 'whatsapp',
-        externalId: message.from,
-        userLabelAr: 'مستخدم واتساب',
-        userMessageAr: `🎤 ${transcript}`,
-        agentReplyAr: text,
       })
-      await sendWhatsAppText(
-        message.from,
-        `🎤 *تم التحويل:*\n> "${transcript}"\n\n${text}`
-      )
     } catch (e) {
       await sendWhatsAppText(
         message.from,
@@ -157,31 +107,14 @@ async function handleInboundMessage(message: WaMessage) {
     return
   }
 
-  // Text → Agent Engine → Supabase → Meta Graph reply
   if (message.type === 'text' && message.text?.body) {
     try {
-      const { text, modelSlug } = await runArabicAgent({
-        promptAr: message.text.body,
-        scopeId: scope.scope.id,
-        requesterId: message.from,
-      })
-      await saveWhatsAppTurnToSupabase({
+      await processWhatsAppInboxMessage({
         from: message.from,
-        scopeId: scope.scope.id,
+        textAr: message.text.body,
         inboundType: 'text',
-        transcriptOrText: message.text.body,
-        agentReplyAr: text,
-        modelSlug,
-      })
-      void mirrorChannelTurnToRoom({
         scopeId: scope.scope.id,
-        channel: 'whatsapp',
-        externalId: message.from,
-        userLabelAr: 'مستخدم واتساب',
-        userMessageAr: message.text.body,
-        agentReplyAr: text,
       })
-      await sendWhatsAppText(message.from, text)
     } catch (e) {
       await sendWhatsAppText(
         message.from,

@@ -74,7 +74,7 @@ async function runLiveAgent(item: EvalItem): Promise<string> {
   try {
     if (item.category === 'msa_grammar' || item.promptAr.length > 200) {
       const orch = await orchestrateParallelWorkflow(item.promptAr, 'shared-demo', {
-        modelSlug: process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash',
+        modelSlug: process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro',
       })
       return orch.finalReplyAr
     }

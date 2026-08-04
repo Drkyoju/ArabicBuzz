@@ -160,9 +160,9 @@ const GLM_IDS: Record<string, string> = {
 }
 
 const GOOGLE_IDS: Record<string, string> = {
-  'gemini-2.0-flash': 'gemini-2.0-flash',
+  'gemini-2.0-flash': 'gemini-2.5-pro',
   'gemini-2.5-pro': 'gemini-2.5-pro',
-  'gemini-flash': 'gemini-2.0-flash',
+  'gemini-flash': 'gemini-2.5-pro',
 }
 
 const OPENAI_IDS: Record<string, string> = {
@@ -190,7 +190,7 @@ export class UnknownModelError extends Error {
  * Returns a Vercel AI SDK model instance for OpenRouter / Gemini / Perplexity / OpenAI / Ollama.
  */
 export function getModel(modelId: string) {
-  const id = (modelId || process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash').trim()
+  const id = (modelId || process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro').trim()
   assertModelKeyConfigured(id)
 
   if (IS_AIR_GAPPED_MODE || id === 'ollama-local') {

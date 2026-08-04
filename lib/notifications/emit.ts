@@ -39,11 +39,15 @@ export async function emitPassiveNotification(
 export async function emitNotification(opts: {
   channel: 'telegram' | 'whatsapp'
   textAr: string
+  to?: string
   meta?: Record<string, unknown>
 }): Promise<{ ok: boolean }> {
   if (opts.channel === 'telegram') {
     const token = process.env.TELEGRAM_BOT_TOKEN
-    const chatId = process.env.TELEGRAM_TEST_CHAT_ID
+    const chatId =
+      opts.to ||
+      process.env.TELEGRAM_OWNER_CHAT_ID ||
+      process.env.TELEGRAM_TEST_CHAT_ID
     if (!token || !chatId) return { ok: false }
     try {
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -58,7 +62,8 @@ export async function emitNotification(opts: {
   }
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const to = process.env.WHATSAPP_TEST_TO
+  const to =
+    opts.to || process.env.WHATSAPP_OWNER_TO || process.env.WHATSAPP_TEST_TO
   if (!token || !phoneId || !to) return { ok: false }
   try {
     await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
@@ -82,7 +87,8 @@ export async function emitNotification(opts: {
 
 async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_TEST_CHAT_ID
+  const chatId =
+    process.env.TELEGRAM_OWNER_CHAT_ID || process.env.TELEGRAM_TEST_CHAT_ID
   if (!token || !chatId) return
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -115,7 +121,7 @@ async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
 async function sendWhatsAppApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const to = process.env.WHATSAPP_TEST_TO
+  const to = process.env.WHATSAPP_OWNER_TO || process.env.WHATSAPP_TEST_TO
   if (!token || !phoneId || !to) return
   const bodyText = `${payload.messageAr}\nالإجراء: ${payload.actionName}\nالمستوى: ${payload.riskLevel}`
   try {

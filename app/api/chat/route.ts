@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       body.modelId ||
       body.modelSlug ||
       process.env.DEFAULT_HARNESS_MODEL ||
-      'gemini-2.0-flash'
+      'gemini-2.5-pro'
 
     const model = getModel(modelId)
     const scopeId = body.scopeId || 'shared-demo'

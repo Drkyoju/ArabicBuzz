@@ -102,6 +102,9 @@ export function IntegrationsSetupPanel() {
             Netlify: <code dir="ltr">TELEGRAM_BOT_TOKEN</code>
           </li>
           <li>
+            مالك القناة (أساسي): <code dir="ltr">TELEGRAM_OWNER_CHAT_ID</code>
+          </li>
+          <li>
             اختياري للاختبار: <code dir="ltr">TELEGRAM_TEST_CHAT_ID</code>
           </li>
           <li>
@@ -114,14 +117,21 @@ export function IntegrationsSetupPanel() {
       </div>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
-        <p className="mb-1 font-semibold text-ab-ink">WhatsApp Cloud API</p>
+        <p className="mb-1 font-semibold text-ab-ink">
+          WhatsApp · صندوق وارد المهام
+        </p>
+        <p className="mb-2 text-[11px] text-stone-600">
+          رقم الأعمال = وارد للمرسلين (عملاء/زملاء). الرسائل تُنسَخ إلى غرفة{' '}
+          <code dir="ltr">WHATSAPP_DEFAULT_SCOPE_ID</code>، والوكيل يصنّف
+          (مهمة/أمر/تأكيد/سؤال) وينفّذ أو يسألك، ثم يرد على المرسل عند
+          الاكتمال.
+        </p>
         <ol className="list-decimal space-y-1 pe-4">
           <li>
-            Meta Developer → App → WhatsApp → احصل على Permanent Token و Phone
-            Number ID
+            Meta Developer → App → WhatsApp → Permanent Token و Phone Number ID
           </li>
           <li>
-            Netlify:{' '}
+            Netlify (مطلوب):{' '}
             <code dir="ltr">WHATSAPP_TOKEN</code> ·{' '}
             <code dir="ltr">WHATSAPP_PHONE_NUMBER_ID</code> ·{' '}
             <code dir="ltr">WHATSAPP_VERIFY_TOKEN</code>
@@ -133,8 +143,28 @@ export function IntegrationsSetupPanel() {
             </code>
           </li>
           <li>
-            اختياري للاختبار: <code dir="ltr">WHATSAPP_TEST_TO</code> (رقم
-            E.164)
+            غرفة المراقبة:{' '}
+            <code dir="ltr">WHATSAPP_DEFAULT_SCOPE_ID</code> (افتراضي{' '}
+            <code dir="ltr">shared-demo</code>)
+          </li>
+          <li>
+            تنبيهات المالك على واتساب:{' '}
+            <code dir="ltr">WHATSAPP_OWNER_TO</code> (رقم E.164 الشخصي)
+          </li>
+          <li>
+            سياق أدوات المالك (تقويم/Drive):{' '}
+            <code dir="ltr">CHANNEL_OWNER_USER_ID</code>
+          </li>
+          <li>
+            صوت: <code dir="ltr">HF_TOKEN</code> أو{' '}
+            <code dir="ltr">GROQ_API_KEY</code>
+          </li>
+          <li>
+            اختياري للاختبار: <code dir="ltr">WHATSAPP_TEST_TO</code>
+          </li>
+          <li>
+            للرد من الغرفة على طلب معلّق:{' '}
+            <span className="font-medium">رد واتساب: …</span>
           </li>
         </ol>
       </div>

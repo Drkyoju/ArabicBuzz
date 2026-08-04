@@ -9,11 +9,14 @@ type Snapshot = {
   driveFiles?: number
   zoomConfigured?: boolean
   telegramConfigured?: boolean
+  telegramOwnerConfigured?: boolean
   whatsappConfigured?: boolean
+  whatsappOwnerConfigured?: boolean
   macOnline?: boolean
   macConfigured?: boolean
   modelsReady?: number
   pendingApprovals?: number
+  whatsappPending?: number
 }
 
 /**
@@ -27,22 +30,26 @@ export function OpsHealthPanel() {
     setBusy(true)
     try {
       const h = await authHeaders()
-      const [cal, drive, integ, mac, providers, approvals] = await Promise.all([
-        fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
-          r.json()
-        ),
-        fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
-        fetch('/api/integrations/status').then((r) => r.json()),
-        fetch('/api/mac/status', { headers: h }).then((r) => r.json()),
-        fetch('/api/settings/providers').then((r) => r.json()),
-        fetch('/api/agent/approvals', { headers: h }).then((r) => r.json()),
-      ])
+      const [cal, drive, integ, mac, providers, approvals, waInbox] =
+        await Promise.all([
+          fetch('/api/google/calendar?action=status', { headers: h }).then(
+            (r) => r.json()
+          ),
+          fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
+          fetch('/api/integrations/status').then((r) => r.json()),
+          fetch('/api/mac/status', { headers: h }).then((r) => r.json()),
+          fetch('/api/settings/providers').then((r) => r.json()),
+          fetch('/api/agent/approvals', { headers: h }).then((r) => r.json()),
+          fetch('/api/whatsapp/inbox', { headers: h }).then((r) => r.json()),
+        ])
       setSnap({
         googleConnected: Boolean(cal?.connected),
         driveFiles: Number(drive?.count || 0),
         zoomConfigured: Boolean(integ?.zoomConfigured),
         telegramConfigured: Boolean(integ?.telegramConfigured),
+        telegramOwnerConfigured: Boolean(integ?.telegramOwnerConfigured),
         whatsappConfigured: Boolean(integ?.whatsappConfigured),
+        whatsappOwnerConfigured: Boolean(integ?.whatsappOwnerConfigured),
         macOnline: Boolean(mac?.online),
         macConfigured: Boolean(mac?.configured || integ?.macSyncConfigured),
         modelsReady: Number(providers?.serviceableCount || 0),
@@ -51,6 +58,7 @@ export function OpsHealthPanel() {
               (a: { status?: string }) => a.status === 'PENDING_APPROVAL'
             ).length
           : 0,
+        whatsappPending: Number(waInbox?.count || 0),
       })
     } catch {
       setSnap({})
@@ -91,9 +99,19 @@ export function OpsHealthPanel() {
           detail: snap.telegramConfigured ? 'مضبوط' : 'غير مضبوط',
         },
         {
+          label: 'Telegram مالك',
+          ok: Boolean(snap.telegramOwnerConfigured),
+          detail: snap.telegramOwnerConfigured ? 'مضبوط' : 'غير مضبوط',
+        },
+        {
           label: 'WhatsApp',
           ok: Boolean(snap.whatsappConfigured),
           detail: snap.whatsappConfigured ? 'مضبوط' : 'غير مضبوط',
+        },
+        {
+          label: 'WhatsApp مالك',
+          ok: Boolean(snap.whatsappOwnerConfigured),
+          detail: snap.whatsappOwnerConfigured ? 'مضبوط' : 'غير مضبوط',
         },
         {
           label: 'خزنة الماك',
@@ -108,6 +126,11 @@ export function OpsHealthPanel() {
           label: 'موافقات معلّقة',
           ok: (snap.pendingApprovals || 0) === 0,
           detail: String(snap.pendingApprovals || 0),
+        },
+        {
+          label: 'وارد واتساب معلّق',
+          ok: (snap.whatsappPending || 0) === 0,
+          detail: String(snap.whatsappPending || 0),
         },
       ]
     : []

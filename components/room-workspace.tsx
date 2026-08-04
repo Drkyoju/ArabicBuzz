@@ -589,6 +589,59 @@ export function RoomWorkspace({ className }: { className?: string }) {
       'Content-Type': 'application/json',
     })
 
+    // Owner resume for paused WhatsApp inbox: «رد واتساب: …»
+    const waCmd = prompt.match(
+      /^رد\s*(?:على\s+)?واتساب(?:\s*#([a-zA-Z0-9-]+))?\s*[:：]\s*([\s\S]+)$/u
+    )
+    if (waCmd) {
+      const threadId = waCmd[1]
+      const answerAr = waCmd[2].trim()
+      const humanId = `h-wa-${Date.now()}`
+      appendPost({
+        id: humanId,
+        scopeId: activeScopeId,
+        authorKind: 'human',
+        authorId: 'me',
+        authorNameAr: displayName,
+        content: prompt,
+        createdAt: Date.now(),
+      })
+      try {
+        const res = await fetch('/api/whatsapp/inbox', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            threadId: threadId || undefined,
+            answerAr,
+            scopeId: activeScopeId,
+          }),
+        })
+        const data = (await res.json()) as { error?: string; threadId?: string }
+        appendPost({
+          id: `sys-wa-${Date.now()}`,
+          scopeId: activeScopeId,
+          authorKind: 'system',
+          authorId: 'whatsapp-inbox',
+          authorNameAr: 'وارد واتساب',
+          content: res.ok
+            ? `تم استئناف طلب واتساب${data.threadId ? ` (#${data.threadId.slice(0, 8)})` : ''} وإبلاغ المرسل عند الاكتمال.`
+            : data.error || 'تعذّر استئناف طلب واتساب.',
+          createdAt: Date.now() + 1,
+        })
+      } catch (e) {
+        appendPost({
+          id: `sys-wa-${Date.now()}`,
+          scopeId: activeScopeId,
+          authorKind: 'system',
+          authorId: 'whatsapp-inbox',
+          authorNameAr: 'وارد واتساب',
+          content: e instanceof Error ? e.message : 'تعذّر استئناف طلب واتساب.',
+          createdAt: Date.now() + 1,
+        })
+      }
+      return
+    }
+
     // Note: JS \b does not work after Arabic tokens — match whitespace/end instead.
     const teamMention = prompt
       .trim()
@@ -1029,10 +1082,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   collabMode === 'team'
                     ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
                     : shared
-                      ? 'اكتب أو تكلم بالميك… جرّب @reports'
+                      ? 'اكتب أو تكلم بالميك… جرّب @reports · رد واتساب: …'
                       : activeScopeId === 'personal-research'
                         ? 'اكتب أو تكلم بالميك… جرّب @research'
-                        : 'اكتب أو تكلم بالميك… النص يظهر هنا للمراجعة'
+                        : 'اكتب أو تكلم بالميك… أو رد واتساب: … لطلب معلّق'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"

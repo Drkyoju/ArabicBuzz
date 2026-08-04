@@ -16,6 +16,7 @@ import {
   executeReadFile,
 } from '@/lib/agents/tools/document-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
+import { emitNotification } from '@/lib/notifications/emit'
 
 export type ToolExecutor = (
   toolName: string,
@@ -39,42 +40,53 @@ const stubResults: Record<string, (params: Record<string, unknown>) => unknown> 
     messageAr: 'استعلام قاعدة البيانات تجريبي.',
     rows: [],
   }),
-  write_file: (p) => ({
+  write_file: () => ({
     stub: true,
-    messageAr: 'كتابة الملف تجريبية — لم يُحفظ على القرص.',
-    written: true,
-    path: p.path,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة write_file غير مفعّلة في هذا الإصدار.',
   }),
-  send_message: (p) => ({
+  delete_file: () => ({
     stub: true,
-    messageAr:
-      'أرسل من الغرفة عبر أزرار تيليجرام/واتساب أو اضبط القنوات في Netlify.',
-    sent: true,
-    channel: p.channel || 'telegram',
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة delete_file غير مفعّلة في هذا الإصدار.',
   }),
-  delete_file: (p) => ({
+  db_update: () => ({
     stub: true,
-    messageAr: 'حذف الملف تجريبي.',
-    deleted: true,
-    path: p.path,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة db_update غير مفعّلة في هذا الإصدار.',
   }),
-  db_update: () => ({ stub: true, messageAr: 'تحديث DB تجريبي.', updated: true }),
-  db_insert: () => ({ stub: true, messageAr: 'إدراج DB تجريبي.', inserted: true }),
-  db_delete: () => ({ stub: true, messageAr: 'حذف DB تجريبي.', deleted: true }),
+  db_insert: () => ({
+    stub: true,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة db_insert غير مفعّلة في هذا الإصدار.',
+  }),
+  db_delete: () => ({
+    stub: true,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة db_delete غير مفعّلة في هذا الإصدار.',
+  }),
   delete_database: () => ({
     stub: true,
-    messageAr: 'حذف قاعدة البيانات تجريبي.',
-    deleted: true,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة delete_database غير مفعّلة في هذا الإصدار.',
   }),
   transfer_funds: () => ({
     stub: true,
-    messageAr: 'تحويل الأموال تجريبي — لم يُنفَّذ.',
-    transferred: true,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة transfer_funds غير مفعّلة في هذا الإصدار.',
   }),
   change_user_roles: () => ({
     stub: true,
-    messageAr: 'تغيير الأدوار تجريبي.',
-    changed: true,
+    ok: false,
+    unavailable: true,
+    messageAr: 'أداة change_user_roles غير مفعّلة في هذا الإصدار.',
   }),
   text_generate: (p) => ({ text: String(p.prompt || '') }),
 }
@@ -162,6 +174,28 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       maxFiles:
         typeof params.maxFiles === 'number' ? params.maxFiles : undefined,
     })
+  },
+  send_message: async (_n, params) => {
+    const channel = String(params.channel || 'telegram') as
+      | 'telegram'
+      | 'whatsapp'
+    if (channel !== 'telegram' && channel !== 'whatsapp') {
+      throw new Error('القناة غير مدعومة. استخدم telegram أو whatsapp.')
+    }
+    const textAr = String(params.textAr || params.messageAr || params.text || '').trim()
+    if (!textAr) {
+      throw new Error('يلزم textAr لإرسال الرسالة.')
+    }
+    const to = params.to ? String(params.to) : undefined
+    const sent = await emitNotification({ channel, textAr, to })
+    return {
+      ok: sent.ok,
+      channel,
+      to: to || null,
+      messageAr: sent.ok
+        ? 'تم إرسال الرسالة عبر القناة.'
+        : 'تعذّر الإرسال. تحقق من إعدادات القناة والمستلم.',
+    }
   },
 }
 

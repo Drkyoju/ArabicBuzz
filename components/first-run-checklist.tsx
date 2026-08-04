@@ -28,6 +28,7 @@ export function FirstRunChecklist({
   const [driveCount, setDriveCount] = useState(0)
   const [keysOk, setKeysOk] = useState(false)
   const [zoomOk, setZoomOk] = useState(false)
+  const [telegramOk, setTelegramOk] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export function FirstRunChecklist({
         setDriveCount(Number(drive?.count || 0))
         setKeysOk(Number(providers?.serviceableCount || 0) > 0)
         setZoomOk(Boolean(integ?.zoomConfigured))
+        setTelegramOk(Boolean(integ?.telegramConfigured))
       } catch {
         /* ignore */
       } finally {
@@ -100,8 +102,15 @@ export function FirstRunChecklist({
         action: () => onNavigate?.('settings'),
         actionLabelAr: 'تكاملات',
       },
+      {
+        id: 'telegram',
+        labelAr: 'قناة تيليجرام (اختياري)',
+        done: telegramOk,
+        action: () => onNavigate?.('settings'),
+        actionLabelAr: 'تكاملات',
+      },
     ],
-    [keysOk, googleOk, driveCount, chatted, zoomOk, onNavigate]
+    [keysOk, googleOk, driveCount, chatted, zoomOk, telegramOk, onNavigate]
   )
 
   const doneCount = steps.filter((s) => s.done).length

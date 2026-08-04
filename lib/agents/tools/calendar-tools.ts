@@ -11,6 +11,7 @@ import {
   scanEmailForMeetings,
   updateCalendarEvent,
 } from '@/lib/google/calendar'
+import { createZoomMeeting, isZoomCreateConfigured } from '@/lib/zoom/create-meeting'
 
 function userIdOf(params: Record<string, unknown>) {
   return String(params.userId || params._userId || '').trim()
@@ -125,6 +126,7 @@ export async function executeCalendarCreate(
     (params.zoomUrl ? String(params.zoomUrl) : undefined) ||
     extractConferenceUrl(String(params.description || '')) ||
     undefined
+  let conferenceUrl = conf
 
   const remindersRaw = params.reminderMinutes
   const reminderMinutes = Array.isArray(remindersRaw)
@@ -155,6 +157,29 @@ export async function executeCalendarCreate(
       ? String(params.email)
       : undefined
 
+  if (!conferenceUrl && isZoomCreateConfigured()) {
+    try {
+      const durationMinutes = Math.max(
+        15,
+        Math.round(
+          (Date.parse(endIso) - Date.parse(startIso)) / (60 * 1000)
+        ) || 60
+      )
+      const zoom = await createZoomMeeting({
+        topic: summary,
+        startIso,
+        durationMinutes,
+        agenda: params.description ? String(params.description) : undefined,
+      })
+      conferenceUrl = zoom.joinUrl
+    } catch (e) {
+      console.warn(
+        '[calendar-tools] zoom autolink failed',
+        e instanceof Error ? e.message : e
+      )
+    }
+  }
+
   const event = await createCalendarEvent(userId, {
     summary,
     description: params.description ? String(params.description) : undefined,
@@ -162,7 +187,7 @@ export async function executeCalendarCreate(
     startIso,
     endIso,
     timeZone: params.timeZone ? String(params.timeZone) : 'Asia/Riyadh',
-    conferenceUrl: conf,
+    conferenceUrl,
     attendeeEmails: Array.isArray(params.attendeeEmails)
       ? params.attendeeEmails.map(String).filter((e) => e.includes('@'))
       : Array.isArray(params.guestEmails)
@@ -175,7 +200,7 @@ export async function executeCalendarCreate(
     ok: true,
     event,
     conflictsIgnored: force ? conflicts : [],
-    messageAr: `أُضيف «${event.summary}» إلى تقويم ${event.accountEmail || 'Google'}${conf ? ' مع رابط الاجتماع' : ''}${
+    messageAr: `أُضيف «${event.summary}» إلى تقويم ${event.accountEmail || 'Google'}${conferenceUrl ? ' مع رابط الاجتماع' : ''}${
       force && conflicts.length
         ? ' (تم التجاهل رغم تعارض محتمل)'
         : ''

@@ -47,8 +47,8 @@ export async function POST(req: Request) {
         post: post.post,
         error:
           channel === 'telegram'
-            ? 'تعذّر الإرسال لتيليجرام — اضبط TELEGRAM_BOT_TOKEN و TELEGRAM_TEST_CHAT_ID.'
-            : 'تعذّر الإرسال لواتساب — اضبط WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_TEST_TO.',
+            ? 'تعذّر الإرسال لتيليجرام — اضبط TELEGRAM_BOT_TOKEN و TELEGRAM_OWNER_CHAT_ID (أو TELEGRAM_TEST_CHAT_ID).'
+            : 'تعذّر الإرسال لواتساب — اضبط WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_OWNER_TO (أو WHATSAPP_TEST_TO).',
       },
       { status: 502 }
     )

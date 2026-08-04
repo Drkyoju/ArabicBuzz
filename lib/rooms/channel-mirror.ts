@@ -25,9 +25,30 @@ export async function mirrorChannelTurnToRoom(opts: {
     scopeId: opts.scopeId,
     authorKind: 'agent',
     authorId: 'agent-channels',
-    authorNameAr: opts.agentNameAr || 'وكيل القنوات',
+    authorNameAr: opts.agentNameAr || 'رد الوكيل · القنوات',
     content: opts.agentReplyAr,
     channel: opts.channel,
+    externalId: opts.externalId,
+  })
+}
+
+/** Single labeled room note for WhatsApp inbox events. */
+export async function mirrorWhatsAppInboxNote(opts: {
+  scopeId: string
+  externalId: string
+  /** e.g. طلب من واتساب / سؤال لك / اكتمل */
+  labelAr: string
+  contentAr: string
+  authorKind?: 'channel' | 'agent' | 'system' | 'human'
+  authorId?: string
+}) {
+  await insertRoomPost({
+    scopeId: opts.scopeId,
+    authorKind: opts.authorKind || 'system',
+    authorId: opts.authorId || 'whatsapp-inbox',
+    authorNameAr: opts.labelAr,
+    content: opts.contentAr,
+    channel: 'whatsapp',
     externalId: opts.externalId,
   })
 }

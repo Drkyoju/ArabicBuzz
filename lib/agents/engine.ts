@@ -199,6 +199,24 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('query_db_readonly'),
         }),
     }),
+    send_message: tool({
+      description:
+        'إرسال رسالة نصية إلى تيليجرام أو واتساب. يدعم to اختياري (chat_id أو رقم E.164).',
+      inputSchema: z.object({
+        channel: z.enum(['telegram', 'whatsapp']).optional(),
+        textAr: z.string().min(1),
+        to: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'send_message',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('send_message'),
+        }),
+    }),
     search_knowledge_base: tool({
       description:
         'بحث هجين في قاعدة معرفة الشركة للنطاق الحالي (عقل الشركة).',
@@ -439,7 +457,7 @@ export async function runAgentEngine(
   const modelSlug =
     input.modelSlug ||
     process.env.DEFAULT_HARNESS_MODEL ||
-    'gemini-2.0-flash'
+    'gemini-2.5-pro'
 
   const native = getNativeAiTools({
     mode: input.mode,

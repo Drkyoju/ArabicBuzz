@@ -1,5 +1,6 @@
 import { Bot, InlineKeyboard, InputFile, webhookCallback } from 'grammy'
 import { resolveChannelScope } from '@/lib/channels/bindings'
+import { resolveChannelOwnerUserId } from '@/lib/channels/owner-context'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
 import { runAgentEngine } from '@/lib/agents/engine'
 import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
@@ -56,7 +57,7 @@ export function getTelegramBot() {
       // Dialect normalize (transcribe meaning) → Agent Engine
       const normalized = await normalizeArabicPrompt(rawText)
       const modelSlug =
-        process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash'
+        process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
 
       const engine = await runAgentEngine({
         prompt: normalized.normalizedPromptAr,
@@ -64,7 +65,7 @@ export function getTelegramBot() {
           'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية بإيجاز، واطلب الموافقة عند الإجراءات عالية المخاطر.',
         modelSlug,
         scopeId: scope.scope.id,
-        requesterId: userId,
+        requesterId: resolveChannelOwnerUserId(userId),
         includeMcpTools: true,
       })
 

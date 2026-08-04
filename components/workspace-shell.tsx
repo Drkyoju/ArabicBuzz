@@ -16,6 +16,7 @@ import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
+import { WhatsAppInboxPanel } from '@/components/whatsapp-inbox-panel'
 import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -70,6 +71,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
+  const [waPendingCount, setWaPendingCount] = useState(0)
 
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true)
@@ -107,6 +109,25 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     const t = setInterval(() => void loadApprovals(), 8000)
     return () => clearInterval(t)
   }, [loadApprovals])
+
+  const loadWaInbox = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/whatsapp/inbox?scopeId=${encodeURIComponent(activeScopeId)}`,
+        { headers: await authHeaders() }
+      )
+      const data = (await res.json()) as { count?: number }
+      if (res.ok) setWaPendingCount(Number(data.count || 0))
+    } catch {
+      /* ignore */
+    }
+  }, [activeScopeId])
+
+  useEffect(() => {
+    void loadWaInbox()
+    const t = setInterval(() => void loadWaInbox(), 10000)
+    return () => clearInterval(t)
+  }, [loadWaInbox])
 
   useEffect(() => {
     const onNav = (e: Event) => {
@@ -148,6 +169,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </button>
         )}
 
+        {waPendingCount > 0 && section === 'chats' && (
+          <WhatsAppInboxPanel compact />
+        )}
+
         {section === 'chats' && <RoomWorkspace />}
 
         {section === 'files' && <FilesPanel />}
@@ -173,6 +198,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'approvals' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+            <div className="mb-6">
+              <WhatsAppInboxPanel />
+            </div>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold">سجل الموافقات</h2>

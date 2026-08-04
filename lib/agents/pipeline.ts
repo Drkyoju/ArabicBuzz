@@ -37,7 +37,7 @@ export async function runAgentPipeline(input: {
 }): Promise<PipelineResult> {
   const normalized = await normalizeArabicPrompt(input.rawUserPrompt)
   const modelSlug =
-    input.modelSlug || process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.0-flash'
+    input.modelSlug || process.env.DEFAULT_HARNESS_MODEL || 'gemini-2.5-pro'
   const baseSystem =
     'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية مع الحفاظ على المصطلحات التقنية المحلية عند الحاجة.'
 
