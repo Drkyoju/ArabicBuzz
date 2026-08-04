@@ -115,6 +115,8 @@ export function searchMacBrain(opts: {
   queryAr: string
   scopeId: string
   limit?: number
+  /** Drive-only = gdrive: prefix (default for Gemini). */
+  source?: 'drive' | 'all'
 }): Array<{
   id: string
   titleAr: string
@@ -126,7 +128,12 @@ export function searchMacBrain(opts: {
 }> {
   const limit = opts.limit ?? 5
   const tokens = tokenize(opts.queryAr)
-  const chunks = listMacBrainChunks(opts.scopeId)
+  let chunks = listMacBrainChunks(opts.scopeId)
+  if ((opts.source ?? 'drive') === 'drive') {
+    chunks = chunks.filter((c) =>
+      Boolean(c.sourceFileId && c.sourceFileId.startsWith('gdrive:'))
+    )
+  }
   if (chunks.length === 0 || tokens.length === 0) return []
 
   const scored = chunks.map((c) => {

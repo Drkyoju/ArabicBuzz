@@ -21,12 +21,19 @@ export type RAGDocument = {
   }
 }
 
+/** Restrict Gemini / RAG to Google Drive uploads only (`gdrive:{fileId}`). */
+export type KnowledgeSourceFilter = 'drive' | 'all'
+
+export const DRIVE_SOURCE_PREFIX = 'gdrive:'
+
 type RankedHit = {
   id: string
   scope_id: string
   title_ar: string
   content: string
   rank: number
+  source_file_id: string | null
+  source_path: string | null
 }
 
 const RRF_K = 60
@@ -56,10 +63,18 @@ function rrfFuse(rankVector: number | null, rankBm25: number | null): number {
   return score
 }
 
+function sourceClause(source: KnowledgeSourceFilter): string {
+  if (source === 'drive') {
+    return `AND source_file_id IS NOT NULL AND source_file_id LIKE '${DRIVE_SOURCE_PREFIX}%'`
+  }
+  return ''
+}
+
 async function lexicalBm25Search(
   tsQuery: string,
   scopeId: string,
-  fetchLimit: number
+  fetchLimit: number,
+  source: KnowledgeSourceFilter
 ): Promise<RankedHit[]> {
   return prisma.$queryRawUnsafe<RankedHit[]>(
     `
@@ -68,12 +83,15 @@ async function lexicalBm25Search(
       scope_id::text AS scope_id,
       title_ar,
       content,
+      source_file_id,
+      source_path,
       ROW_NUMBER() OVER (
         ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
       )::int AS rank
     FROM knowledge_documents
     WHERE scope_id::text = $2
       AND tsv_content @@ to_tsquery('arabic', $1)
+      ${sourceClause(source)}
     ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
     LIMIT $3
     `,
@@ -86,7 +104,8 @@ async function lexicalBm25Search(
 async function vectorSimilaritySearch(
   embeddingLiteral: string,
   scopeId: string,
-  fetchLimit: number
+  fetchLimit: number,
+  source: KnowledgeSourceFilter
 ): Promise<RankedHit[]> {
   return prisma.$queryRawUnsafe<RankedHit[]>(
     `
@@ -95,11 +114,14 @@ async function vectorSimilaritySearch(
       scope_id::text AS scope_id,
       title_ar,
       content,
+      source_file_id,
+      source_path,
       ROW_NUMBER() OVER (
         ORDER BY embedding <=> $1::vector
       )::int AS rank
     FROM knowledge_documents
     WHERE scope_id::text = $2
+      ${sourceClause(source)}
     ORDER BY embedding <=> $1::vector
     LIMIT $3
     `,
@@ -114,14 +136,19 @@ async function vectorSimilaritySearch(
  * 1) Lexical BM25 via `to_tsquery('arabic', …)`
  * 2) Vector cosine distance (`<=>`) on 1024-d embeddings
  * 3) Reciprocal Rank Fusion: `1/(60+rank_vector) + 1/(60+rank_bm25)`
+ *
+ * Default source filter is Drive-only so Gemini trains/answers only from
+ * files synced from the user's Google Drive folder.
  */
 export async function hybridArabicSearch(
   queryText: string,
   scopeId: string,
-  limit = 5
+  limit = 5,
+  opts?: { source?: KnowledgeSourceFilter }
 ): Promise<RAGDocument[]> {
   const trimmed = queryText?.trim()
   if (!trimmed) return []
+  const source: KnowledgeSourceFilter = opts?.source ?? 'drive'
 
   return withPrismaFallback(async () => {
     const tsQuery = buildArabicTsQuery(trimmed)
@@ -131,12 +158,15 @@ export async function hybridArabicSearch(
     const embeddingLiteral = toPgVectorLiteral(queryEmbedding)
 
     const [bm25Hits, vectorHits] = await Promise.all([
-      lexicalBm25Search(tsQuery, scopeId, fetchLimit).catch(
+      lexicalBm25Search(tsQuery, scopeId, fetchLimit, source).catch(
         () => [] as RankedHit[]
       ),
-      vectorSimilaritySearch(embeddingLiteral, scopeId, fetchLimit).catch(
-        () => [] as RankedHit[]
-      ),
+      vectorSimilaritySearch(
+        embeddingLiteral,
+        scopeId,
+        fetchLimit,
+        source
+      ).catch(() => [] as RankedHit[]),
     ])
 
     const byId = new Map<
@@ -148,6 +178,8 @@ export async function hybridArabicSearch(
         content: string
         rankBm25: number | null
         rankVector: number | null
+        sourceFileId: string | null
+        sourcePath: string | null
       }
     >()
 
@@ -159,6 +191,8 @@ export async function hybridArabicSearch(
         content: hit.content,
         rankBm25: Number(hit.rank),
         rankVector: null,
+        sourceFileId: hit.source_file_id,
+        sourcePath: hit.source_path,
       })
     }
 
@@ -166,6 +200,8 @@ export async function hybridArabicSearch(
       const existing = byId.get(hit.id)
       if (existing) {
         existing.rankVector = Number(hit.rank)
+        if (!existing.sourceFileId) existing.sourceFileId = hit.source_file_id
+        if (!existing.sourcePath) existing.sourcePath = hit.source_path
       } else {
         byId.set(hit.id, {
           id: hit.id,
@@ -174,6 +210,8 @@ export async function hybridArabicSearch(
           content: hit.content,
           rankBm25: null,
           rankVector: Number(hit.rank),
+          sourceFileId: hit.source_file_id,
+          sourcePath: hit.source_path,
         })
       }
     }
@@ -193,6 +231,8 @@ export async function hybridArabicSearch(
             bm25Rank: doc.rankBm25,
             vectorRank: doc.rankVector,
             source: 'hybrid_rrf' as const,
+            sourceFileId: doc.sourceFileId,
+            sourcePath: doc.sourcePath,
           },
         }
       })

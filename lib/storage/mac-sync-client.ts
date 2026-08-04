@@ -87,11 +87,12 @@ export async function macBrainSearch(opts: {
   queryAr: string
   scopeId: string
   limit?: number
+  source?: 'drive' | 'all'
 }) {
   const res = await macFetch('/brain/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(opts),
+    body: JSON.stringify({ ...opts, source: opts.source ?? 'drive' }),
     timeoutMs: 20_000,
   })
   const data = (await res.json()) as {

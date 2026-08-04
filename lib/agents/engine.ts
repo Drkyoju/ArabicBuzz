@@ -329,7 +329,7 @@ export function getNativeAiTools(opts?: {
     }),
     search_knowledge_base: tool({
       description:
-        'بحث هجين في قاعدة معرفة الشركة للنطاق الحالي (عقل الشركة).',
+        'بحث في ملفات Google Drive المزامَنة فقط (عقل الشركة). لا يعيد نتائج من رفع محلي أو روابط.',
       inputSchema: z.object({
         queryAr: z.string().min(1).describe('استعلام البحث بالعربية'),
       }),
@@ -344,6 +344,7 @@ export function getNativeAiTools(opts?: {
             searchKnowledgeBase({
               queryAr: String(p.queryAr || ''),
               scopeId: String(p.scopeId || scopeId || 'shared-demo'),
+              source: 'drive',
             }),
         }),
     }),
@@ -938,7 +939,7 @@ export async function runAgentEngine(
         model: getHarnessModel(modelSlug),
         system:
           input.system ||
-          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. عند استخدام search_knowledge_base اذكر المصادر.',
+          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. search_knowledge_base يبحث فقط في ملفات Google Drive المزامَنة — اذكر المصادر.',
         prompt: input.prompt,
         tools,
         stopWhen: stepCountIs(input.maxSteps ?? 5),

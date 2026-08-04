@@ -275,11 +275,13 @@ const server = createServer(async (req, res) => {
         queryAr?: string
         scopeId?: string
         limit?: number
+        source?: 'drive' | 'all'
       }
       const documents = searchMacBrain({
         queryAr: String(body.queryAr || ''),
         scopeId: String(body.scopeId || 'shared-demo'),
         limit: body.limit,
+        source: body.source === 'all' ? 'all' : 'drive',
       })
       json(res, 200, { ok: true, count: documents.length, documents })
     } catch (e) {
