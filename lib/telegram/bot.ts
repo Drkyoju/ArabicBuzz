@@ -200,3 +200,10 @@ export function createTelegramWebhookHandler() {
     secretToken: process.env.TELEGRAM_WEBHOOK_SECRET,
   })
 }
+
+/** Process a Telegram update payload directly (used by async workflow dispatch). */
+export async function processTelegramUpdatePayload(payload: unknown) {
+  const instance = getTelegramBot()
+  const update = payload as Parameters<typeof instance.handleUpdate>[0]
+  await instance.handleUpdate(update)
+}

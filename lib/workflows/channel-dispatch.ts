@@ -4,7 +4,11 @@ export async function dispatchChannelWorkflow(opts: {
   kind: ChannelWorkflowKind
   payload: unknown
 }) {
-  const endpoint = process.env.TRIGGER_DEV_WEBHOOK_URL?.trim()
+  const endpoint =
+    process.env.TRIGGER_DEV_WEBHOOK_URL?.trim() ||
+    (process.env.NEXT_PUBLIC_APP_URL?.trim()
+      ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/api/workflows/dispatch`
+      : '')
   if (!endpoint) return { queued: false as const }
 
   const secret = process.env.TRIGGER_DEV_WEBHOOK_SECRET?.trim()
