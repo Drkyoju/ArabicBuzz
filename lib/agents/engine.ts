@@ -424,6 +424,109 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('drive_sync_brain'),
         }),
     }),
+    room_calendar_list: tool({
+      description:
+        'عرض تقويم الغرفة المشترك (لوحة الفريق) — ليس تقويم Google الشخصي. المصدر الرسمي لمواعيد الفريق.',
+      inputSchema: z.object({
+        from: z.string().optional(),
+        to: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_list',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_list'),
+        }),
+    }),
+    room_calendar_create: tool({
+      description:
+        'إضافة موعد إلى تقويم الغرفة المشترك (لكل الأعضاء). فضّله على calendar_create_event للعمل الجماعي الداخلي.',
+      inputSchema: z.object({
+        titleAr: z.string(),
+        startsAt: z.string().describe('ISO datetime'),
+        endsAt: z.string().describe('ISO datetime'),
+        descriptionAr: z.string().optional(),
+        locationAr: z.string().optional(),
+        attendees: z.array(z.string()).optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_create',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_create'),
+        }),
+    }),
+    room_calendar_ingest: tool({
+      description:
+        'دمج عدة مواعيد مقترحة من بريد موظفين مختلفين في تقويم الغرفة، مع تعديل التعارضات تلقائياً.',
+      inputSchema: z.object({
+        proposals: z.array(
+          z.object({
+            titleAr: z.string(),
+            startsAt: z.string(),
+            endsAt: z.string(),
+            fromEmail: z.string().optional(),
+            notesAr: z.string().optional(),
+          })
+        ),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_ingest',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_ingest'),
+        }),
+    }),
+    room_calendar_update: tool({
+      description: 'تعديل موعد موجود في تقويم الغرفة المشترك.',
+      inputSchema: z.object({
+        eventId: z.string(),
+        titleAr: z.string().optional(),
+        startsAt: z.string().optional(),
+        endsAt: z.string().optional(),
+        descriptionAr: z.string().optional(),
+        status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_update',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_update'),
+        }),
+    }),
+    room_calendar_cancel: tool({
+      description: 'إلغاء موعد من تقويم الغرفة المشترك.',
+      inputSchema: z.object({ eventId: z.string() }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_cancel',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_cancel'),
+        }),
+    }),
     browser_rpa: tool({
       description:
         'أتمتة متصفح خارجي (browser-use / Steel): تسجيل دخول، تعبئة نماذج، استخراج بيانات منظمة من مواقع.',

@@ -15,7 +15,11 @@ type Props = {
 
 const ACTION_LABELS_AR: Record<string, string> = {
   send_email: 'إرسال بريد',
-  create_calendar_event: 'إنشاء موعد',
+  create_calendar_event: 'إنشاء موعد Google',
+  room_calendar_create: 'إضافة لتقويم الغرفة',
+  room_calendar_ingest: 'دمج مواعيد الفريق',
+  room_calendar_update: 'تعديل موعد الغرفة',
+  room_calendar_cancel: 'إلغاء موعد الغرفة',
   delete_file: 'حذف ملف',
   write_file: 'كتابة ملف',
   transfer_funds: 'تحويل مالي',

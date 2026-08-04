@@ -87,7 +87,7 @@ const PRIMARY_NAV: Array<{
 }> = [
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
-  { id: 'calendar', labelAr: 'التقويم', icon: CalendarDays },
+  { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },

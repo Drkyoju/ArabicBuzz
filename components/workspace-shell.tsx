@@ -24,6 +24,7 @@ import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
 import { OrgRoleTemplates } from '@/components/org-role-templates'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
+import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { authHeaders } from '@/lib/supabase/browser'
 
@@ -229,17 +230,20 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'files' && <FilesPanel />}
 
         {section === 'calendar' && (
-          <section className="mx-auto max-w-3xl space-y-6 px-6 py-8" dir="rtl">
-            <div>
-              <h2 className="mb-1 text-xl font-bold">التقويم · Zoom</h2>
-              <p className="mb-4 text-sm text-stone-500">
-                ربط Google مرة واحدة، ثم حجز المواعيد وإرسال الدعوات (مع Zoom إن
-                وُجد).
-              </p>
-              <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+          <section className="mx-auto max-w-3xl space-y-8 px-6 py-8" dir="rtl">
+            <RoomCalendarBoard />
+            <details className="rounded-xl border border-ab-border bg-ab-surface">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ab-ink">
+                Google اختياري · دعوات خارجية و Zoom
+              </summary>
+              <div className="border-t border-ab-border p-4">
+                <p className="mb-3 text-xs text-stone-500">
+                  ربط Google لإرسال دعوات بريد خارج اللوحة المشتركة فقط. المصدر
+                  الرسمي للفريق هو «تقويم الغرفة» أعلاه.
+                </p>
                 <GoogleCalendarPanel hideTitle />
               </div>
-            </div>
+            </details>
             <MeetingCopilotPanel />
           </section>
         )}

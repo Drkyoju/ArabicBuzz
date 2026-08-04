@@ -9,6 +9,13 @@ import {
   executeCalendarUpdate,
 } from '@/lib/agents/tools/calendar-tools'
 import {
+  executeRoomCalendarCancel,
+  executeRoomCalendarCreate,
+  executeRoomCalendarIngest,
+  executeRoomCalendarList,
+  executeRoomCalendarUpdate,
+} from '@/lib/agents/tools/room-calendar-tools'
+import {
   executeEditDocument,
   executeListFiles,
   executeListWorkspaceFiles,
@@ -156,6 +163,11 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_scan_email: executeCalendarScanEmail,
   calendar_find_duplicates: executeCalendarFindDuplicates,
   calendar_find_alignment: executeCalendarFindAlignment,
+  room_calendar_list: executeRoomCalendarList,
+  room_calendar_create: executeRoomCalendarCreate,
+  room_calendar_update: executeRoomCalendarUpdate,
+  room_calendar_cancel: executeRoomCalendarCancel,
+  room_calendar_ingest: executeRoomCalendarIngest,
   drive_sync_brain: async (_n, params) => {
     const userId = String(params.userId || '')
     if (!userId || userId === 'local-owner') {
