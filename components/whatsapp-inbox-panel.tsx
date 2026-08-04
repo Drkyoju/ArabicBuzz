@@ -17,7 +17,14 @@ type InboxThread = {
 /**
  * Pending WhatsApp inbox threads awaiting owner reply.
  */
-export function WhatsAppInboxPanel({ compact }: { compact?: boolean }) {
+export function WhatsAppInboxPanel({
+  compact,
+  hideRefresh,
+}: {
+  compact?: boolean
+  /** When true, omit the refresh control (parent already refreshes). */
+  hideRefresh?: boolean
+}) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const [threads, setThreads] = useState<InboxThread[]>([])
   const [loading, setLoading] = useState(false)
@@ -108,13 +115,15 @@ export function WhatsAppInboxPanel({ compact }: { compact?: boolean }) {
           وارد واتساب معلّق
           {threads.length > 0 ? ` (${threads.length})` : ''}
         </p>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="text-[11px] text-amber-800 underline-offset-2 hover:underline"
-        >
-          تحديث
-        </button>
+        {!hideRefresh && (
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="text-[11px] text-amber-800 underline-offset-2 hover:underline"
+          >
+            تحديث
+          </button>
+        )}
       </div>
       {loading && threads.length === 0 && (
         <p className="text-xs text-stone-500">جاري التحميل…</p>

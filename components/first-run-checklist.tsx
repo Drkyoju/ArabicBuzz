@@ -30,6 +30,18 @@ export function FirstRunChecklist({
   const [zoomOk, setZoomOk] = useState(false)
   const [telegramOk, setTelegramOk] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [chatted, setChatted] = useState(false)
+
+  useEffect(() => {
+    try {
+      setChatted(Boolean(localStorage.getItem('ab-first-chat')))
+    } catch {
+      setChatted(false)
+    }
+    const onFirstChat = () => setChatted(true)
+    window.addEventListener('ab-first-chat', onFirstChat)
+    return () => window.removeEventListener('ab-first-chat', onFirstChat)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -60,10 +72,6 @@ export function FirstRunChecklist({
       cancelled = true
     }
   }, [])
-
-  const chatted =
-    typeof window !== 'undefined' &&
-    Boolean(localStorage.getItem('ab-first-chat'))
 
   const steps: Step[] = useMemo(
     () => [

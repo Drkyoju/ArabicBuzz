@@ -76,6 +76,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [answeringAgentId, setAnsweringAgentId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('أنت')
   const [outboundMsg, setOutboundMsg] = useState('')
+  const [outboundReady, setOutboundReady] = useState({
+    telegram: false,
+    whatsapp: false,
+  })
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(true)
@@ -114,6 +118,28 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     setShowMore(false)
   }, [activeScopeId])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/integrations/status')
+      .then((r) => r.json())
+      .then((data: {
+        telegramOutboundReady?: boolean
+        whatsappOutboundReady?: boolean
+      }) => {
+        if (cancelled) return
+        setOutboundReady({
+          telegram: Boolean(data.telegramOutboundReady),
+          whatsapp: Boolean(data.whatsappOutboundReady),
+        })
+      })
+      .catch(() => {
+        /* ignore */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -694,6 +720,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setAnsweringAgentId(null)
     try {
       localStorage.setItem('ab-first-chat', '1')
+      window.dispatchEvent(new Event('ab-first-chat'))
     } catch {
       /* ignore */
     }
@@ -925,22 +952,40 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   (TELEGRAM_TEST_CHAT_ID / WHATSAPP_TEST_TO) — لا يضيف أحداً
                   للغرفة.
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void sendOutbound('telegram')}
-                    className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                  >
-                    تيليجرام · تنبيه
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void sendOutbound('whatsapp')}
-                    className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                  >
-                    واتساب · تنبيه
-                  </button>
-                </div>
+                {!outboundReady.telegram && !outboundReady.whatsapp ? (
+                  <p className="text-[10px] text-stone-500">
+                    القنوات غير مضبوطة بعد — راجع الإعدادات ← التكاملات.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!outboundReady.telegram}
+                      onClick={() => void sendOutbound('telegram')}
+                      className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      title={
+                        outboundReady.telegram
+                          ? undefined
+                          : 'تيليجرام غير مضبوط'
+                      }
+                    >
+                      تيليجرام · تنبيه
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!outboundReady.whatsapp}
+                      onClick={() => void sendOutbound('whatsapp')}
+                      className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                      title={
+                        outboundReady.whatsapp
+                          ? undefined
+                          : 'واتساب غير مضبوط'
+                      }
+                    >
+                      واتساب · تنبيه
+                    </button>
+                  </div>
+                )}
                 {outboundMsg && (
                   <p className="mt-1.5 text-[10px] text-stone-500">
                     {outboundMsg}

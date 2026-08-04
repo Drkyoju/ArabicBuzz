@@ -116,6 +116,9 @@ export function ProviderKeysPanel({
   }
 
   async function remove(envName: string) {
+    if (!window.confirm('حذف هذا المفتاح المحفوظ؟ لن يعود متاحاً للنماذج.')) {
+      return
+    }
     setBusy(envName)
     setErr(null)
     setMsg(null)

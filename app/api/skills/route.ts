@@ -3,6 +3,7 @@ import { parseSkillFile } from '@/lib/skills/openclaw'
 import {
   loadAllSkillsMerged,
   persistSkill,
+  deletePersistedSkill,
   serializeOpenClawSkill,
 } from '@/lib/skills/persist'
 
@@ -63,6 +64,27 @@ export async function POST(req: NextRequest) {
       { skill, serialized: serializeOpenClawSkill(skill) },
       { status: 201 }
     )
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'error' },
+      { status: 400 }
+    )
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const id =
+      req.nextUrl.searchParams.get('id')?.trim() ||
+      String((await req.json().catch(() => ({}))).id || '').trim()
+    if (!id) {
+      return NextResponse.json({ error: 'معرّف المهارة مطلوب' }, { status: 400 })
+    }
+    const ok = await deletePersistedSkill(id)
+    if (!ok) {
+      return NextResponse.json({ error: 'معرّف غير صالح' }, { status: 400 })
+    }
+    return NextResponse.json({ ok: true, messageAr: 'تم حذف المهارة' })
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'error' },

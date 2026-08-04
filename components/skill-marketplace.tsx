@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Plus, Sparkles } from 'lucide-react'
+import { Plus, Sparkles, Trash2 } from 'lucide-react'
 import {
   KSA_SKILL_CATALOG,
   type KSASkillItem,
@@ -31,6 +31,7 @@ export function SkillMarketplace({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [installBusy, setInstallBusy] = useState<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null)
   const [mine, setMine] = useState<InstalledSkill[]>([])
   const [showCatalog, setShowCatalog] = useState(false)
 
@@ -114,12 +115,33 @@ export function SkillMarketplace({
       })
       const data = (await res.json()) as { error?: string }
       if (!res.ok) throw new Error(data.error || 'فشل التثبيت')
-      setMessage(`أُضيفت «${skill.nameAr}» — يمكنك تعديل الاسم لاحقاً بإضافة مهارة جديدة`)
+      setMessage(`أُضيفت «${skill.nameAr}»`)
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل التثبيت')
     } finally {
       setInstallBusy(null)
+    }
+  }
+
+  async function removeSkill(skill: InstalledSkill) {
+    if (!window.confirm(`حذف المهارة «${skill.name}»؟`)) return
+    setDeleteBusy(skill.id)
+    setMessage('')
+    setError('')
+    try {
+      const res = await fetch(
+        `/api/skills?id=${encodeURIComponent(skill.id)}`,
+        { method: 'DELETE' }
+      )
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل الحذف')
+      setMessage(data.messageAr || `حُذفت «${skill.name}»`)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل الحذف')
+    } finally {
+      setDeleteBusy(null)
     }
   }
 
@@ -201,13 +223,28 @@ export function SkillMarketplace({
             {mine.map((s) => (
               <li
                 key={s.id}
-                className="rounded-lg border border-ab-border bg-ab-surface px-3 py-2"
+                className="flex items-start justify-between gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2"
               >
-                <p className="text-sm font-semibold text-ab-ink">{s.name}</p>
-                <p className="text-xs text-stone-500">{s.description}</p>
-                <p className="mt-0.5 font-mono text-[10px] text-stone-400" dir="ltr">
-                  {s.id}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ab-ink">{s.name}</p>
+                  <p className="text-xs text-stone-500">{s.description}</p>
+                  <p
+                    className="mt-0.5 font-mono text-[10px] text-stone-400"
+                    dir="ltr"
+                  >
+                    {s.id}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={deleteBusy === s.id}
+                  onClick={() => void removeSkill(s)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700 disabled:opacity-40"
+                  aria-label={`حذف ${s.name}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  حذف
+                </button>
               </li>
             ))}
           </ul>

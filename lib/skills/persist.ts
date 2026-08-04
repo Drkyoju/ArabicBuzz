@@ -88,6 +88,20 @@ export async function loadPersistedSkills(): Promise<OpenClawSkill[]> {
   }))
 }
 
+export async function deletePersistedSkill(id: string): Promise<boolean> {
+  if (!id || id.includes('..') || id.includes('/')) return false
+  await ensureSkillsTable()
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `DELETE FROM workspace_skills WHERE id = $1`,
+        id
+      ),
+    0
+  )
+  return true
+}
+
 /** Merge filesystem + DB skills (DB wins on id conflict). */
 export async function loadAllSkillsMerged(): Promise<OpenClawSkill[]> {
   const map = new Map<string, OpenClawSkill>()

@@ -199,14 +199,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'approvals' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <div className="mb-6">
-              <WhatsAppInboxPanel />
-            </div>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">سجل الموافقات</h2>
+                <h2 className="text-xl font-bold">الموافقات والوارد</h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  الإجراءات عالية المخاطر لا تُنفَّذ حتى توافق أو ترفض هنا.
+                  وارد واتساب المعلّق وموافقات الإجراءات عالية المخاطر.
                 </p>
               </div>
               <button
@@ -214,9 +211,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 onClick={() => void loadApprovals()}
                 className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
               >
-                تحديث
+                تحديث الموافقات
               </button>
             </div>
+            <div className="mb-6">
+              <WhatsAppInboxPanel />
+            </div>
+            <h3 className="mb-3 text-base font-semibold text-ab-ink">
+              سجل الموافقات
+            </h3>
             {approvalsLoading && approvals.length === 0 && (
               <p className="text-sm text-stone-500">جاري التحميل…</p>
             )}

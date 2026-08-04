@@ -20,6 +20,17 @@ export async function GET() {
         process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
     ),
     whatsappOwnerConfigured: Boolean(process.env.WHATSAPP_OWNER_TO?.trim()),
+    telegramOutboundReady: Boolean(
+      process.env.TELEGRAM_BOT_TOKEN?.trim() &&
+        (telegramOwnerConfigured ||
+          Boolean(process.env.TELEGRAM_TEST_CHAT_ID?.trim()))
+    ),
+    whatsappOutboundReady: Boolean(
+      process.env.WHATSAPP_TOKEN?.trim() &&
+        process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() &&
+        (process.env.WHATSAPP_OWNER_TO?.trim() ||
+          process.env.WHATSAPP_TEST_TO?.trim())
+    ),
     macSyncConfigured: Boolean(process.env.MAC_SYNC_URL?.trim()),
     brainPrimaryMac:
       (process.env.BRAIN_PRIMARY || '').toLowerCase() === 'mac',

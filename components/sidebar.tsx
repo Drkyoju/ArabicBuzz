@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   MessageSquare,
   ShieldCheck,
@@ -81,6 +81,26 @@ function SidebarBody({
     [scopes]
   )
   const [menuId, setMenuId] = useState<string | null>(null)
+  const [createErr, setCreateErr] = useState('')
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!menuId) return
+    function onPointerDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuId(null)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuId(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuId])
 
   return (
     <div className="flex h-full flex-col" dir="rtl">
@@ -97,6 +117,7 @@ function SidebarBody({
         <button
           type="button"
           onClick={() => {
+            setCreateErr('')
             try {
               const id = createPersonalDesk()
               if (!id) throw new Error('empty')
@@ -104,6 +125,7 @@ function SidebarBody({
               onNavigate?.()
             } catch (e) {
               console.error('createPersonalDesk failed', e)
+              setCreateErr('تعذّر إنشاء الجلسة. أعد المحاولة.')
             }
           }}
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
@@ -111,6 +133,11 @@ function SidebarBody({
           <Plus className="h-3.5 w-3.5" aria-hidden />
           جلسة جديدة
         </button>
+        {createErr && (
+          <p className="mt-1.5 text-[10px] text-ab-warn" role="alert">
+            {createErr}
+          </p>
+        )}
       </div>
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
@@ -188,11 +215,15 @@ function SidebarBody({
                     e.stopPropagation()
                     setMenuId((v) => (v === scope.id ? null : scope.id))
                   }}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
                 </button>
                 {menuId === scope.id && (
-                  <div className="absolute left-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md">
+                  <div
+                    ref={menuRef}
+                    className="absolute left-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
+                  >
                     <button
                       type="button"
                       className="block w-full rounded px-2 py-1.5 text-right text-[11px] hover:bg-stone-50"

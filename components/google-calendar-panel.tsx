@@ -281,6 +281,17 @@ export function GoogleCalendarPanel({
   }
 
   async function bookSlot(startIso: string, endIso: string) {
+    const title = meetTitle.trim() || 'اجتماع الجمعية'
+    const guests = memberEmails.length
+    if (
+      !window.confirm(
+        guests > 0
+          ? `تأكيد حجز «${title}» وإرسال دعوات لـ ${guests} بريد؟`
+          : `تأكيد حجز «${title}» بدون مدعوين؟`
+      )
+    ) {
+      return
+    }
     setBusy(true)
     setNote('')
     try {
@@ -289,7 +300,7 @@ export function GoogleCalendarPanel({
         headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           action: 'create',
-          summary: meetTitle.trim() || 'اجتماع الجمعية',
+          summary: title,
           startIso,
           endIso,
           conferenceUrl: zoomUrl.trim() || undefined,
@@ -310,6 +321,22 @@ export function GoogleCalendarPanel({
     } finally {
       setBusy(false)
     }
+  }
+
+  function fillFromEmail(m: MeetingRow) {
+    setMeetTitle(m.subject || 'اجتماع من البريد')
+    if (m.zoomUrl) setZoomUrl(m.zoomUrl)
+    if (m.dateHint) {
+      const parsed = Date.parse(m.dateHint)
+      if (Number.isFinite(parsed)) {
+        const d = new Date(parsed)
+        const pad = (n: number) => String(n).padStart(2, '0')
+        setMeetStart(
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+        )
+      }
+    }
+    setNote('عُبئ النموذج من رسالة البريد — راجع الوقت ثم احجز.')
   }
 
   async function createManualMeeting() {
@@ -683,6 +710,13 @@ export function GoogleCalendarPanel({
                   {m.zoomUrl}
                 </p>
               )}
+              <button
+                type="button"
+                onClick={() => fillFromEmail(m)}
+                className="mt-2 rounded border border-ab-border px-2 py-0.5 text-[10px] text-ab-ink hover:bg-stone-50"
+              >
+                تعبئة نموذج الحجز
+              </button>
             </div>
           ))}
         </div>
