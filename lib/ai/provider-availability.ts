@@ -156,7 +156,7 @@ export async function validateProviderKey(
             messages: [{ role: 'user', content: 'ping' }],
             max_tokens: 1,
           }),
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(25000),
         })
         if (chat.ok) return { ok: true, detail: 'صالح (Coding Plan)' }
         let detail = `مرفوض (${chat.status})`
