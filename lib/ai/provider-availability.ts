@@ -142,40 +142,40 @@ export async function validateProviderKey(
       case 'GLM_API_KEY': {
         const base =
           process.env.GLM_BASE_URL || 'https://api.z.ai/api/paas/v4'
-        const res = await fetch(`${base.replace(/\/$/, '')}/models`, {
-          headers: { Authorization: `Bearer ${key}` },
-          signal: AbortSignal.timeout(8000),
+        const root = base.replace(/\/$/, '')
+        // /models alone can succeed while chat is blocked (code 1113 balance/package).
+        // Always probe a tiny completion so "صالح" means usable for replies.
+        const chat = await fetch(`${root}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.GLM_PROBE_MODEL || 'glm-4.5',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: AbortSignal.timeout(12000),
         })
-        if (res.ok || res.status === 404) {
-          return { ok: true, detail: res.ok ? 'صالح' : 'مقبول (لا قائمة نماذج)' }
-        }
-        // Some tenants return 401 on /models but chat works — try a tiny chat probe
-        if (res.status === 401 || res.status === 403) {
-          const chat = await fetch(
-            `${base.replace(/\/$/, '')}/chat/completions`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${key}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'glm-4.5',
-                messages: [{ role: 'user', content: 'ping' }],
-                max_tokens: 1,
-              }),
-              signal: AbortSignal.timeout(10000),
-            }
-          )
-          if (chat.ok || chat.status === 400) {
-            return { ok: true, detail: 'صالح (فحص دردشة)' }
+        if (chat.ok) return { ok: true, detail: 'صالح' }
+        let detail = `مرفوض (${chat.status})`
+        try {
+          const body = (await chat.json()) as {
+            error?: { code?: string | number; message?: string }
+            message?: string
           }
-          return { ok: false, detail: `مرفوض (${chat.status})` }
+          const code = body.error?.code
+          const msg = body.error?.message || body.message || ''
+          if (String(code) === '1113' || /balance|resource package|余额/i.test(msg)) {
+            detail = 'الرصيد/باقة API غير كافية للدردشة'
+          } else if (msg) {
+            detail = msg.slice(0, 80)
+          }
+        } catch {
+          /* ignore */
         }
-        return {
-          ok: false,
-          detail: `استجابة ${res.status}`,
-        }
+        return { ok: false, detail }
       }
       case 'PERPLEXITY_API_KEY': {
         if (key.startsWith('eyJ')) {
