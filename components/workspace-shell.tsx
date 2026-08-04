@@ -349,8 +349,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
                   <p className="font-semibold">معاينة موافقات HITL</p>
                   <p className="mt-1 text-xs">
-                    هذه طلبات تجريبية من جمعية النور — سجّل الدخول لاعتماد أو رفض
-                    إجراءات حقيقية.
+                    هذه طلبات تجريبية — سجّل الدخول لاعتماد أو رفض إجراءات
+                    حقيقية.
                   </p>
                   <button
                     type="button"
@@ -429,7 +429,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             {signedIn === false && (
               <div className="space-y-2 rounded-xl border border-ab-border bg-white p-4">
                 <p className="text-[11px] font-semibold text-ab-accent">
-                  معاينة جمعية النور — إدخالات تجريبية
+                  معاينة تجريبية — إدخالات سجل التدقيق
                 </p>
                 <ul className="divide-y divide-ab-border">
                   {buildGuestDemoDigest().auditEntries.map((a) => (
@@ -464,20 +464,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <SdaiaAuditViewer />
               </div>
             )}
-
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-              <p className="text-sm font-bold text-ab-ink">حزمة اعتماد سدايا</p>
-              <p className="mt-1 text-xs text-stone-600">
-                صدّر محضراً + حضوراً + فهرس ملفات كـ PDF مختوم من التقويم.
-              </p>
-              <button
-                type="button"
-                onClick={() => setSection('calendar')}
-                className="mt-3 rounded-md bg-emerald-800 px-3 py-2 text-xs font-semibold text-white"
-              >
-                فتح تصدير الحزمة
-              </button>
-            </div>
           </section>
         )}
 

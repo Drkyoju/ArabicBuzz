@@ -1,5 +1,5 @@
 /**
- * Seeded «جمعية النور الخيرية» guest demo — fills empty states so first paint
+ * Seeded guest demo digest — fills empty states so first paint
  * proves agents, HITL, and audit instead of a graveyard of empty cards.
  */
 
@@ -155,7 +155,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
 
   return {
     demo: true,
-    associationAr: 'جمعية النور الخيرية (معاينة)',
+    associationAr: 'معاينة تجريبية',
     days: {
       yesterday: yY,
       today: yT,
@@ -191,7 +191,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
       tomorrow: [
         {
           id: 'demo-tm1',
-          titleAr: 'ورشة اعتماد سدايا — تصدير الحزمة',
+          titleAr: 'ورشة إعداد التقارير الربعية',
           startsAtAr: `${yTom} · ${arTime(10)}`,
           endsAtAr: arTime(11),
           hasZoom: true,
@@ -215,7 +215,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
         },
         {
           id: 'demo-w2',
-          titleAr: 'ورشة اعتماد سدايا',
+          titleAr: 'ورشة إعداد التقارير الربعية',
           startsAtAr: `${yTom} · ${arTime(10)}`,
           endsAtAr: arTime(11),
           hasZoom: true,
@@ -255,9 +255,9 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
         {
           id: 'c4',
           kind: 'task',
-          titleAr: 'تصدير حزمة اعتماد سدايا',
+          titleAr: 'مراجعة مسودة محضر الاجتماع',
           whenAtAr: yTom,
-          detailAr: 'محضر + حضور + ختم',
+          detailAr: 'محضر + حضور',
         },
       ],
     },
@@ -326,14 +326,14 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
     people: [
       {
         nameAr: 'سارة',
-        email: 'sara@noor.example',
+        email: 'sara@demo.example',
         actions: 6,
         lastAction: 'عدّلت سياسة الموافقات',
         lastAtAr: arTime(8, 55),
       },
       {
         nameAr: 'فهد',
-        email: 'fahd@noor.example',
+        email: 'fahd@demo.example',
         actions: 3,
         lastAction: 'فتح غرفة الفريق',
         lastAtAr: arTime(8, 5),
@@ -356,7 +356,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
       items: [
         { id: 'tk1', titleAr: 'اعتماد مزامنة Drive', status: 'معلّق' },
         { id: 'tk2', titleAr: 'مراجعة مسودة الامتثال', status: 'قيد العمل' },
-        { id: 'tk3', titleAr: 'تجهيز حزمة سدايا', status: 'مفتوح' },
+        { id: 'tk3', titleAr: 'تجهيز ملخص قرارات المجلس', status: 'مفتوح' },
       ],
     },
     recentPosts: [
@@ -418,7 +418,7 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
         id: 'aud-3',
         atAr: `${yY} ${arTime(16, 45)}`,
         actorAr: 'سارة',
-        actionAr: 'اعتماد تصدير حزمة محضر',
+        actionAr: 'اعتماد رفع محضر الاجتماع',
         riskTier: 'TIER_2_MEDIUM',
         watermarkHint: 'sdaia·ab·demo·c4e1',
       },

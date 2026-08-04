@@ -1,15 +1,8 @@
 'use client'
 
-import { FileStack, ShieldCheck, CalendarDays, Users } from 'lucide-react'
+import { ShieldCheck, CalendarDays, Users } from 'lucide-react'
 
 const RECIPES = [
-  {
-    id: 'sdaia',
-    titleAr: 'حزمة اعتماد سدايا',
-    detailAr: 'محضر + حضور + ختم تدقيق في أقل من ١٠ دقائق.',
-    section: 'calendar',
-    icon: FileStack,
-  },
   {
     id: 'board',
     titleAr: 'تحضير اجتماع مجلس',
