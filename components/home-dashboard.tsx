@@ -1,20 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   Clock,
+  FileStack,
   History,
   Pencil,
   Radio,
   RefreshCw,
+  ShieldCheck,
   Users,
   Video,
   ListTodo,
+  Fingerprint,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -135,6 +139,7 @@ function DayBlock({
   )
 }
 
+
 /**
  * لوحة اليوم — نظرة سريعة على ما حدث وماذا سيحدث.
  */
@@ -145,9 +150,10 @@ export function HomeDashboard({
 }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
-  const [data, setData] = useState<Digest | null>(null)
+  const [liveData, setLiveData] = useState<Digest | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const demo = useMemo(() => buildGuestDemoDigest(), [])
 
   const load = useCallback(async () => {
     setBusy(true)
@@ -163,15 +169,14 @@ export function HomeDashboard({
       }
       if (!res.ok) {
         if (res.status === 401 || json.code === 'AUTH_REQUIRED') {
-          setData(null)
+          setLiveData(null)
           setErr('')
           return
         }
         throw new Error(json.error || 'فشل التحميل')
       }
-      setData(json)
+      setLiveData(json)
 
-      // Soft presence heartbeat for history (at most once / 10 min per browser)
       try {
         const key = `ab-home-ping-${scopeId}`
         const last = Number(localStorage.getItem(key) || 0)
@@ -213,9 +218,25 @@ export function HomeDashboard({
     return () => window.clearInterval(t)
   }, [load])
 
-  const cal = data?.calendar
-  const zoom = data?.zoom
+  // Guests always see seeded «جمعية النور» so first paint proves value.
+  const useDemo = signedIn === false
+  const viewData: Digest | DemoDigest = useDemo
+    ? demo
+    : liveData || {
+        calendar: {
+          yesterday: [],
+          today: [],
+          tomorrow: [],
+          dayAfter: [],
+          week: [],
+        },
+      }
+  const isGuestDemo = useDemo
+  const cal = viewData.calendar
+  const zoom = viewData.zoom
   const isGuest = signedIn === false
+  const demoTyped = isGuestDemo ? demo : null
+
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6" dir="rtl">
@@ -226,17 +247,33 @@ export function HomeDashboard({
             ماذا حدث أمس · ماذا يحدث اليوم · ماذا غداً وبعده — مع Zoom وآخر
             التعديلات والحضور.
           </p>
+          {isGuestDemo && (
+            <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-ab-accent/10 px-2 py-0.5 text-[11px] font-medium text-ab-accent">
+              معاينة جمعية النور الخيرية — بيانات تجريبية حية
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-700 disabled:opacity-40"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
-            تحديث
-          </button>
+          {!isGuest && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void load()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-700 disabled:opacity-40"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
+              تحديث
+            </button>
+          )}
+          {isGuest && (
+            <button
+              type="button"
+              onClick={() => onNavigate?.('settings')}
+              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              سجّل الدخول
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
@@ -254,15 +291,74 @@ export function HomeDashboard({
         </div>
       </header>
 
+      {/* SDAIA hero workflow */}
+      <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-bl from-emerald-50 via-white to-ab-accent/5 px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <FileStack className="h-4 w-4 text-emerald-700" />
+              تصدير حزمة اعتماد سدايا
+            </p>
+            <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-stone-600">
+              محضر + حضور + فهرس ملفات — PDF واحد بختم تدقيق. المسار الأقصر
+              لمدير جمعية يريد دليلاً قابلاً للمراجعة.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('calendar')}
+              className="rounded-md bg-emerald-800 px-3 py-2 text-xs font-semibold text-white"
+            >
+              ابدأ التصدير
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('audit')}
+              className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
+            >
+              <Fingerprint className="h-3.5 w-3.5" />
+              كيف يُدقَّق؟
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Pending approvals strip */}
+      {(demoTyped?.pendingApprovals?.length || 0) > 0 && (
+        <button
+          type="button"
+          onClick={() => onNavigate?.('approvals')}
+          className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-right transition-colors hover:bg-amber-100/80"
+        >
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" />
+            <div>
+              <p className="text-sm font-bold text-amber-950">
+                {demoTyped!.pendingApprovals.length} موافقة معلّقة
+              </p>
+              <p className="text-[11px] text-amber-900/80">
+                {demoTyped!.pendingApprovals
+                  .map((a) => `${a.agentAr}: ${a.messageAr}`)
+                  .join(' · ')}
+              </p>
+            </div>
+          </div>
+          <span className="rounded-md bg-amber-900 px-2.5 py-1 text-[10px] font-semibold text-white">
+            مراجعة HITL
+          </span>
+        </button>
+      )}
+
       {isGuest && (
         <div className="rounded-xl border border-ab-accent/25 bg-gradient-to-bl from-ab-accent/5 via-white to-emerald-50/50 px-4 py-5">
           <p className="text-base font-semibold text-ab-ink">
             مرحباً بك في Arabic Buzz
           </p>
           <p className="mt-1.5 max-w-xl text-sm text-stone-600">
-            منصة غرف ووكلاء للجمعيات: تقويم مشترك، ملفات ومعرفة، موافقات بشرية،
-            ومحاضر باعتماد سدايا. سجّل الدخول لحفظ الجلسة عبر الأجهزة وربط
-            تيليجرام وDrive.
+            نظام تشغيل للجمعيات السعودية: غرف بشر ووكلاء، موافقات بشرية، سجل
+            سدايا، وتقويم على الجوال. المعاينة أدناه تُظهر جمعية تعمل الآن —
+            سجّل الدخول لحفظ جلستك وربط تيليجرام وDrive.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -281,12 +377,35 @@ export function HomeDashboard({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate?.('calendar')}
+              onClick={() => onNavigate?.('audit')}
               className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
             >
-              أضف موعداً نظامياً
+              سجل التدقيق
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Live agent activity */}
+      {demoTyped?.agentActivity && demoTyped.agentActivity.length > 0 && (
+        <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
+          <p className="mb-2 text-[11px] font-semibold text-stone-500">
+            نشاط الوكلاء الآن
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {demoTyped.agentActivity.map((a) => (
+              <li
+                key={a.agentAr}
+                className="rounded-lg border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-1.5 text-[12px]"
+              >
+                <span className="font-semibold text-ab-ink">{a.agentAr}</span>
+                <span className="text-ab-accent"> · {a.statusAr}</span>
+                <span className="block text-[10px] text-stone-500">
+                  {a.detailAr}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -296,15 +415,8 @@ export function HomeDashboard({
         </p>
       )}
 
-      {busy && !data && !isGuest && (
+      {busy && !liveData && !isGuest && !isGuestDemo && (
         <p className="text-sm text-stone-500">جاري تحميل لوحة اليوم…</p>
-      )}
-
-      {isGuest && !data && !busy && (
-        <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-5 text-center text-sm text-stone-500">
-          لا بيانات شخصية بعد كزائر — سجّل الدخول لرؤية مواعيد غرفتك والتزاماتها،
-          أو افتح الغرف للتجربة الآن.
-        </p>
       )}
 
       {/* Zoom strip */}
@@ -331,7 +443,11 @@ export function HomeDashboard({
             </p>
             <p className="text-[11px] text-stone-500">
               {zoom?.liveNow
-                ? zoom.liveMeetings?.[0]?.topic || zoom.messageAr
+                ? ('liveMeetings' in (zoom || {}) &&
+                  Array.isArray((zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings) &&
+                  (zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings?.[0]
+                    ?.topic) ||
+                  zoom.messageAr
                 : zoom?.lastLiveAtAr
                   ? `آخر بث: ${zoom.lastLiveAtAr}`
                   : zoom?.messageAr || 'لا سجل بث بعد'}
@@ -346,7 +462,6 @@ export function HomeDashboard({
         )}
       </div>
 
-      {/* Day grid */}
       <div>
         <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
           <CalendarDays className="h-4 w-4 text-ab-accent" />
@@ -355,44 +470,43 @@ export function HomeDashboard({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <DayBlock
             title="أمس"
-            subtitle={data?.days?.yesterday}
+            subtitle={viewData.days?.yesterday}
             events={cal?.yesterday || []}
           />
           <DayBlock
             title="اليوم"
-            subtitle={data?.days?.today}
+            subtitle={viewData.days?.today}
             events={cal?.today || []}
             accent="ring-1 ring-ab-accent/30"
           />
           <DayBlock
             title="غداً"
-            subtitle={data?.days?.tomorrow}
+            subtitle={viewData.days?.tomorrow}
             events={cal?.tomorrow || []}
           />
           <DayBlock
             title="بعد غد"
-            subtitle={data?.days?.dayAfter}
+            subtitle={viewData.days?.dayAfter}
             events={cal?.dayAfter || []}
           />
         </div>
       </div>
 
-      {/* Commitments this week */}
       <div className="rounded-xl border border-ab-border bg-white p-4">
         <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
           <ListTodo className="h-4 w-4 text-ab-accent" />
           التزامات هذا الأسبوع
         </h2>
         <p className="mb-3 text-[11px] text-stone-500">
-          من المهام + المواعيد + مواعيد النظام ({data?.commitments?.count || 0})
+          من المهام + المواعيد + مواعيد النظام ({viewData.commitments?.count || 0})
         </p>
-        {(data?.commitments?.items || []).length === 0 ? (
+        {(viewData.commitments?.items || []).length === 0 ? (
           <p className="text-xs text-stone-400">
             لا التزامات ظاهرة — أضف مهاماً أو مواعيد نظام من التقويم.
           </p>
         ) : (
           <ul className="divide-y divide-ab-border">
-            {(data?.commitments?.items || []).map((c) => (
+            {(viewData.commitments?.items || []).map((c) => (
               <li
                 key={c.id}
                 className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
@@ -415,13 +529,13 @@ export function HomeDashboard({
             ))}
           </ul>
         )}
-        {(data?.systemDeadlines || []).length > 0 && (
+        {(viewData.systemDeadlines || []).length > 0 && (
           <div className="mt-3 border-t border-ab-border pt-3">
             <p className="mb-1 text-[11px] font-semibold text-stone-600">
               مواعيد النظام القادمة
             </p>
             <ul className="space-y-1 text-xs">
-              {(data?.systemDeadlines || []).map((d) => (
+              {(viewData.systemDeadlines || []).map((d) => (
                 <li key={d.id} className="flex justify-between gap-2">
                   <span>{d.labelAr}</span>
                   <span className="text-stone-500">
@@ -436,7 +550,6 @@ export function HomeDashboard({
         )}
       </div>
 
-      {/* Week */}
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
         <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
           <Clock className="h-4 w-4 text-ab-accent" />
@@ -462,20 +575,59 @@ export function HomeDashboard({
         )}
       </div>
 
+      {/* Mini audit preview */}
+      {demoTyped?.auditEntries && (
+        <div className="rounded-xl border border-ab-border bg-white p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <Fingerprint className="h-4 w-4 text-ab-accent" />
+              سجل التدقيق (سدايا)
+            </h2>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('audit')}
+              className="text-[11px] text-ab-accent underline"
+            >
+              العرض الكامل
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {demoTyped.auditEntries.slice(0, 4).map((a) => (
+              <li
+                key={a.id}
+                className="rounded-lg border border-ab-border/70 px-2.5 py-2 text-[12px]"
+              >
+                <p className="font-semibold text-ab-ink">
+                  {a.actorAr}
+                  <span className="mr-1 font-normal text-stone-500">
+                    · {a.actionAr}
+                  </span>
+                </p>
+                <p className="mt-0.5 text-[10px] text-stone-400">
+                  {a.atAr} · {a.riskTier}
+                  <span className="mr-1 font-mono" dir="ltr">
+                    · {a.watermarkHint}
+                  </span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* People history */}
         <div className="rounded-xl border border-ab-border bg-white p-4">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
             <Users className="h-4 w-4 text-ab-accent" />
             من كانوا هنا وماذا عملوا
           </h2>
-          {(data?.people || []).length === 0 ? (
+          {(viewData.people || []).length === 0 ? (
             <p className="text-xs text-stone-400">
               سيظهر هنا من فتح الغرفة أو عدّل أو أرسل رسالة.
             </p>
           ) : (
             <ul className="space-y-2">
-              {(data?.people || []).map((p) => (
+              {(viewData.people || []).map((p) => (
                 <li
                   key={`${p.nameAr}-${p.email || ''}`}
                   className="rounded-lg border border-ab-border/70 px-2.5 py-2"
@@ -483,7 +635,10 @@ export function HomeDashboard({
                   <p className="text-[13px] font-semibold text-ab-ink">
                     {p.nameAr}
                     {p.email ? (
-                      <span className="mr-1 text-[10px] font-normal text-stone-400" dir="ltr">
+                      <span
+                        className="mr-1 text-[10px] font-normal text-stone-400"
+                        dir="ltr"
+                      >
                         {p.email}
                       </span>
                     ) : null}
@@ -497,17 +652,16 @@ export function HomeDashboard({
           )}
         </div>
 
-        {/* Edits */}
         <div className="rounded-xl border border-ab-border bg-white p-4">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
             <Pencil className="h-4 w-4 text-ab-accent" />
             آخر التعديلات
           </h2>
-          {(data?.activity || []).length === 0 ? (
+          {(viewData.activity || []).length === 0 ? (
             <p className="text-xs text-stone-400">لا تعديلات مسجّلة بعد.</p>
           ) : (
             <ul className="max-h-72 space-y-2 overflow-auto">
-              {(data?.activity || []).slice(0, 15).map((a) => (
+              {(viewData.activity || []).slice(0, 15).map((a) => (
                 <li key={a.id} className="text-[12px] leading-snug text-stone-600">
                   <span className="font-semibold text-ab-ink">{a.actorAr}</span>
                   {' · '}
@@ -527,11 +681,11 @@ export function HomeDashboard({
             <History className="h-4 w-4 text-ab-accent" />
             آخر الرسائل
           </h2>
-          {(data?.recentPosts || []).length === 0 ? (
+          {(viewData.recentPosts || []).length === 0 ? (
             <p className="text-xs text-stone-400">لا رسائل حديثة.</p>
           ) : (
             <ul className="space-y-2">
-              {(data?.recentPosts || []).map((p, i) => (
+              {(viewData.recentPosts || []).map((p, i) => (
                 <li key={`${p.atAr}-${i}`} className="text-[12px] text-stone-600">
                   <span className="font-semibold text-ab-ink">{p.authorAr}</span>
                   {' · '}
@@ -546,13 +700,13 @@ export function HomeDashboard({
         <div className="rounded-xl border border-ab-border bg-white p-4">
           <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
             <ListTodo className="h-4 w-4 text-ab-accent" />
-            مهام مفتوحة ({data?.tasks?.openCount || 0})
+            مهام مفتوحة ({viewData.tasks?.openCount || 0})
           </h2>
-          {(data?.tasks?.items || []).length === 0 ? (
+          {(viewData.tasks?.items || []).length === 0 ? (
             <p className="text-xs text-stone-400">لا مهام مفتوحة.</p>
           ) : (
             <ul className="space-y-1.5">
-              {(data?.tasks?.items || []).map((t) => (
+              {(viewData.tasks?.items || []).map((t) => (
                 <li key={t.id} className="text-[12px] text-ab-ink">
                   · {t.titleAr}
                   <span className="mr-1 text-[10px] text-stone-400">

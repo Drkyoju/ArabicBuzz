@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Plus, Trash2, Users, X } from 'lucide-react'
+import { Bot, Plus, Trash2, X } from 'lucide-react'
 import {
   AGENT_MODEL_PRESETS,
   BUILTIN_ROOM_AGENTS,
@@ -32,7 +32,6 @@ export function AgentsManagePanel({
   const collabMode = useAgentRosterStore(
     (s) => s.collabModeByScope[scopeId] || 'solo'
   )
-  const setCollabMode = useAgentRosterStore((s) => s.setCollabMode)
   const cloudSyncedAt = useAgentRosterStore((s) => s.cloudSyncedAt)
 
   const [open, setOpen] = useState(false)
@@ -131,33 +130,6 @@ export function AgentsManagePanel({
           <Plus className="h-3 w-3" />
           إدارة الوكلاء
         </button>
-        <div className="inline-flex rounded-md border border-ab-border bg-white p-0.5 text-[10px]">
-          <button
-            type="button"
-            onClick={() => setCollabMode(scopeId, 'solo')}
-            className={cn(
-              'rounded px-2 py-0.5',
-              collabMode === 'solo'
-                ? 'bg-ab-ink text-white'
-                : 'text-stone-600 hover:bg-stone-50'
-            )}
-          >
-            منفصل
-          </button>
-          <button
-            type="button"
-            onClick={() => setCollabMode(scopeId, 'team')}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-0.5',
-              collabMode === 'team'
-                ? 'bg-ab-accent text-white'
-                : 'text-stone-600 hover:bg-stone-50'
-            )}
-          >
-            <Users className="h-3 w-3" />
-            تعاون
-          </button>
-        </div>
       </div>
 
       {open && (

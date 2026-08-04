@@ -38,7 +38,7 @@ export type HarnessModelMeta = {
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
     slug: 'gemini-3.1-pro',
-    labelAr: 'تحليل معمق',
+    labelAr: 'أعلى دقة',
     labelEn: 'Gemini 3.1 Pro',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
@@ -46,7 +46,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'gemini-2.5-flash',
-    labelAr: 'سريع',
+    labelAr: 'استجابة سريعة',
     labelEn: 'Gemini 2.5 Flash',
     provider: 'google',
     requiresKey: 'GEMINI_API_KEY',
@@ -54,7 +54,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-5',
-    labelAr: 'تحليل معمق · GLM',
+    labelAr: 'أعلى دقة · بديل',
     labelEn: 'Zhipu GLM-5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
@@ -62,7 +62,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-4.5',
-    labelAr: 'متوازن · GLM',
+    labelAr: 'متوازن · تكلفة',
     labelEn: 'Zhipu GLM-4.5',
     provider: 'glm',
     requiresKey: 'GLM_API_KEY',
@@ -70,7 +70,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-opus-4-8',
-    labelAr: 'تحليل معمق · Opus (AgentRouter)',
+    labelAr: 'أعلى دقة · تحليل',
     labelEn: 'Claude Opus 4.8',
     provider: 'agentrouter',
     requiresKey: 'AGENTROUTER_API_KEY',
@@ -78,7 +78,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'gpt-5.6-sol',
-    labelAr: 'متوازن · GPT (AgentRouter)',
+    labelAr: 'متوازن · عام',
     labelEn: 'GPT-5.6 Sol',
     provider: 'agentrouter',
     requiresKey: 'AGENTROUTER_API_KEY',
@@ -86,7 +86,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o',
-    labelAr: 'تحليل معمق · OpenAI',
+    labelAr: 'أعلى دقة · OpenAI',
     labelEn: 'GPT-4o',
     provider: 'openai',
     requiresKey: 'OPENAI_API_KEY',
@@ -94,7 +94,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o-mini',
-    labelAr: 'سريع · OpenAI',
+    labelAr: 'استجابة سريعة · OpenAI',
     labelEn: 'GPT-4o Mini',
     provider: 'openai',
     requiresKey: 'OPENAI_API_KEY',
@@ -102,7 +102,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-3.5-sonnet',
-    labelAr: 'تحليل معمق · Claude',
+    labelAr: 'أعلى دقة · Claude',
     labelEn: 'Claude 3.5 Sonnet',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -110,7 +110,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-sonnet-4',
-    labelAr: 'تحليل معمق · Claude 4',
+    labelAr: 'أعلى دقة · Claude 4',
     labelEn: 'Claude Sonnet 4',
     provider: 'openrouter',
     requiresKey: 'OPENROUTER_API_KEY',
@@ -174,7 +174,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'ollama-local',
-    labelAr: 'محلي · Ollama',
+    labelAr: 'خصوصية عالية — محلي',
     labelEn: 'Ollama Local',
     provider: 'ollama',
     requiresKey: 'OLLAMA_BASE_URL',

@@ -31,7 +31,7 @@ import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { cn } from '@/lib/utils'
 
-function GuestChip() {
+function GuestChip({ onLogin }: { onLogin?: () => void }) {
   const signedIn = useSignedIn()
   if (signedIn === null) return null
   if (signedIn) {
@@ -44,12 +44,13 @@ function GuestChip() {
   return (
     <button
       type="button"
-      onClick={() =>
+      onClick={() => {
+        onLogin?.()
         window.dispatchEvent(new CustomEvent('ab-nav', { detail: 'settings' }))
-      }
-      className="w-full rounded-md bg-amber-50 px-2 py-1 text-right text-[10px] font-medium text-amber-900 hover:bg-amber-100"
+      }}
+      className="w-full rounded-md bg-ab-accent px-2 py-2 text-right text-[11px] font-semibold text-white hover:opacity-95"
     >
-      وضع الزائر — سجّل الدخول من الإعدادات
+      سجّل الدخول — احفظ غرفك وموافقاتك
     </button>
   )
 }
@@ -61,6 +62,7 @@ export type SidebarSection =
   | 'memory'
   | 'calendar'
   | 'approvals'
+  | 'audit'
   | 'skills'
   | 'api-keys'
   | 'ops'
@@ -76,6 +78,7 @@ const PRIMARY_NAV: Array<{
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
+  { id: 'audit', labelAr: 'سجل التدقيق', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
@@ -95,11 +98,13 @@ function SidebarBody({
   activeSection,
   onSectionChange,
   onNavigate,
+  pendingApprovals = 0,
 }: {
   airGapped?: boolean
   activeSection: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
   onNavigate?: () => void
+  pendingApprovals?: number
 }) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
@@ -192,39 +197,47 @@ function SidebarBody({
         </div>
 
         <div className="mt-2.5">
-          <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
-            <button
-              type="button"
-              onClick={() => setMode('employee')}
-              className={cn(
-                'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                mode === 'employee'
-                  ? 'bg-ab-accent/15 font-semibold text-ab-accent'
-                  : 'text-stone-500'
-              )}
-            >
-              موظف
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('admin')}
-              className={cn(
-                'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                mode === 'admin'
-                  ? 'bg-ab-ink font-semibold text-white'
-                  : 'text-stone-500'
-              )}
-            >
-              مسؤول
-            </button>
-          </div>
-          <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
-            {mode === 'employee'
-              ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
-              : airGapped
-                ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-                : 'واجهة مسؤول · كل الأدوات'}
-          </p>
+          {signedIn ? (
+            <>
+              <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMode('employee')}
+                  className={cn(
+                    'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                    mode === 'employee'
+                      ? 'bg-ab-accent/15 font-semibold text-ab-accent'
+                      : 'text-stone-500'
+                  )}
+                >
+                  موظف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('admin')}
+                  className={cn(
+                    'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                    mode === 'admin'
+                      ? 'bg-ab-ink font-semibold text-white'
+                      : 'text-stone-500'
+                  )}
+                >
+                  مسؤول
+                </button>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
+                {mode === 'employee'
+                  ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
+                  : airGapped
+                    ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
+                    : 'واجهة مسؤول · كل الأدوات'}
+              </p>
+            </>
+          ) : (
+            <p className="rounded-md border border-dashed border-ab-border bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-600">
+              معاينة زائر — تبديل موظف/مسؤول بعد تسجيل الدخول.
+            </p>
+          )}
         </div>
 
         <button
@@ -257,6 +270,10 @@ function SidebarBody({
         <ul className="space-y-0.5">
           {primaryNav.map(({ id, labelAr, icon: Icon }) => {
             const active = activeSection === id
+            const badge =
+              id === 'approvals' && pendingApprovals > 0
+                ? pendingApprovals
+                : 0
             return (
               <li key={id}>
                 <button
@@ -273,7 +290,12 @@ function SidebarBody({
                   )}
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                  <span>{labelAr}</span>
+                  <span className="flex-1 text-right">{labelAr}</span>
+                  {badge > 0 && (
+                    <span className="rounded-full bg-ab-warn px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {badge}
+                    </span>
+                  )}
                 </button>
               </li>
             )
@@ -321,9 +343,20 @@ function SidebarBody({
       </nav>
 
       <div className="flex-1 overflow-y-auto p-2">
+        <div className="mb-2 rounded-lg border border-ab-border/80 bg-stone-50 px-2.5 py-2">
+          <p className="text-[10px] font-semibold text-stone-500">
+            نطاق العمل (مثل QM)
+          </p>
+          <p className="mt-1 text-[10px] leading-relaxed text-stone-600">
+            <strong className="text-ab-ink">مساحاتي</strong> = مكتب شخصي
+            (ذاكرة وملفات معزولة).{' '}
+            <strong className="text-ab-ink">مشتركة</strong> = غرفة فريق بوكلاء
+            وصلاحيات مشتركة.
+          </p>
+        </div>
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
           <User className="h-3 w-3" aria-hidden />
-          مساحاتي
+          مساحاتي · معزولة
         </p>
         <ul className="mb-3 space-y-0.5">
           {personal.map((scope) => {
@@ -403,7 +436,7 @@ function SidebarBody({
 
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
           <Users className="h-3 w-3" aria-hidden />
-          مساحات مشتركة
+          مساحات مشتركة · غرف
         </p>
         <ul className="space-y-0.5">
           {shared.map((scope) => {
@@ -444,7 +477,7 @@ function SidebarBody({
       </div>
 
       <div className="border-t border-ab-border px-3 py-2.5">
-        <GuestChip />
+        <GuestChip onLogin={onNavigate} />
       </div>
     </div>
   )
@@ -454,12 +487,15 @@ export function Sidebar({
   airGapped = false,
   activeSection = 'chats',
   onSectionChange,
+  pendingApprovals = 0,
 }: {
   airGapped?: boolean
   activeSection?: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
+  pendingApprovals?: number
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const signedIn = useSignedIn()
 
   return (
     <>
@@ -476,7 +512,25 @@ export function Sidebar({
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-bold">Arabic Buzz</span>
-          <span className="w-9" aria-hidden />
+          {signedIn === false ? (
+            <button
+              type="button"
+              onClick={() => onSectionChange?.('settings')}
+              className="rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white"
+            >
+              دخول
+            </button>
+          ) : pendingApprovals > 0 ? (
+            <button
+              type="button"
+              onClick={() => onSectionChange?.('approvals')}
+              className="rounded-full bg-ab-warn px-2 py-0.5 text-[10px] font-bold text-white"
+            >
+              {pendingApprovals}
+            </button>
+          ) : (
+            <span className="w-9" aria-hidden />
+          )}
         </div>
       )}
 
@@ -516,6 +570,7 @@ export function Sidebar({
           activeSection={activeSection}
           onSectionChange={onSectionChange}
           onNavigate={() => setMobileOpen(false)}
+          pendingApprovals={pendingApprovals}
         />
       </aside>
     </>

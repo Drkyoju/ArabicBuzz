@@ -39,6 +39,8 @@ import { HomeDashboard } from '@/components/home-dashboard'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { buildGuestDemoDigest } from '@/lib/demo/guest-digest'
+import { Fingerprint } from 'lucide-react'
 
 function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
@@ -162,6 +164,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         q === 'files' ||
         q === 'memory' ||
         q === 'approvals' ||
+        q === 'audit' ||
         q === 'skills' ||
         q === 'api-keys' ||
         q === 'ops'
@@ -235,6 +238,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         detail === 'files' ||
         detail === 'memory' ||
         detail === 'approvals' ||
+        detail === 'audit' ||
         detail === 'skills' ||
         detail === 'api-keys' ||
         detail === 'ops'
@@ -252,16 +256,31 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         airGapped={airGapped}
         activeSection={section}
         onSectionChange={setSection}
+        pendingApprovals={
+          signedIn === false
+            ? 2
+            : pendingCount
+        }
       />
 
       <div className="mr-0 min-h-dvh pt-11 md:mr-[15.5rem] md:pt-0">
-        {pendingCount > 0 && section !== 'approvals' && (
+        {pendingCount > 0 && section !== 'approvals' && signedIn !== false && (
           <button
             type="button"
             onClick={() => setSection('approvals')}
             className="sticky top-0 z-20 w-full border-b border-ab-warn/30 bg-ab-warn/10 px-4 py-2 text-right text-xs font-medium text-ab-warn md:top-0"
           >
             {pendingCount} موافقة معلّقة — اضغط للمراجعة قبل تنفيذ الأدوات
+          </button>
+        )}
+        {signedIn === false && section !== 'approvals' && (
+          <button
+            type="button"
+            onClick={() => setSection('approvals')}
+            className="sticky top-0 z-20 w-full border-b border-amber-200 bg-amber-50 px-4 py-2 text-right text-xs font-medium text-amber-950 md:top-0"
+          >
+            ٢ موافقة معلّقة في المعاينة — راجع نموذج HITL (يتطلب تسجيل الدخول
+            للتنفيذ)
           </button>
         )}
 
@@ -326,15 +345,45 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             )}
             {(approvalsError === 'GUEST' || signedIn === false) &&
             !approvalsLoading ? (
-              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
-                <p>لا موافقات للزائر — سجّل الدخول لرؤية طلبات الاعتماد.</p>
-                <button
-                  type="button"
-                  onClick={() => setSection('settings')}
-                  className="mt-3 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
-                >
-                  الذهاب للإعدادات
-                </button>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                  <p className="font-semibold">معاينة موافقات HITL</p>
+                  <p className="mt-1 text-xs">
+                    هذه طلبات تجريبية من جمعية النور — سجّل الدخول لاعتماد أو رفض
+                    إجراءات حقيقية.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSection('settings')}
+                    className="mt-2 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    سجّل الدخول للموافقة
+                  </button>
+                </div>
+                {buildGuestDemoDigest().pendingApprovals.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-ab-border bg-white p-4"
+                  >
+                    <p className="text-[11px] text-stone-500">
+                      {item.agentAr} · {item.riskLevel === 'HIGH' ? 'خطر مرتفع' : 'منخفض'}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-ab-ink">
+                      {item.messageAr}
+                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-stone-400" dir="ltr">
+                      {item.actionName}
+                    </p>
+                    <div className="mt-3 flex gap-2 opacity-50">
+                      <span className="rounded-md bg-ab-ink px-3 py-1.5 text-[11px] text-white">
+                        اعتماد (بعد الدخول)
+                      </span>
+                      <span className="rounded-md border border-ab-border px-3 py-1.5 text-[11px]">
+                        رفض
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : !approvalsLoading && pendingCount === 0 && !approvalsError ? (
               <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
@@ -361,6 +410,74 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   </div>
                 ))
             )}
+          </section>
+        )}
+
+        {section === 'audit' && (
+          <section className="mx-auto max-w-3xl space-y-6 px-6 py-8" dir="rtl">
+            <div>
+              <h1 className="flex items-center gap-2 text-xl font-bold text-ab-ink">
+                <Fingerprint className="h-5 w-5 text-ab-accent" />
+                سجل التدقيق
+              </h1>
+              <p className="mt-1 text-sm text-stone-500">
+                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم سدايا. هذا
+                جواب «هل هذا قابل للمراجعة؟».
+              </p>
+            </div>
+
+            {signedIn === false && (
+              <div className="space-y-2 rounded-xl border border-ab-border bg-white p-4">
+                <p className="text-[11px] font-semibold text-ab-accent">
+                  معاينة جمعية النور — إدخالات تجريبية
+                </p>
+                <ul className="divide-y divide-ab-border">
+                  {buildGuestDemoDigest().auditEntries.map((a) => (
+                    <li key={a.id} className="py-2.5 text-[13px]">
+                      <p className="font-semibold text-ab-ink">
+                        {a.actorAr}
+                        <span className="mr-1 font-normal text-stone-600">
+                          · {a.actionAr}
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-stone-400">
+                        {a.atAr} · {a.riskTier}
+                        <span className="mr-1 font-mono" dir="ltr">
+                          · {a.watermarkHint}
+                        </span>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => setSection('settings')}
+                  className="mt-2 text-[11px] font-medium text-ab-accent underline"
+                >
+                  سجّل الدخول لسجلّك الحقيقي وتصدير CSV
+                </button>
+              </div>
+            )}
+
+            {signedIn && (
+              <div className="rounded-xl border border-ab-border bg-ab-surface p-2">
+                <SdaiaAuditViewer />
+              </div>
+            )}
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+              <p className="text-sm font-bold text-ab-ink">حزمة اعتماد سدايا</p>
+              <p className="mt-1 text-xs text-stone-600">
+                صدّر محضراً + حضوراً + فهرس ملفات كـ PDF مختوم من التقويم.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSection('calendar')}
+                className="mt-3 rounded-md bg-emerald-800 px-3 py-2 text-xs font-semibold text-white"
+              >
+                فتح تصدير الحزمة
+              </button>
+            </div>
           </section>
         )}
 

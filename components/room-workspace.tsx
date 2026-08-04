@@ -1004,8 +1004,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   </p>
                   <p className="mt-1 max-w-sm text-sm leading-relaxed text-stone-500">
                     اكتب مهمة أو تكلم بالميكروفون. في وضع تعاون يرد عدة وكلاء
-                    بالتتابع — أو وجّه بـ @اسم / @الجميع.
+                    بالتتابع — أو وجّه بـ @اسم / @الجميع. اضغط مقعد وكيل لرؤية
+                    هويته وصلاحياته.
                   </p>
+                  <div className="mt-3 max-w-sm rounded-lg border border-ab-border bg-stone-50 px-3 py-2 text-right text-[11px] text-stone-600">
+                    <p className="font-semibold text-ab-ink">مثال حي من المعاينة</p>
+                    <p className="mt-1">
+                      وكيل التقارير · ملخص: اعتمد المجلس ميزانية البرامج…
+                    </p>
+                    <p className="mt-0.5 text-ab-accent">
+                      وكيل الامتثال · بانتظار موافقة على مزامنة Drive
+                    </p>
+                  </div>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     <button
                       type="button"
@@ -1022,6 +1032,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
                       className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
                     >
                       ابحث في المعرفة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent('ab-nav', { detail: 'audit' })
+                        )
+                      }
+                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                    >
+                      سجل التدقيق
                     </button>
                   </div>
                 </div>

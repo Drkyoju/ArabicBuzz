@@ -10,8 +10,8 @@ import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 type ModelAvailRow = { slug: string; available: boolean; labelAr?: string }
 
 /**
- * Shows only models whose provider key is present AND live-verified.
- * Blocked models stay out of the list until an API key is added in «مفاتيح API».
+ * Capability / privacy framed picker (not engineer model names).
+ * Advanced provider IDs stay in title tooltips only.
  */
 export function ModelPicker({
   airGapped = false,
@@ -47,7 +47,6 @@ export function ModelPicker({
 
   const readyModels = useMemo(() => {
     if (!availableSlugs) {
-      // Before probe finishes: show keys commonly set on this site
       return catalog.filter(
         (m) =>
           m.provider === 'google' ||
@@ -66,21 +65,30 @@ export function ModelPicker({
     if (fallback) setSelectedModel(fallback as HarnessModelSlug)
   }, [loaded, availableSlugs, selectedModel, readyModels, setSelectedModel])
 
+  const selectedMeta = readyModels.find((m) => m.slug === selectedModel)
+
   return (
     <label
       className={
         compact
-          ? 'flex items-center gap-1 text-[11px] text-stone-600'
-          : 'flex items-center gap-2 text-sm'
+          ? 'flex max-w-[11rem] flex-col gap-0.5 text-[10px] text-stone-500'
+          : 'flex flex-col gap-1 text-sm'
+      }
+      title={
+        selectedMeta
+          ? `${selectedMeta.labelAr} · ${selectedMeta.labelEn}`
+          : 'اختر قدرة الرد'
       }
     >
-      {!compact && <span className="shrink-0">النموذج</span>}
+      <span className={compact ? 'sr-only' : 'text-[11px] text-stone-500'}>
+        قدرة الرد
+      </span>
       <select
-        aria-label="النموذج"
+        aria-label="قدرة الرد والخصوصية"
         className={
           compact
-            ? 'max-w-[9.5rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
-            : 'max-w-[220px] rounded-md border border-ab-border bg-white px-3 py-1.5'
+            ? 'max-w-[11rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
+            : 'max-w-[240px] rounded-md border border-ab-border bg-white px-3 py-1.5'
         }
         value={
           readyModels.some((m) => m.slug === selectedModel)
@@ -94,14 +102,12 @@ export function ModelPicker({
       >
         {readyModels.length === 0 ? (
           <option value="">
-            {loaded ? 'لا نموذج جاهز — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
+            {loaded ? 'لا قدرة جاهزة — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
           </option>
         ) : (
           readyModels.map((m) => (
-            <option key={m.slug} value={m.slug}>
-              {compact
-                ? m.labelAr
-                : `${m.labelAr}${m.labelEn ? ` · ${m.labelEn}` : ''}`}
+            <option key={m.slug} value={m.slug} title={m.labelEn}>
+              {m.labelAr}
             </option>
           ))
         )}

@@ -33,6 +33,7 @@ export const EMPLOYEE_SECTIONS = new Set([
   'files',
   'calendar',
   'approvals',
+  'audit',
   'settings',
 ])
 
