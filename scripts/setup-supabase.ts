@@ -41,6 +41,7 @@ const MIGRATIONS = [
   'supabase/migrations/016_whatsapp_inbox.sql',
   'supabase/migrations/017_room_calendar.sql',
   'supabase/migrations/018_room_memory_tasks.sql',
+  'supabase/migrations/019_room_home_history.sql',
 ]
 
 function present(v?: string): boolean {

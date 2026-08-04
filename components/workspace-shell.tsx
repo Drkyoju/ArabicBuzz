@@ -32,6 +32,7 @@ import {
   isEmployeeSection,
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
+import { HomeDashboard } from '@/components/home-dashboard'
 import { authHeaders } from '@/lib/supabase/browser'
 
 function AccountStatus() {
@@ -123,7 +124,7 @@ type LiveApproval = {
 }
 
 export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
-  const [section, setSection] = useState<SidebarSection>('chats')
+  const [section, setSection] = useState<SidebarSection>('home')
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const [approvals, setApprovals] = useState<LiveApproval[]>([])
@@ -136,7 +137,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
   useEffect(() => {
     if (!isEmployeeSection(section, mode)) {
-      setSection('chats')
+      setSection('home')
     }
   }, [mode, section])
 
@@ -144,6 +145,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     try {
       const q = new URLSearchParams(window.location.search).get('section')
       if (
+        q === 'home' ||
         q === 'calendar' ||
         q === 'chats' ||
         q === 'settings' ||
@@ -202,6 +204,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     const onNav = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail
       if (
+        detail === 'home' ||
         detail === 'calendar' ||
         detail === 'chats' ||
         detail === 'settings' ||
@@ -236,6 +239,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           >
             {pendingCount} موافقة معلّقة — اضغط للمراجعة قبل تنفيذ الأدوات
           </button>
+        )}
+
+        {section === 'home' && (
+          <HomeDashboard onNavigate={(s) => setSection(s as SidebarSection)} />
         )}
 
         {section === 'chats' && <RoomWorkspace />}

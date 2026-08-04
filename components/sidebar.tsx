@@ -17,6 +17,7 @@ import {
   KeyRound,
   CalendarDays,
   Activity,
+  Home,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -74,6 +75,7 @@ function GuestChip() {
 }
 
 export type SidebarSection =
+  | 'home'
   | 'chats'
   | 'files'
   | 'memory'
@@ -89,6 +91,7 @@ const PRIMARY_NAV: Array<{
   labelAr: string
   icon: LucideIcon
 }> = [
+  { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },

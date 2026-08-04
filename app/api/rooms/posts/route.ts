@@ -52,5 +52,18 @@ export async function POST(req: Request) {
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 500 })
   }
+  try {
+    const { logRoomActivity } = await import('@/lib/rooms/home-log')
+    await logRoomActivity({
+      scopeId,
+      kind: 'message',
+      actorAr: String(name),
+      actorEmail: auth.user.email || null,
+      actionAr: 'أرسل رسالة',
+      detailAr: content.slice(0, 120),
+    })
+  } catch {
+    /* ignore */
+  }
   return Response.json({ post: result.post })
 }

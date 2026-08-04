@@ -28,6 +28,7 @@ export const useWorkspaceModeStore = create<State>()(
 )
 
 export const EMPLOYEE_SECTIONS = new Set([
+  'home',
   'chats',
   'files',
   'calendar',
