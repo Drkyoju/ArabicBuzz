@@ -4,8 +4,8 @@
   "source": "HeshamHaroon/Arabic_Function_Calling",
   "sourceUrl": "https://huggingface.co/datasets/HeshamHaroon/Arabic_Function_Calling",
   "licenseNoteAr": "مجموعة بيانات عامة على Hugging Face — مقتطف MSA فقط لأغراض التقييم في CI.",
-  "dialect": "MSA",
-  "generatedAt": "2026-08-05T03:38:21.099Z",
+  "dialectNoteAr": "بنود اختيار الأداة بالفصحى (MSA) فقط؛ بنود الامتناع تشمل لهجات أخرى لقلة عدد الصيغ الفصحى المتاحة.",
+  "generatedAt": "2026-08-05T03:48:14.112Z",
   "thresholds": {
     "toolSelectionAccuracy": 0.7,
     "abstentionAccuracy": 0.7
@@ -111,6 +111,15 @@
         "value": "string",
         "category": "string",
         "country": "string"
+      }
+    },
+    {
+      "name": "calculate_end_of_service",
+      "descriptionAr": "حساب مكافأة نهاية الخدمة حسب الراتب ومدة العمل.",
+      "parameters": {
+        "salary": "string",
+        "years": "string",
+        "termination_type": "string"
       }
     },
     {
@@ -258,7 +267,8 @@
         "city": "مسقط",
         "days": 1
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "gen_02305",
@@ -269,7 +279,8 @@
         "city": "جدة",
         "days": 1
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "gen_15808",
@@ -280,7 +291,8 @@
         "city": "بيروت",
         "days": "3"
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "b672_0",
@@ -290,7 +302,8 @@
       "expectedArgs": {
         "city": "عمان"
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "gen_02521",
@@ -300,7 +313,8 @@
       "expectedArgs": {
         "city": "بيروت"
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "gen_31796",
@@ -310,7 +324,8 @@
       "expectedArgs": {
         "city": "جدة"
       },
-      "domain": "weather"
+      "domain": "weather",
+      "dialect": "MSA"
     },
     {
       "id": "gen_18560",
@@ -321,7 +336,8 @@
         "city": "مكة المكرمة",
         "date": "اليوم"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_18635",
@@ -332,7 +348,8 @@
         "city": "جدة",
         "date": "غد"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_10861",
@@ -343,7 +360,8 @@
         "city": "جدة",
         "date": "this week"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_23392",
@@ -353,7 +371,8 @@
       "expectedArgs": {
         "city": "الرياض"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_11893",
@@ -363,7 +382,8 @@
       "expectedArgs": {
         "city": "الرباط"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_17899",
@@ -373,7 +393,8 @@
       "expectedArgs": {
         "city": "جدة"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_23945",
@@ -385,7 +406,8 @@
         "amount": 50000,
         "currency": "جنيه"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_01262",
@@ -396,7 +418,8 @@
         "type": "gold",
         "amount": 150
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_39256",
@@ -408,7 +431,8 @@
         "amount": 15000,
         "currency": "ريال"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_09281",
@@ -418,7 +442,8 @@
       "expectedArgs": {
         "query": "الرحمة"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_13549",
@@ -429,7 +454,8 @@
         "query": "إن مع العسر يسرا",
         "search_type": "تفسير"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_10638",
@@ -439,7 +465,8 @@
       "expectedArgs": {
         "query": "آية الكرسي"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_11078",
@@ -450,7 +477,8 @@
         "query": "الأمانة",
         "source": "صحيح البخاري"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_33433",
@@ -460,7 +488,8 @@
       "expectedArgs": {
         "query": "بر الوالدين"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_10689",
@@ -470,7 +499,8 @@
       "expectedArgs": {
         "query": "حسن الخلق"
       },
-      "domain": "islamic_services"
+      "domain": "islamic_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_32873",
@@ -481,7 +511,8 @@
         "city": "مكة",
         "num_persons": 3
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_04352",
@@ -492,7 +523,8 @@
         "city": "الطائف",
         "num_persons": 2
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_03454",
@@ -503,7 +535,8 @@
         "city": "جدة",
         "num_persons": 4
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_41202",
@@ -515,7 +548,8 @@
         "city": "Riyadh",
         "id_number": "56789012"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_24107",
@@ -527,7 +561,8 @@
         "city": "جدة",
         "id_number": "7788996655"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_20847",
@@ -539,7 +574,8 @@
         "city": "جدة",
         "id_number": "1122334455"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_08206",
@@ -549,7 +585,8 @@
       "expectedArgs": {
         "iqama_number": "987654321"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_28285",
@@ -559,7 +596,8 @@
       "expectedArgs": {
         "iqama_number": "9876543210"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_23815",
@@ -569,7 +607,8 @@
       "expectedArgs": {
         "iqama_number": "9876543210"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_25240",
@@ -579,7 +618,8 @@
       "expectedArgs": {
         "visa_number": "654321"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_04705",
@@ -589,7 +629,8 @@
       "expectedArgs": {
         "visa_number": "123456"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_06455",
@@ -599,7 +640,8 @@
       "expectedArgs": {
         "visa_number": "1234567890"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_30226",
@@ -609,7 +651,8 @@
       "expectedArgs": {
         "id_number": "1122334455"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_15936",
@@ -619,7 +662,8 @@
       "expectedArgs": {
         "id_number": "1122334455"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_30861",
@@ -629,7 +673,8 @@
       "expectedArgs": {
         "id_number": "9988776655"
       },
-      "domain": "government_services"
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_43069",
@@ -641,7 +686,8 @@
         "category": "جهاز ألعاب",
         "country": "الكويت"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_03914",
@@ -653,7 +699,8 @@
         "category": "إلكترونيات",
         "country": "قطر"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_12000",
@@ -665,7 +712,47 @@
         "category": "ملابس",
         "country": "الكويت"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
+    },
+    {
+      "id": "gen_36233",
+      "category": "tool_selection",
+      "promptAr": "كم ستكون مكافأة نهاية الخدمة لشخص براتب شهري 7000 ريال وعدد سنوات الخدمة 15 سنة ونوع إنهاء العمل فصل؟",
+      "expectedFunction": "calculate_end_of_service",
+      "expectedArgs": {
+        "salary": "7000",
+        "years": "15",
+        "termination_type": "فصل"
+      },
+      "domain": "government_services",
+      "dialect": "MSA"
+    },
+    {
+      "id": "gen_20993",
+      "category": "tool_selection",
+      "promptAr": "كيف أحسب مكافأة نهاية الخدمة إذا كان راتبي 8000 ريال وعملت 7 سنوات وتم إنهاء خدمتي بشكل مشروع؟",
+      "expectedFunction": "calculate_end_of_service",
+      "expectedArgs": {
+        "salary": 8000,
+        "years": 7,
+        "termination_type": "مشروع"
+      },
+      "domain": "government_services",
+      "dialect": "MSA"
+    },
+    {
+      "id": "gen_41588",
+      "category": "tool_selection",
+      "promptAr": "كيف يمكنني حساب مكافأة نهاية الخدمة إذا كان راتبي 5000 ريال وفترة عملي 7 سنوات بنهاية عقد عمل؟",
+      "expectedFunction": "calculate_end_of_service",
+      "expectedArgs": {
+        "salary": "5000",
+        "years": "7",
+        "termination_type": "end of contract"
+      },
+      "domain": "government_services",
+      "dialect": "MSA"
     },
     {
       "id": "gen_31982",
@@ -676,7 +763,8 @@
         "specialty": "جلدية",
         "city": "دبي"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_27024",
@@ -688,7 +776,8 @@
         "city": "جدة",
         "date": "2023-10-10"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_12104",
@@ -700,7 +789,8 @@
         "city": "جدة",
         "date": "2023-10-26"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "b275_0",
@@ -710,7 +800,8 @@
       "expectedArgs": {
         "condition": "سكري"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_44201",
@@ -720,7 +811,8 @@
       "expectedArgs": {
         "medication_name": "كولدال"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_08872",
@@ -730,7 +822,8 @@
       "expectedArgs": {
         "medication_name": "تاميفلو"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_11497",
@@ -741,7 +834,8 @@
         "insurance_number": "123456789",
         "procedure": "عملية جراحية بالليزر"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_43958",
@@ -752,7 +846,8 @@
         "insurance_number": "987654321",
         "procedure": "العلاج الطبيعي"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_45555",
@@ -763,7 +858,8 @@
         "insurance_number": "123456789",
         "procedure": "عملية جراحية"
       },
-      "domain": "healthcare"
+      "domain": "healthcare",
+      "dialect": "MSA"
     },
     {
       "id": "gen_23019",
@@ -775,7 +871,8 @@
         "rate": "٤.٥",
         "months": "٣٦"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_04367",
@@ -787,7 +884,8 @@
         "rate": 3,
         "months": 60
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_11293",
@@ -799,7 +897,8 @@
         "rate": 3,
         "months": 60
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_04368",
@@ -812,7 +911,8 @@
         "recipient_name": "محمد",
         "iban": "SA1234567890"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_38097",
@@ -825,7 +925,8 @@
         "recipient_name": "إبراهيم",
         "iban": "SA123456789012345678"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_09534",
@@ -838,7 +939,8 @@
         "recipient_name": "محمد",
         "iban": "JO94CBJO0010000000000131000302"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_06115",
@@ -850,7 +952,8 @@
         "from_currency": "USD",
         "to_currency": "SAR"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_37314",
@@ -862,7 +965,8 @@
         "from_currency": "USD",
         "to_currency": "SAR"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_34885",
@@ -874,7 +978,8 @@
         "from_currency": "USD",
         "to_currency": "SAR"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_37790",
@@ -885,7 +990,8 @@
         "country": "الإمارات",
         "karat": 21
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_29765",
@@ -895,7 +1001,8 @@
       "expectedArgs": {
         "country": "Saudi Arabia"
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_31985",
@@ -906,7 +1013,8 @@
         "country": "Egypt",
         "karat": 21
       },
-      "domain": "banking_finance"
+      "domain": "banking_finance",
+      "dialect": "MSA"
     },
     {
       "id": "gen_29294",
@@ -916,7 +1024,8 @@
       "expectedArgs": {
         "tracking_number": "123456789"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_35834",
@@ -926,7 +1035,8 @@
       "expectedArgs": {
         "tracking_number": "1234567890"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_20048",
@@ -936,7 +1046,8 @@
       "expectedArgs": {
         "tracking_number": "98765"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_26672",
@@ -947,7 +1058,8 @@
         "product_name": "لابتوب ديل",
         "country": "الأردن"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_25015",
@@ -958,7 +1070,8 @@
         "product_name": "آيفون 13",
         "country": "السعودية"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_23525",
@@ -969,7 +1082,8 @@
         "product_name": "آيفون 13",
         "country": "مصر"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_20692",
@@ -980,7 +1094,8 @@
         "restaurant": "الهناء",
         "items": "مقلوبة, تبولة"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_36349",
@@ -991,7 +1106,8 @@
         "restaurant": "مطعم البيتزا",
         "items": "بيتزا مارجريتا, ببسي"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_18017",
@@ -1002,7 +1118,8 @@
         "restaurant": "دومينوز",
         "items": "صنفين بيتزا كبيرة"
       },
-      "domain": "ecommerce"
+      "domain": "ecommerce",
+      "dialect": "MSA"
     },
     {
       "id": "gen_15207",
@@ -1014,7 +1131,8 @@
         "destination": "باريس",
         "date": "2024-01-20"
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_01318",
@@ -1027,7 +1145,8 @@
         "date": "2023-10-25",
         "passengers": 1
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_28840",
@@ -1040,7 +1159,8 @@
         "date": "٢٥ أبريل",
         "passengers": 1
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_37890",
@@ -1053,7 +1173,8 @@
         "check_out": "2023-11-25",
         "guests": 4
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_11468",
@@ -1066,7 +1187,8 @@
         "check_out": "2024-03-10",
         "guests": 2
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_06801",
@@ -1079,7 +1201,8 @@
         "check_out": "2024-01-12",
         "guests": 4
       },
-      "domain": "travel"
+      "domain": "travel",
+      "dialect": "MSA"
     },
     {
       "id": "gen_18986",
@@ -1090,7 +1213,8 @@
         "title": "اجتماع عمل",
         "datetime": "2023-10-15T15:00:00"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_25689",
@@ -1101,7 +1225,8 @@
         "title": "شراء حليب",
         "datetime": "2023-10-05T15:00:00"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_42692",
@@ -1112,7 +1237,8 @@
         "title": "موعد الطبيب",
         "datetime": "2023-10-16T09:00:00"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_32563",
@@ -1123,7 +1249,8 @@
         "text": "الجو جميل اليوم",
         "target_language": "de"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_14997",
@@ -1134,7 +1261,8 @@
         "text": "السلام عليكم ورحمة الله",
         "target_language": "fr"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_30877",
@@ -1145,7 +1273,8 @@
         "text": "التكنولوجيا",
         "target_language": "fr"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_22575",
@@ -1155,7 +1284,8 @@
       "expectedArgs": {
         "expression": "٣ + ٥ * ٢ - ١"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_40331",
@@ -1165,7 +1295,8 @@
       "expectedArgs": {
         "expression": "٣٠ تقسيم ٣"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_13955",
@@ -1175,7 +1306,8 @@
       "expectedArgs": {
         "expression": "35 * 7"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "gen_22577",
@@ -1185,35 +1317,88 @@
       "expectedArgs": {
         "city": "القاهرة"
       },
-      "domain": "utilities"
+      "domain": "utilities",
+      "dialect": "MSA"
     },
     {
       "id": "neg_02482",
       "category": "anti_hallucination",
       "promptAr": "ما هي عاصمة السعودية؟",
       "expectedFunction": null,
-      "domain": "unknown"
+      "domain": "unknown",
+      "dialect": "MSA"
     },
     {
       "id": "neg_03254",
       "category": "anti_hallucination",
       "promptAr": "من أنت وما هي قدراتك؟",
       "expectedFunction": null,
-      "domain": "unknown"
+      "domain": "unknown",
+      "dialect": "MSA"
     },
     {
       "id": "neg_03096",
       "category": "anti_hallucination",
       "promptAr": "اشرح لي الفرق بين الزكاة والصدقة",
       "expectedFunction": null,
-      "domain": "unknown"
+      "domain": "unknown",
+      "dialect": "MSA"
     },
     {
       "id": "neg_1_74",
       "category": "anti_hallucination",
       "promptAr": "من هو النبي محمد؟",
       "expectedFunction": null,
-      "domain": "general"
+      "domain": "general",
+      "dialect": "MSA"
+    },
+    {
+      "id": "neg_04290",
+      "category": "anti_hallucination",
+      "promptAr": "كيفك اليوم؟",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Levantine"
+    },
+    {
+      "id": "neg_00351",
+      "category": "anti_hallucination",
+      "promptAr": "متشكر على المساعدة",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Egyptian"
+    },
+    {
+      "id": "neg_04362",
+      "category": "anti_hallucination",
+      "promptAr": "بارك الله فيك",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Maghrebi"
+    },
+    {
+      "id": "neg_01501",
+      "category": "anti_hallucination",
+      "promptAr": "وش رأيك في البرمجة؟",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Gulf"
+    },
+    {
+      "id": "neg_04076",
+      "category": "anti_hallucination",
+      "promptAr": "مشكور يا خوي",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Gulf"
+    },
+    {
+      "id": "neg_00884",
+      "category": "anti_hallucination",
+      "promptAr": "إزيك النهارده؟",
+      "expectedFunction": null,
+      "domain": "unknown",
+      "dialect": "Egyptian"
     }
   ]
 }
