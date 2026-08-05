@@ -49,6 +49,14 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     docsUrl: 'https://agentrouter.org/console/token',
   },
   {
+    envName: 'TOKENROUTER_API_KEY',
+    labelAr: 'TokenRouter',
+    labelEn: 'TokenRouter',
+    kind: 'llm',
+    hintAr: 'يفتح Kimi K3 مجاني عبر api.tokenrouter.io',
+    docsUrl: 'https://tokenrouter.io/console/api-keys',
+  },
+  {
     envName: 'OPENAI_API_KEY',
     labelAr: 'OpenAI',
     labelEn: 'OpenAI',

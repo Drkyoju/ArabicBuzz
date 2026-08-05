@@ -80,6 +80,13 @@ export function getCloudProviders() {
       },
       name: 'agentrouter',
     }),
+    /** TokenRouter OpenAI-compatible gateway (docs: https://api.tokenrouter.io/v1). */
+    tokenrouter: createOpenAI({
+      apiKey: resolveProviderKeySync('TOKENROUTER_API_KEY'),
+      baseURL:
+        process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.io/v1',
+      name: 'tokenrouter',
+    }),
     google: createGoogleGenerativeAI({
       apiKey: resolveProviderKeySync('GEMINI_API_KEY'),
     }),
@@ -135,6 +142,14 @@ export function assertModelKeyConfigured(modelId: string) {
     },
     {
       match: (s) =>
+        s === 'kimi-k3-free' ||
+        s === 'moonshotai/kimi-k3-free' ||
+        s.startsWith('tokenrouter'),
+      env: 'TOKENROUTER_API_KEY',
+      label: 'TokenRouter',
+    },
+    {
+      match: (s) =>
         s.includes('/') ||
         (s.startsWith('claude') &&
           s !== 'claude-opus-4-8' &&
@@ -174,6 +189,12 @@ const AGENTROUTER_IDS: Record<string, string> = {
   'claude-opus-4': 'claude-opus-4-8',
   'opus-5': 'claude-opus-5',
   'gpt-5.6': 'gpt-5.6-sol',
+}
+
+/** TokenRouter model ids (OpenAI-compatible `/v1/chat/completions`). */
+const TOKENROUTER_IDS: Record<string, string> = {
+  'moonshotai/kimi-k3-free': 'moonshotai/kimi-k3-free',
+  'kimi-k3-free': 'moonshotai/kimi-k3-free',
 }
 
 const OPENROUTER_IDS: Record<string, string> = {
@@ -249,7 +270,12 @@ export function getModel(modelId: string) {
     return ollama(localId)
   }
 
-  // Raw OpenRouter path: provider/model
+  const tokenRouterId = TOKENROUTER_IDS[id]
+  if (tokenRouterId) {
+    return getCloudProviders().tokenrouter(tokenRouterId)
+  }
+
+  // Raw OpenRouter path: provider/model (after TokenRouter map)
   if (id.includes('/') && !GOOGLE_IDS[id] && !OPENAI_IDS[id]) {
     const { openrouter } = getCloudProviders()
     return openrouter.chat(id)

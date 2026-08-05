@@ -57,6 +57,7 @@ export async function GET() {
         process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
     ),
     authRequired: isAuthRequired(),
+    tokenrouterConfigured: Boolean(process.env.TOKENROUTER_API_KEY?.trim()),
     mcpCatalogCount: MCP_CATALOG.length,
     mcpConnectedServers: mcpServers,
     mcpConnectedTools: mcpTools,

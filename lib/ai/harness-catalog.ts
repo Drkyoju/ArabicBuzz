@@ -13,6 +13,7 @@ export type HarnessModelSlug =
   | 'gemini-2.5-pro'
   | 'gemini-2.5-flash'
   | 'kimi-k2'
+  | 'moonshotai/kimi-k3-free'
   | 'glm-4.5'
   | 'glm-5'
   | 'ollama-local'
@@ -20,10 +21,28 @@ export type HarnessModelSlug =
   | 'hermes-3-405b'
   | 'hermes-2-pro-8b'
 
+/** Three user-facing tiers — engineer model names stay in labelEn. */
+export type HarnessTier = 'fast' | 'balanced' | 'max'
+
+export const HARNESS_TIER_LABELS_AR: Record<HarnessTier, string> = {
+  fast: 'سريع',
+  balanced: 'متوازن',
+  max: 'أعلى دقة',
+}
+
+export const HARNESS_TIER_HINTS_AR: Record<HarnessTier, string> = {
+  fast: 'ردود فورية للأسئلة القصيرة والتفريغ الصوتي.',
+  balanced: 'الخيار اليومي — جودة جيدة بتكلفة معقولة.',
+  max: 'للتحليل الطويل والقرارات والمستندات الحساسة.',
+}
+
+export const HARNESS_TIER_ORDER: HarnessTier[] = ['fast', 'balanced', 'max']
+
 export type HarnessModelMeta = {
   slug: HarnessModelSlug
   labelAr: string
   labelEn: string
+  tier: HarnessTier
   provider:
     | 'openai'
     | 'google'
@@ -32,13 +51,25 @@ export type HarnessModelMeta = {
     | 'ollama'
     | 'perplexity'
     | 'glm'
+    | 'tokenrouter'
   requiresKey: string
   airGapSafe: boolean
 }
 
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
+    // Prefer as سريع when TOKENROUTER_API_KEY is set (catalog order = tier pick).
+    slug: 'moonshotai/kimi-k3-free',
+    tier: 'fast',
+    labelAr: 'سريع · Kimi K3 Free',
+    labelEn: 'Kimi K3 Free',
+    provider: 'tokenrouter',
+    requiresKey: 'TOKENROUTER_API_KEY',
+    airGapSafe: false,
+  },
+  {
     slug: 'gemini-3.1-pro',
+    tier: 'max',
     labelAr: 'أعلى دقة',
     labelEn: 'Gemini 3.1 Pro',
     provider: 'google',
@@ -47,6 +78,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'gemini-2.5-flash',
+    tier: 'fast',
     labelAr: 'استجابة سريعة',
     labelEn: 'Gemini 2.5 Flash',
     provider: 'google',
@@ -55,6 +87,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-5',
+    tier: 'max',
     labelAr: 'أعلى دقة · بديل',
     labelEn: 'Zhipu GLM-5',
     provider: 'glm',
@@ -63,6 +96,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'glm-4.5',
+    tier: 'balanced',
     labelAr: 'متوازن · تكلفة',
     labelEn: 'Zhipu GLM-4.5',
     provider: 'glm',
@@ -71,6 +105,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-opus-5',
+    tier: 'max',
     labelAr: 'أعلى دقة · Opus 5',
     labelEn: 'Claude Opus 5',
     provider: 'agentrouter',
@@ -79,6 +114,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-opus-4-8',
+    tier: 'max',
     labelAr: 'أعلى دقة · تحليل',
     labelEn: 'Claude Opus 4.8',
     provider: 'agentrouter',
@@ -87,6 +123,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'gpt-5.6-sol',
+    tier: 'balanced',
     labelAr: 'متوازن · عام',
     labelEn: 'GPT-5.6 Sol',
     provider: 'agentrouter',
@@ -95,6 +132,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o',
+    tier: 'balanced',
     labelAr: 'أعلى دقة · OpenAI',
     labelEn: 'GPT-4o',
     provider: 'openai',
@@ -103,6 +141,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'openai-gpt-4o-mini',
+    tier: 'fast',
     labelAr: 'استجابة سريعة · OpenAI',
     labelEn: 'GPT-4o Mini',
     provider: 'openai',
@@ -111,6 +150,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-3.5-sonnet',
+    tier: 'balanced',
     labelAr: 'أعلى دقة · Claude',
     labelEn: 'Claude 3.5 Sonnet',
     provider: 'openrouter',
@@ -119,6 +159,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'claude-sonnet-4',
+    tier: 'max',
     labelAr: 'أعلى دقة · Claude 4',
     labelEn: 'Claude Sonnet 4',
     provider: 'openrouter',
@@ -127,6 +168,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'deepseek-v3',
+    tier: 'balanced',
     labelAr: 'متوازن · DeepSeek',
     labelEn: 'DeepSeek V3',
     provider: 'openrouter',
@@ -135,6 +177,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'deepseek-r1',
+    tier: 'max',
     labelAr: 'تفكير عميق · DeepSeek',
     labelEn: 'DeepSeek R1',
     provider: 'openrouter',
@@ -143,6 +186,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'kimi-k2',
+    tier: 'balanced',
     labelAr: 'طويل السياق · Kimi',
     labelEn: 'Moonshot Kimi K2',
     provider: 'openrouter',
@@ -151,6 +195,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'qwen-2.5-72b',
+    tier: 'balanced',
     labelAr: 'عربي قوي · Qwen',
     labelEn: 'Qwen 2.5 72B',
     provider: 'openrouter',
@@ -159,6 +204,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'hermes-3-405b',
+    tier: 'max',
     labelAr: 'تحليل معمق · Hermes',
     labelEn: 'Nous Hermes 3',
     provider: 'openrouter',
@@ -167,6 +213,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'hermes-2-pro-8b',
+    tier: 'fast',
     labelAr: 'سريع · Hermes',
     labelEn: 'Nous Hermes 2 Pro',
     provider: 'openrouter',
@@ -175,6 +222,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'perplexity-sonar',
+    tier: 'fast',
     labelAr: 'بحث حي · Perplexity',
     labelEn: 'Perplexity Sonar',
     provider: 'perplexity',
@@ -183,6 +231,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   },
   {
     slug: 'ollama-local',
+    tier: 'fast',
     labelAr: 'خصوصية عالية — محلي',
     labelEn: 'Ollama Local',
     provider: 'ollama',
@@ -211,4 +260,27 @@ export function listServiceableHarnessModels(
     if (m.provider === 'ollama') return true
     return keys.has(m.requiresKey)
   })
+}
+
+/** Best available model per tier — catalog order is the preference order. */
+export function tiersForModels(
+  models: HarnessModelMeta[]
+): Array<{ tier: HarnessTier; labelAr: string; hintAr: string; model: HarnessModelMeta }> {
+  const out: Array<{
+    tier: HarnessTier
+    labelAr: string
+    hintAr: string
+    model: HarnessModelMeta
+  }> = []
+  for (const tier of HARNESS_TIER_ORDER) {
+    const model = models.find((m) => m.tier === tier)
+    if (!model) continue
+    out.push({
+      tier,
+      labelAr: HARNESS_TIER_LABELS_AR[tier],
+      hintAr: HARNESS_TIER_HINTS_AR[tier],
+      model,
+    })
+  }
+  return out
 }

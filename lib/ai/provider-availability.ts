@@ -141,6 +141,42 @@ export async function validateProviderKey(
           return { ok: true, detail: 'صالح' }
         }
       }
+      case 'TOKENROUTER_API_KEY': {
+        if (key.startsWith('eyJ')) {
+          return { ok: false, detail: 'يبدو مفتاح جلسة وليس TokenRouter' }
+        }
+        const base = (
+          process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.io/v1'
+        ).replace(/\/$/, '')
+        const res = await fetch(`${base}/models`, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(10000),
+        })
+        // Some gateways omit /models — fall back to a tiny chat probe.
+        if (res.ok) {
+          return { ok: true, detail: 'صالح' }
+        }
+        const chat = await fetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'moonshotai/kimi-k3-free',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: AbortSignal.timeout(15000),
+        })
+        return {
+          ok: chat.ok || chat.status === 400,
+          detail:
+            chat.ok || chat.status === 400
+              ? 'صالح'
+              : `رفض المزوّد (${chat.status})`,
+        }
+      }
       case 'GEMINI_API_KEY': {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,

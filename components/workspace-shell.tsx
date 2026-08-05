@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Sidebar, type SidebarSection } from '@/components/sidebar'
 import { RoomWorkspace } from '@/components/room-workspace'
 import { ApprovalCard } from '@/components/approval-card'
@@ -257,11 +258,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         airGapped={airGapped}
         activeSection={section}
         onSectionChange={setSection}
-        pendingApprovals={
-          signedIn === false
-            ? 2
-            : pendingCount
-        }
+        pendingApprovals={signedIn === false ? 0 : pendingCount}
       />
 
       <div className="me-0 min-h-dvh pt-11 md:me-[15.5rem] md:pt-0">
@@ -280,8 +277,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             onClick={() => setSection('approvals')}
             className="sticky top-0 z-20 w-full border-b border-amber-200 bg-amber-50 px-4 py-2 text-right text-xs font-medium text-amber-950 md:top-0"
           >
-            ٢ موافقة معلّقة في المعاينة — راجع نموذج HITL (يتطلب تسجيل الدخول
-            للتنفيذ)
+            أنت في وضع المعاينة — الموافقات المعروضة أمثلة توضيحية. سجّل الدخول
+            لمراجعة إجراءات حقيقية.
           </button>
         )}
 
@@ -356,13 +353,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                     هذه طلبات تجريبية — سجّل الدخول لاعتماد أو رفض إجراءات
                     حقيقية.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setSection('settings')}
-                    className="mt-2 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+                  <Link
+                    href="/auth/login"
+                    className="mt-2 inline-block rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     سجّل الدخول للموافقة
-                  </button>
+                  </Link>
                 </div>
                 {buildGuestDemoDigest().pendingApprovals.map((item) => (
                   <div
@@ -454,13 +450,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  onClick={() => setSection('settings')}
-                  className="mt-2 text-[11px] font-medium text-ab-accent underline"
+                <Link
+                  href="/auth/login"
+                  className="mt-2 inline-block text-[11px] font-medium text-ab-accent underline"
                 >
                   سجّل الدخول لسجلّك الحقيقي وتصدير CSV
-                </button>
+                </Link>
               </div>
             )}
 
