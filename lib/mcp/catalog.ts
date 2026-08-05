@@ -113,14 +113,17 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     id: 'brave-search',
     nameAr: 'بحث Brave',
     nameEn: 'Brave Search',
-    descriptionAr: 'بحث ويب منظم بنتائج واضحة مع مقتطفات.',
-    benefitsAr: 'بديلاً أدق من التصفح العشوائي عند توفر المفتاح المجاني.',
+    descriptionAr:
+      'بحث ويب منظم للوائح والأنظمة. على Netlify يُفعَّل عبر BRAVE_API_KEY في أداة web_search مباشرة (بدون stdio).',
+    benefitsAr: 'نتائج أوضح من التصفح العشوائي للسياسات الحكومية.',
     categoryAr: 'ويب وبحث',
     runtime: 'both',
-    transport: 'stdio',
-    setupHintAr: 'يتطلب BRAVE_API_KEY (طبقة مجانية) وتشغيل الخادم محلياً أو بعيداً.',
-    envKeys: ['BRAVE_API_KEY'],
-    docsUrl: 'https://github.com/modelcontextprotocol/servers',
+    transport: 'sse',
+    setupHintAr:
+      'عيّن BRAVE_API_KEY على Netlify (طبقة مجانية) — يُستخدم مباشرة في web_search. اختياري: BRAVE_MCP_URL لخادم MCP بعيد (HTTP/SSE فقط؛ لا stdio على Netlify).',
+    envKeys: ['BRAVE_API_KEY', 'BRAVE_MCP_URL'],
+    docsUrl: 'https://brave.com/search/api/',
+    recommended: true,
   },
   {
     id: 'memory-kg',

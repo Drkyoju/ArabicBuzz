@@ -49,6 +49,8 @@ const HIGH_RISK_TOOLS = new Set([
   'delete_file',
   'edit_document',
   'brain_save_document',
+  'fill_policy_audit',
+  'send_director_digest',
   'db_update',
   'db_insert',
   'db_delete',

@@ -31,6 +31,8 @@ const ACTION_LABELS_AR: Record<string, string> = {
   convert_document: 'تحويل PDF ↔ Word',
   brain_open_document: 'فتح ملف من عقل الشركة',
   brain_save_document: 'حفظ إلى Drive / العقل',
+  fill_policy_audit: 'تعبئة نموذج تدقيق Excel',
+  send_director_digest: 'ملخص ما ينتظر قرارك',
   edit_document: 'إنشاء أو تعديل مستند',
   ingest_url_to_brain: 'سحب صفحة إلى المعرفة',
   read_decision_document: 'قراءة قرار للمستندات',

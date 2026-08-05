@@ -35,6 +35,7 @@ import {
   executeBrainOpenDocument,
   executeBrainSaveDocument,
 } from '@/lib/agents/tools/drive-doc-tools'
+import { executeFillPolicyAudit } from '@/lib/agents/tools/policy-audit'
 import {
   executePdfCreate,
   executePdfFillForm,
@@ -194,6 +195,21 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   convert_document: executeConvertDocument,
   brain_open_document: executeBrainOpenDocument,
   brain_save_document: executeBrainSaveDocument,
+  fill_policy_audit: executeFillPolicyAudit,
+  send_director_digest: async (_n, params) => {
+    const { sendDirectorWeeklyDigest } = await import(
+      '@/lib/digest/director-weekly'
+    )
+    const channels = Array.isArray(params.channels)
+      ? (params.channels as Array<'email' | 'telegram'>)
+      : undefined
+    return sendDirectorWeeklyDigest({
+      scopeId: String(params.scopeId || 'shared-demo'),
+      toEmail: params.toEmail ? String(params.toEmail) : undefined,
+      nameAr: params.nameAr ? String(params.nameAr) : undefined,
+      channels,
+    })
+  },
   pdf_create: executePdfCreate,
   pdf_stamp: executePdfStamp,
   pdf_merge: executePdfMerge,

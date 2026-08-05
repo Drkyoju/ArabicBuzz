@@ -141,10 +141,12 @@ export async function connectEnvMcpServers(): Promise<string[]> {
     )
   }
 
-  // 3) Free/recommended defaults for associations (+ Context7 for builders)
+  // 3) Free/recommended defaults + remote catalog URLs when env/keys present
+  // Stdio-only catalog items never auto-connect on Netlify (no local process).
   const autoDefaults =
     process.env.MCP_AUTO_DEFAULTS !== '0' &&
     process.env.MCP_AUTO_ANYBROWSE !== '0'
+
   if (autoDefaults) {
     for (const id of ['anybrowse', 'context7'] as const) {
       const item = MCP_CATALOG.find((c) => c.id === id)
@@ -167,6 +169,33 @@ export async function connectEnvMcpServers(): Promise<string[]> {
   const supabaseMcp = process.env.SUPABASE_MCP_URL?.trim()
   if (supabaseMcp && !connected.includes('supabase')) {
     await tryConnect('supabase', 'Supabase', supabaseMcp)
+  }
+
+  // Brave Search remote MCP (BRAVE_API_KEY alone powers native web_search without MCP)
+  const braveMcp = process.env.BRAVE_MCP_URL?.trim()
+  if (braveMcp && !connected.includes('brave-search')) {
+    await tryConnect('brave-search', 'Brave Search', braveMcp)
+  }
+
+  // Remaining remote/both catalog items: explicit MCP_<ID>_URL, or defaultUrl when autoDefaults
+  for (const item of MCP_CATALOG) {
+    if (item.runtime === 'local') continue
+    if (item.transport === 'stdio' && !item.defaultUrl) continue
+    if (connected.includes(item.id)) continue
+    const envKey = `MCP_${item.id.replace(/-/g, '_').toUpperCase()}_URL`
+    const explicit =
+      process.env[envKey]?.trim() ||
+      (item.id === 'brave-search'
+        ? process.env.BRAVE_MCP_URL?.trim()
+        : item.id === 'supabase'
+          ? process.env.SUPABASE_MCP_URL?.trim()
+          : item.id === 'firecrawl'
+            ? process.env.FIRECRAWL_MCP_URL?.trim()
+            : undefined)
+    const url = explicit || (autoDefaults ? item.defaultUrl : undefined)
+    if (url && /^https?:\/\//i.test(url)) {
+      await tryConnect(item.id, item.nameAr, url)
+    }
   }
 
   globalForHost.__arabicBuzzMcpEnvConnected = true

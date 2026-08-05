@@ -24,14 +24,19 @@ export function getNativeAiTools(opts?: {
 
   const native: ToolSet = {
     web_search: tool({
-      description: 'بحث ويب حي عن استعلام عربي/إنجليزي وإرجاع روابط.',
+      description:
+        'بحث ويب حي عن استعلام عربي/إنجليزي وإرجاع روابط (Brave إن وُجد BRAVE_API_KEY، وإلا DuckDuckGo).',
       inputSchema: z.object({
         query: z.string().describe('نص البحث'),
+        queryAr: z.string().optional().describe('بديل عربي لنص البحث إن لم يُمرَّر query'),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'web_search',
-          params,
+          params: {
+            ...params,
+            query: params.query || params.queryAr || '',
+          },
           mode,
           requesterId,
           scopeId,
@@ -239,6 +244,68 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('brain_save_document'),
+        }),
+    }),
+    fill_policy_audit: tool({
+      description:
+        'تعبئة نماذج Excel للتدقيق (تدقيق سياسة/لائحة/خصوصية…) من نصوص عقل الشركة ثم إرجاع ملف معبّأ للتنزيل والمراجعة البشرية.',
+      inputSchema: z.object({
+        topicAr: z
+          .string()
+          .describe('موضوع التدقيق مثل سياسة خصوصية البيانات'),
+        queryAr: z
+          .string()
+          .optional()
+          .describe('بديل اختياري لـ topicAr'),
+        templateName: z
+          .string()
+          .optional()
+          .describe('جزء من اسم ملف القالب مثل تدقيق سياسة'),
+        fileId: z.string().optional().describe('معرّف قالب في مساحة الغرفة'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'fill_policy_audit',
+          params: {
+            ...params,
+            topicAr: params.topicAr || params.queryAr,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('fill_policy_audit'),
+        }),
+    }),
+    send_director_digest: tool({
+      description:
+        'إرسال ملخص «ما ينتظر قرارك» لمدير الجمعية بالبريد (Resend) و/أو تيليجرام: موافقات + مواعيد نظامية + مهام.',
+      inputSchema: z.object({
+        toEmail: z
+          .string()
+          .optional()
+          .describe('بريد المدير إن اختلف عن DIRECTOR_EMAIL'),
+        nameAr: z
+          .string()
+          .optional()
+          .describe('اسم المخاطب؛ الافتراضي DIGEST_NAME_AR'),
+        channels: z
+          .array(z.enum(['email', 'telegram']))
+          .optional()
+          .describe('قنوات الإرسال؛ الافتراضي بريد + تيليجرام'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'send_director_digest',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('send_director_digest'),
         }),
     }),
     pdf_create: tool({

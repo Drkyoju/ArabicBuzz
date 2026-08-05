@@ -70,16 +70,64 @@ export async function executeWebSearch(
   _n: string,
   params: Record<string, unknown>
 ) {
-  const query = String(params.query || '').trim()
+  const query = String(params.query || params.queryAr || '').trim()
   if (!query) throw new Error('يلزم استعلام بحث.')
 
-  // Prefer Perplexity-style if key present via OpenRouter-less simple DDG
   if (IS_AIR_GAPPED_MODE) {
     return {
       ok: false,
       stub: false,
       results: [],
       messageAr: 'البحث معطّل في الوضع المحلي المغلق.',
+    }
+  }
+
+  const braveKey = process.env.BRAVE_API_KEY?.trim()
+  if (braveKey) {
+    try {
+      const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=8`
+      validateNetworkAccess(url)
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'X-Subscription-Token': braveKey,
+        },
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as {
+          web?: {
+            results?: Array<{
+              title?: string
+              url?: string
+              description?: string
+            }>
+          }
+        }
+        const results = (data.web?.results || [])
+          .filter((r) => r.url && r.title)
+          .map((r) => ({
+            title: String(r.title).slice(0, 160),
+            url: String(r.url),
+            snippet: String(r.description || '').slice(0, 280),
+          }))
+        return {
+          ok: true,
+          query,
+          provider: 'brave',
+          count: results.length,
+          results,
+          messageAr:
+            results.length > 0
+              ? `بحث Brave: ${results.length} نتيجة للوائح/الويب.`
+              : 'لا نتائج من Brave — جرّب صياغة أخرى.',
+        }
+      }
+    } catch (e) {
+      console.warn(
+        '[web_search] Brave failed',
+        e instanceof Error ? e.message : e
+      )
     }
   }
 
@@ -113,11 +161,12 @@ export async function executeWebSearch(
     return {
       ok: true,
       query,
+      provider: 'duckduckgo',
       count: results.length,
       results,
       messageAr:
         results.length > 0
-          ? `عُثر على ${results.length} نتيجة.`
+          ? `عُثر على ${results.length} نتيجة${braveKey ? ' (احتياطي بعد Brave)' : ''}.`
           : 'لا نتائج ظاهرة — جرّب صياغة أخرى أو web_fetch لرابط مباشر.',
     }
   } catch (e) {

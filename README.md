@@ -99,12 +99,21 @@ npm run test:multiplayer
 
 ## Cron
 
-جدولة Netlify أو طلب موقّع:
+جدولة خارجية (Netlify Scheduled Function / cron-job.org / GitHub Actions) تستدعي مسارات Next.js — لا يوجد daemon داخل الدالة:
 
 ```bash
+# كل ساعة: نبضات + مهام مجدولة + ملخص المدير يوم الخميس (توقيت الرياض)
 curl -X POST https://arabicbuzz.netlify.app/api/crons/runner \
   -H "Authorization: Bearer $CRON_SECRET"
+
+# ملخص «ما ينتظر قرارك» فقط (الخميس؛ أو force=1)
+curl -X POST "https://arabicbuzz.netlify.app/api/crons/director-digest?force=1" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
+
+متغيرات Netlify للملخص: `DIRECTOR_EMAIL` أو `DIGEST_EMAIL`، `RESEND_API_KEY`، `RESEND_FROM`، واختياري `DIGEST_NAME_AR` + تيليجرام.
 
 ## Evaluation benchmark
 

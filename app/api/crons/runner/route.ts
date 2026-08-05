@@ -179,9 +179,29 @@ export async function POST(req: NextRequest) {
     details: [e instanceof Error ? e.message : 'deadline reminder error'],
   }))
 
+  let directorDigest: unknown = null
+  try {
+    const { isDirectorDigestDay, sendDirectorWeeklyDigest } = await import(
+      '@/lib/digest/director-weekly'
+    )
+    if (isDirectorDigestDay(now)) {
+      directorDigest = await sendDirectorWeeklyDigest({
+        scopeId: 'shared-demo',
+      })
+    } else {
+      directorDigest = { skipped: true, reason: 'not_thursday_riyadh' }
+    }
+  } catch (e) {
+    directorDigest = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'digest error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
     deadlineReminders,
+    directorDigest,
   })
 }
