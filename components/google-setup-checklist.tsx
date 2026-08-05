@@ -28,7 +28,7 @@ export function GoogleSetupChecklist({
       </p>
       <ol className="mt-2 list-decimal space-y-1.5 pe-4 text-[11px] leading-relaxed text-stone-600">
         <li>أنشئ OAuth Client (Web) في Google Cloud مع Redirect الخاص بـ Auth</li>
-        <li>فعّل Calendar API و Drive API</li>
+        <li>فعّل Calendar API و Gmail API و Google Sheets API و Drive API</li>
         <li>فعّل موفّر Google في لوحة المصادقة</li>
         <li>أضف معرّفات العميل في متغيرات الاستضافة ثم أعد النشر</li>
         <li>{lastStep}</li>

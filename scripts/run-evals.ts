@@ -21,6 +21,7 @@ import { getToolExecutor } from '@/lib/agents/tools'
 import { evaluateAgentResponse } from '@/lib/evals/judge'
 import { orchestrateParallelWorkflow } from '@/lib/agents/orchestrator'
 import { runAgentEngine } from '@/lib/agents/engine'
+import { runArabicFcSuite } from '@/lib/evals/arabic-fc-runner'
 import {
   aggregateScores,
   EvalDataset,
@@ -254,6 +255,23 @@ async function main() {
   console.log(` Passed/Failed         : ${agg.passed}/${agg.failed} (n=${agg.total})`)
   console.log('──────────────────────────────────────────────')
 
+  // Arabic function-calling suite (HeshamHaroon/Arabic_Function_Calling subset).
+  // Needs a live model, so it self-skips when no provider key is present.
+  let arabicFc: Awaited<ReturnType<typeof runArabicFcSuite>> | null = null
+  if (!process.argv.includes('--skip-arabic-fc') && mode === 'live') {
+    arabicFc = await runArabicFcSuite({
+      limit: process.env.EVAL_ARABIC_FC_LIMIT
+        ? Number(process.env.EVAL_ARABIC_FC_LIMIT)
+        : undefined,
+      log: (line) => console.log(line),
+    })
+    if (arabicFc.status === 'skipped') {
+      console.log(`\nArabic function calling: SKIPPED — ${arabicFc.reason}\n`)
+    } else {
+      console.log(arabicFc.summaryText)
+    }
+  }
+
   const reportPath = path.join(process.cwd(), 'tests/evals/last-report.json')
   fs.mkdirSync(path.dirname(reportPath), { recursive: true })
   fs.writeFileSync(
@@ -265,6 +283,18 @@ async function main() {
         threshold,
         aggregates: agg,
         results,
+        arabicFunctionCalling:
+          arabicFc && arabicFc.status !== 'skipped'
+            ? {
+                status: arabicFc.status,
+                modelSlug: arabicFc.modelSlug,
+                aggregates: arabicFc.aggregates,
+                thresholds: arabicFc.thresholds,
+                errored: arabicFc.errored,
+              }
+            : arabicFc?.status === 'skipped'
+              ? { status: 'skipped', reason: arabicFc.reason }
+              : null,
       },
       null,
       2
@@ -277,6 +307,11 @@ async function main() {
     console.error(
       `\nFAIL: Accuracy ${pct(agg.Accuracy)} < ${pct(threshold)} — blocking deploy.\n`
     )
+    process.exit(1)
+  }
+
+  if (arabicFc?.status === 'fail') {
+    console.error('\nFAIL: Arabic function-calling suite below gate.\n')
     process.exit(1)
   }
 

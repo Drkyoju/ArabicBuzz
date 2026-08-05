@@ -1,0 +1,1219 @@
+{
+  "version": "1.0.0",
+  "name": "Arabic function calling (MSA subset)",
+  "source": "HeshamHaroon/Arabic_Function_Calling",
+  "sourceUrl": "https://huggingface.co/datasets/HeshamHaroon/Arabic_Function_Calling",
+  "licenseNoteAr": "مجموعة بيانات عامة على Hugging Face — مقتطف MSA فقط لأغراض التقييم في CI.",
+  "dialect": "MSA",
+  "generatedAt": "2026-08-05T03:38:21.099Z",
+  "thresholds": {
+    "toolSelectionAccuracy": 0.7,
+    "abstentionAccuracy": 0.7
+  },
+  "functions": [
+    {
+      "name": "get_weather",
+      "descriptionAr": "حالة الطقس المتوقعة لمدينة محددة لعدد من الأيام.",
+      "parameters": {
+        "city": "string",
+        "days": "number"
+      }
+    },
+    {
+      "name": "get_air_quality",
+      "descriptionAr": "مؤشر جودة الهواء الحالي لمدينة محددة.",
+      "parameters": {
+        "city": "string"
+      }
+    },
+    {
+      "name": "get_prayer_times",
+      "descriptionAr": "مواقيت الصلاة ليوم محدد في مدينة محددة.",
+      "parameters": {
+        "city": "string",
+        "date": "string"
+      }
+    },
+    {
+      "name": "get_qibla_direction",
+      "descriptionAr": "اتجاه القبلة بالدرجات من مدينة أو إحداثيات.",
+      "parameters": {
+        "city": "string"
+      }
+    },
+    {
+      "name": "calculate_zakat",
+      "descriptionAr": "حساب مبلغ الزكاة الواجب على مال أو أصول محددة.",
+      "parameters": {
+        "type": "string",
+        "amount": "number",
+        "currency": "string"
+      }
+    },
+    {
+      "name": "search_quran",
+      "descriptionAr": "البحث في نص القرآن الكريم عن آية أو كلمة.",
+      "parameters": {
+        "query": "string",
+        "search_type": "string"
+      }
+    },
+    {
+      "name": "get_hadith",
+      "descriptionAr": "جلب حديث نبوي من كتاب أو باب محدد.",
+      "parameters": {
+        "query": "string",
+        "source": "string"
+      }
+    },
+    {
+      "name": "search_umrah_packages",
+      "descriptionAr": "البحث عن باقات عمرة حسب المدينة والتاريخ والميزانية.",
+      "parameters": {
+        "city": "string",
+        "num_persons": "number"
+      }
+    },
+    {
+      "name": "book_government_appointment",
+      "descriptionAr": "حجز موعد في خدمة حكومية (تجديد هوية، رخصة، جوازات…).",
+      "parameters": {
+        "service_type": "string",
+        "city": "string",
+        "id_number": "string"
+      }
+    },
+    {
+      "name": "check_iqama_status",
+      "descriptionAr": "الاستعلام عن حالة الإقامة أو صلاحيتها برقم الإقامة.",
+      "parameters": {
+        "iqama_number": "string"
+      }
+    },
+    {
+      "name": "check_visa_status",
+      "descriptionAr": "الاستعلام عن حالة تأشيرة برقم الطلب أو الجواز.",
+      "parameters": {
+        "visa_number": "string"
+      }
+    },
+    {
+      "name": "check_traffic_violations",
+      "descriptionAr": "الاستعلام عن المخالفات المرورية المسجلة على هوية أو مركبة.",
+      "parameters": {
+        "id_number": "string"
+      }
+    },
+    {
+      "name": "calculate_customs",
+      "descriptionAr": "حساب الرسوم الجمركية المتوقعة على شحنة أو قيمة سلعة.",
+      "parameters": {
+        "value": "string",
+        "category": "string",
+        "country": "string"
+      }
+    },
+    {
+      "name": "book_doctor_appointment",
+      "descriptionAr": "حجز موعد طبي مع تخصص في مدينة وتاريخ محددين.",
+      "parameters": {
+        "specialty": "string",
+        "city": "string",
+        "date": "string"
+      }
+    },
+    {
+      "name": "search_medications",
+      "descriptionAr": "البحث عن دواء وسعره وبدائله.",
+      "parameters": {
+        "condition": "string",
+        "medication_name": "string"
+      }
+    },
+    {
+      "name": "check_insurance_coverage",
+      "descriptionAr": "التحقق من تغطية التأمين الطبي لخدمة أو إجراء.",
+      "parameters": {
+        "insurance_number": "string",
+        "procedure": "string"
+      }
+    },
+    {
+      "name": "calculate_loan",
+      "descriptionAr": "حساب قسط تمويل أو قرض حسب المبلغ والمدة ونسبة الفائدة.",
+      "parameters": {
+        "principal": "string",
+        "rate": "string",
+        "months": "string"
+      }
+    },
+    {
+      "name": "transfer_money",
+      "descriptionAr": "تحويل مبلغ مالي بين حسابين أو إلى مستفيد.",
+      "parameters": {
+        "amount": "number",
+        "currency": "string",
+        "recipient_name": "string",
+        "iban": "string"
+      }
+    },
+    {
+      "name": "convert_currency",
+      "descriptionAr": "تحويل مبلغ من عملة إلى أخرى بسعر الصرف الحالي.",
+      "parameters": {
+        "amount": "number",
+        "from_currency": "string",
+        "to_currency": "string"
+      }
+    },
+    {
+      "name": "get_gold_price",
+      "descriptionAr": "سعر الذهب الحالي لعيار ووحدة محددة.",
+      "parameters": {
+        "country": "string",
+        "karat": "number"
+      }
+    },
+    {
+      "name": "track_shipment",
+      "descriptionAr": "تتبع شحنة برقم التتبع لدى شركة التوصيل.",
+      "parameters": {
+        "tracking_number": "string"
+      }
+    },
+    {
+      "name": "compare_prices",
+      "descriptionAr": "مقارنة أسعار منتج بين المتاجر الإلكترونية.",
+      "parameters": {
+        "product_name": "string",
+        "country": "string"
+      }
+    },
+    {
+      "name": "order_food",
+      "descriptionAr": "طلب وجبة من مطعم مع تحديد العناصر والعنوان.",
+      "parameters": {
+        "restaurant": "string",
+        "items": "string"
+      }
+    },
+    {
+      "name": "search_flights",
+      "descriptionAr": "البحث عن رحلات طيران بين مدينتين في تاريخ محدد.",
+      "parameters": {
+        "origin": "string",
+        "destination": "string",
+        "date": "string",
+        "passengers": "number"
+      }
+    },
+    {
+      "name": "search_hotels",
+      "descriptionAr": "البحث عن فنادق في مدينة لتواريخ وميزانية محددة.",
+      "parameters": {
+        "city": "string",
+        "check_in": "string",
+        "check_out": "string",
+        "guests": "number"
+      }
+    },
+    {
+      "name": "set_reminder",
+      "descriptionAr": "إنشاء تذكير بنص ووقت محددين.",
+      "parameters": {
+        "title": "string",
+        "datetime": "string"
+      }
+    },
+    {
+      "name": "translate_text",
+      "descriptionAr": "ترجمة نص بين لغتين.",
+      "parameters": {
+        "text": "string",
+        "target_language": "string"
+      }
+    },
+    {
+      "name": "calculate_math",
+      "descriptionAr": "حساب عملية رياضية أو تعبير حسابي.",
+      "parameters": {
+        "expression": "string"
+      }
+    },
+    {
+      "name": "get_current_time",
+      "descriptionAr": "الوقت الحالي في منطقة زمنية أو مدينة.",
+      "parameters": {
+        "city": "string"
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "gen_25607",
+      "category": "tool_selection",
+      "promptAr": "أود معرفة حالة الجو في مسقط غداً",
+      "expectedFunction": "get_weather",
+      "expectedArgs": {
+        "city": "مسقط",
+        "days": 1
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "gen_02305",
+      "category": "tool_selection",
+      "promptAr": "ما هي حالة الطقس في جدة غداً؟",
+      "expectedFunction": "get_weather",
+      "expectedArgs": {
+        "city": "جدة",
+        "days": 1
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "gen_15808",
+      "category": "tool_selection",
+      "promptAr": "هل يمكنك إعطائي حالة الطقس في بيروت لثلاثة أيام قادمة؟",
+      "expectedFunction": "get_weather",
+      "expectedArgs": {
+        "city": "بيروت",
+        "days": "3"
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "b672_0",
+      "category": "tool_selection",
+      "promptAr": "ما هي جودة الهواء في عمان حالياً؟",
+      "expectedFunction": "get_air_quality",
+      "expectedArgs": {
+        "city": "عمان"
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "gen_02521",
+      "category": "tool_selection",
+      "promptAr": "كيف هي جودة الهواء في بيروت اليوم؟",
+      "expectedFunction": "get_air_quality",
+      "expectedArgs": {
+        "city": "بيروت"
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "gen_31796",
+      "category": "tool_selection",
+      "promptAr": "أود معرفة جودة الهواء الحالية في جدة",
+      "expectedFunction": "get_air_quality",
+      "expectedArgs": {
+        "city": "جدة"
+      },
+      "domain": "weather"
+    },
+    {
+      "id": "gen_18560",
+      "category": "tool_selection",
+      "promptAr": "ما هي مواقيت الصلاة في مكة المكرمة اليوم؟",
+      "expectedFunction": "get_prayer_times",
+      "expectedArgs": {
+        "city": "مكة المكرمة",
+        "date": "اليوم"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_18635",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة مواقيت الصلاة في جدة ليوم غد",
+      "expectedFunction": "get_prayer_times",
+      "expectedArgs": {
+        "city": "جدة",
+        "date": "غد"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_10861",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة مواقيت الصلاة في مدينة جدة لهذا الأسبوع.",
+      "expectedFunction": "get_prayer_times",
+      "expectedArgs": {
+        "city": "جدة",
+        "date": "this week"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_23392",
+      "category": "tool_selection",
+      "promptAr": "ما هو اتجاه القبلة في الرياض؟",
+      "expectedFunction": "get_qibla_direction",
+      "expectedArgs": {
+        "city": "الرياض"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_11893",
+      "category": "tool_selection",
+      "promptAr": "ما هو اتجاه القبلة في الرباط؟",
+      "expectedFunction": "get_qibla_direction",
+      "expectedArgs": {
+        "city": "الرباط"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_17899",
+      "category": "tool_selection",
+      "promptAr": "أين تكون القبلة في جدة؟",
+      "expectedFunction": "get_qibla_direction",
+      "expectedArgs": {
+        "city": "جدة"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_23945",
+      "category": "tool_selection",
+      "promptAr": "كيف أحسب زكاة المال إذا كان لدي 50000 جنيه؟",
+      "expectedFunction": "calculate_zakat",
+      "expectedArgs": {
+        "type": "مال",
+        "amount": 50000,
+        "currency": "جنيه"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_01262",
+      "category": "tool_selection",
+      "promptAr": "كيف أحسب زكاة الذهب إذا كان لدي 150 غرام؟",
+      "expectedFunction": "calculate_zakat",
+      "expectedArgs": {
+        "type": "gold",
+        "amount": 150
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_39256",
+      "category": "tool_selection",
+      "promptAr": "كيف أحسب زكاة المال إذا لدي 15000 ريال؟",
+      "expectedFunction": "calculate_zakat",
+      "expectedArgs": {
+        "type": "المال",
+        "amount": 15000,
+        "currency": "ريال"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_09281",
+      "category": "tool_selection",
+      "promptAr": "ابحث في القرآن عن كلمة الرحمة.",
+      "expectedFunction": "search_quran",
+      "expectedArgs": {
+        "query": "الرحمة"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_13549",
+      "category": "tool_selection",
+      "promptAr": "ما هو تفسير الآية: إن مع العسر يسرا؟",
+      "expectedFunction": "search_quran",
+      "expectedArgs": {
+        "query": "إن مع العسر يسرا",
+        "search_type": "تفسير"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_10638",
+      "category": "tool_selection",
+      "promptAr": "ابحث عن آية الكرسي في القرآن",
+      "expectedFunction": "search_quran",
+      "expectedArgs": {
+        "query": "آية الكرسي"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_11078",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة حديث عن الأمانة من صحيح البخاري.",
+      "expectedFunction": "get_hadith",
+      "expectedArgs": {
+        "query": "الأمانة",
+        "source": "صحيح البخاري"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_33433",
+      "category": "tool_selection",
+      "promptAr": "ما هي أحاديث النبي عن بر الوالدين؟",
+      "expectedFunction": "get_hadith",
+      "expectedArgs": {
+        "query": "بر الوالدين"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_10689",
+      "category": "tool_selection",
+      "promptAr": "ما هو الحديث الذي يبدأ بقول النبي عن حسن الخلق",
+      "expectedFunction": "get_hadith",
+      "expectedArgs": {
+        "query": "حسن الخلق"
+      },
+      "domain": "islamic_services"
+    },
+    {
+      "id": "gen_32873",
+      "category": "tool_selection",
+      "promptAr": "أريد باقات عمرة في مكة لثلاثة أشخاص",
+      "expectedFunction": "search_umrah_packages",
+      "expectedArgs": {
+        "city": "مكة",
+        "num_persons": 3
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_04352",
+      "category": "tool_selection",
+      "promptAr": "ما هي باقات العمرة الموجودة في الطائف لشخصين؟",
+      "expectedFunction": "search_umrah_packages",
+      "expectedArgs": {
+        "city": "الطائف",
+        "num_persons": 2
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_03454",
+      "category": "tool_selection",
+      "promptAr": "أحتاج إلى باقة عمرة في جدة لأربعة أشخاص في منتصف أبريل",
+      "expectedFunction": "search_umrah_packages",
+      "expectedArgs": {
+        "city": "جدة",
+        "num_persons": 4
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_41202",
+      "category": "tool_selection",
+      "promptAr": "أريد حجز موعد لاصدار بطاقة الأحوال في الرياض برقم الهوية ٥٦٧٨٩٠١٢",
+      "expectedFunction": "book_government_appointment",
+      "expectedArgs": {
+        "service_type": "ID card issuance",
+        "city": "Riyadh",
+        "id_number": "56789012"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_24107",
+      "category": "tool_selection",
+      "promptAr": "أريد حجز موعد لتجديد الجواز في جدة برقم الهوية 7788996655",
+      "expectedFunction": "book_government_appointment",
+      "expectedArgs": {
+        "service_type": "تجديد الجواز",
+        "city": "جدة",
+        "id_number": "7788996655"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_20847",
+      "category": "tool_selection",
+      "promptAr": "أحتاج إلى حجز موعد لبطاقة الأحوال في جدة برقم الهوية 1122334455",
+      "expectedFunction": "book_government_appointment",
+      "expectedArgs": {
+        "service_type": "بطاقة الأحوال",
+        "city": "جدة",
+        "id_number": "1122334455"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_08206",
+      "category": "tool_selection",
+      "promptAr": "كم المدة المتبقية على انتهاء إقامتي رقم ٩٨٧٦٥٤٣٢١",
+      "expectedFunction": "check_iqama_status",
+      "expectedArgs": {
+        "iqama_number": "987654321"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_28285",
+      "category": "tool_selection",
+      "promptAr": "ما صلاحية الإقامة لرقم 9876543210؟",
+      "expectedFunction": "check_iqama_status",
+      "expectedArgs": {
+        "iqama_number": "9876543210"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_23815",
+      "category": "tool_selection",
+      "promptAr": "ما هي صلاحية الإقامة لرقم 9876543210؟",
+      "expectedFunction": "check_iqama_status",
+      "expectedArgs": {
+        "iqama_number": "9876543210"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_25240",
+      "category": "tool_selection",
+      "promptAr": "ما حالة تأشيرتي التي رقمها 654321؟",
+      "expectedFunction": "check_visa_status",
+      "expectedArgs": {
+        "visa_number": "654321"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_04705",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة حالة التأشيرة الخاصة بي، رقم التأشيرة 123456",
+      "expectedFunction": "check_visa_status",
+      "expectedArgs": {
+        "visa_number": "123456"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_06455",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة حالة تأشيرتي، رقمي هو 1234567890",
+      "expectedFunction": "check_visa_status",
+      "expectedArgs": {
+        "visa_number": "1234567890"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_30226",
+      "category": "tool_selection",
+      "promptAr": "هل يمكنني التحقق من مخالفاتي المرورية باستخدام رقم الهوية 1122334455؟",
+      "expectedFunction": "check_traffic_violations",
+      "expectedArgs": {
+        "id_number": "1122334455"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_15936",
+      "category": "tool_selection",
+      "promptAr": "هل لدي أي مخالفات مرورية؟ رقم الهوية 1122334455",
+      "expectedFunction": "check_traffic_violations",
+      "expectedArgs": {
+        "id_number": "1122334455"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_30861",
+      "category": "tool_selection",
+      "promptAr": "هل لدي مخالفات مرورية برقم الهوية 9988776655؟",
+      "expectedFunction": "check_traffic_violations",
+      "expectedArgs": {
+        "id_number": "9988776655"
+      },
+      "domain": "government_services"
+    },
+    {
+      "id": "gen_43069",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة تكلفة الجمارك لجهاز ألعاب قيمته 300 دولار في الكويت",
+      "expectedFunction": "calculate_customs",
+      "expectedArgs": {
+        "value": "300",
+        "category": "جهاز ألعاب",
+        "country": "الكويت"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_03914",
+      "category": "tool_selection",
+      "promptAr": "كم الجمارك على إلكترونيات بقيمة 500 دولار في قطر؟",
+      "expectedFunction": "calculate_customs",
+      "expectedArgs": {
+        "value": "500",
+        "category": "إلكترونيات",
+        "country": "قطر"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_12000",
+      "category": "tool_selection",
+      "promptAr": "كم الجمارك على ملابس قيمتها 500 درهم في الكويت؟",
+      "expectedFunction": "calculate_customs",
+      "expectedArgs": {
+        "value": "500",
+        "category": "ملابس",
+        "country": "الكويت"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_31982",
+      "category": "tool_selection",
+      "promptAr": "أحتاج إلى موعد مع طبيب جلدية في دبي في أي وقت ممكن",
+      "expectedFunction": "book_doctor_appointment",
+      "expectedArgs": {
+        "specialty": "جلدية",
+        "city": "دبي"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_27024",
+      "category": "tool_selection",
+      "promptAr": "أريد حجز موعد طبيب أسنان في جدة الأسبوع القادم",
+      "expectedFunction": "book_doctor_appointment",
+      "expectedArgs": {
+        "specialty": "أسنان",
+        "city": "جدة",
+        "date": "2023-10-10"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_12104",
+      "category": "tool_selection",
+      "promptAr": "أريد حجز موعد طبيب قلب في جدة يوم الخميس القادم",
+      "expectedFunction": "book_doctor_appointment",
+      "expectedArgs": {
+        "specialty": "قلب",
+        "city": "جدة",
+        "date": "2023-10-26"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "b275_0",
+      "category": "tool_selection",
+      "promptAr": "أحتاج إلى البحث عن أدوية لمرض السكري",
+      "expectedFunction": "search_medications",
+      "expectedArgs": {
+        "condition": "سكري"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_44201",
+      "category": "tool_selection",
+      "promptAr": "هل يمكنني معرفة إن كان دواء اسمه كولدال متوفر في الإسكندرية؟",
+      "expectedFunction": "search_medications",
+      "expectedArgs": {
+        "medication_name": "كولدال"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_08872",
+      "category": "tool_selection",
+      "promptAr": "أرغب في معرفة إذا كان دواء تاميفلو متاحًا في السوق",
+      "expectedFunction": "search_medications",
+      "expectedArgs": {
+        "medication_name": "تاميفلو"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_11497",
+      "category": "tool_selection",
+      "promptAr": "هل تأميني يغطي عملية جراحية بالليزر؟",
+      "expectedFunction": "check_insurance_coverage",
+      "expectedArgs": {
+        "insurance_number": "123456789",
+        "procedure": "عملية جراحية بالليزر"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_43958",
+      "category": "tool_selection",
+      "promptAr": "هل تأميني يغطي تكاليف العلاج الطبيعي؟",
+      "expectedFunction": "check_insurance_coverage",
+      "expectedArgs": {
+        "insurance_number": "987654321",
+        "procedure": "العلاج الطبيعي"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_45555",
+      "category": "tool_selection",
+      "promptAr": "هل يمكنني معرفة إن كانت عملية جراحية مغطاة بالتأمين الخاص بي؟",
+      "expectedFunction": "check_insurance_coverage",
+      "expectedArgs": {
+        "insurance_number": "123456789",
+        "procedure": "عملية جراحية"
+      },
+      "domain": "healthcare"
+    },
+    {
+      "id": "gen_23019",
+      "category": "tool_selection",
+      "promptAr": "كم نسبة الفائدة على قرض قيمته ١٥٠٠٠٠ درهم لمدة ٣ سنوات؟",
+      "expectedFunction": "calculate_loan",
+      "expectedArgs": {
+        "principal": "١٥٠٠٠٠",
+        "rate": "٤.٥",
+        "months": "٣٦"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_04367",
+      "category": "tool_selection",
+      "promptAr": "كيف يمكنني حساب قرض 50000 درهم بمعدل فائدة 3٪ على 5 سنوات؟",
+      "expectedFunction": "calculate_loan",
+      "expectedArgs": {
+        "principal": 50000,
+        "rate": 3,
+        "months": 60
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_11293",
+      "category": "tool_selection",
+      "promptAr": "احسب لي قرض على ١٠٠٠٠٠ درهم إماراتي بفائدة ٣٪ لمدة ٦٠ شهر",
+      "expectedFunction": "calculate_loan",
+      "expectedArgs": {
+        "principal": 100000,
+        "rate": 3,
+        "months": 60
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_04368",
+      "category": "tool_selection",
+      "promptAr": "أود تحويل 2000 ريال إلى محمد في السعودية، رقم IBAN هو SA1234567890.",
+      "expectedFunction": "transfer_money",
+      "expectedArgs": {
+        "amount": 2000,
+        "currency": "SAR",
+        "recipient_name": "محمد",
+        "iban": "SA1234567890"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_38097",
+      "category": "tool_selection",
+      "promptAr": "أريد تحويل 2000 جنيه مصري إلى حساب إبراهيم في السعودية. رقم الحساب هو SA123456789012345678.",
+      "expectedFunction": "transfer_money",
+      "expectedArgs": {
+        "amount": 2000,
+        "currency": "EGP",
+        "recipient_name": "إبراهيم",
+        "iban": "SA123456789012345678"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_09534",
+      "category": "tool_selection",
+      "promptAr": "أحتاج لتحويل 5000 ريال سعودي إلى محمد في الأردن، رقم الآيبان JO94CBJO0010000000000131000302",
+      "expectedFunction": "transfer_money",
+      "expectedArgs": {
+        "amount": 5000,
+        "currency": "SAR",
+        "recipient_name": "محمد",
+        "iban": "JO94CBJO0010000000000131000302"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_06115",
+      "category": "tool_selection",
+      "promptAr": "أريد تحويل 500 دولار أمريكي إلى ريال سعودي.",
+      "expectedFunction": "convert_currency",
+      "expectedArgs": {
+        "amount": 500,
+        "from_currency": "USD",
+        "to_currency": "SAR"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_37314",
+      "category": "tool_selection",
+      "promptAr": "أريد تحويل 500 دولار أمريكي إلى ريال سعودي",
+      "expectedFunction": "convert_currency",
+      "expectedArgs": {
+        "amount": 500,
+        "from_currency": "USD",
+        "to_currency": "SAR"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_34885",
+      "category": "tool_selection",
+      "promptAr": "أريد تحويل ٥٠٠ دولار إلى ريال سعودي.",
+      "expectedFunction": "convert_currency",
+      "expectedArgs": {
+        "amount": 500,
+        "from_currency": "USD",
+        "to_currency": "SAR"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_37790",
+      "category": "tool_selection",
+      "promptAr": "كم سعر الذهب في الإمارات عيار ٢١؟",
+      "expectedFunction": "get_gold_price",
+      "expectedArgs": {
+        "country": "الإمارات",
+        "karat": 21
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_29765",
+      "category": "tool_selection",
+      "promptAr": "ما هو سعر الذهب في السعودية اليوم؟",
+      "expectedFunction": "get_gold_price",
+      "expectedArgs": {
+        "country": "Saudi Arabia"
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_31985",
+      "category": "tool_selection",
+      "promptAr": "كم سعر الذهب اليوم في مصر عيار 21؟",
+      "expectedFunction": "get_gold_price",
+      "expectedArgs": {
+        "country": "Egypt",
+        "karat": 21
+      },
+      "domain": "banking_finance"
+    },
+    {
+      "id": "gen_29294",
+      "category": "tool_selection",
+      "promptAr": "أريد تتبع شحنتي، رقم التتبع 123456789",
+      "expectedFunction": "track_shipment",
+      "expectedArgs": {
+        "tracking_number": "123456789"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_35834",
+      "category": "tool_selection",
+      "promptAr": "أريد تتبع شحنتي، رقم التتبع 1234567890",
+      "expectedFunction": "track_shipment",
+      "expectedArgs": {
+        "tracking_number": "1234567890"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_20048",
+      "category": "tool_selection",
+      "promptAr": "أرجو تتبع شحنتي برقم التتبع ٩٨٧٦٥",
+      "expectedFunction": "track_shipment",
+      "expectedArgs": {
+        "tracking_number": "98765"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_26672",
+      "category": "tool_selection",
+      "promptAr": "أرغب في معرفة سعر لابتوب ديل في الأردن",
+      "expectedFunction": "compare_prices",
+      "expectedArgs": {
+        "product_name": "لابتوب ديل",
+        "country": "الأردن"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_25015",
+      "category": "tool_selection",
+      "promptAr": "كيف أسعار الآيفون 13 في السعودية؟",
+      "expectedFunction": "compare_prices",
+      "expectedArgs": {
+        "product_name": "آيفون 13",
+        "country": "السعودية"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_23525",
+      "category": "tool_selection",
+      "promptAr": "قارن أسعار هاتف آيفون 13 في مصر",
+      "expectedFunction": "compare_prices",
+      "expectedArgs": {
+        "product_name": "آيفون 13",
+        "country": "مصر"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_20692",
+      "category": "tool_selection",
+      "promptAr": "اطلب لي طعام من مطعم الهناء، طبق مقلوبة وطبق تبولة",
+      "expectedFunction": "order_food",
+      "expectedArgs": {
+        "restaurant": "الهناء",
+        "items": "مقلوبة, تبولة"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_36349",
+      "category": "tool_selection",
+      "promptAr": "أريد طلب طعام من مطعم البيتزا، أريد بيتزا مارجريتا وببسي",
+      "expectedFunction": "order_food",
+      "expectedArgs": {
+        "restaurant": "مطعم البيتزا",
+        "items": "بيتزا مارجريتا, ببسي"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_18017",
+      "category": "tool_selection",
+      "promptAr": "أبغى أطلب بيتزا من مطعم دومينوز وأبغى صنفين بيتزا كبيرة.",
+      "expectedFunction": "order_food",
+      "expectedArgs": {
+        "restaurant": "دومينوز",
+        "items": "صنفين بيتزا كبيرة"
+      },
+      "domain": "ecommerce"
+    },
+    {
+      "id": "gen_15207",
+      "category": "tool_selection",
+      "promptAr": "أريد حجز رحلة من الرياض إلى باريس في 20 يناير",
+      "expectedFunction": "search_flights",
+      "expectedArgs": {
+        "origin": "الرياض",
+        "destination": "باريس",
+        "date": "2024-01-20"
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_01318",
+      "category": "tool_selection",
+      "promptAr": "أبحث عن رحلات طيران من القاهرة إلى بيروت في ٢٥ أكتوبر لشخص واحد.",
+      "expectedFunction": "search_flights",
+      "expectedArgs": {
+        "origin": "القاهرة",
+        "destination": "بيروت",
+        "date": "2023-10-25",
+        "passengers": 1
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_28840",
+      "category": "tool_selection",
+      "promptAr": "ابحث عن رحلة من الرياض إلى بيروت في ٢٥ أبريل لشخص واحد",
+      "expectedFunction": "search_flights",
+      "expectedArgs": {
+        "origin": "الرياض",
+        "destination": "بيروت",
+        "date": "٢٥ أبريل",
+        "passengers": 1
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_37890",
+      "category": "tool_selection",
+      "promptAr": "أبحث عن فندق في أبوظبي من 20 إلى 25 نوفمبر لأربعة ضيوف",
+      "expectedFunction": "search_hotels",
+      "expectedArgs": {
+        "city": "أبوظبي",
+        "check_in": "2023-11-20",
+        "check_out": "2023-11-25",
+        "guests": 4
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_11468",
+      "category": "tool_selection",
+      "promptAr": "أريد معرفة إذا كان هناك غرف فندقية في مكة من 5 مارس إلى 10 مارس لشخصين",
+      "expectedFunction": "search_hotels",
+      "expectedArgs": {
+        "city": "مكة",
+        "check_in": "2024-03-05",
+        "check_out": "2024-03-10",
+        "guests": 2
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_06801",
+      "category": "tool_selection",
+      "promptAr": "أحتاج إلى حجز فندق في دبي بين 8 يناير و12 يناير لأربعة ضيوف",
+      "expectedFunction": "search_hotels",
+      "expectedArgs": {
+        "city": "دبي",
+        "check_in": "2024-01-08",
+        "check_out": "2024-01-12",
+        "guests": 4
+      },
+      "domain": "travel"
+    },
+    {
+      "id": "gen_18986",
+      "category": "tool_selection",
+      "promptAr": "أريد إنشاء تذكير بعنوان اجتماع عمل في الساعة الثالثة ظهراً يوم ١٥ أكتوبر",
+      "expectedFunction": "set_reminder",
+      "expectedArgs": {
+        "title": "اجتماع عمل",
+        "datetime": "2023-10-15T15:00:00"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_25689",
+      "category": "tool_selection",
+      "promptAr": "من فضلك، ذكرني بشراء حليب يوم الخميس في الساعة الثالثة عصرًا",
+      "expectedFunction": "set_reminder",
+      "expectedArgs": {
+        "title": "شراء حليب",
+        "datetime": "2023-10-05T15:00:00"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_42692",
+      "category": "tool_selection",
+      "promptAr": "ذكرني بموعد الطبيب يوم الاثنين القادم الساعة ٩ صباحًا",
+      "expectedFunction": "set_reminder",
+      "expectedArgs": {
+        "title": "موعد الطبيب",
+        "datetime": "2023-10-16T09:00:00"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_32563",
+      "category": "tool_selection",
+      "promptAr": "ترجمة النص 'الجو جميل اليوم' إلى الألمانية",
+      "expectedFunction": "translate_text",
+      "expectedArgs": {
+        "text": "الجو جميل اليوم",
+        "target_language": "de"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_14997",
+      "category": "tool_selection",
+      "promptAr": "ترجم لي هذه الفقرة إلى الفرنسية: السلام عليكم ورحمة الله",
+      "expectedFunction": "translate_text",
+      "expectedArgs": {
+        "text": "السلام عليكم ورحمة الله",
+        "target_language": "fr"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_30877",
+      "category": "tool_selection",
+      "promptAr": "أحتاج ترجمة كلمة 'التكنولوجيا' إلى الفرنسية",
+      "expectedFunction": "translate_text",
+      "expectedArgs": {
+        "text": "التكنولوجيا",
+        "target_language": "fr"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_22575",
+      "category": "tool_selection",
+      "promptAr": "احسب لي الناتج لهذه المعادلة: ٣ + ٥ * ٢ - ١",
+      "expectedFunction": "calculate_math",
+      "expectedArgs": {
+        "expression": "٣ + ٥ * ٢ - ١"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_40331",
+      "category": "tool_selection",
+      "promptAr": "ما هو ناتج العملية ٣٠ تقسيم ٣",
+      "expectedFunction": "calculate_math",
+      "expectedArgs": {
+        "expression": "٣٠ تقسيم ٣"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_13955",
+      "category": "tool_selection",
+      "promptAr": "احسب لي ناتج ٣٥ ضرب ٧.",
+      "expectedFunction": "calculate_math",
+      "expectedArgs": {
+        "expression": "35 * 7"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "gen_22577",
+      "category": "tool_selection",
+      "promptAr": "ما هو الوقت الحالي في القاهرة؟",
+      "expectedFunction": "get_current_time",
+      "expectedArgs": {
+        "city": "القاهرة"
+      },
+      "domain": "utilities"
+    },
+    {
+      "id": "neg_02482",
+      "category": "anti_hallucination",
+      "promptAr": "ما هي عاصمة السعودية؟",
+      "expectedFunction": null,
+      "domain": "unknown"
+    },
+    {
+      "id": "neg_03254",
+      "category": "anti_hallucination",
+      "promptAr": "من أنت وما هي قدراتك؟",
+      "expectedFunction": null,
+      "domain": "unknown"
+    },
+    {
+      "id": "neg_03096",
+      "category": "anti_hallucination",
+      "promptAr": "اشرح لي الفرق بين الزكاة والصدقة",
+      "expectedFunction": null,
+      "domain": "unknown"
+    },
+    {
+      "id": "neg_1_74",
+      "category": "anti_hallucination",
+      "promptAr": "من هو النبي محمد؟",
+      "expectedFunction": null,
+      "domain": "general"
+    }
+  ]
+}

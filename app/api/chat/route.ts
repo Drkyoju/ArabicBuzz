@@ -26,6 +26,7 @@ import {
 import { getNativeAiTools } from '@/lib/agents/engine'
 import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
+import { scheduleOtelFlush } from '@/lib/observability/langfuse'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -48,7 +49,8 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
   6) أعد الملف في الشات دائماً (attachments). لتيليجرام/بريد: send_file. ملخص المدير الأسبوعي: send_director_digest.
 - بحث اللوائح على الويب: web_search (Brave إن وُجد BRAVE_API_KEY) ثم web_fetch لصفحة محددة.
 - أدوات PDF إضافية: pdf_create / pdf_stamp / pdf_merge / pdf_list_fields / pdf_fill_form.
-- تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa (HITL).
+- تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa (HITL عبر browser-use/ماك).
+- بريد Google: gmail_search ثم gmail_read (قراءة فقط). جداول: sheets_read / sheets_write (الكتابة HITL).
 - عند إنتاج مسودة للمستند أو كود طويل للوحة المخرجات، غلّفه بوسم واحد:
   <artifact type="markdown|code|json|diff|html" title="عنوان عربي">المحتوى</artifact>`
 
@@ -301,6 +303,8 @@ export async function POST(req: Request) {
       })
     )
 
+    // Netlify/serverless: flush OTel → Langfuse after the response streams.
+    scheduleOtelFlush()
     return result.toDataStreamResponse()
   } catch (e) {
     if (e instanceof UnknownModelError) {

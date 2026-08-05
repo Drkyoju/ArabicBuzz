@@ -193,6 +193,12 @@ export async function connectEnvMcpServers(): Promise<string[]> {
     await tryConnect('brave-search', 'Brave Search', braveMcp)
   }
 
+  // Google MCP Toolbox for Databases (Streamable HTTP, e.g. https://host/mcp)
+  const toolboxUrl = process.env.MCP_TOOLBOX_URL?.trim()
+  if (toolboxUrl && !connected.includes('postgres')) {
+    await tryConnect('postgres', 'PostgreSQL (MCP Toolbox)', toolboxUrl)
+  }
+
   // Remaining remote/both catalog items: explicit MCP_<ID>_URL, or defaultUrl when autoDefaults
   for (const item of MCP_CATALOG) {
     if (item.runtime === 'local') continue

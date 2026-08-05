@@ -605,58 +605,77 @@ const server = createServer(async (req, res) => {
         join(here, 'playwright-task.mjs')
       const buScript =
         process.env.BROWSER_USE_SCRIPT ||
-        `${process.env.HOME || ''}/ArabicBuzz/scripts/browser-use-task.py`
+        join(here, 'browser-use-task.py')
 
       const tryPlaywright = prefer !== 'browser-use' && existsSync(pwScript)
       const tryBrowserUse = prefer !== 'playwright' && existsSync(buScript)
 
-      if (task && target && tryPlaywright) {
-        logs.push('[mac] engine=playwright')
-        const result = await runSpawn('node', [pwScript, target, task])
-        logs.push(result.stderr.slice(0, 500))
-        let parsed: Record<string, unknown> = {}
-        try {
-          parsed = JSON.parse(result.stdout) as Record<string, unknown>
-        } catch {
-          parsed = { raw: result.stdout.slice(0, 4000) }
-        }
-        json(res, 200, {
-          ok: result.ok && parsed.ok !== false,
-          extracted: (parsed.extracted as Record<string, unknown>) || parsed,
-          currentUrl: (parsed.currentUrl as string) || target,
-          screenshotBase64: parsed.screenshotBase64 || null,
-          logs: [...logs, ...((parsed.logs as string[]) || [])],
-          messageAr:
-            (parsed.messageAr as string) ||
-            (result.ok
-              ? 'اكتملت مهمة Playwright على الماك — راجع اللقطة (HITL).'
-              : 'فشل Playwright المحلي.'),
-          provider: 'playwright',
-        })
-        return
-      }
+      // Prefer browser-use in auto mode; Playwright is the fallback.
+      const engines: Array<'browser-use' | 'playwright'> =
+        prefer === 'playwright'
+          ? ['playwright']
+          : prefer === 'browser-use'
+            ? ['browser-use']
+            : ['browser-use', 'playwright']
 
-      if (task && target && tryBrowserUse) {
-        logs.push('[mac] engine=browser-use')
-        const result = await runSpawn('python3', [buScript, target, task])
-        logs.push(result.stderr.slice(0, 500))
-        let extracted: Record<string, unknown> = {}
-        try {
-          extracted = JSON.parse(result.stdout) as Record<string, unknown>
-        } catch {
-          extracted = { raw: result.stdout.slice(0, 4000) }
+      for (const engine of engines) {
+        if (engine === 'browser-use' && task && target && tryBrowserUse) {
+          logs.push('[mac] engine=browser-use')
+          const result = await runSpawn('python3', [buScript, target, task])
+          logs.push(result.stderr.slice(0, 500))
+          let extracted: Record<string, unknown> = {}
+          try {
+            extracted = JSON.parse(result.stdout) as Record<string, unknown>
+          } catch {
+            extracted = { raw: result.stdout.slice(0, 4000) }
+          }
+          const ok =
+            result.ok && (extracted as { ok?: boolean }).ok !== false
+          json(res, 200, {
+            ok,
+            extracted:
+              (extracted.extracted as Record<string, unknown>) || extracted,
+            currentUrl:
+              (extracted.currentUrl as string) || target,
+            logs: [
+              ...logs,
+              ...((extracted.logs as string[]) || []),
+            ],
+            messageAr:
+              (extracted.messageAr as string) ||
+              (ok
+                ? 'اكتملت مهمة browser-use على الماك — راجع النتيجة (HITL).'
+                : 'فشل سكربت browser-use المحلي.'),
+            provider: 'browser-use',
+          })
+          return
         }
-        json(res, 200, {
-          ok: result.ok,
-          extracted,
-          currentUrl: target,
-          logs,
-          messageAr: result.ok
-            ? 'اكتملت مهمة المتصفح على الماك.'
-            : 'فشل سكربت browser-use المحلي.',
-          provider: 'browser-use',
-        })
-        return
+
+        if (engine === 'playwright' && task && target && tryPlaywright) {
+          logs.push('[mac] engine=playwright')
+          const result = await runSpawn('node', [pwScript, target, task])
+          logs.push(result.stderr.slice(0, 500))
+          let parsed: Record<string, unknown> = {}
+          try {
+            parsed = JSON.parse(result.stdout) as Record<string, unknown>
+          } catch {
+            parsed = { raw: result.stdout.slice(0, 4000) }
+          }
+          json(res, 200, {
+            ok: result.ok && parsed.ok !== false,
+            extracted: (parsed.extracted as Record<string, unknown>) || parsed,
+            currentUrl: (parsed.currentUrl as string) || target,
+            screenshotBase64: parsed.screenshotBase64 || null,
+            logs: [...logs, ...((parsed.logs as string[]) || [])],
+            messageAr:
+              (parsed.messageAr as string) ||
+              (result.ok
+                ? 'اكتملت مهمة Playwright على الماك — راجع اللقطة (HITL).'
+                : 'فشل Playwright المحلي.'),
+            provider: 'playwright',
+          })
+          return
+        }
       }
 
       json(res, 200, {
@@ -665,7 +684,7 @@ const server = createServer(async (req, res) => {
         currentUrl: target,
         logs,
         messageAr:
-          'جسر الماك جاهز لكن لا سكربت. ضع scripts/playwright-task.mjs أو BROWSER_USE_SCRIPT.',
+          'جسر الماك جاهز لكن لا سكربت. ضع scripts/browser-use-task.py أو scripts/playwright-task.mjs.',
       })
     } catch (e) {
       json(res, 500, {

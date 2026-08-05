@@ -3,8 +3,10 @@
  *
  * browser-use (Python) and Playwright cannot run inside Netlify functions.
  * This module talks to a remote runner:
- *  1) BROWSER_USE_URL — self-hosted / Mac bridge (browser-use or Playwright)
- *  2) STEEL_API_KEY — Steel.dev cloud browser sessions
+ * Preference order:
+ *  1) BROWSER_USE_URL — dedicated browser-use bridge
+ *  2) MAC_SYNC_URL — Mac sync agent POST /task (browser-use first, Playwright fallback)
+ *  3) STEEL_API_KEY — Steel.dev cloud browser sessions
  *
  * GitHub refs: browser-use/browser-use · steel-dev/steel-sdk
  */
@@ -29,17 +31,25 @@ async function viaBrowserUseBridge(
   targetUrl: string,
   logs: string[]
 ): Promise<BrowserTaskResult | null> {
-  const base = (
-    process.env.BROWSER_USE_URL ||
-    process.env.MAC_SYNC_URL ||
-    ''
-  ).replace(/\/$/, '')
+  // Prefer dedicated BROWSER_USE_URL; fall back to Mac sync agent /task.
+  const dedicated = process.env.BROWSER_USE_URL?.trim()
+  const mac = process.env.MAC_SYNC_URL?.trim()
+  const base = (dedicated || mac || '').replace(/\/$/, '')
   if (!base) return null
-  const secret =
-    process.env.BROWSER_USE_SECRET?.trim() ||
-    process.env.MAC_SYNC_SECRET?.trim() ||
-    ''
-  pushLog(logs, `Calling browser-use bridge ${base}`)
+  const secret = dedicated
+    ? process.env.BROWSER_USE_SECRET?.trim() ||
+      process.env.MAC_SYNC_SECRET?.trim() ||
+      ''
+    : process.env.MAC_SYNC_SECRET?.trim() ||
+      process.env.BROWSER_USE_SECRET?.trim() ||
+      ''
+  const engine =
+    (process.env.BROWSER_ENGINE as 'playwright' | 'browser-use' | 'auto') ||
+    'auto'
+  pushLog(
+    logs,
+    `Calling browser bridge ${base} (engine=${engine}${dedicated ? ', BROWSER_USE_URL' : ', MAC_SYNC_URL'})`
+  )
   try {
     const res = await fetch(`${base}/task`, {
       method: 'POST',
@@ -51,6 +61,7 @@ async function viaBrowserUseBridge(
         task: taskPrompt,
         url: targetUrl,
         maxSteps: Number(process.env.BROWSER_USE_MAX_STEPS || 25),
+        engine,
       }),
       signal: AbortSignal.timeout(120_000),
     })

@@ -56,14 +56,16 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
    `https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback`
 
 3. Supabase → **Authentication → Providers → Google** → enable → paste Client ID + Secret.
-4. In [Google Cloud Console](https://console.cloud.google.com/) enable **Google Calendar API**, **Gmail API**, and **Google Drive API**.
+4. In [Google Cloud Console](https://console.cloud.google.com/) enable **Google Calendar API**, **Gmail API**, **Google Sheets API**, and **Google Drive API**.
 5. OAuth consent screen → add scopes:
    - `.../auth/calendar`
    - `.../auth/calendar.events`
    - `.../auth/gmail.readonly`
+   - `.../auth/spreadsheets`
    - `.../auth/drive.readonly`
+   - `.../auth/drive.file`
 6. On Netlify set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
-7. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events and scan mail for Zoom invites (mutations go through HITL in AUTO/STRICT).
+7. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read Gmail, and read/write Sheets (mutations go through HITL in AUTO/STRICT).
 
 ### 3) GitHub
 

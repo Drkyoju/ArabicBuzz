@@ -8,7 +8,7 @@ import type { Session } from '@supabase/supabase-js'
  */
 export async function persistGoogleProviderTokens(
   session: Session | null | undefined,
-  scopes = 'calendar,gmail.readonly,drive.readonly'
+  scopes = 'calendar,gmail.readonly,spreadsheets,drive.readonly'
 ): Promise<{ ok: boolean; error?: string }> {
   if (!session?.access_token) return { ok: false, error: 'لا جلسة' }
   const providerToken = (session as Session & { provider_token?: string })

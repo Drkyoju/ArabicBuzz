@@ -9,6 +9,12 @@ import {
   executeCalendarUpdate,
 } from '@/lib/agents/tools/calendar-tools'
 import {
+  executeGmailRead,
+  executeGmailSearch,
+  executeSheetsRead,
+  executeSheetsWrite,
+} from '@/lib/agents/tools/workspace-google-tools'
+import {
   executeRoomCalendarCancel,
   executeRoomCalendarCreate,
   executeRoomCalendarIngest,
@@ -223,6 +229,10 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_scan_email: executeCalendarScanEmail,
   calendar_find_duplicates: executeCalendarFindDuplicates,
   calendar_find_alignment: executeCalendarFindAlignment,
+  gmail_search: executeGmailSearch,
+  gmail_read: executeGmailRead,
+  sheets_read: executeSheetsRead,
+  sheets_write: executeSheetsWrite,
   room_calendar_list: executeRoomCalendarList,
   room_calendar_create: executeRoomCalendarCreate,
   room_calendar_update: executeRoomCalendarUpdate,

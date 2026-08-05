@@ -52,6 +52,16 @@ export async function GET() {
         process.env.NEXT_PUBLIC_APP_URL?.trim()
     ),
     otelConfigured: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()),
+    langfuseConfigured: Boolean(
+      process.env.LANGFUSE_PUBLIC_KEY?.trim() &&
+        process.env.LANGFUSE_SECRET_KEY?.trim()
+    ),
+    mcpToolboxConfigured: Boolean(process.env.MCP_TOOLBOX_URL?.trim()),
+    browserRpaConfigured: Boolean(
+      process.env.BROWSER_USE_URL?.trim() ||
+        process.env.MAC_SYNC_URL?.trim() ||
+        process.env.STEEL_API_KEY?.trim()
+    ),
     upstashConfigured: Boolean(
       process.env.UPSTASH_REDIS_REST_URL?.trim() &&
         process.env.UPSTASH_REDIS_REST_TOKEN?.trim()

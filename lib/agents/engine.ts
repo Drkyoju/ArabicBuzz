@@ -8,6 +8,7 @@ import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
 import type { SecurityPostureMode } from '@/lib/security/posture'
 import { withSpan } from '@/lib/observability/trace'
+import { forceFlushOtel } from '@/lib/observability/langfuse'
 import { extractFromAgentSteps } from '@/lib/agents/citation-events'
 
 /** Local stub tools exposed as Vercel AI SDK schemas. */
@@ -556,6 +557,84 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('calendar_scan_email'),
         }),
     }),
+    gmail_search: tool({
+      description:
+        'بحث في Gmail باستعلام Gmail (مثل newer_than:7d from:x أو كلمات عربية). قراءة فقط — لا إرسال.',
+      inputSchema: z.object({
+        query: z.string().describe('استعلام Gmail'),
+        maxResults: z.number().optional().describe('حد أقصى 25'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'gmail_search',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('gmail_search'),
+        }),
+    }),
+    gmail_read: tool({
+      description:
+        'قراءة نص رسالة Gmail كاملة بالمعرّف (بعد gmail_search). قراءة فقط.',
+      inputSchema: z.object({
+        messageId: z.string().describe('معرّف الرسالة من gmail_search'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'gmail_read',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('gmail_read'),
+        }),
+    }),
+    sheets_read: tool({
+      description:
+        'قراءة نطاق من Google Sheets (معرّف الجدول + نطاق A1 مثل Sheet1!A1:D20).',
+      inputSchema: z.object({
+        spreadsheetId: z
+          .string()
+          .describe('معرّف الجدول أو رابط spreadsheets/d/...'),
+        range: z
+          .string()
+          .describe('نطاق A1 مثل Sheet1!A1:Z50'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'sheets_read',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('sheets_read'),
+        }),
+    }),
+    sheets_write: tool({
+      description:
+        'كتابة أو إلحاق قيم في Google Sheets. يتطلب موافقة بشرية (HITL). مرّر values كمصفوفة صفوف.',
+      inputSchema: z.object({
+        spreadsheetId: z.string(),
+        range: z.string().describe('نطاق البداية مثل Sheet1!A1'),
+        values: z
+          .array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])))
+          .describe('صفوف القيم'),
+        mode: z
+          .enum(['update', 'append'])
+          .optional()
+          .describe('update يستبدل النطاق؛ append يضيف صفوفاً'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'sheets_write',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('sheets_write'),
+        }),
+    }),
     calendar_find_duplicates: tool({
       description:
         'كشف المواعيد المكررة أو المتعارضة في تقويم Google (نفس الوقت، نفس العنوان، تداخل زمني، نفس رابط Zoom).',
@@ -883,7 +962,7 @@ export function getNativeAiTools(opts?: {
     }),
     browser_rpa: tool({
       description:
-        'أتمتة متصفح عبر جسر الماك (Playwright) أو Steel — لتعبئة بوابات حكومية متكررة بحذر. يتطلب موافقة بشرية (HITL). لا تُدخل بيانات سرية دون تأكيد المستخدم.',
+        'أتمتة متصفح عبر جسر الماك (browser-use ثم Playwright) أو BROWSER_USE_URL أو Steel — لتعبئة بوابات حكومية متكررة بحذر. يتطلب موافقة بشرية (HITL). لا تُدخل بيانات سرية دون تأكيد المستخدم.',
       inputSchema: z.object({
         taskPrompt: z.string().describe('وصف المهمة بالعربية أو الإنجليزية'),
         targetUrl: z.string().url().describe('رابط الصفحة المستهدفة'),
@@ -1065,35 +1144,40 @@ export async function runAgentEngine(
   const tools: ToolSet = { ...native, ...mcpTools }
   const toolNames = Object.keys(tools)
 
-  const result = await withSpan(
-    'agent.run',
-    {
-      'ab.model': modelSlug,
-      'ab.scope_id': input.scopeId,
-      'ab.tool_count': toolNames.length,
-      'ab.include_mcp': input.includeMcpTools !== false,
-    },
-    async () =>
-      generateText({
-        model: getHarnessModel(modelSlug),
-        system:
-          input.system ||
-          'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. search_knowledge_base يبحث فقط في ملفات Google Drive المزامَنة — اذكر المصادر.',
-        prompt: input.prompt,
-        tools,
-        stopWhen: stepCountIs(input.maxSteps ?? 5),
-      })
-  )
+  try {
+    const result = await withSpan(
+      'agent.run',
+      {
+        'ab.model': modelSlug,
+        'ab.scope_id': input.scopeId,
+        'ab.tool_count': toolNames.length,
+        'ab.include_mcp': input.includeMcpTools !== false,
+      },
+      async () =>
+        generateText({
+          model: getHarnessModel(modelSlug),
+          system:
+            input.system ||
+            'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. search_knowledge_base يبحث فقط في ملفات Google Drive المزامَنة — اذكر المصادر.',
+          prompt: input.prompt,
+          tools,
+          stopWhen: stepCountIs(input.maxSteps ?? 5),
+        })
+    )
 
-  const extracted = extractFromAgentSteps(result.steps)
+    const extracted = extractFromAgentSteps(result.steps)
 
-  return {
-    text: result.text,
-    modelSlug,
-    toolNames,
-    steps: result.steps?.length ?? 1,
-    citations: extracted.citations,
-    pendingApprovalIds: extracted.pendingApprovalIds,
+    return {
+      text: result.text,
+      modelSlug,
+      toolNames,
+      steps: result.steps?.length ?? 1,
+      citations: extracted.citations,
+      pendingApprovalIds: extracted.pendingApprovalIds,
+    }
+  } finally {
+    // Serverless (Telegram / workflows): flush OTel → Langfuse before freeze.
+    await forceFlushOtel()
   }
 }
 
