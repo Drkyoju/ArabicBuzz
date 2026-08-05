@@ -222,8 +222,8 @@ function SidebarBody({
             <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <SdaiaBadge compact />
-            <AirGapBadge airGapped={airGapped} />
+            {signedIn === true && canAccessOpsUi ? <SdaiaBadge compact /> : null}
+            {airGapped ? <AirGapBadge airGapped /> : null}
           </div>
         </div>
 
@@ -388,16 +388,9 @@ function SidebarBody({
       </nav>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="mb-2 rounded-lg border border-ab-border/80 bg-stone-50 px-2.5 py-2">
-          <p className="text-[10px] font-semibold text-stone-500">نطاق العمل</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-stone-600">
-            <strong className="text-ab-ink">مساحاتي</strong> = مكتب شخصي.{' '}
-            <strong className="text-ab-ink">مشتركة</strong> = غرفة فريق.
-          </p>
-        </div>
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
           <User className="h-3 w-3" aria-hidden />
-          مساحاتي · معزولة
+          مساحاتي
         </p>
         <ul className="mb-3 space-y-0.5">
           {personal.map((scope) => {
@@ -477,7 +470,7 @@ function SidebarBody({
 
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
           <Users className="h-3 w-3" aria-hidden />
-          مساحات مشتركة · غرف
+          مساحات مشتركة
         </p>
         <ul className="space-y-0.5">
           {shared.map((scope) => {

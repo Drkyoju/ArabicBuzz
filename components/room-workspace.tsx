@@ -61,7 +61,8 @@ function clampMembersPanePx(px: number): number {
 function defaultMembersPanePx(): number {
   const vh =
     typeof window !== 'undefined' ? window.innerHeight : 800
-  return clampMembersPanePx(Math.round(vh * 0.48))
+  // Prefer a compact default — users can drag taller; avoid eating half the chat.
+  return clampMembersPanePx(Math.round(vh * 0.32))
 }
 
 function readMembersPanePx(scopeId: string): number {
@@ -128,7 +129,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const dragChrome = useRef(false)
   const dragMembers = useRef(false)
   const [seatsMaxPx, setSeatsMaxPx] = useState(SEATS_DEFAULT)
-  const [seatsCollapsed, setSeatsCollapsed] = useState(false)
+  const [seatsCollapsed, setSeatsCollapsed] = useState(true)
   const [membersPanePx, setMembersPanePx] = useState(defaultMembersPanePx)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -1222,63 +1223,41 @@ export function RoomWorkspace({ className }: { className?: string }) {
           <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
             <div className="mx-auto w-full max-w-2xl">
               {posts.length === 0 ? (
-                <div
-                  className={cn(
-                    'flex flex-col items-center justify-center px-4 text-center',
-                    showMore
-                      ? 'min-h-[6rem] py-6'
-                      : 'min-h-[12rem] py-12'
-                  )}
-                >                  <MessageSquare
-                    className="mb-3 h-9 w-9 text-stone-300"
+                <div className="flex flex-col items-center justify-center px-4 py-6 text-center">
+                  <MessageSquare
+                    className="mb-2 h-7 w-7 text-stone-300"
                     aria-hidden
                   />
-                  <p className="text-base font-semibold text-ab-ink">
+                  <p className="text-sm font-semibold text-ab-ink">
                     ابدأ المحادثة
                   </p>
-                  <p className="mt-1 max-w-sm text-sm leading-relaxed text-stone-500">
-                    اكتب مهمة أو تكلم بالميكروفون. في وضع تعاون يرد عدة وكلاء
-                    بالتتابع — أو وجّه بـ @اسم / @الجميع. اضغط مقعد وكيل لرؤية
-                    هويته وصلاحياته.
+                  <p className="mt-1 max-w-sm text-xs leading-relaxed text-stone-500">
+                    {isGuest
+                      ? 'سجّل الدخول للكتابة والإرسال. المعاينة للقراءة فقط.'
+                      : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو @الجميع.'}
                   </p>
-                  <div className="mt-3 max-w-sm rounded-lg border border-ab-border bg-stone-50 px-3 py-2 text-right text-[11px] text-stone-600">
-                    <p className="font-semibold text-ab-ink">مثال حي من المعاينة</p>
-                    <p className="mt-1">
-                      وكيل التقارير · ملخص: اعتمد المجلس ميزانية البرامج…
-                    </p>
-                    <p className="mt-0.5 text-ab-accent">
-                      وكيل الامتثال · بانتظار موافقة على مزامنة Drive
-                    </p>
-                  </div>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setInput('لخّص قرارات هذا الأسبوع بالعربية الفصحى')}
-                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
-                    >
-                      ملخص قرارات
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setInput('ابحث في عقل الشركة عن سياسة الموافقات')
-                      }
-                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
-                    >
-                      ابحث في المعرفة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        window.dispatchEvent(
-                          new CustomEvent('ab-nav', { detail: 'audit' })
-                        )
-                      }
-                      className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
-                    >
-                      سجل التدقيق
-                    </button>
-                  </div>
+                  {!isGuest && (
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInput('لخّص قرارات هذا الأسبوع بالعربية الفصحى')
+                        }
+                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                      >
+                        ملخص قرارات
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInput('ابحث في معرفة الفريق عن سياسة الموافقات')
+                        }
+                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                      >
+                        ابحث في المعرفة
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 posts.map((post) => <RoomPostCard key={post.id} post={post} />)
@@ -1292,7 +1271,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 سيتم توجيه الرد إلى {mentionPreview.nameAr}
               </p>
             )}
-            {!mentionPreview && collabMode === 'team' && roomAgents.length > 1 && (
+            {!mentionPreview &&
+              !isGuest &&
+              collabMode === 'team' &&
+              roomAgents.length > 1 && (
               <p className="mb-1.5 text-[11px] text-stone-500">
                 وضع تعاون: سيرد حتى{' '}
                 {Math.min(8, roomAgents.length)} وكلاء بالتتابع ويتبادلون

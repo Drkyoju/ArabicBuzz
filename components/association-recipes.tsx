@@ -6,7 +6,7 @@ const RECIPES = [
   {
     id: 'board',
     titleAr: 'تحضير اجتماع مجلس',
-    detailAr: 'غرفة الفريق + Zoom + ملخص قرارات يوقّعه الوكيل في سجل التدقيق.',
+    detailAr: 'غرفة الفريق + ملخص قرارات يُسجَّل في سجل العمل.',
     section: 'chats',
     icon: Users,
   },
@@ -18,9 +18,10 @@ const RECIPES = [
     icon: CalendarDays,
   },
   {
-    id: 'hitl',
+    id: 'approval',
     titleAr: 'موافقة بشرية حساسة',
-    detailAr: 'راجع HITL قبل مزامنة Drive أو إرسال جماعي — لا تنفيذ بلا اعتماد.',
+    detailAr:
+      'راجع صندوق الموافقات قبل مزامنة Drive أو إرسال جماعي — لا تنفيذ بلا اعتماد.',
     section: 'approvals',
     icon: ShieldCheck,
   },

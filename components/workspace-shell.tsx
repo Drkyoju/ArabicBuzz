@@ -17,7 +17,6 @@ import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { AssociationKnowledgePanel } from '@/components/association-knowledge-panel'
 import { SystemDeadlinesPanel } from '@/components/system-deadlines-panel'
-import { CommitteeTelegramPanel } from '@/components/committee-telegram-panel'
 import { AccreditationExportPanel } from '@/components/accreditation-export-panel'
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
@@ -49,10 +48,24 @@ type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'schedule', labelAr: 'المواعيد والاستحقاقات' },
   { id: 'tasks', labelAr: 'المهام' },
-  { id: 'meetings', labelAr: 'الاجتماعات' },
+  { id: 'meetings', labelAr: 'محضر اجتماع' },
   { id: 'external', labelAr: 'دعوات خارجية' },
   { id: 'export', labelAr: 'تصدير' },
 ]
+
+/** Guests: schedule+tasks. Employees: + meetings. Ops: all. */
+function visibleCalendarTabs(
+  signedIn: boolean | null,
+  canAccessOpsUi: boolean
+): Array<{ id: CalendarTab; labelAr: string }> {
+  if (signedIn !== true) {
+    return CALENDAR_TABS.filter((t) => t.id === 'schedule' || t.id === 'tasks')
+  }
+  if (!canAccessOpsUi) {
+    return CALENDAR_TABS.filter((t) => t.id !== 'export' && t.id !== 'external')
+  }
+  return CALENDAR_TABS
+}
 
 function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
@@ -164,6 +177,13 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [cronReloadToken, setCronReloadToken] = useState(0)
   const [showDevOps, setShowDevOps] = useState(false)
   const [showSdaia, setShowSdaia] = useState(false)
+  const calendarTabs = visibleCalendarTabs(signedIn, canAccessOpsUi)
+
+  useEffect(() => {
+    if (!calendarTabs.some((t) => t.id === calendarTab)) {
+      setCalendarTab('schedule')
+    }
+  }, [calendarTabs, calendarTab])
 
   useEffect(() => {
     if (!isEmployeeSection(section, mode)) {
@@ -297,17 +317,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             {pendingCount} موافقة معلّقة — اضغط للمراجعة قبل تنفيذ الأدوات
           </button>
         )}
-        {signedIn === false && section !== 'approvals' && (
-          <button
-            type="button"
-            onClick={() => setSection('approvals')}
-            className="sticky top-0 z-20 w-full border-b border-amber-200 bg-amber-50 px-4 py-2 text-right text-xs font-medium text-amber-950 md:top-0"
-          >
-            أنت في وضع المعاينة — الموافقات المعروضة أمثلة توضيحية. سجّل الدخول
-            لمراجعة إجراءات حقيقية.
-          </button>
-        )}
-
         {section === 'home' && (
           <HomeDashboard
             onNavigate={(s) => setSection(s as SidebarSection)}
@@ -335,7 +344,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               aria-label="أقسام المواعيد"
               className="flex flex-wrap gap-1.5 rounded-xl border border-ab-border bg-ab-surface p-1.5"
             >
-              {CALENDAR_TABS.map((t) => (
+              {calendarTabs.map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -415,26 +424,22 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             )}
             {(approvalsError === 'GUEST' || signedIn === false) &&
             !approvalsLoading ? (
-              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-center">
                 <p className="text-sm font-semibold text-ab-ink">
-                  لا موافقات معلّقة
+                  سجّل الدخول للموافقات
                 </p>
-                <p className="mt-1 text-xs text-stone-500">
-                  سجّل الدخول لرؤية طلبات الاعتماد الحقيقية عندما يطلب الوكيل
-                  إجراءً عالي المخاطر.
+                <p className="mt-1 text-xs text-stone-600">
+                  طلبات الاعتماد تظهر هنا عندما يطلب الوكيل إجراءً عالي المخاطر.
                 </p>
                 <Link
                   href="/auth/login"
                   className="mt-3 inline-block rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
                 >
-                  سجّل الدخول للموافقة
+                  سجّل الدخول
                 </Link>
               </div>
             ) : !approvalsLoading && pendingCount === 0 && !approvalsError ? (
-              <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
-                لا موافقات معلّقة. تظهر هنا عندما يطلب الوكيل إجراءً عالي
-                المخاطر.
-              </p>
+              <p className="text-sm text-stone-500">لا موافقات معلّقة.</p>
             ) : (
               approvals
                 .filter((item) => item.status === 'PENDING_APPROVAL')
@@ -463,29 +468,27 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div>
               <h1 className="flex items-center gap-2 text-xl font-bold text-ab-ink">
                 <Fingerprint className="h-5 w-5 text-ab-accent" />
-                سجل التدقيق
+                سجل العمل
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم التدقيق.
-                قابل للمراجعة دون تقرير إداري منفصل: هذا فرق الامتثال أمام
-                الأدوات الأفقية.
+                كل إجراء للبشر والوكلاء — وقت، فاعل، ومستوى خطر — مع ختم قابل
+                للمراجعة.
               </p>
             </div>
 
             {signedIn === false && (
-              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-center">
                 <p className="text-sm font-semibold text-ab-ink">
-                  لا إدخالات تدقيق بعد
+                  سجّل الدخول لسجل العمل
                 </p>
                 <p className="mt-1 text-xs text-stone-500">
-                  سجل التدقيق الحقيقي يظهر بعد تسجيل الدخول وتنفيذ إجراءات في
-                  غرفتك.
+                  يظهر السجل بعد تسجيل الدخول وتنفيذ إجراءات في غرفتك.
                 </p>
                 <Link
                   href="/auth/login"
-                  className="mt-3 inline-block text-[11px] font-medium text-ab-accent underline"
+                  className="mt-3 inline-block rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
                 >
-                  سجّل الدخول لسجلّك الحقيقي وتصدير CSV
+                  سجّل الدخول
                 </Link>
               </div>
             )}

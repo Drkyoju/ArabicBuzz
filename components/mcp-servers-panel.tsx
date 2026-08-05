@@ -169,11 +169,11 @@ export function McpServersPanel() {
         <div>
           <h3 className="flex items-center gap-1.5 font-semibold text-ab-ink">
             <PlugZap className="h-4 w-4 text-ab-accent" aria-hidden />
-            أدوات MCP الخارجية
+            أدوات خارجية
           </h3>
           <p className="mt-1 text-[11px] text-stone-500">
-            خوادم مجانية/مفتوحة توسّع قدرات الوكيل (بحث، متصفح، قواعد بيانات،
-            GitHub…). كل بطاقة تشرح بالعربية ماذا تفعل.
+            خوادم توسّع قدرات الوكيل (بحث، متصفح، قواعد بيانات…). كل بطاقة تشرح
+            بالعربية ماذا تفعل.
           </p>
           <p className="mt-1 text-[11px] font-medium text-ab-accent">
             متصل الآن: {servers.length} خادم · {toolCount} أداة

@@ -86,33 +86,30 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
   }, [load, signedIn])
 
   if (compact) {
-    if (signedIn !== true) return null
+    // Hide dead chrome: only show when something is live.
+    if (signedIn !== true || liveCount <= 0) return null
     return (
       <button
         type="button"
         onClick={() => void load()}
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px]',
-          liveCount > 0
-            ? 'bg-red-50 font-semibold text-red-700'
-            : 'text-stone-500 hover:bg-stone-50'
-        )}
+        className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700"
         title={msg}
       >
         <span
-          className={cn(
-            'inline-block h-1.5 w-1.5 rounded-full',
-            liveCount > 0 ? 'animate-pulse bg-red-600' : 'bg-stone-300'
-          )}
+          className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-600"
           aria-hidden
         />
-        {liveCount > 0
-          ? `Zoom مباشر (${liveCount})`
-          : configured
-            ? 'Zoom: لا بث الآن'
-            : 'Zoom غير مربوط'}
+        {`Zoom مباشر (${liveCount})`}
       </button>
     )
+  }
+
+  // Full panel: hide entirely when empty / not configured (no dashed empty box).
+  if (signedIn !== true || (!configured && meetings.length === 0 && !busy)) {
+    return null
+  }
+  if (!busy && meetings.length === 0 && liveCount === 0) {
+    return null
   }
 
   return (
@@ -132,12 +129,9 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
               </span>
             )}
           </h3>
-          <p className="mt-1 text-[11px] text-stone-500">
-            {msg ||
-              (configured
-                ? 'يُفحص الحساب كل دقيقة تقريباً.'
-                : 'اربط Zoom من الإعدادات لمعرفة البث المباشر.')}
-          </p>
+          {msg && (
+            <p className="mt-1 text-[11px] text-stone-500">{msg}</p>
+          )}
         </div>
         <button
           type="button"
@@ -153,56 +147,50 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
         </button>
       </div>
 
-      {meetings.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-ab-border px-3 py-6 text-center text-xs text-stone-400">
-          لا جلسات Zoom ظاهرة الآن.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {meetings.map((m) => (
-            <li
-              key={`${m.source}-${m.id}`}
-              className={cn(
-                'rounded-lg border px-3 py-2',
-                m.live
-                  ? 'border-red-200 bg-red-50/60'
-                  : 'border-ab-border bg-white'
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ab-ink">
-                    {m.topic}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-stone-500">
-                    {m.statusAr}
-                    {m.hostEmail ? ` · ${m.hostEmail}` : ''}
-                    {typeof m.participants === 'number'
-                      ? ` · ${m.participants} مشارك`
-                      : ''}
-                  </p>
-                </div>
-                {m.live && (
-                  <span className="shrink-0 text-[10px] font-bold text-red-700">
-                    LIVE
-                  </span>
-                )}
+      <ul className="space-y-2">
+        {meetings.map((m) => (
+          <li
+            key={`${m.source}-${m.id}`}
+            className={cn(
+              'rounded-lg border px-3 py-2',
+              m.live
+                ? 'border-red-200 bg-red-50/60'
+                : 'border-ab-border bg-white'
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ab-ink">
+                  {m.topic}
+                </p>
+                <p className="mt-0.5 text-[11px] text-stone-500">
+                  {m.statusAr}
+                  {m.hostEmail ? ` · ${m.hostEmail}` : ''}
+                  {typeof m.participants === 'number'
+                    ? ` · ${m.participants} مشارك`
+                    : ''}
+                </p>
               </div>
-              {m.joinUrl && (
-                <a
-                  href={m.joinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  dir="ltr"
-                  className="mt-1 inline-block text-[11px] text-ab-accent underline"
-                >
-                  انضم للاجتماع
-                </a>
+              {m.live && (
+                <span className="shrink-0 text-[10px] font-bold text-red-700">
+                  LIVE
+                </span>
               )}
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+            {m.joinUrl && (
+              <a
+                href={m.joinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                dir="ltr"
+                className="mt-1 inline-block text-[11px] text-ab-accent underline"
+              >
+                انضم للاجتماع
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
 
       {checkedAt && (
         <p className="mt-2 text-[10px] text-stone-400" dir="ltr">
