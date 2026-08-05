@@ -30,6 +30,11 @@ import {
   executeReadDocument,
   executeReadFile,
 } from '@/lib/agents/tools/document-tools'
+import { executeConvertDocument } from '@/lib/agents/tools/convert-document'
+import {
+  executeBrainOpenDocument,
+  executeBrainSaveDocument,
+} from '@/lib/agents/tools/drive-doc-tools'
 import {
   executePdfCreate,
   executePdfFillForm,
@@ -186,6 +191,9 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   list_workspace_files: executeListWorkspaceFiles,
   read_document: executeReadDocument,
   edit_document: executeEditDocument,
+  convert_document: executeConvertDocument,
+  brain_open_document: executeBrainOpenDocument,
+  brain_save_document: executeBrainSaveDocument,
   pdf_create: executePdfCreate,
   pdf_stamp: executePdfStamp,
   pdf_merge: executePdfMerge,

@@ -24,6 +24,8 @@ const LOW_RISK_TOOLS = new Set([
   'list_files',
   'list_workspace_files',
   'read_document',
+  'convert_document',
+  'brain_open_document',
   'query_db_readonly',
   'memory_search',
   'search_knowledge_base',
@@ -46,6 +48,7 @@ const HIGH_RISK_TOOLS = new Set([
   'write_file',
   'delete_file',
   'edit_document',
+  'brain_save_document',
   'db_update',
   'db_insert',
   'db_delete',
@@ -85,8 +88,11 @@ export function evaluateActionRisk(
     return { riskLevel: 'LOW', requiresApproval: false }
   }
 
-  // New edited copies are additive (safe); overwriting the source needs HITL.
-  if (toolName === 'edit_document' && !params.replaceSource) {
+  // New edited copies / conversions are additive; overwriting source needs HITL.
+  if (
+    (toolName === 'edit_document' && !params.replaceSource) ||
+    toolName === 'convert_document'
+  ) {
     if (mode === 'STRICT') {
       return { riskLevel: 'LOW', requiresApproval: true }
     }

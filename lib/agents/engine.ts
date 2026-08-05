@@ -116,7 +116,7 @@ export function getNativeAiTools(opts?: {
     }),
     edit_document: tool({
       description:
-        'إنشاء أو استبدال ملف مكتبي بعد التعديل (Word/Excel/PowerPoint/نص/PDF) ليعيده المستخدم بالتنزيل. اقرأ الملف أولاً، طبّق طلب المستخدم، ثم مرّر المحتوى الكامل المعدّل. لـ PDF يمكن أيضاً pdf_create / pdf_stamp / pdf_fill_form.',
+        'إنشاء ملف جديد أو تعديل ملف موجود (Word/Excel/PowerPoint/نص/PDF) وإظهار زر تنزيل في الشات. لإنشاء ملف: لا تمرّر fileId ومرّر format + body/paragraphs. لتعديل ملف غرفة: اقرأ بـ read_document أولاً. لملفات عقل الشركة (Drive): brain_open_document ثم عدّل ثم brain_save_document.',
       inputSchema: z.object({
         fileId: z
           .string()
@@ -167,6 +167,78 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('edit_document'),
+        }),
+    }),
+    convert_document: tool({
+      description:
+        'تحويل PDF ↔ Word (docx) مع الحفاظ على النص العربي عبر إعادة بناء نصية. استخدمه عندما يطلب المستخدم تحويل الصيغة. النتيجة تظهر كملف قابل للتنزيل في الشات.',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
+        toFormat: z
+          .enum(['docx', 'pdf', 'txt', 'md'])
+          .describe('الصيغة الهدف — docx لـ Word، pdf لـ PDF'),
+        outputName: z.string().optional(),
+        title: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'convert_document',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('convert_document'),
+        }),
+    }),
+    brain_open_document: tool({
+      description:
+        'فتح ملف من مجلد عقل الشركة على Google Drive داخل مساحة الغرفة للتعديل أو التحويل. استخدم اسم الملف أو معرّف Drive.',
+      inputSchema: z.object({
+        name: z
+          .string()
+          .optional()
+          .describe('اسم الملف كما في Drive مثل محضر اجتماع.pdf'),
+        driveFileId: z.string().optional().describe('معرّف Drive إن عُرف'),
+        queryAr: z.string().optional().describe('بحث بالاسم'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'brain_open_document',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('brain_open_document'),
+        }),
+    }),
+    brain_save_document: tool({
+      description:
+        'حفظ ملف معدّل من مساحة الغرفة إلى مجلد Drive (عقل الشركة) وإعادة فهرسته للبحث. مرّر fileId من edit_document وdriveFileId إن كنت تحدّث ملفاً موجوداً.',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف ملف الغرفة بعد التعديل'),
+        driveFileId: z
+          .string()
+          .optional()
+          .describe('معرّف Drive للتحديث؛ اتركه فارغاً لرفع ملف جديد'),
+        outputName: z.string().optional(),
+        asNew: z.boolean().optional().describe('true لرفع نسخة جديدة دائماً'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'brain_save_document',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('brain_save_document'),
         }),
     }),
     pdf_create: tool({

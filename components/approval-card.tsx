@@ -28,6 +28,10 @@ const ACTION_LABELS_AR: Record<string, string> = {
   pdf_stamp: 'ختم على PDF',
   pdf_merge: 'دمج PDF',
   pdf_fill_form: 'تعبئة نموذج PDF',
+  convert_document: 'تحويل PDF ↔ Word',
+  brain_open_document: 'فتح ملف من عقل الشركة',
+  brain_save_document: 'حفظ إلى Drive / العقل',
+  edit_document: 'إنشاء أو تعديل مستند',
   ingest_url_to_brain: 'سحب صفحة إلى المعرفة',
   read_decision_document: 'قراءة قرار للمستندات',
   report_room_attendance: 'تقرير أعضاء وحضور',
@@ -37,6 +41,7 @@ const ACTION_LABELS_AR: Record<string, string> = {
   transfer_funds: 'تحويل مالي',
   web_search: 'بحث ويب',
   drive_upload: 'رفع إلى Drive',
+  drive_sync_brain: 'مزامنة Drive → العقل',
 }
 
 function humanizeAction(name: string) {

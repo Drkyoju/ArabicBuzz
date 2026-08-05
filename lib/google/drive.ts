@@ -145,27 +145,48 @@ export async function uploadDriveTextFile(
     folderId?: string
   }
 ): Promise<DriveFileMeta> {
+  return uploadDriveBinaryFile(userId, {
+    name: opts.name,
+    buffer: Buffer.from(opts.content, 'utf8'),
+    mimeType: opts.mimeType || 'text/plain',
+    folderId: opts.folderId,
+  })
+}
+
+/** Upload binary (docx/pdf/xlsx…) into the brain Drive folder. */
+export async function uploadDriveBinaryFile(
+  userId: string,
+  opts: {
+    name: string
+    buffer: Buffer
+    mimeType: string
+    folderId?: string
+  }
+): Promise<DriveFileMeta> {
   const tok = await getValidGoogleAccessToken(userId)
   if (!tok.ok) throw new Error(tok.error)
   const folderId = opts.folderId || getDriveBrainFolderId()
-  const mimeType = opts.mimeType || 'text/plain'
+  const mimeType = opts.mimeType || 'application/octet-stream'
   const metadata = {
     name: opts.name,
     parents: [folderId],
     mimeType,
   }
   const boundary = `ab-${Date.now().toString(36)}`
-  const body =
+  const metaPart = Buffer.from(
     `--${boundary}\r\n` +
-    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-    `${JSON.stringify(metadata)}\r\n` +
-    `--${boundary}\r\n` +
-    `Content-Type: ${mimeType}; charset=UTF-8\r\n\r\n` +
-    `${opts.content}\r\n` +
-    `--${boundary}--`
+      `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+      `${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: ${mimeType}\r\n` +
+      `Content-Transfer-Encoding: binary\r\n\r\n`,
+    'utf8'
+  )
+  const endPart = Buffer.from(`\r\n--${boundary}--`, 'utf8')
+  const body = Buffer.concat([metaPart, opts.buffer, endPart])
 
   const res = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink,modifiedTime',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,webViewLink,modifiedTime',
     {
       method: 'POST',
       headers: {
@@ -184,5 +205,84 @@ export async function uploadDriveTextFile(
     )
   }
   return data
+}
+
+/** Replace contents of an existing Drive file (keeps same file id). */
+export async function updateDriveFileMedia(
+  userId: string,
+  opts: {
+    fileId: string
+    buffer: Buffer
+    mimeType: string
+    name?: string
+  }
+): Promise<DriveFileMeta> {
+  const tok = await getValidGoogleAccessToken(userId)
+  if (!tok.ok) throw new Error(tok.error)
+
+  if (opts.name) {
+    await fetch(
+      `${DRIVE}/files/${encodeURIComponent(opts.fileId)}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${tok.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: opts.name }),
+      }
+    )
+  }
+
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(opts.fileId)}?uploadType=media&supportsAllDrives=true&fields=id,name,mimeType,webViewLink,modifiedTime`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${tok.accessToken}`,
+        'Content-Type': opts.mimeType || 'application/octet-stream',
+      },
+      body: new Uint8Array(opts.buffer),
+    }
+  )
+  const data = (await res.json()) as DriveFileMeta & {
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message || `فشل تحديث Drive (HTTP ${res.status})`
+    )
+  }
+  return data
+}
+
+/** Resolve a Drive file by id or fuzzy name inside the brain folder. */
+export async function findDriveBrainFile(
+  userId: string,
+  ref: string
+): Promise<DriveFileMeta | null> {
+  const q = ref.trim()
+  if (!q) return null
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(q) && !q.includes(' ') && !q.includes('.')) {
+    const tok = await getValidGoogleAccessToken(userId)
+    if (!tok.ok) throw new Error(tok.error)
+    const res = await fetch(
+      `${DRIVE}/files/${encodeURIComponent(q)}?supportsAllDrives=true&fields=id,name,mimeType,modifiedTime,size,webViewLink`,
+      { headers: { Authorization: `Bearer ${tok.accessToken}` } }
+    )
+    if (res.ok) {
+      return (await res.json()) as DriveFileMeta
+    }
+  }
+  const files = await listDriveFolderFiles(userId, { recursive: true })
+  const lower = q.toLowerCase()
+  const exact = files.find((f) => f.name.toLowerCase() === lower)
+  if (exact) return exact
+  const partial = files.find(
+    (f) =>
+      f.name.toLowerCase().includes(lower) ||
+      lower.includes(f.name.toLowerCase().replace(/\.[^.]+$/, ''))
+  )
+  return partial || null
 }
 
