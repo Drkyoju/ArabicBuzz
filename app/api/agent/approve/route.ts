@@ -19,7 +19,12 @@ export async function POST(req: NextRequest) {
       modifiedParams?: Record<string, unknown>
     }
     const userId = auth.user.id
-    const orgId = body.orgId ? String(body.orgId) : undefined
+    // Client often omits orgId — default so HIGH-risk HITL is not a silent no-op.
+    const orgId =
+      (typeof body.orgId === 'string' && body.orgId.trim()) ||
+      process.env.DEFAULT_ORG_ID ||
+      'org-demo'
+    const email = auth.user.email ?? null
 
     if (!approvalId || !decision) {
       return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest) {
       approvedBy: userId,
       userId,
       orgId,
-      email: auth.user.email,
+      email,
     })
     return NextResponse.json(result)
   } catch (e) {
@@ -59,10 +64,20 @@ export async function POST(req: NextRequest) {
     }
     const msg = e instanceof Error ? e.message : 'error'
     if (msg === 'NOT_FOUND') {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json(
+        {
+          error:
+            'لم يُعثر على طلب الموافقة (انتهت صلاحيته أو عولج مسبقاً). حدّث الصندوق وحاول مجدداً.',
+          code: 'NOT_FOUND',
+        },
+        { status: 404 }
+      )
     }
     if (msg === 'ALREADY_RESOLVED') {
-      return NextResponse.json({ error: 'Conflict' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'تم البت في هذا الطلب مسبقاً.', code: 'ALREADY_RESOLVED' },
+        { status: 409 }
+      )
     }
     if (msg === 'MISSING_TENANT_CONTEXT') {
       return NextResponse.json(

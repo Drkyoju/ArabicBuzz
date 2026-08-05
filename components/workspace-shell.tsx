@@ -270,7 +270,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
     void loadApprovals()
     const t = setInterval(() => void loadApprovals(), 8000)
-    return () => clearInterval(t)
+    const onChanged = () => void loadApprovals()
+    window.addEventListener('ab-approvals-changed', onChanged)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('ab-approvals-changed', onChanged)
+    }
   }, [loadApprovals, signedIn])
 
   useEffect(() => {

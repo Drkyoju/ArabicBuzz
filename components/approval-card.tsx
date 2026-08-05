@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { TrustBadge } from '@/components/trust-badge'
 import { authHeaders } from '@/lib/supabase/browser'
 
@@ -77,24 +78,19 @@ export function ApprovalCard({
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
+  const [confirmApprove, setConfirmApprove] = useState(false)
   const [draft, setDraft] = useState(JSON.stringify(params, null, 2))
   const [localStatus, setLocalStatus] = useState(status)
   const [message, setMessage] = useState('')
+  const [needsLogin, setNeedsLogin] = useState(false)
   const disabled = localStatus !== 'PENDING_APPROVAL' || busy
   const rows = useMemo(() => paramRows(params), [params])
 
   async function decide(decision: 'APPROVE' | 'REJECT', modified?: object) {
-    if (
-      decision === 'APPROVE' &&
-      riskLevel === 'HIGH' &&
-      !window.confirm(
-        `تأكيد اعتماد إجراء عالي المخاطر «${humanizeAction(actionName)}»؟ لا يمكن التراجع بعد التنفيذ.`
-      )
-    ) {
-      return
-    }
     setBusy(true)
     setMessage('')
+    setNeedsLogin(false)
+    setConfirmApprove(false)
     try {
       const res = await fetch('/api/agent/approve', {
         method: 'POST',
@@ -108,6 +104,7 @@ export function ApprovalCard({
       const data = (await res.json().catch(() => ({}))) as {
         error?: string
         status?: string
+        code?: string
       }
       if (res.ok) {
         setLocalStatus(decision === 'APPROVE' ? 'APPROVED' : 'REJECTED')
@@ -116,9 +113,21 @@ export function ApprovalCard({
             ? 'تم الاعتماد وتنفيذ الإجراء.'
             : 'تم رفض الإجراء.'
         )
-      } else {
-        setMessage(data.error || `تعذّر القرار (HTTP ${res.status})`)
+        try {
+          window.dispatchEvent(new CustomEvent('ab-approvals-changed'))
+        } catch {
+          /* ignore */
+        }
+        return
       }
+      if (res.status === 401 || data.code === 'AUTH_REQUIRED') {
+        setNeedsLogin(true)
+        setMessage(
+          data.error || 'يلزم تسجيل الدخول للموافقة على الإجراءات الحقيقية.'
+        )
+        return
+      }
+      setMessage(data.error || `تعذّر القرار (HTTP ${res.status})`)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'خطأ في الاتصال')
     } finally {
@@ -126,8 +135,29 @@ export function ApprovalCard({
     }
   }
 
+  function onApproveClick() {
+    let modified: object | undefined
+    if (editing) {
+      try {
+        modified = JSON.parse(draft)
+      } catch {
+        setMessage('JSON غير صالح في المعاملات.')
+        return
+      }
+    }
+    // Inline confirm — window.confirm is unreliable on mobile (often looks like a no-op).
+    if (riskLevel === 'HIGH' && !confirmApprove) {
+      setConfirmApprove(true)
+      setMessage(
+        `تأكيد موافقة عالية المخاطر على «${humanizeAction(actionName)}»؟ لا يمكن التراجع بعد التنفيذ.`
+      )
+      return
+    }
+    void decide('APPROVE', modified)
+  }
+
   return (
-    <div className="mb-4 rounded-xl border border-ab-border bg-ab-surface p-4 shadow-sm">
+    <div className="relative z-10 mb-4 rounded-xl border border-ab-border bg-ab-surface p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-ab-warn/10 px-2 py-0.5 text-xs font-semibold text-ab-warn">
           بانتظار قرارك
@@ -153,7 +183,7 @@ export function ApprovalCard({
       {editing ? (
         <div className="mb-3 space-y-2">
           <p className="text-[11px] text-stone-500">
-            عدّل المعاملات ثم اضغط اعتماد — يظهر الفرق مقابل الأصل أدناه.
+            عدّل المعاملات ثم اضغط موافقة — يظهر الفرق مقابل الأصل أدناه.
           </p>
           <textarea
             dir="ltr"
@@ -211,53 +241,73 @@ export function ApprovalCard({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="relative z-10 flex flex-wrap gap-2">
         <button
           type="button"
           disabled={disabled}
-          onClick={() => {
-            let modified: object | undefined
-            if (editing) {
-              try {
-                modified = JSON.parse(draft)
-              } catch {
-                setMessage('JSON غير صالح في المعاملات.')
-                return
-              }
-            }
-            void decide('APPROVE', modified)
-          }}
-          className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          onClick={onApproveClick}
+          className="min-h-11 touch-manipulation rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
-          اعتماد
+          {busy
+            ? 'جاري التنفيذ…'
+            : confirmApprove
+              ? 'تأكيد الموافقة والتنفيذ'
+              : 'موافقة'}
         </button>
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setEditing((v) => !v)}
-          className="rounded-md border border-ab-warn bg-ab-warn/10 px-4 py-2 text-sm font-medium text-ab-warn disabled:opacity-40"
+          onClick={() => {
+            setConfirmApprove(false)
+            setEditing((v) => !v)
+          }}
+          className="min-h-11 touch-manipulation rounded-md border border-ab-warn bg-ab-warn/10 px-4 py-2.5 text-sm font-medium text-ab-warn disabled:opacity-40"
         >
           {editing ? 'إلغاء التعديل' : 'تعديل'}
         </button>
         <button
           type="button"
           disabled={disabled}
-          onClick={() => void decide('REJECT')}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          onClick={() => {
+            setConfirmApprove(false)
+            void decide('REJECT')
+          }}
+          className="min-h-11 touch-manipulation rounded-md bg-red-700 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
         >
           رفض
         </button>
+        {confirmApprove && !busy && (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmApprove(false)
+              setMessage('')
+            }}
+            className="min-h-11 touch-manipulation rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm text-stone-600"
+          >
+            إلغاء
+          </button>
+        )}
       </div>
       {message && (
         <p
           className={`mt-2 text-xs ${
-            localStatus === 'PENDING_APPROVAL' && message.includes('تعذّر')
+            localStatus === 'PENDING_APPROVAL'
               ? 'text-ab-warn'
               : 'text-stone-600'
           }`}
+          role="status"
         >
           {message}
         </p>
+      )}
+      {needsLogin && (
+        <Link
+          href="/auth/login"
+          className="mt-2 inline-block rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
+        >
+          سجّل الدخول للموافقة
+        </Link>
       )}
       {localStatus !== 'PENDING_APPROVAL' && (
         <p className="mt-2 text-xs text-stone-500">

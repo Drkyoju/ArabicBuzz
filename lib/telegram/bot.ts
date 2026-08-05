@@ -501,7 +501,15 @@ export function getTelegramBot() {
     const telegramUserId = String(ctx.from?.id || 'telegram')
     const rbacUserId =
       process.env.TELEGRAM_APPROVER_USER_ID || 'user-1'
-    const orgId = process.env.TELEGRAM_DEFAULT_ORG_ID || 'org-demo'
+    const orgId =
+      process.env.TELEGRAM_DEFAULT_ORG_ID ||
+      process.env.DEFAULT_ORG_ID ||
+      'org-demo'
+    // Optional director email elevates; otherwise synthetic user-1 is trusted in RBAC.
+    const approverEmail =
+      process.env.TELEGRAM_APPROVER_EMAIL?.trim() ||
+      process.env.DIRECTOR_EMAIL?.trim() ||
+      null
 
     try {
       const result = await resolveApproval({
@@ -510,6 +518,7 @@ export function getTelegramBot() {
         approvedBy: telegramUserId,
         userId: rbacUserId,
         orgId,
+        email: approverEmail,
       })
 
       const detailAr =

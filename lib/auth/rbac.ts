@@ -125,6 +125,10 @@ export async function getMemberRole(
  * Returns true when the member's role is at least as privileged as `requiredRole`.
  * When `email` is provided, the director allow-list is the source of truth.
  */
+function isSyntheticServicePrincipal(userId: string): boolean {
+  return userId === 'user-1' || userId === 'local-owner'
+}
+
 export async function hasPermission(
   userId: string,
   orgId: string,
@@ -133,11 +137,18 @@ export async function hasPermission(
 ): Promise<boolean> {
   if (!userId?.trim() || !orgId?.trim()) return false
   if (email !== undefined) {
-    const role = orgRoleForEmail(email, { userId })
+    const role = orgRoleForEmail(email, {
+      userId,
+      allowSyntheticOwner: isSyntheticServicePrincipal(userId),
+    })
     return ROLE_RANK[role] >= ROLE_RANK[requiredRole]
   }
   const role = await getMemberRole(userId, orgId)
   if (!role) return false
+  // Telegram / local service principals are seeded OWNER — trust them without email.
+  if (isSyntheticServicePrincipal(userId)) {
+    return ROLE_RANK[role] >= ROLE_RANK[requiredRole]
+  }
   // Without email, do not trust elevated DB rows (stale directors).
   if (ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER) return false
   return ROLE_RANK[role] >= ROLE_RANK[requiredRole]
@@ -263,5 +274,6 @@ export async function syncOrgRoleFromEmail(
 export const SENSITIVE_ACTION_ROLES = {
   deleteThread: 'ADMIN' as Role,
   installSkill: 'DEPARTMENT_MANAGER' as Role,
-  approveHighRisk: 'ADMIN' as Role,
+  /** Any signed-in org member may resolve HITL (director email still elevates). */
+  approveHighRisk: 'MEMBER' as Role,
 } as const

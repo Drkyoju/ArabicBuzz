@@ -604,8 +604,12 @@ export function Sidebar({
 
       <aside
         className={cn(
-          'fixed inset-y-0 start-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-e border-ab-border bg-ab-surface transition-transform duration-200 md:translate-x-0',
-          mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
+          // Use JS drawerActive for transform — unprefixed translate-x-full can
+          // override md:translate-x-0 in the compiled CSS and leave the aside
+          // covering / intercepting taps on mobile (and even desktop).
+          'fixed inset-y-0 start-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-e border-ab-border bg-ab-surface transition-transform duration-200',
+          drawerActive ? 'translate-x-0' : 'translate-x-full',
+          !drawerActive && 'pointer-events-none'
         )}
         aria-label="الشريط الجانبي"
         aria-hidden={drawerActive ? undefined : true}
