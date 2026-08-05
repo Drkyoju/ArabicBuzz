@@ -46,10 +46,10 @@ import { Fingerprint } from 'lucide-react'
 type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
-  { id: 'schedule', labelAr: 'المواعيد والاستحقاقات' },
+  { id: 'schedule', labelAr: 'لوحة المواعيد' },
   { id: 'tasks', labelAr: 'المهام' },
-  { id: 'meetings', labelAr: 'محضر اجتماع' },
-  { id: 'external', labelAr: 'دعوات خارجية' },
+  { id: 'meetings', labelAr: 'محضر / Zoom' },
+  { id: 'external', labelAr: 'دعوات Google' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
@@ -336,11 +336,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'calendar' && (
           <section className="mx-auto max-w-3xl space-y-5 px-6 py-8" dir="rtl">
             <div>
-              <h2 className="text-xl font-bold text-ab-ink">
-                المواعيد والمهام
-              </h2>
+              <h2 className="text-xl font-bold text-ab-ink">تقويم الفريق</h2>
               <p className="mt-1 text-sm text-stone-500">
-                كل ما يخص وقت الفريق في مكان واحد — اختر التبويب الذي تحتاجه.
+                اللوحة المشتركة أولاً — أضف موعداً يراه كل أعضاء الغرفة. باقي
+                التبويبات اختيارية.
               </p>
             </div>
 
@@ -371,7 +370,14 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               {calendarTab === 'schedule' && (
                 <>
                   <RoomCalendarBoard />
-                  <SystemDeadlinesPanel />
+                  <details className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-4">
+                    <summary className="cursor-pointer text-sm font-semibold text-stone-600">
+                      استحقاقات نظامية (ترخيص · جمعية عمومية · تقرير)
+                    </summary>
+                    <div className="mt-3">
+                      <SystemDeadlinesPanel />
+                    </div>
+                  </details>
                 </>
               )}
 
