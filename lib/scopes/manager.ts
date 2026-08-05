@@ -91,8 +91,8 @@ export const DEMO_SCOPES: Scope[] = [
     id: 'shared-demo',
     nameAr: 'غرفة الفريق',
     descriptionAr: 'عمل جماعي مع الوكلاء.',
-    members: ['user-1', 'user-2', 'user-3'],
-    memberLabelsAr: ['هوى', 'سارة', 'فهد'],
+    members: ['user-1'],
+    memberLabelsAr: [],
     agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],
     sharedMemory: [
       'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
@@ -103,8 +103,8 @@ export const DEMO_SCOPES: Scope[] = [
     id: 'shared-ops',
     nameAr: 'غرفة العمليات',
     descriptionAr: 'تشغيل وتنبيهات.',
-    members: ['user-1', 'user-2'],
-    memberLabelsAr: ['هوى', 'سارة'],
+    members: ['user-1'],
+    memberLabelsAr: [],
     agentLabelsAr: ['وكيل الجدولة', 'وكيل القنوات'],
     sharedMemory: [
       'قناة التنبيه: تيليجرام عند تفعيله.',

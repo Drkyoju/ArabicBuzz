@@ -202,75 +202,8 @@ export type RoomInvite = {
 const memMembers = new Map<string, RoomMember[]>()
 const memInvites = new Map<string, RoomInvite[]>()
 
+/** Memory fallback when DB is unavailable — owner slot only, no fake teammates. */
 function demoSeedMembers(scopeId: string): RoomMember[] {
-  if (scopeId === 'shared-demo') {
-    return [
-      {
-        id: 'demo-m1',
-        scopeId,
-        userId: null,
-        email: null,
-        displayNameAr: 'المالك',
-        role: 'owner',
-        phone: null,
-        committee: 'board',
-        notesAr: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'demo-m2',
-        scopeId,
-        userId: 'user-2',
-        email: null,
-        displayNameAr: 'سارة',
-        role: 'member',
-        phone: null,
-        committee: 'finance',
-        notesAr: 'اللجنة المالية',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'demo-m3',
-        scopeId,
-        userId: 'user-3',
-        email: null,
-        displayNameAr: 'فهد',
-        role: 'member',
-        phone: null,
-        committee: 'programs',
-        notesAr: null,
-        createdAt: new Date().toISOString(),
-      },
-    ]
-  }
-  if (scopeId === 'shared-ops') {
-    return [
-      {
-        id: 'demo-o1',
-        scopeId,
-        userId: null,
-        email: null,
-        displayNameAr: 'المالك',
-        role: 'owner',
-        phone: null,
-        committee: 'board',
-        notesAr: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'demo-o2',
-        scopeId,
-        userId: 'user-2',
-        email: null,
-        displayNameAr: 'سارة',
-        role: 'member',
-        phone: null,
-        committee: null,
-        notesAr: null,
-        createdAt: new Date().toISOString(),
-      },
-    ]
-  }
   return [
     {
       id: `owner-${scopeId}`,
@@ -280,7 +213,7 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
       displayNameAr: 'المالك',
       role: 'owner',
       phone: null,
-      committee: null,
+      committee: scopeId.startsWith('shared-') ? 'board' : null,
       notesAr: null,
       createdAt: new Date().toISOString(),
     },

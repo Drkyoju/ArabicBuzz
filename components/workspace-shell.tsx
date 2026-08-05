@@ -41,7 +41,6 @@ import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
-import { buildGuestDemoDigest } from '@/lib/demo/guest-digest'
 import { Fingerprint } from 'lucide-react'
 
 type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
@@ -402,44 +401,20 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             )}
             {(approvalsError === 'GUEST' || signedIn === false) &&
             !approvalsLoading ? (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-                  <p className="font-semibold">معاينة موافقات HITL</p>
-                  <p className="mt-1 text-xs">
-                    هذه طلبات تجريبية — سجّل الدخول لاعتماد أو رفض إجراءات
-                    حقيقية.
-                  </p>
-                  <Link
-                    href="/auth/login"
-                    className="mt-2 inline-block rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    سجّل الدخول للموافقة
-                  </Link>
-                </div>
-                {buildGuestDemoDigest().pendingApprovals.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-ab-border bg-white p-4"
-                  >
-                    <p className="text-[11px] text-stone-500">
-                      {item.agentAr} · {item.riskLevel === 'HIGH' ? 'خطر مرتفع' : 'منخفض'}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-ab-ink">
-                      {item.messageAr}
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-stone-400" dir="ltr">
-                      {item.actionName}
-                    </p>
-                    <div className="mt-3 flex gap-2 opacity-50">
-                      <span className="rounded-md bg-ab-ink px-3 py-1.5 text-[11px] text-white">
-                        اعتماد (بعد الدخول)
-                      </span>
-                      <span className="rounded-md border border-ab-border px-3 py-1.5 text-[11px]">
-                        رفض
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center">
+                <p className="text-sm font-semibold text-ab-ink">
+                  لا موافقات معلّقة
+                </p>
+                <p className="mt-1 text-xs text-stone-500">
+                  سجّل الدخول لرؤية طلبات الاعتماد الحقيقية عندما يطلب الوكيل
+                  إجراءً عالي المخاطر.
+                </p>
+                <Link
+                  href="/auth/login"
+                  className="mt-3 inline-block rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  سجّل الدخول للموافقة
+                </Link>
               </div>
             ) : !approvalsLoading && pendingCount === 0 && !approvalsError ? (
               <p className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center text-sm text-stone-500">
@@ -484,31 +459,17 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
 
             {signedIn === false && (
-              <div className="space-y-2 rounded-xl border border-ab-border bg-white p-4">
-                <p className="text-[11px] font-semibold text-ab-accent">
-                  معاينة تجريبية — إدخالات سجل التدقيق
+              <div className="rounded-xl border border-dashed border-ab-border bg-ab-surface px-4 py-6 text-center">
+                <p className="text-sm font-semibold text-ab-ink">
+                  لا إدخالات تدقيق بعد
                 </p>
-                <ul className="divide-y divide-ab-border">
-                  {buildGuestDemoDigest().auditEntries.map((a) => (
-                    <li key={a.id} className="py-2.5 text-[13px]">
-                      <p className="font-semibold text-ab-ink">
-                        {a.actorAr}
-                        <span className="mr-1 font-normal text-stone-600">
-                          · {a.actionAr}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-stone-400">
-                        {a.atAr} · {a.riskTier}
-                        <span className="mr-1 font-mono" dir="ltr">
-                          · {a.watermarkHint}
-                        </span>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-1 text-xs text-stone-500">
+                  سجل التدقيق الحقيقي يظهر بعد تسجيل الدخول وتنفيذ إجراءات في
+                  غرفتك.
+                </p>
                 <Link
                   href="/auth/login"
-                  className="mt-2 inline-block text-[11px] font-medium text-ab-accent underline"
+                  className="mt-3 inline-block text-[11px] font-medium text-ab-accent underline"
                 >
                   سجّل الدخول لسجلّك الحقيقي وتصدير CSV
                 </Link>

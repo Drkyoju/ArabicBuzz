@@ -12,7 +12,6 @@ import {
   Users,
   Video,
   ListTodo,
-  Fingerprint,
   Rocket,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
@@ -135,7 +134,7 @@ function DayBlock({
         </p>
       )}
       {events.length === 0 ? (
-        <p className="mt-3 text-xs text-stone-400">لا مواعيد.</p>
+        <p className="mt-3 text-xs text-stone-400">لا مواعيد بعد.</p>
       ) : (
         <ul className="mt-2 space-y-2">
           {events.map((e) => (
@@ -245,9 +244,9 @@ export function HomeDashboard({
     return () => window.clearInterval(t)
   }, [load, signedIn])
 
-  // Guests always see seeded demo data so first paint proves value.
-  const useDemo = signedIn === false
-  const viewData: Digest | DemoDigest = useDemo
+  // Guests see honest empty states — never fabricated appointments / Zoom / HITL.
+  const isGuest = signedIn === false
+  const viewData: Digest | DemoDigest = isGuest
     ? demo
     : liveData || {
         calendar: {
@@ -258,11 +257,8 @@ export function HomeDashboard({
           week: [],
         },
       }
-  const isGuestDemo = useDemo
   const cal = viewData.calendar
   const zoom = viewData.zoom
-  const isGuest = signedIn === false
-  const demoTyped = isGuestDemo ? demo : null
 
   // A brand-new signed-in scope has nothing to show. Guide the first three
   // actions instead of stacking a dozen "لا مواعيد / لا مهام" cards.
@@ -286,11 +282,6 @@ export function HomeDashboard({
             ما الذي ينتظر قرارك، وما المواعيد النظامية، ومن يعمل الآن.
           </p>
           <DateDual className="mt-2" />
-          {isGuestDemo && (
-            <p className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-ab-accent/10 px-2 py-0.5 text-[11px] font-medium text-ab-accent">
-              معاينة تجريبية — بيانات حية للتجربة
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -337,27 +328,26 @@ export function HomeDashboard({
 
       {/* Ops cockpit — above the fold: قرار · نظام · وكلاء */}
       {(() => {
-        const approvals = demoTyped?.pendingApprovals || []
-        const livePending = !isGuestDemo ? pendingApprovalsCount : 0
+        const livePending = isGuest ? 0 : pendingApprovalsCount
         const deadlines = (viewData.systemDeadlines || []).slice(0, 4)
-        const demoActs = demoTyped?.agentActivity || []
-        const liveActs = [
-          ...(liveData?.activity || [])
-            .filter(
-              (a) =>
-                a.kind === 'agent' ||
-                a.kind === 'hitl' ||
-                a.kind === 'message' ||
-                a.kind === 'system'
-            )
-            .slice(0, 3)
-            .map((a) => ({
-              agentAr: a.actorAr,
-              statusAr: a.actionAr,
-              detailAr: a.detailAr || a.atAr,
-            })),
-        ]
-        const acts = isGuestDemo ? demoActs : liveActs
+        const acts = isGuest
+          ? []
+          : [
+              ...(liveData?.activity || [])
+                .filter(
+                  (a) =>
+                    a.kind === 'agent' ||
+                    a.kind === 'hitl' ||
+                    a.kind === 'message' ||
+                    a.kind === 'system'
+                )
+                .slice(0, 3)
+                .map((a) => ({
+                  agentAr: a.actorAr,
+                  statusAr: a.actionAr,
+                  detailAr: a.detailAr || a.atAr,
+                })),
+            ]
 
         return (
           <div className="grid gap-3 lg:grid-cols-12">
@@ -367,11 +357,7 @@ export function HomeDashboard({
                   <ShieldCheck className="h-4 w-4" />
                   يحتاج قرارك
                   <span className="tabular-nums text-amber-800">
-                    (
-                    {isGuestDemo
-                      ? approvals.length
-                      : livePending}
-                    )
+                    ({livePending})
                   </span>
                 </h2>
                 <button
@@ -382,34 +368,18 @@ export function HomeDashboard({
                   صندوق الموافقات
                 </button>
               </div>
-              {isGuestDemo && approvals.length > 0 ? (
-                <ul className="mt-2.5 space-y-2">
-                  {approvals.slice(0, 3).map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200/80 bg-white/80 px-2.5 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-semibold text-ab-ink">
-                          {a.messageAr}
-                        </p>
-                        <p className="mt-0.5 text-[10px] text-amber-900/80">
-                          {a.agentAr}
-                          <span className="ms-1 rounded bg-amber-100 px-1 py-0.5 font-medium">
-                            {a.riskLevel === 'HIGH' ? 'عالي' : 'منخفض'}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onNavigate?.('approvals')}
-                        className="shrink-0 rounded-md bg-amber-900 px-2.5 py-1 text-[10px] font-semibold text-white"
-                      >
-                        مراجعة
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              {isGuest ? (
+                <p className="mt-3 text-xs text-amber-900/70">
+                  لا موافقات بعد —{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('settings')}
+                    className="font-semibold underline"
+                  >
+                    سجّل الدخول
+                  </button>{' '}
+                  لرؤية طلبات الاعتماد الحقيقية.
+                </p>
               ) : livePending > 0 ? (
                 <button
                   type="button"
@@ -441,7 +411,9 @@ export function HomeDashboard({
               </div>
               {deadlines.length === 0 ? (
                 <p className="mt-3 text-xs text-stone-400">
-                  لا مواعيد ترخيص أو إفصاح ظاهرة — أضفها من التقويم.
+                  {isGuest
+                    ? 'لا مواعيد بعد — سجّل الدخول لربط تقويم غرفتك.'
+                    : 'لا مواعيد نظامية بعد — أضفها من التقويم.'}
                 </p>
               ) : (
                 <ul className="mt-2.5 space-y-2">
@@ -507,12 +479,11 @@ export function HomeDashboard({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-ab-ink">
-              وضع الزائر — جلسة على هذا الجهاز فقط
+              وضع الزائر — لا مواعيد أو موافقات بعد
             </p>
             <p className="mt-0.5 max-w-xl text-[12px] text-amber-950/70">
-              المعاينة تُظهر دورة جمعية: موافقات، ترخيص، وكلاء. البيانات أدناه
-              تجريبية ولن تُحفظ على السحابة. سجّل الدخول لحفظ الغرف وربط Drive
-              وتيليجرام وتنفيذ الموافقات.
+              سجّل الدخول لرؤية تقويم غرفتك الحقيقي، وطلبات الموافقة، وسجل
+              التدقيق. لن نعرض بيانات وهمية هنا.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -522,13 +493,6 @@ export function HomeDashboard({
               className="rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
             >
               سجّل الدخول
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('approvals')}
-              className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs"
-            >
-              معاينة الموافقات
             </button>
           </div>
         </div>
@@ -614,7 +578,7 @@ export function HomeDashboard({
         </p>
       )}
 
-      {busy && !liveData && !isGuest && !isGuestDemo && (
+      {busy && !liveData && !isGuest && (
         <p className="text-sm text-stone-500">جاري تحميل لوحة اليوم…</p>
       )}
 
@@ -776,49 +740,6 @@ export function HomeDashboard({
             </ul>
           )}
         </div>
-
-        {/* Mini audit preview */}
-        {demoTyped?.auditEntries && (
-          <div className="rounded-xl border border-ab-border bg-white p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                <Fingerprint className="h-4 w-4 text-ab-accent" />
-                سجل التدقيق (سدايا)
-              </h2>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('audit')}
-                className="text-[11px] text-ab-accent underline"
-              >
-                العرض الكامل
-              </button>
-            </div>
-            <p className="mb-2 text-[11px] text-stone-500">
-              ختم لكل إجراء — جاهز للمراجعة دون تصدير منفصل.
-            </p>
-            <ul className="space-y-2">
-              {demoTyped.auditEntries.slice(0, 4).map((a) => (
-                <li
-                  key={a.id}
-                  className="rounded-lg border border-ab-border/70 px-2.5 py-2 text-[12px]"
-                >
-                  <p className="font-semibold text-ab-ink">
-                    {a.actorAr}
-                    <span className="mr-1 font-normal text-stone-500">
-                      · {a.actionAr}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-stone-400">
-                    {a.atAr} · {a.riskTier}
-                    <span className="mr-1 font-mono" dir="ltr">
-                      · {a.watermarkHint}
-                    </span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-ab-border bg-white p-4">

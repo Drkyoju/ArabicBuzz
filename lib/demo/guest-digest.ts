@@ -1,6 +1,7 @@
 /**
- * Seeded guest demo digest — fills empty states so first paint
- * proves agents, HITL, and audit instead of a graveyard of empty cards.
+ * Guest digest shape used when the visitor is not signed in.
+ * Intentionally empty — never invent calendar events, Zoom sessions,
+ * approvals, people, or system deadlines for first paint.
  */
 
 export type DemoDigest = {
@@ -132,13 +133,7 @@ function ymd(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-function arTime(h: number, m = 0) {
-  const suffix = h >= 12 ? 'م' : 'ص'
-  const h12 = ((h + 11) % 12) + 1
-  return `${h12}:${pad(m)} ${suffix}`
-}
-
-/** Build a fresh demo digest anchored to "today" in the browser. */
+/** Empty guest digest — honest empty states, no fabricated cockpit data. */
 export function buildGuestDemoDigest(now = new Date()): DemoDigest {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today)
@@ -148,310 +143,42 @@ export function buildGuestDemoDigest(now = new Date()): DemoDigest {
   const dayAfter = new Date(today)
   dayAfter.setDate(today.getDate() + 2)
 
-  const yY = ymd(yesterday)
-  const yT = ymd(today)
-  const yTom = ymd(tomorrow)
-  const yDa = ymd(dayAfter)
-
   return {
     demo: true,
-    associationAr: 'معاينة تجريبية',
+    associationAr: '',
     days: {
-      yesterday: yY,
-      today: yT,
-      tomorrow: yTom,
-      dayAfter: yDa,
+      yesterday: ymd(yesterday),
+      today: ymd(today),
+      tomorrow: ymd(tomorrow),
+      dayAfter: ymd(dayAfter),
     },
     calendar: {
-      yesterday: [
-        {
-          id: 'demo-y1',
-          titleAr: 'مراجعة محضر المجلس',
-          startsAtAr: `${yY} · ${arTime(16)}`,
-          endsAtAr: arTime(17),
-          locationAr: 'غرفة العمليات',
-        },
-      ],
-      today: [
-        {
-          id: 'demo-t1',
-          titleAr: 'اجتماع لجنة البرامج',
-          startsAtAr: `${yT} · ${arTime(11)}`,
-          endsAtAr: arTime(12, 30),
-          hasZoom: true,
-          locationAr: 'Zoom + غرفة الفريق',
-        },
-        {
-          id: 'demo-t2',
-          titleAr: 'موافقة بشرية: مزامنة Drive',
-          startsAtAr: `${yT} · ${arTime(14)}`,
-          endsAtAr: arTime(14, 15),
-        },
-      ],
-      tomorrow: [
-        {
-          id: 'demo-tm1',
-          titleAr: 'ورشة إعداد التقارير الربعية',
-          startsAtAr: `${yTom} · ${arTime(10)}`,
-          endsAtAr: arTime(11),
-          hasZoom: true,
-        },
-      ],
-      dayAfter: [
-        {
-          id: 'demo-da1',
-          titleAr: 'متابعة تبرعات الربع',
-          startsAtAr: `${yDa} · ${arTime(9, 30)}`,
-          endsAtAr: arTime(10, 30),
-        },
-      ],
-      week: [
-        {
-          id: 'demo-w1',
-          titleAr: 'اجتماع لجنة البرامج',
-          startsAtAr: `${yT} · ${arTime(11)}`,
-          endsAtAr: arTime(12, 30),
-          hasZoom: true,
-        },
-        {
-          id: 'demo-w2',
-          titleAr: 'ورشة إعداد التقارير الربعية',
-          startsAtAr: `${yTom} · ${arTime(10)}`,
-          endsAtAr: arTime(11),
-          hasZoom: true,
-        },
-        {
-          id: 'demo-w3',
-          titleAr: 'مجلس الإدارة الشهري',
-          startsAtAr: `${ymd(new Date(today.getTime() + 4 * 86400000))} · ${arTime(18)}`,
-          endsAtAr: arTime(20),
-        },
-      ],
+      yesterday: [],
+      today: [],
+      tomorrow: [],
+      dayAfter: [],
+      week: [],
     },
-    commitments: {
-      count: 4,
-      items: [
-        {
-          id: 'c1',
-          kind: 'deadline',
-          titleAr: 'تسليم تقرير الامتثال الربعي',
-          whenAtAr: yTom,
-          detailAr: 'وكيل الامتثال جهّز المسودة',
-        },
-        {
-          id: 'c2',
-          kind: 'task',
-          titleAr: 'اعتماد مزامنة مجلد Drive',
-          whenAtAr: yT,
-          detailAr: 'بانتظار موافقة مسؤول',
-        },
-        {
-          id: 'c3',
-          kind: 'event',
-          titleAr: 'اجتماع لجنة البرامج',
-          whenAtAr: `${yT} ${arTime(11)}`,
-          detailAr: 'Zoom',
-        },
-        {
-          id: 'c4',
-          kind: 'task',
-          titleAr: 'مراجعة مسودة محضر الاجتماع',
-          whenAtAr: yTom,
-          detailAr: 'محضر + حضور',
-        },
-      ],
-    },
-    systemDeadlines: [
-      {
-        id: 'sd1',
-        labelAr: 'تجديد ترخيص الجمعية',
-        daysLeft: 18,
-        startsAtAr: ymd(new Date(today.getTime() + 18 * 86400000)),
-      },
-      {
-        id: 'sd3',
-        labelAr: 'الإفصاح الربعي',
-        daysLeft: 6,
-        startsAtAr: ymd(new Date(today.getTime() + 6 * 86400000)),
-      },
-      {
-        id: 'sd2',
-        labelAr: 'إفصاح سدايا السنوي',
-        daysLeft: 42,
-        startsAtAr: ymd(new Date(today.getTime() + 42 * 86400000)),
-      },
-    ],
+    commitments: { count: 0, items: [] },
+    systemDeadlines: [],
     zoom: {
       liveNow: false,
       liveCount: 0,
-      lastLiveAtAr: `${yY} · ${arTime(16, 40)}`,
-      messageAr: 'آخر بث: مراجعة محضر المجلس — انتهى بنجاح',
-      recentSessions: [
-        {
-          topic: 'مراجعة محضر المجلس',
-          live: false,
-          lastSeenAt: yesterday.toISOString(),
-          endedAt: yesterday.toISOString(),
-        },
-      ],
+      lastLiveAtAr: null,
+      messageAr: '',
+      recentSessions: [],
     },
-    activity: [
-      {
-        id: 'a1',
-        actorAr: 'وكيل التقارير',
-        actionAr: 'أنشأ ملخص قرارات',
-        detailAr: '٣ قرارات من اجتماع الأمس',
-        atAr: `${arTime(9, 12)}`,
-        kind: 'agent',
-      },
-      {
-        id: 'a2',
-        actorAr: 'سارة',
-        actionAr: 'عدّلت ملف سياسة الموافقات',
-        detailAr: 'ملفات الجمعية',
-        atAr: `${arTime(8, 55)}`,
-        kind: 'edit',
-      },
-      {
-        id: 'a3',
-        actorAr: 'وكيل الامتثال',
-        actionAr: 'طلب موافقة بشرية',
-        detailAr: 'drive_sync_brain',
-        atAr: `${arTime(8, 40)}`,
-        kind: 'hitl',
-      },
-      {
-        id: 'a4',
-        actorAr: 'فهد',
-        actionAr: 'فتح غرفة الفريق',
-        detailAr: null,
-        atAr: `${arTime(8, 5)}`,
-        kind: 'presence',
-      },
-    ],
-    people: [
-      {
-        nameAr: 'سارة',
-        email: 'sara@demo.example',
-        actions: 6,
-        lastAction: 'عدّلت سياسة الموافقات',
-        lastAtAr: arTime(8, 55),
-      },
-      {
-        nameAr: 'فهد',
-        email: 'fahd@demo.example',
-        actions: 3,
-        lastAction: 'فتح غرفة الفريق',
-        lastAtAr: arTime(8, 5),
-      },
-      {
-        nameAr: 'وكيل التقارير',
-        actions: 4,
-        lastAction: 'ملخص قرارات',
-        lastAtAr: arTime(9, 12),
-      },
-      {
-        nameAr: 'وكيل الامتثال',
-        actions: 2,
-        lastAction: 'طلب موافقة',
-        lastAtAr: arTime(8, 40),
-      },
-    ],
-    tasks: {
-      openCount: 3,
-      items: [
-        { id: 'tk1', titleAr: 'اعتماد مزامنة Drive', status: 'معلّق' },
-        { id: 'tk2', titleAr: 'مراجعة مسودة الامتثال', status: 'قيد العمل' },
-        { id: 'tk3', titleAr: 'تجهيز ملخص قرارات المجلس', status: 'مفتوح' },
-      ],
-    },
-    recentPosts: [
-      {
-        authorAr: 'وكيل التقارير',
-        content:
-          'ملخص: اعتمد المجلس ميزانية البرامج، وأُجّل بند الشراكات للأسبوع القادم.',
-        atAr: arTime(9, 12),
-        kind: 'agent',
-      },
-      {
-        authorAr: 'سارة',
-        content: '@compliance راجع سياسة الموافقات قبل مزامنة Drive.',
-        atAr: arTime(8, 50),
-        kind: 'human',
-      },
-      {
-        authorAr: 'وكيل الامتثال',
-        content:
-          'طلبت موافقة بشرية على مزامنة المجلد — لا أُنفّذ دون اعتماد مسؤول.',
-        atAr: arTime(8, 41),
-        kind: 'agent',
-      },
-    ],
-    pendingApprovals: [
-      {
-        id: 'demo-appr-1',
-        actionName: 'drive_sync_brain',
-        riskLevel: 'HIGH',
-        messageAr: 'مزامنة مجلد «ملفات الجمعية» إلى عقل الشركة',
-        agentAr: 'وكيل الامتثال',
-      },
-      {
-        id: 'demo-appr-2',
-        actionName: 'telegram_broadcast',
-        riskLevel: 'HIGH',
-        messageAr: 'إرسال تذكير موعد النظام للجنة عبر تيليجرام',
-        agentAr: 'وكيل القنوات',
-      },
-    ],
-    auditEntries: [
-      {
-        id: 'aud-1',
-        atAr: `${yT} ${arTime(9, 12)}`,
-        actorAr: 'وكيل التقارير',
-        actionAr: 'توليد ملخص قرارات (مسودة)',
-        riskTier: 'TIER_1_LOW',
-        watermarkHint: 'sdaia·ab·demo·a1f3',
-      },
-      {
-        id: 'aud-2',
-        atAr: `${yT} ${arTime(8, 40)}`,
-        actorAr: 'وكيل الامتثال',
-        actionAr: 'طلب HITL · drive_sync_brain',
-        riskTier: 'TIER_3_HIGH',
-        watermarkHint: 'sdaia·ab·demo·b92c',
-      },
-      {
-        id: 'aud-3',
-        atAr: `${yY} ${arTime(16, 45)}`,
-        actorAr: 'سارة',
-        actionAr: 'اعتماد رفع محضر الاجتماع',
-        riskTier: 'TIER_2_MEDIUM',
-        watermarkHint: 'sdaia·ab·demo·c4e1',
-      },
-      {
-        id: 'aud-4',
-        atAr: `${yY} ${arTime(16, 20)}`,
-        actorAr: 'فهد',
-        actionAr: 'رفع ملف سياسة الموافقات',
-        riskTier: 'TIER_1_LOW',
-        watermarkHint: 'sdaia·ab·demo·d7aa',
-      },
-    ],
-    agentActivity: [
-      {
-        agentAr: 'وكيل التقارير',
-        statusAr: 'الخطوة ٢ من ٥',
-        detailAr: 'ملخص قرارات اجتماع الأمس',
-      },
-      {
-        agentAr: 'وكيل الامتثال',
-        statusAr: 'بانتظار موافقة',
-        detailAr: 'مزامنة Drive معلّقة على مسؤول',
-      },
-    ],
+    activity: [],
+    people: [],
+    tasks: { openCount: 0, items: [] },
+    recentPosts: [],
+    pendingApprovals: [],
+    auditEntries: [],
+    agentActivity: [],
   }
 }
 
+/** Static capability copy for built-in agent seats (not fabricated activity). */
 export const DEMO_AGENT_PROFILES: Record<
   string,
   {

@@ -9,7 +9,6 @@ import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { AgentsManagePanel } from '@/components/agents-manage-panel'
 import { AgentProfileDrawer } from '@/components/agent-profile-drawer'
 import { CollabModeToggle } from '@/components/collab-mode-toggle'
-import { buildGuestDemoDigest } from '@/lib/demo/guest-digest'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { cn } from '@/lib/utils'
@@ -48,13 +47,6 @@ export function AgentSeatsPanel({
   const [profileAgent, setProfileAgent] = useState<RoomAgent | null>(null)
   const signedIn = useSignedIn()
   const [liveActions, setLiveActions] = useState<string[]>([])
-
-  const demoActions = useMemo(() => {
-    const dig = buildGuestDemoDigest()
-    return dig.activity
-      .filter((a) => a.kind === 'agent' || a.kind === 'hitl')
-      .map((a) => `${a.actionAr}${a.detailAr ? ` — ${a.detailAr}` : ''}`)
-  }, [])
 
   useEffect(() => {
     if (signedIn === false) {
@@ -100,8 +92,7 @@ export function AgentSeatsPanel({
     }
   }, [scopeId, signedIn, answeringAgentId])
 
-  const recentPool =
-    signedIn && liveActions.length > 0 ? liveActions : demoActions
+  const recentPool = signedIn && liveActions.length > 0 ? liveActions : []
 
   return (
     <div className={cn('space-y-1', className)} dir="rtl">
