@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
   MessageSquare,
   ShieldCheck,
@@ -42,16 +43,13 @@ function GuestChip({ onLogin }: { onLogin?: () => void }) {
     )
   }
   return (
-    <button
-      type="button"
-      onClick={() => {
-        onLogin?.()
-        window.dispatchEvent(new CustomEvent('ab-nav', { detail: 'settings' }))
-      }}
-      className="w-full rounded-md bg-ab-accent px-2 py-2 text-right text-[11px] font-semibold text-white hover:opacity-95"
+    <Link
+      href="/auth/login"
+      onClick={() => onLogin?.()}
+      className="block w-full rounded-md bg-ab-accent px-2 py-2 text-right text-[11px] font-semibold text-white hover:opacity-95"
     >
       سجّل الدخول — احفظ غرفك وموافقاتك
-    </button>
+    </Link>
   )
 }
 
@@ -501,11 +499,25 @@ export function Sidebar({
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
-    const sync = () => setIsDesktop(mq.matches)
+    const sync = () => {
+      setIsDesktop(mq.matches)
+      // The drawer is mobile-only; leaving it open across a resize would keep a
+      // stale overlay when the viewport shrinks again.
+      if (mq.matches) setMobileOpen(false)
+    }
     sync()
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMobileOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mobileOpen])
 
   const drawerActive = mobileOpen || isDesktop
 
@@ -525,13 +537,12 @@ export function Sidebar({
           </button>
           <span className="text-sm font-bold">Arabic Buzz</span>
           {signedIn === false ? (
-            <button
-              type="button"
-              onClick={() => onSectionChange?.('settings')}
+            <Link
+              href="/auth/login"
               className="rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white"
             >
               دخول
-            </button>
+            </Link>
           ) : pendingApprovals > 0 ? (
             <button
               type="button"

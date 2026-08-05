@@ -44,6 +44,16 @@ import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { buildGuestDemoDigest } from '@/lib/demo/guest-digest'
 import { Fingerprint } from 'lucide-react'
 
+type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
+
+const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
+  { id: 'schedule', labelAr: 'المواعيد والاستحقاقات' },
+  { id: 'tasks', labelAr: 'المهام' },
+  { id: 'meetings', labelAr: 'الاجتماعات' },
+  { id: 'external', labelAr: 'دعوات خارجية' },
+  { id: 'export', labelAr: 'تصدير' },
+]
+
 function AccountStatus() {
   const [required, setRequired] = useState<boolean | null>(null)
   const signedIn = useSignedIn()
@@ -130,6 +140,7 @@ type LiveApproval = {
 
 export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [section, setSection] = useState<SidebarSection>('home')
+  const [calendarTab, setCalendarTab] = useState<CalendarTab>('schedule')
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const signedIn = useSignedIn()
@@ -261,7 +272,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         pendingApprovals={signedIn === false ? 0 : pendingCount}
       />
 
-      <div className="me-0 min-h-dvh pt-11 md:me-[15.5rem] md:pt-0">
+      {/* Offset must be on the inline-start side and match the aside width in
+          components/sidebar.tsx, otherwise the fixed sidebar covers content. */}
+      <div className="min-h-dvh pt-11 md:ms-[15.5rem] md:pt-0">
         {pendingCount > 0 && section !== 'approvals' && signedIn !== false && (
           <button
             type="button"
@@ -294,25 +307,68 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'files' && <FilesPanel />}
 
         {section === 'calendar' && (
-          <section className="mx-auto max-w-3xl space-y-8 px-6 py-8" dir="rtl">
-            <RoomCalendarBoard />
-            <SystemDeadlinesPanel />
-            <RoomTasksBoard />
-            <AccreditationExportPanel />
-            <details className="rounded-xl border border-ab-border bg-ab-surface">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-ab-ink">
-                Google اختياري · دعوات خارجية و Zoom فقط
-              </summary>
-              <div className="border-t border-ab-border p-4">
-                <p className="mb-3 text-xs text-stone-500">
-                  اللوحات أعلاه مشتركة للغرفة. Google هنا فقط لإرسال دعوات بريد
-                  خارجية أو Zoom — ليس مصدر مواعيد الفريق.
-                </p>
-                <GoogleCalendarPanel hideTitle />
-              </div>
-            </details>
-            <ZoomLivePanel />
-            <MeetingCopilotPanel />
+          <section className="mx-auto max-w-3xl space-y-5 px-6 py-8" dir="rtl">
+            <div>
+              <h2 className="text-xl font-bold text-ab-ink">
+                المواعيد والمهام
+              </h2>
+              <p className="mt-1 text-sm text-stone-500">
+                كل ما يخص وقت الفريق في مكان واحد — اختر التبويب الذي تحتاجه.
+              </p>
+            </div>
+
+            <div
+              role="tablist"
+              aria-label="أقسام المواعيد"
+              className="flex flex-wrap gap-1.5 rounded-xl border border-ab-border bg-ab-surface p-1.5"
+            >
+              {CALENDAR_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={calendarTab === t.id}
+                  onClick={() => setCalendarTab(t.id)}
+                  className={
+                    calendarTab === t.id
+                      ? 'rounded-lg bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white'
+                      : 'rounded-lg px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-100'
+                  }
+                >
+                  {t.labelAr}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-6">
+              {calendarTab === 'schedule' && (
+                <>
+                  <RoomCalendarBoard />
+                  <SystemDeadlinesPanel />
+                </>
+              )}
+
+              {calendarTab === 'tasks' && <RoomTasksBoard />}
+
+              {calendarTab === 'meetings' && (
+                <>
+                  <ZoomLivePanel />
+                  <MeetingCopilotPanel />
+                </>
+              )}
+
+              {calendarTab === 'external' && (
+                <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+                  <p className="mb-3 text-xs text-stone-500">
+                    لوحات المواعيد والمهام مشتركة للغرفة. Google هنا فقط لإرسال
+                    دعوات بريد خارجية أو Zoom — وليس مصدر مواعيد الفريق.
+                  </p>
+                  <GoogleCalendarPanel hideTitle />
+                </div>
+              )}
+
+              {calendarTab === 'export' && <AccreditationExportPanel />}
+            </div>
           </section>
         )}
 
