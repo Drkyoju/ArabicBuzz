@@ -57,6 +57,21 @@ export async function GET() {
     langfuseConfigured: isLangfuseConfigured(),
     braveConfigured: Boolean(process.env.BRAVE_API_KEY?.trim()),
     firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY?.trim()),
+    /** Free built-in paths work without Brave / Firecrawl keys. */
+    webSearchFreePath: true,
+    webCrawlFreePath: true,
+    /** Director-facing Arabic labels — not red “broken” when free path works. */
+    braveStatusAr: process.env.BRAVE_API_KEY?.trim()
+      ? 'اختياري بمفتاح · مفعّل'
+      : 'مجاني مدمج (DuckDuckGo · ويكيبيديا · gov.sa)',
+    firecrawlStatusAr: process.env.FIRECRAWL_API_KEY?.trim()
+      ? 'اختياري بمفتاح · مفعّل'
+      : 'مجاني مدمج (Jina Reader · جلب مباشر)',
+    langfuseStatusAr: isLangfuseConfigured()
+      ? 'مفعّل (Langfuse Cloud)'
+      : 'يحتاج مفتاح مجاني من cloud.langfuse.com',
+    webSearchReady: true,
+    webCrawlReady: true,
     mcpToolboxConfigured: Boolean(process.env.MCP_TOOLBOX_URL?.trim()),
     steelConfigured: Boolean(process.env.STEEL_API_KEY?.trim()),
     browserUseConfigured: Boolean(process.env.BROWSER_USE_URL?.trim()),

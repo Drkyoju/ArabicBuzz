@@ -4,21 +4,23 @@ Live site only for QA: **https://arabicbuzz.netlify.app/**
 
 This doc covers in-repo wiring for observability, remote MCP, Mac/VPS bridges, and browser RPA. Skipped / tombstoned: Moyasar, WhatsApp product UI, Qoyod, NVG, Signit, TokenRouter revival, self-hosted Langfuse on Netlify, fabricated demo data.
 
-## A. Langfuse Cloud (not self-host on Netlify)
+## A. Langfuse Cloud (optional — not self-host on Netlify)
 
-Arabic Buzz already registers OpenTelemetry via `instrumentation.ts` + `@vercel/otel`. When Langfuse keys are present, `lib/observability/langfuse.ts` maps them to OTLP HTTP:
+**Free path:** leave keys empty. OTel stays no-op; product already records actions in the SDAIA-neutral audit log. Self-host on Netlify is skipped.
+
+**Optional free hobby signup** (no paid plan required; often no credit card): [cloud.langfuse.com](https://cloud.langfuse.com) (EU) or [us.cloud.langfuse.com](https://us.cloud.langfuse.com). Paste keys → Redeploy.
+
+Wiring (when keys present): `instrumentation.ts` + `@vercel/otel` via `lib/observability/langfuse.ts` → OTLP HTTP.
 
 | Env | Notes |
 |-----|--------|
-| `LANGFUSE_PUBLIC_KEY` | Required |
-| `LANGFUSE_SECRET_KEY` | Required |
-| `LANGFUSE_HOST` or `LANGFUSE_BASEURL` / `LANGFUSE_BASE_URL` | Default `https://cloud.langfuse.com` (US: `https://us.cloud.langfuse.com`) |
+| `LANGFUSE_PUBLIC_KEY` | Optional |
+| `LANGFUSE_SECRET_KEY` | Optional |
+| `LANGFUSE_HOST` or `LANGFUSE_BASEURL` / `LANGFUSE_BASE_URL` | Default `https://cloud.langfuse.com` |
 
-Serverless flush: chat/agent paths call `scheduleOtelFlush()` / `forceFlushOtel()` so Netlify does not drop spans.
+Serverless flush: chat/agent paths call `scheduleOtelFlush()` / `forceFlushOtel()` when configured.
 
-**You must:** create a Langfuse Cloud project and paste keys into Netlify → Redeploy. Do not run Langfuse as a Netlify function.
-
-Status UI: Integrations / صحة التشغيل → **Langfuse**.
+Status UI (directors): **يحتاج مفتاح مجاني من cloud.langfuse.com** until keys exist — not treated as a broken core service.
 
 ## B. MCP Toolbox (googleapis / genai-toolbox)
 
@@ -95,13 +97,20 @@ Arabic errors tell operators which env to set. Catalog: `browser-use`, `playwrig
 - Optional Supergateway preset: `markitdown` in ops-bridge
 - Not exposed on the public internet without your tunnel + secret
 
-## F. Firecrawl
+## F. Web search & crawl (free path first)
 
-Prefer `FIRECRAWL_API_KEY` (native scrape in `ingest_url_to_brain`). Optional MCP: auto-connect when key set (`FIRECRAWL_MCP_URL` override). Anybrowse is opt-in (`MCP_AUTO_ANYBROWSE=1`) only.
+| Capability | Free (no key) | Optional upgrade |
+|------------|---------------|------------------|
+| `web_search` | DuckDuckGo HTML/lite → Wikipedia (ar/en) → `site:gov.sa` | `BRAVE_API_KEY` ([free-tier signup](https://api-dashboard.search.brave.com)) |
+| `web_fetch` / `ingest_url_to_brain` | [Jina Reader](https://r.jina.ai/) (`r.jina.ai/{url}`) → plain fetch | `FIRECRAWL_API_KEY` (paid-leaning) |
+
+Do **not** set fake keys on Netlify. Firecrawl MCP auto-connects only when a key exists. Anybrowse remains opt-in (`MCP_AUTO_ANYBROWSE=1`).
 
 ## G. Integrations status
 
-`/api/integrations/status` reports (no secrets): Langfuse, Brave, Firecrawl, MCP Toolbox, Mac bridge, Steel, browser RPA, TokenRouter (tombstoned `tokenrouterAvailable: false`).
+`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, Steel, browser RPA, TokenRouter (tombstoned `tokenrouterAvailable: false`).
+
+UI labels: **مجاني مدمج** vs **اختياري بمفتاح** — search/crawl are ready without Brave/Firecrawl.
 
 ## H. GitHub MCP (optional)
 
@@ -123,10 +132,11 @@ npm run evals:fetch-arabic-fc   # regenerate vendor subset from HF
 
 ## External deploy checklist (operator)
 
-1. **Langfuse Cloud** account + Netlify `LANGFUSE_*`
-2. **MCP Toolbox** container (Fly/Railway/VPS via `deploy/toolbox`) + `MCP_TOOLBOX_URL`
-3. **Mac bridge** (`storage:sync` + ngrok/Cloudflare tunnel) + `MAC_SYNC_*`
-4. Optional: `BROWSER_USE_URL`, `STEEL_API_KEY`, `FIRECRAWL_API_KEY`, `BRAVE_API_KEY`
-5. Redeploy Netlify → verify صحة التشغيل on the live site
-6. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify)
-7. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in
+1. Core app keys (models / DB / auth) — search & crawl work without Brave/Firecrawl
+2. **MCP Toolbox** container (Fly/Railway/VPS via `deploy/toolbox`) + `MCP_TOOLBOX_URL` (if needed)
+3. **Mac bridge** (`storage:sync` + ngrok/Cloudflare tunnel) + `MAC_SYNC_*` (if needed)
+4. Optional free signups (no pressure): Langfuse hobby · Brave free tier
+5. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`
+6. Redeploy Netlify → verify صحة التشغيل — search/crawl should show **مجاني مدمج**
+7. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify)
+8. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in

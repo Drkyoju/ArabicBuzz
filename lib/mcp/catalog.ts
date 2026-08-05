@@ -27,33 +27,33 @@ export type McpCatalogItem = {
 export const MCP_CATALOG: McpCatalogItem[] = [
   {
     id: 'firecrawl',
-    nameAr: 'زحف مواقع (Firecrawl)',
-    nameEn: 'Firecrawl',
+    nameAr: 'زحف مواقع (Firecrawl) — اختياري',
+    nameEn: 'Firecrawl (optional upgrade)',
     descriptionAr:
-      'يستخرج صفحات السياسات كـ Markdown للـ RAG — يتكامل مع ingest_url_to_brain عند FIRECRAWL_API_KEY.',
-    benefitsAr: 'بناء معرفة الجمعية من مواقع اللوائح والأنظمة.',
+      'ترقية اختيارية للزحف. المسار المجاني المدمج: Jina Reader + جلب مباشر عبر ingest_url_to_brain بدون مفتاح.',
+    benefitsAr: 'جودة أعلى لبعض المواقع الصعبة — ليس مطلوباً للعمل اليومي.',
     categoryAr: 'ويب وبحث',
     runtime: 'remote',
     transport: 'sse',
     setupHintAr:
-      'المفضّل للزحف: عيّن FIRECRAWL_API_KEY (يتصل MCP تلقائياً) أو الصق رابط Firecrawl MCP.',
+      'اختياري بمفتاح: FIRECRAWL_API_KEY أو FIRECRAWL_MCP_URL. بدون مفتاح يعمل السحب عبر Jina Reader / جلب مباشر (مجاني مدمج).',
     envKeys: ['FIRECRAWL_API_KEY', 'FIRECRAWL_MCP_URL'],
     docsUrl: 'https://github.com/mendableai/firecrawl-mcp-server',
-    recommended: true,
+    recommended: false,
   },
   {
     id: 'anybrowse',
     nameAr: 'تصفح الويب (Anybrowse)',
     nameEn: 'Anybrowse',
     descriptionAr:
-      'يسحب صفحات السياسات والأنظمة ويستخرج نصاً نظيفاً — بديل اختياري عند غياب Firecrawl.',
+      'بديل اختياري إضافي — المسار الافتراضي المجاني هو Jina Reader ثم الجلب المباشر.',
     benefitsAr: 'بناء معرفة الجمعية من مواقع حكومية ولوائح دون لصق يدوي.',
     categoryAr: 'ويب وبحث',
     runtime: 'remote',
     transport: 'sse',
     defaultUrl: 'https://anybrowse.dev/mcp',
     setupHintAr:
-      'غير موصى به كافتراضي — يُفضَّل Firecrawl عند توفر المفتاح. للاتصال اليدوي أو MCP_AUTO_ANYBROWSE=1.',
+      'غير موصى به كافتراضي. للاتصال اليدوي أو MCP_AUTO_ANYBROWSE=1 فقط.',
     docsUrl: 'https://github.com/kc23go/anybrowse',
     recommended: false,
   },
@@ -157,19 +157,19 @@ export const MCP_CATALOG: McpCatalogItem[] = [
   },
   {
     id: 'brave-search',
-    nameAr: 'بحث Brave',
-    nameEn: 'Brave Search',
+    nameAr: 'بحث Brave — اختياري',
+    nameEn: 'Brave Search (optional upgrade)',
     descriptionAr:
-      'بحث ويب منظم للوائح والأنظمة. على Netlify يُفعَّل عبر BRAVE_API_KEY في أداة web_search مباشرة (بدون stdio).',
-    benefitsAr: 'نتائج أوضح من التصفح العشوائي للسياسات الحكومية.',
+      'ترقية اختيارية. المسار المجاني المدمج في web_search: DuckDuckGo + ويكيبيديا + نتائج site:gov.sa بدون مفتاح.',
+    benefitsAr: 'نتائج JSON أوضح إن وُجد مفتاح طبقة مجانية — ليس مطلوباً.',
     categoryAr: 'ويب وبحث',
     runtime: 'both',
     transport: 'sse',
     setupHintAr:
-      'عيّن BRAVE_API_KEY على Netlify (طبقة مجانية) — يُستخدم مباشرة في web_search. اختياري: BRAVE_MCP_URL لخادم MCP بعيد (HTTP/SSE فقط؛ لا stdio على Netlify).',
+      'اختياري بمفتاح: BRAVE_API_KEY (طبقة مجانية من api-dashboard.search.brave.com) أو BRAVE_MCP_URL. بدون مفتاح يعمل البحث المدمج مجاناً.',
     envKeys: ['BRAVE_API_KEY', 'BRAVE_MCP_URL'],
     docsUrl: 'https://brave.com/search/api/',
-    recommended: true,
+    recommended: false,
   },
   {
     id: 'memory-kg',

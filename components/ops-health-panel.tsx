@@ -15,12 +15,15 @@ type Snapshot = {
   pendingApprovals?: number
   searchReady?: boolean
   crawlReady?: boolean
+  searchDetailAr?: string
+  crawlDetailAr?: string
+  langfuseDetailAr?: string
   toolsReady?: boolean
 }
 
 /**
- * High-level connection status for directors/admins — متصل / غير متصل only.
- * No env-var names or vendor jargon.
+ * High-level connection status for directors/admins.
+ * Free web paths show «مجاني مدمج» — not red “broken” without Brave/Firecrawl.
  */
 export function OpsHealthPanel() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -55,8 +58,24 @@ export function OpsHealthPanel() {
               (a: { status?: string }) => a.status === 'PENDING_APPROVAL'
             ).length
           : 0,
-        searchReady: Boolean(integ?.braveConfigured),
-        crawlReady: Boolean(integ?.firecrawlConfigured),
+        searchReady: Boolean(
+          integ?.webSearchReady ?? integ?.webSearchFreePath ?? true
+        ),
+        crawlReady: Boolean(
+          integ?.webCrawlReady ?? integ?.webCrawlFreePath ?? true
+        ),
+        searchDetailAr:
+          typeof integ?.braveStatusAr === 'string'
+            ? integ.braveStatusAr
+            : 'مجاني مدمج',
+        crawlDetailAr:
+          typeof integ?.firecrawlStatusAr === 'string'
+            ? integ.firecrawlStatusAr
+            : 'مجاني مدمج',
+        langfuseDetailAr:
+          typeof integ?.langfuseStatusAr === 'string'
+            ? integ.langfuseStatusAr
+            : 'يحتاج مفتاح مجاني من cloud.langfuse.com',
         toolsReady: Number(integ?.mcpConnectedServers || 0) > 0,
       })
     } catch (e) {
@@ -71,7 +90,12 @@ export function OpsHealthPanel() {
     void load()
   }, [])
 
-  const rows: Array<{ label: string; ok: boolean; detail: string }> = snap
+  const rows: Array<{
+    label: string
+    ok: boolean
+    detail: string
+    soft?: boolean
+  }> = snap
     ? [
         {
           label: 'نماذج المحادثة',
@@ -81,17 +105,27 @@ export function OpsHealthPanel() {
         {
           label: 'البحث على الويب',
           ok: Boolean(snap.searchReady),
-          detail: snap.searchReady ? 'متصل' : 'غير متصل',
+          detail: snap.searchDetailAr || 'مجاني مدمج',
         },
         {
           label: 'جلب صفحات الويب',
           ok: Boolean(snap.crawlReady),
-          detail: snap.crawlReady ? 'متصل' : 'غير متصل',
+          detail: snap.crawlDetailAr || 'مجاني مدمج',
+        },
+        {
+          label: 'تتبع Langfuse',
+          ok: Boolean(
+            snap.langfuseDetailAr?.includes('مفعّل') &&
+              !snap.langfuseDetailAr?.includes('يحتاج')
+          ),
+          detail: snap.langfuseDetailAr || 'يحتاج مفتاح مجاني من cloud.langfuse.com',
+          soft: true,
         },
         {
           label: 'أدوات إضافية',
           ok: Boolean(snap.toolsReady),
-          detail: snap.toolsReady ? 'متصل' : 'غير متصل',
+          detail: snap.toolsReady ? 'متصل' : 'اختياري',
+          soft: !snap.toolsReady,
         },
         {
           label: 'خزنة الجهاز',
@@ -100,27 +134,32 @@ export function OpsHealthPanel() {
             ? 'متصل'
             : snap.macConfigured
               ? 'غير متصل'
-              : 'غير متصل',
+              : 'اختياري',
+          soft: !snap.macOnline,
         },
         {
           label: 'تقويم Google',
           ok: Boolean(snap.googleConnected),
-          detail: snap.googleConnected ? 'متصل' : 'غير متصل',
+          detail: snap.googleConnected ? 'متصل' : 'اختياري',
+          soft: !snap.googleConnected,
         },
         {
           label: 'ملفات Drive',
           ok: Boolean(snap.driveReady),
-          detail: snap.driveReady ? 'متصل' : 'غير متصل',
+          detail: snap.driveReady ? 'متصل' : 'اختياري',
+          soft: !snap.driveReady,
         },
         {
           label: 'تيليجرام',
           ok: Boolean(snap.telegramConfigured),
-          detail: snap.telegramConfigured ? 'متصل' : 'غير متصل',
+          detail: snap.telegramConfigured ? 'متصل' : 'اختياري',
+          soft: !snap.telegramConfigured,
         },
         {
           label: 'اجتماعات Zoom',
           ok: Boolean(snap.zoomConfigured),
-          detail: snap.zoomConfigured ? 'متصل' : 'غير متصل',
+          detail: snap.zoomConfigured ? 'متصل' : 'اختياري',
+          soft: !snap.zoomConfigured,
         },
         {
           label: 'موافقات معلّقة',
@@ -139,7 +178,8 @@ export function OpsHealthPanel() {
             حالة الربط
           </h2>
           <p className="mt-1 text-sm text-stone-500">
-            نظرة سريعة: متصل أو غير متصل — بدون تفاصيل تقنية.
+            البحث والزحف يعملان مجاناً بدون مفاتيح. Brave / Firecrawl / Langfuse
+            اختياري.
           </p>
         </div>
         <button
@@ -167,8 +207,10 @@ export function OpsHealthPanel() {
               <span
                 className={
                   r.ok
-                    ? 'text-[11px] text-emerald-700'
-                    : 'text-[11px] text-stone-500'
+                    ? 'max-w-[60%] text-end text-[11px] text-emerald-700'
+                    : r.soft
+                      ? 'max-w-[60%] text-end text-[11px] text-amber-700/90'
+                      : 'max-w-[60%] text-end text-[11px] text-stone-500'
                 }
               >
                 {r.detail}

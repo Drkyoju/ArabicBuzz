@@ -98,7 +98,7 @@ export function AssociationKnowledgePanel() {
       </h3>
       <p className="mb-3 text-xs text-stone-500">
         اسحب صفحات السياسات والأنظمة (NCNP، وزارة، لوائح داخلية) إلى معرفة الغرفة
-        عبر Firecrawl (مفتاح API) أو جلب مباشر.
+        عبر المسار المجاني (Jina Reader / جلب مباشر). Firecrawl اختياري بمفتاح.
       </p>
       <div className="mb-3">
         <BrainPrivacyNote compact />
@@ -194,7 +194,7 @@ export function AssociationKnowledgePanel() {
           المحاضر (من لوحة Drive أعلاه أو السحب بالروابط).
         </li>
         <li>
-          عيّن FIRECRAWL_API_KEY على Netlify للزحف الأفضل. تفريغ الصوت يعمل من
+          السحب يعمل بدون مفاتيح. Firecrawl اختياري فقط. تفريغ الصوت يعمل من
           ميكروفون الغرفة (نماذج عربية → Groq/Deepgram/OpenAI حسب المفاتيح).
         </li>
         <li>

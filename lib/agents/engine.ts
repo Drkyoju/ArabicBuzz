@@ -26,7 +26,7 @@ export function getNativeAiTools(opts?: {
   const native: ToolSet = {
     web_search: tool({
       description:
-        'بحث ويب حي عن استعلام عربي/إنجليزي وإرجاع روابط (Brave إن وُجد BRAVE_API_KEY، وإلا DuckDuckGo).',
+        'بحث ويب حي عن استعلام عربي/إنجليزي وإرجاع روابط (مجاني: DuckDuckGo + ويكيبيديا + gov.sa؛ Brave اختياري بمفتاح).',
       inputSchema: z.object({
         query: z.string().describe('نص البحث'),
         queryAr: z.string().optional().describe('بديل عربي لنص البحث إن لم يُمرَّر query'),
@@ -1006,7 +1006,7 @@ export function getNativeAiTools(opts?: {
     }),
     ingest_url_to_brain: tool({
       description:
-        'سحب صفحة سياسات/أنظمة (Anybrowse أو Firecrawl أو جلب مباشر) وإضافتها لمعرفة الغرفة.',
+        'سحب صفحة سياسات/أنظمة إلى معرفة الغرفة (مجاني: Jina Reader ثم جلب مباشر؛ Firecrawl اختياري بمفتاح).',
       inputSchema: z.object({
         url: z.string().url().optional().describe('رابط واحد'),
         urls: z

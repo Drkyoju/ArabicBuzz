@@ -56,8 +56,8 @@ Mac sync agent exposes `GET /health` (Bearer secret optional depending on agent 
 | `MCP_TOOLBOX_URL` | Google MCP Toolbox Streamable HTTP (`…/mcp`) |
 | `MCP_REMOTE_SERVERS` | JSON array of `{id,name,url}` |
 | `MCP_GITHUB_URL` | GitHub MCP via Supergateway (optional) |
-| `FIRECRAWL_API_KEY` | Native scrape (preferred over Anybrowse) |
-| `BRAVE_API_KEY` | Native `web_search` |
-| `LANGFUSE_*` | Cloud OTel tracing |
+| `FIRECRAWL_API_KEY` | Optional scrape upgrade (free path: Jina Reader + fetch) |
+| `BRAVE_API_KEY` | Optional `web_search` upgrade (free path: DDG / Wikipedia / gov.sa) |
+| `LANGFUSE_*` | Optional Cloud OTel tracing (free hobby signup) |
 
 See [docs/ops-spine.md](../../docs/ops-spine.md) for Toolbox container deploy and full checklist.

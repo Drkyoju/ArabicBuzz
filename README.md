@@ -136,7 +136,7 @@ npm run storage:sync                # Mac agent: /health /task /markitdown
 npm run ops:health                  # probe MAC_SYNC_URL / Toolbox
 ```
 
-Netlify env highlights: `LANGFUSE_*`, `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`, `FIRECRAWL_API_KEY`, `BRAVE_API_KEY`. TokenRouter stays tombstoned until a paid key works.
+Free path (no keys): `web_search` (DuckDuckGo / Wikipedia / gov.sa) and URL ingest (Jina Reader / fetch). Optional: `LANGFUSE_*` (free hobby), `BRAVE_API_KEY` (free tier), `FIRECRAWL_API_KEY` (upgrade). Also: `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`. TokenRouter stays tombstoned until a paid key works.
 
 ## Multi-tenant RBAC + RLS
 

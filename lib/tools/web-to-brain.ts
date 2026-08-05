@@ -1,8 +1,13 @@
 /**
  * Pull policy/regulation pages into the association knowledge brain.
- * Providers: Firecrawl (native key) → plain fetch → Anybrowse (opt-in only).
+ * Free path (no keys): Jina Reader → plain fetch.
+ * Optional upgrade: FIRECRAWL_API_KEY. Anybrowse only if MCP_AUTO_ANYBROWSE=1.
  */
 import { ingestArabicDocument } from '@/lib/rag/ingest'
+import {
+  IS_AIR_GAPPED_MODE,
+  validateNetworkAccess,
+} from '@/lib/security/airgap'
 
 export type WebIngestResult = {
   ok: boolean
@@ -10,11 +15,14 @@ export type WebIngestResult = {
   url: string
   chunks: number
   chars: number
-  provider: 'anybrowse' | 'firecrawl' | 'fetch' | 'none'
+  provider: 'anybrowse' | 'firecrawl' | 'jina' | 'fetch' | 'none'
   messageAr: string
   preview?: string
   error?: string
 }
+
+const UA =
+  'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz.netlify.app)'
 
 async function viaAnybrowse(url: string): Promise<string | null> {
   try {
@@ -87,12 +95,51 @@ async function viaFirecrawl(url: string): Promise<string | null> {
   }
 }
 
+/** Free rate-limited reader — no API key required for basic use. */
+async function viaJinaReader(url: string): Promise<string | null> {
+  if (IS_AIR_GAPPED_MODE) return null
+  try {
+    const jinaUrl = `https://r.jina.ai/${url}`
+    validateNetworkAccess(jinaUrl)
+    const res = await fetch(jinaUrl, {
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/plain',
+        'X-Return-Format': 'markdown',
+      },
+      signal: AbortSignal.timeout(45_000),
+      redirect: 'follow',
+    })
+    if (!res.ok) return null
+    const text = (await res.text()).trim()
+    if (text.length < 80) return null
+    return text.slice(0, 120_000)
+  } catch {
+    return null
+  }
+}
+
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<(nav|footer|header|aside)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120_000)
+}
+
 async function viaPlainFetch(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: {
-        'User-Agent':
-          'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz.netlify.app)',
+        'User-Agent': UA,
         Accept: 'text/html,application/xhtml+xml,text/plain,application/pdf',
       },
       signal: AbortSignal.timeout(30_000),
@@ -112,14 +159,7 @@ async function viaPlainFetch(url: string): Promise<string | null> {
       return extracted.text || null
     }
     const html = await res.text()
-    // crude HTML → text
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 120_000)
+    return stripHtmlToText(html)
   } catch {
     return null
   }
@@ -135,6 +175,14 @@ function titleFromUrl(url: string, body?: string) {
   } catch {
     return body?.slice(0, 40) || 'صفحة ويب'
   }
+}
+
+const PROVIDER_LABEL_AR: Record<WebIngestResult['provider'], string> = {
+  firecrawl: 'Firecrawl',
+  jina: 'Jina Reader (مجاني)',
+  fetch: 'جلب مباشر',
+  anybrowse: 'Anybrowse',
+  none: '—',
 }
 
 export async function ingestUrlToBrain(opts: {
@@ -159,13 +207,28 @@ export async function ingestUrlToBrain(opts: {
   let text: string | null = null
   let provider: WebIngestResult['provider'] = 'none'
 
-  // Prefer native Firecrawl key path
+  // Optional paid/keyed upgrade first when present
   text = await viaFirecrawl(url)
   if (text?.trim()) provider = 'firecrawl'
 
-  if (!text?.trim()) {
-    text = await viaPlainFetch(url)
-    if (text?.trim()) provider = 'fetch'
+  // Free default: Jina Reader (markdown extraction, no key)
+  if (!text?.trim() || text.trim().length < 200) {
+    const jina = await viaJinaReader(url)
+    if (jina?.trim() && (!text || jina.trim().length > text.trim().length)) {
+      text = jina
+      provider = 'jina'
+    }
+  }
+
+  if (!text?.trim() || text.trim().length < 200) {
+    const plain = await viaPlainFetch(url)
+    if (
+      plain?.trim() &&
+      (!text || plain.trim().length > text.trim().length)
+    ) {
+      text = plain
+      provider = 'fetch'
+    }
   }
 
   // Anybrowse is demoted — opt-in via MCP_AUTO_ANYBROWSE=1 only
@@ -183,7 +246,7 @@ export async function ingestUrlToBrain(opts: {
       chars: 0,
       provider: 'none',
       messageAr:
-        'تعذّر سحب الصفحة. عيّن FIRECRAWL_API_KEY على Netlify (المفضّل) أو جرّب لاحقاً.',
+        'تعذّر سحب الصفحة بالمسار المجاني (Jina Reader / جلب مباشر). جرّب رابطاً آخر أو لاحقاً — Firecrawl اختياري بمفتاح.',
       error: 'empty',
     }
   }
@@ -226,7 +289,7 @@ export async function ingestUrlToBrain(opts: {
     chars: content.length,
     provider,
     preview: text.slice(0, 400),
-    messageAr: `أُضيفت «${titleAr}» إلى معرفة الغرفة (${ingested.chunks} مقطع) عبر ${provider}.`,
+    messageAr: `أُضيفت «${titleAr}» إلى معرفة الغرفة (${ingested.chunks} مقطع) عبر ${PROVIDER_LABEL_AR[provider]}.`,
   }
 }
 
