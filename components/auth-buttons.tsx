@@ -176,8 +176,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   if (!configured) {
     return (
       <p className="text-xs text-stone-500">
-        فعّل Supabase عبر NEXT_PUBLIC_SUPABASE_URL و
-        NEXT_PUBLIC_SUPABASE_ANON_KEY.
+        تسجيل الدخول غير جاهز بعد — راجع إعدادات الحساب مع المسؤول.
       </p>
     )
   }
@@ -208,29 +207,21 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         onClick={() => void startOauth('google')}
         className="flex w-full items-center justify-center gap-2 rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
       >
-        {busy === 'google' ? 'جاري التحويل إلى Google…' : 'الدخول بحساب Google'}
+        {busy === 'google'
+          ? 'جاري التحويل إلى Google…'
+          : 'سجّل الدخول بحساب Google'}
       </button>
+      <p className="text-[11px] font-medium text-emerald-800">موصى به</p>
       <p className="text-[11px] leading-relaxed text-stone-500">
-        الطريقة الموصى بها — تربط التقويم وملفات Drive في خطوة واحدة.
+        بعد الدخول تقدر تشتغل في الغرفة — وتربط التقويم والملفات إن احتجت.
       </p>
-
-      {demoEnabled && (
-        <button
-          type="button"
-          disabled={Boolean(busy)}
-          onClick={() => void demoLogin()}
-          className="flex w-full items-center justify-center rounded-md border border-ab-accent/40 bg-ab-accent/5 px-3 py-2.5 text-sm font-semibold text-ab-accent disabled:opacity-40"
-        >
-          {busy === 'demo' ? 'جاري الدخول…' : 'دخول تجريبي (جرّب المنصة الآن)'}
-        </button>
-      )}
 
       <button
         type="button"
         className="w-full rounded-md border border-ab-border bg-white px-3 py-2 text-xs text-ab-ink"
         onClick={() => setShowEmail((v) => !v)}
       >
-        {showEmail ? 'إخفاء الدخول بالبريد' : 'الدخول برمز إلى البريد'}
+        {showEmail ? 'إخفاء الدخول بالبريد' : 'أو الدخول برمز إلى البريد'}
       </button>
 
       {showEmail && (
@@ -326,10 +317,21 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         type="button"
         disabled={Boolean(busy)}
         onClick={() => void startOauth('github')}
-        className="w-full text-center text-[11px] text-stone-500 underline disabled:opacity-40"
+        className="w-full text-center text-[11px] text-stone-400 underline disabled:opacity-40"
       >
         الدخول بحساب GitHub
       </button>
+
+      {demoEnabled && (
+        <button
+          type="button"
+          disabled={Boolean(busy)}
+          onClick={() => void demoLogin()}
+          className="w-full text-center text-[10px] text-stone-400 underline disabled:opacity-40"
+        >
+          {busy === 'demo' ? 'جاري الدخول…' : 'دخول تجريبي (للاختبار فقط)'}
+        </button>
+      )}
 
       {info && <p className="text-xs text-ab-accent">{info}</p>}
       {error && <p className="text-xs text-ab-warn">{error}</p>}

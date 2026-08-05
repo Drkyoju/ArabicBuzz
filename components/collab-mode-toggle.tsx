@@ -6,7 +6,7 @@ import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { cn } from '@/lib/utils'
 
 /**
- * منفصل / تعاون with inline explanation (Buzz/QM-style orchestration clarity).
+ * منفصل / تعاون with inline explanation (room orchestration clarity).
  */
 export function CollabModeToggle({
   scopeId,

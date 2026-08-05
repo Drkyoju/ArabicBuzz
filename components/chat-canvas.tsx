@@ -223,7 +223,7 @@ export function ChatCanvas({
 
         if (!assembled) {
           assembled =
-            'تعذّر بث الرد. تحقق من مفاتيح النماذج في قسم «مفاتيح API».'
+            'تعذّر بث الرد. إن استمر المشكلة، أخبر المدير أو المسؤول.'
         }
 
         setExtraMessages((prev) =>

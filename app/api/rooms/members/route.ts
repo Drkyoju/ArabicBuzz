@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     notesAr?: string
     memberId?: string
     action?: 'add' | 'update'
+    role?: 'member' | 'editor' | 'viewer' | 'guest'
   }
   const scopeId = body.scopeId || 'shared-demo'
   const gate = await assertRoomOwner(scopeId, auth.user.id, auth.user.email)
@@ -54,6 +55,13 @@ export async function POST(req: Request) {
 
   if (body.action === 'update' && body.memberId) {
     const { updateRoomMember } = await import('@/lib/rooms/persist')
+    const role =
+      body.role === 'editor' ||
+      body.role === 'member' ||
+      body.role === 'viewer' ||
+      body.role === 'guest'
+        ? body.role
+        : undefined
     const result = await updateRoomMember({
       scopeId,
       memberId: body.memberId,
@@ -62,14 +70,32 @@ export async function POST(req: Request) {
       phone: body.phone,
       committee: body.committee,
       notesAr: body.notesAr,
+      role,
     })
     if (!result.ok) {
       return Response.json({ error: result.error }, { status: 400 })
     }
+
+    // Mirror room director/employee onto org RBAC when the member has a userId.
+    if (role && result.member?.userId) {
+      const { setOrgMemberRole } = await import('@/lib/auth/rbac')
+      const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
+      await setOrgMemberRole(
+        result.member.userId,
+        orgId,
+        role === 'editor' ? 'DEPARTMENT_MANAGER' : 'MEMBER'
+      )
+    }
+
     return Response.json({
       ok: true,
       member: result.member,
-      messageAr: 'حُدّث سجل العضو',
+      messageAr:
+        role === 'editor'
+          ? 'عُيّن مديراً'
+          : role === 'member'
+            ? 'عُيّن موظفاً'
+            : 'حُدّث سجل العضو',
     })
   }
 

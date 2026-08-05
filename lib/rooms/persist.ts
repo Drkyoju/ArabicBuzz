@@ -764,9 +764,22 @@ export async function acceptInviteByToken(opts: {
     displayNameAr: name,
     email,
     userId: opts.userId || null,
-    role: 'guest',
+    role: 'member',
   })
   if (!added.ok) return { ok: false, error: added.error }
+
+  if (opts.userId) {
+    try {
+      const { setOrgMemberRole } = await import('@/lib/auth/rbac')
+      await setOrgMemberRole(
+        opts.userId,
+        process.env.DEFAULT_ORG_ID || 'org-demo',
+        'MEMBER'
+      )
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   if (sb) {
     const { data: cur } = await sb

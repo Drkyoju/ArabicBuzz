@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Copy, Link2, Mail, Trash2, UserPlus } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { RoleBadge } from '@/components/role-badge'
+import { roomRoleLabelAr } from '@/lib/auth/role-labels'
 
 type Member = {
   id: string
@@ -154,6 +156,32 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
       setPhone('')
       setCommittee('')
       setNotesAr('')
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function setMemberRole(memberId: string, role: 'member' | 'editor') {
+    setBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const res = await fetch('/api/rooms/members', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId,
+          action: 'update',
+          memberId,
+          role,
+        }),
+      })
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل تحديث الدور')
+      setMsg(data.messageAr || 'تم تحديث الدور')
       await refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'فشل')
@@ -334,10 +362,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                   key={m.id}
                   className="flex items-center justify-between gap-2 rounded-md border border-ab-border bg-white px-2 py-1.5"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{m.displayNameAr}</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate font-medium">{m.displayNameAr}</p>
+                      <RoleBadge labelAr={roomRoleLabelAr(m.role)} />
+                    </div>
                     <p className="truncate text-[10px] text-stone-400" dir="ltr">
-                      {[m.email, m.phone].filter(Boolean).join(' · ') || m.role}
+                      {[m.email, m.phone].filter(Boolean).join(' · ') || '—'}
                     </p>
                     {(m.committee || m.notesAr) && (
                       <p className="truncate text-[10px] text-stone-500">
@@ -350,6 +381,21 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                               : m.committee || ''}
                         {m.notesAr ? ` · ${m.notesAr}` : ''}
                       </p>
+                    )}
+                    {m.role !== 'owner' && canManage && (
+                      <select
+                        value={m.role === 'editor' ? 'editor' : 'member'}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const next = e.target.value as 'member' | 'editor'
+                          void setMemberRole(m.id, next)
+                        }}
+                        className="mt-1 rounded border border-ab-border bg-stone-50 px-1.5 py-0.5 text-[10px]"
+                        aria-label={`دور ${m.displayNameAr}`}
+                      >
+                        <option value="member">موظف</option>
+                        <option value="editor">مدير</option>
+                      </select>
                     )}
                   </div>
                   {m.role !== 'owner' && canManage ? (
@@ -370,11 +416,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  ) : (
-                    <span className="text-[10px] text-stone-400">
-                      {m.role === 'owner' ? 'مالك' : 'عضو'}
-                    </span>
-                  )}
+                  ) : null}
                 </li>
               ))}
             </ul>

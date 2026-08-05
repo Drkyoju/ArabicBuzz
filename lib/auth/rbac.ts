@@ -1,11 +1,23 @@
 import { prisma, withPrismaFallback } from '@/lib/db'
+import type { Role, UiPersona } from '@/lib/auth/rbac-types'
+import {
+  PERSONA_LABEL_AR,
+  ROLE_LABEL_AR,
+  roleLabelAr,
+  roleToPersona,
+  roomRoleIsDirector,
+  roomRoleLabelAr,
+} from '@/lib/auth/role-labels'
 
-export type Role =
-  | 'OWNER'
-  | 'ADMIN'
-  | 'DEPARTMENT_MANAGER'
-  | 'MEMBER'
-  | 'AUDITOR'
+export type { Role, UiPersona }
+export {
+  PERSONA_LABEL_AR,
+  ROLE_LABEL_AR,
+  roleLabelAr,
+  roleToPersona,
+  roomRoleIsDirector,
+  roomRoleLabelAr,
+}
 
 export const ARABIC_AUTHZ_ERROR =
   'عفواً، لا تملك الصلاحية الكافية لتنفيذ هذا الإجراء.'
@@ -29,6 +41,21 @@ export const ROLES: Role[] = [
 
 export function isRole(value: unknown): value is Role {
   return typeof value === 'string' && ROLES.includes(value as Role)
+}
+
+/** Directors and admins may open the full ops / integrations shell. */
+export function canAccessOpsUi(role: Role): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER
+}
+
+/** Map invite/settings persona pickers → org Role (defaults to employee). */
+export function personaToRole(persona: string): Role {
+  const p = persona.trim().toLowerCase()
+  if (p === 'admin' || p === 'مسؤول' || p === 'owner') return 'ADMIN'
+  if (p === 'director' || p === 'مدير' || p === 'manager') {
+    return 'DEPARTMENT_MANAGER'
+  }
+  return 'MEMBER'
 }
 
 export class AuthorizationError extends Error {
@@ -131,6 +158,40 @@ export async function withRlsContext<T>(
 ): Promise<T> {
   await setRlsContext(opts)
   return fn()
+}
+
+/**
+ * Upsert org membership role (directors/admins assign via settings / invites).
+ * Falls back to in-memory map when Postgres is unavailable.
+ */
+export async function setOrgMemberRole(
+  userId: string,
+  orgId: string,
+  role: Role
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!userId?.trim() || !orgId?.trim() || !isRole(role)) {
+    return { ok: false, error: 'معطيات الدور غير صالحة' }
+  }
+  seedOrgMembership(userId, orgId, role)
+  const saved = await withPrismaFallback(async () => {
+    await prisma.$executeRawUnsafe(
+      `
+      INSERT INTO organization_members (id, user_id, org_id, role)
+      VALUES (gen_random_uuid()::text, $1, $2, $3::org_role)
+      ON CONFLICT (user_id, org_id)
+      DO UPDATE SET role = EXCLUDED.role
+      `,
+      userId,
+      orgId,
+      role
+    )
+    return true
+  }, false)
+  if (!saved) {
+    // Memory seed already applied — fine for demos / offline.
+    return { ok: true }
+  }
+  return { ok: true }
 }
 
 /** Minimum roles for sensitive product actions. */

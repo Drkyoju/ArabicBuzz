@@ -1,4 +1,4 @@
-/** Providers the settings panel can configure (QM-style). */
+/** Providers the settings panel can configure (admin-only). */
 
 export type ProviderDef = {
   envName: string
@@ -46,20 +46,20 @@ export const PROVIDER_DEFS: ProviderDef[] = [
   {
     envName: 'AGENTROUTER_API_KEY',
     aliases: ['AGENT_ROUTER_TOKEN'],
-    labelAr: 'AgentRouter',
-    labelEn: 'AgentRouter',
+    labelAr: 'بوابة وكلاء',
+    labelEn: 'Agent gateway',
     kind: 'llm',
     hintAr:
-      'بوابة agentrouter.org — Opus 4.8 و GPT عبر مفتاحك (يتطلب ترويسة عميل مسموح)',
+      'بوابة نماذج متقدمة — Opus و GPT عبر مفتاحك (يتطلب ترويسة عميل مسموح)',
     docsUrl: 'https://agentrouter.org/console/token',
   },
   {
     envName: 'TOKENROUTER_API_KEY',
-    labelAr: 'TokenRouter (متوقف)',
-    labelEn: 'TokenRouter (degraded)',
+    labelAr: 'مسار الرموز (متوقف)',
+    labelEn: 'Token path (degraded)',
     kind: 'llm',
     hintAr:
-      'متوقف مؤقتاً: بوابة chat/completions على api.tokenrouter.com تعمل، لكن المفتاح الحالي يُرفض (401 رصيد منتهٍ أو رمز غير صالح). حدّث TOKENROUTER_API_KEY ثم أعد التفعيل.',
+      'متوقف مؤقتاً — حدّث المفتاح لدى المسؤول ثم أعد التفعيل.',
     docsUrl: 'https://docs.tokenrouter.io/',
     degraded: true,
   },

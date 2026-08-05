@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { SdaiaBadge } from '@/components/sdaia-badge'
+import { RoleBadge } from '@/components/role-badge'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import {
   isEmployeeSection,
@@ -30,6 +31,7 @@ import {
 } from '@/lib/scopes/workspace-mode-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { authHeaders } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
 function GuestChip({ onLogin }: { onLogin?: () => void }) {
@@ -76,7 +78,7 @@ const PRIMARY_NAV: Array<{
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
-  { id: 'audit', labelAr: 'سجل التدقيق', icon: Activity },
+  { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
 ]
@@ -87,8 +89,8 @@ const MORE_NAV: Array<{
   icon: LucideIcon
 }> = [
   { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
-  { id: 'api-keys', labelAr: 'مفاتيح API', icon: KeyRound },
-  { id: 'ops', labelAr: 'صحة التشغيل', icon: Activity },
+  { id: 'api-keys', labelAr: 'مفاتيح النماذج', icon: KeyRound },
+  { id: 'ops', labelAr: 'حالة الربط', icon: Activity },
 ]
 
 function SidebarBody({
@@ -110,28 +112,59 @@ function SidebarBody({
   const renameScope = useWorkspaceStore((s) => s.renameScope)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const setMode = useWorkspaceModeStore((s) => s.setMode)
-  const roleHint = useWorkspaceModeStore((s) => s.roleHint)
+  const labelAr = useWorkspaceModeStore((s) => s.labelAr)
+  const displayNameAr = useWorkspaceModeStore((s) => s.displayNameAr)
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const signedIn = useSignedIn()
 
   useEffect(() => {
     let cancelled = false
-    void fetch('/api/me/role')
-      .then((r) => r.json())
-      .then((d: { uiMode?: 'admin' | 'employee'; role?: string }) => {
+    if (signedIn === false) {
+      const store = useWorkspaceModeStore.getState()
+      store.setCanAccessOpsUi(false)
+      store.setMode('employee')
+      store.setLabelAr(null)
+      store.setDisplayNameAr(null)
+      return
+    }
+    if (signedIn !== true) return
+    void (async () => {
+      try {
+        const headers = await authHeaders()
+        const r = await fetch('/api/me/role', { headers })
+        const d = (await r.json()) as {
+          uiMode?: 'admin' | 'employee'
+          role?: string
+          labelAr?: string
+          displayNameAr?: string | null
+          canAccessOpsUi?: boolean
+        }
         if (cancelled) return
-        if (d.role) useWorkspaceModeStore.getState().setRoleHint(d.role)
-        // Only auto-switch guests/members into employee; owners stay admin unless they toggle
-        if (d.uiMode === 'employee') setMode('employee')
-      })
-      .catch(() => null)
+        const store = useWorkspaceModeStore.getState()
+        if (d.role) store.setRoleHint(d.role)
+        if (d.labelAr) store.setLabelAr(d.labelAr)
+        if (d.displayNameAr) store.setDisplayNameAr(d.displayNameAr)
+        store.setCanAccessOpsUi(Boolean(d.canAccessOpsUi))
+        if (d.uiMode === 'employee' || !d.canAccessOpsUi) {
+          store.setMode('employee')
+        } else if (d.uiMode === 'admin') {
+          if (store.mode !== 'employee') store.setMode('admin')
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
     return () => {
       cancelled = true
     }
-  }, [setMode])
+  }, [setMode, signedIn])
 
   const primaryNav = PRIMARY_NAV.filter((n) => isEmployeeSection(n.id, mode))
-  const signedIn = useSignedIn()
   const moreNav = MORE_NAV.filter(
-    (n) => isEmployeeSection(n.id, mode) && signedIn === true
+    (n) =>
+      isEmployeeSection(n.id, mode) &&
+      signedIn === true &&
+      (canAccessOpsUi || (n.id !== 'api-keys' && n.id !== 'ops' && n.id !== 'memory'))
   )
   const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
@@ -197,43 +230,57 @@ function SidebarBody({
         <div className="mt-2.5">
           {signedIn ? (
             <>
-              <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setMode('employee')}
-                  className={cn(
-                    'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                    mode === 'employee'
-                      ? 'bg-ab-accent/15 font-semibold text-ab-accent'
-                      : 'text-stone-500'
-                  )}
-                >
-                  موظف
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('admin')}
-                  className={cn(
-                    'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                    mode === 'admin'
-                      ? 'bg-ab-ink font-semibold text-white'
-                      : 'text-stone-500'
-                  )}
-                >
-                  مسؤول
-                </button>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-ab-ink">
+                  {displayNameAr || 'أنت'}
+                </p>
+                {labelAr ? <RoleBadge labelAr={labelAr} /> : null}
               </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
-                {mode === 'employee'
-                  ? `واجهة موظف${roleHint ? ` · ${roleHint}` : ''} — غرف وملفات وتقويم.`
-                  : airGapped
-                    ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
-                    : 'واجهة مسؤول · كل الأدوات'}
-              </p>
+              {canAccessOpsUi ? (
+                <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode('employee')}
+                    className={cn(
+                      'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                      mode === 'employee'
+                        ? 'bg-ab-accent/15 font-semibold text-ab-accent'
+                        : 'text-stone-500'
+                    )}
+                  >
+                    واجهة بسيطة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('admin')}
+                    className={cn(
+                      'flex-1 rounded px-1.5 py-1.5 text-[11px]',
+                      mode === 'admin'
+                        ? 'bg-ab-ink font-semibold text-white'
+                        : 'text-stone-500'
+                    )}
+                  >
+                    إدارة كاملة
+                  </button>
+                </div>
+              ) : (
+                <p className="rounded-md bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-600">
+                  واجهة موظف — غرف وملفات وتقويم وموافقات.
+                </p>
+              )}
+              {canAccessOpsUi && (
+                <p className="mt-1 text-[10px] leading-relaxed text-stone-500">
+                  {mode === 'employee'
+                    ? 'عرض مبسّط مثل بقية الفريق.'
+                    : airGapped
+                      ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز.'
+                      : 'موافقات وسجل عمل وتكاملات.'}
+                </p>
+              )}
             </>
           ) : (
             <p className="rounded-md border border-dashed border-ab-border bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-600">
-              معاينة زائر — تبديل موظف/مسؤول بعد تسجيل الدخول.
+              معاينة للقراءة فقط — سجّل الدخول للعمل في الغرفة.
             </p>
           )}
         </div>
@@ -342,14 +389,10 @@ function SidebarBody({
 
       <div className="flex-1 overflow-y-auto p-2">
         <div className="mb-2 rounded-lg border border-ab-border/80 bg-stone-50 px-2.5 py-2">
-          <p className="text-[10px] font-semibold text-stone-500">
-            نطاق العمل (مثل QM)
-          </p>
+          <p className="text-[10px] font-semibold text-stone-500">نطاق العمل</p>
           <p className="mt-1 text-[10px] leading-relaxed text-stone-600">
-            <strong className="text-ab-ink">مساحاتي</strong> = مكتب شخصي
-            (ذاكرة وملفات معزولة).{' '}
-            <strong className="text-ab-ink">مشتركة</strong> = غرفة فريق بوكلاء
-            وصلاحيات مشتركة.
+            <strong className="text-ab-ink">مساحاتي</strong> = مكتب شخصي.{' '}
+            <strong className="text-ab-ink">مشتركة</strong> = غرفة فريق.
           </p>
         </div>
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
