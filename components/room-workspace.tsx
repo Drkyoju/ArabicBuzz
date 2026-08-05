@@ -46,7 +46,7 @@ import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
 
-const MEMBERS_PANE_MIN = 280
+const MEMBERS_PANE_MIN = 320
 const SEATS_MIN = 72
 const SEATS_MAX = 360
 const SEATS_DEFAULT = 160
@@ -61,8 +61,8 @@ function clampMembersPanePx(px: number): number {
 function defaultMembersPanePx(): number {
   const vh =
     typeof window !== 'undefined' ? window.innerHeight : 800
-  // Prefer a compact default — users can drag taller; avoid eating half the chat.
-  return clampMembersPanePx(Math.round(vh * 0.32))
+  // Usable default (~45vh, floor 320px) — drag handle adjusts further.
+  return clampMembersPanePx(Math.round(vh * 0.45))
 }
 
 function readMembersPanePx(scopeId: string): number {
@@ -1145,7 +1145,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     window.addEventListener('pointerup', onUp)
                   }}
                 >
-                  <span className="h-1 w-12 rounded-full bg-ab-border group-hover:bg-ab-accent" />
+                  <span className="h-1.5 w-14 rounded-full bg-ab-border group-hover:bg-ab-accent" />
+                  <span className="sr-only">اسحب لتغيير حجم القائمة</span>
                 </div>
               </div>
             </>
