@@ -274,7 +274,7 @@ export function RoomCalendarBoard({
               className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
               value={attendees}
               onChange={(e) => setAttendees(e.target.value)}
-              placeholder="sara@company.sa, ahmed@…"
+              placeholder="email@example.com"
               dir="ltr"
             />
           </label>
@@ -309,7 +309,7 @@ export function RoomCalendarBoard({
           dir="ltr"
           value={bulk}
           onChange={(e) => setBulk(e.target.value)}
-          placeholder={'اجتماع مبيعات | 2026-08-06T09:00 | 2026-08-06T10:00 | a@co.sa\nمراجعة عقد | 2026-08-06T09:30 | 2026-08-06T10:30 | b@co.sa'}
+          placeholder={'العنوان | 2026-08-05T10:00 | 2026-08-05T11:00 | email@example.com'}
         />
         <button
           type="button"
