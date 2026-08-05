@@ -80,11 +80,11 @@ export function getCloudProviders() {
       },
       name: 'agentrouter',
     }),
-    /** TokenRouter — degraded: api.tokenrouter.io chat routes 404 (Responses-only). */
+    /** TokenRouter OpenAI-compatible gateway (https://api.tokenrouter.com/v1). */
     tokenrouter: createOpenAI({
       apiKey: resolveProviderKeySync('TOKENROUTER_API_KEY'),
       baseURL:
-        process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.io/v1',
+        process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.com/v1',
       name: 'tokenrouter',
     }),
     google: createGoogleGenerativeAI({
@@ -273,7 +273,7 @@ export function getModel(modelId: string) {
   const tokenRouterId = TOKENROUTER_IDS[id]
   if (tokenRouterId) {
     throw new Error(
-      'TokenRouter متوقف مؤقتاً: api.tokenrouter.io لا يوفّر /v1/chat/completions (404). اختر مزوّداً آخر من قدرة الرد.'
+      'TokenRouter متوقف مؤقتاً: مفتاح api.tokenrouter.com غير صالح أو بلا رصيد (401). اختر مزوّداً آخر من قدرة الرد.'
     )
   }
 

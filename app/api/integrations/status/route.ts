@@ -58,10 +58,10 @@ export async function GET() {
     ),
     authRequired: isAuthRequired(),
     tokenrouterConfigured: Boolean(process.env.TOKENROUTER_API_KEY?.trim()),
-    /** Chat gateway dead: /v1/chat/completions + /models → 404 on api.tokenrouter.io */
+    /** Host is api.tokenrouter.com; left unavailable until a key with quota succeeds. */
     tokenrouterAvailable: false,
     tokenrouterStatusAr:
-      'متوقف: بوابة chat/completions غير متاحة على api.tokenrouter.io — لا تُوجَّه النماذج إليه',
+      'متوقف: api.tokenrouter.com يردّ 401 (رصيد منتهٍ أو مفتاح غير صالح) — لا تُوجَّه النماذج إليه',
     // Drives whether the UI offers the «دخول تجريبي» button at all.
     demoLoginEnabled: process.env.ALLOW_DEMO_LOGIN === 'true',
     driveBrainOwnerConfigured: Boolean(

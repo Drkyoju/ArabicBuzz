@@ -231,7 +231,7 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     airGapSafe: true,
   },
   {
-    // Degraded: api.tokenrouter.io /v1/chat/completions → 404 (Responses-only).
+    // Degraded: api.tokenrouter.com chat works but current keys return 401 (quota/invalid).
     slug: 'moonshotai/kimi-k3-free',
     tier: 'fast',
     labelAr: 'Kimi K3 Free · غير متاح',

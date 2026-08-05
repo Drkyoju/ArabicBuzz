@@ -59,7 +59,7 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelEn: 'TokenRouter (degraded)',
     kind: 'llm',
     hintAr:
-      'متوقف مؤقتاً: api.tokenrouter.io ألغى /v1/chat/completions (404) — المنصة تستخدم Responses فقط ولا تدعم Kimi K3 Free عبر عميلنا الحالي. لا تُوجَّه الطلبات إليه.',
+      'متوقف مؤقتاً: بوابة chat/completions على api.tokenrouter.com تعمل، لكن المفتاح الحالي يُرفض (401 رصيد منتهٍ أو رمز غير صالح). حدّث TOKENROUTER_API_KEY ثم أعد التفعيل.',
     docsUrl: 'https://docs.tokenrouter.io/',
     degraded: true,
   },
