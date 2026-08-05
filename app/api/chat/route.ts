@@ -50,7 +50,7 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
 - بحث اللوائح على الويب: web_search (Brave إن وُجد BRAVE_API_KEY) ثم web_fetch لصفحة محددة.
 - أدوات PDF إضافية: pdf_create / pdf_stamp / pdf_merge / pdf_list_fields / pdf_fill_form.
 - تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa (HITL عبر browser-use/ماك).
-- بريد Google: gmail_search ثم gmail_read (قراءة فقط). جداول: sheets_read / sheets_write (الكتابة HITL).
+- بريد Google: gmail_search ثم gmail_read (قراءة). الإرسال: gmail_send (HITL قبل الإرسال). جداول: sheets_read / sheets_write (الكتابة HITL).
 - عند إنتاج مسودة للمستند أو كود طويل للوحة المخرجات، غلّفه بوسم واحد:
   <artifact type="markdown|code|json|diff|html" title="عنوان عربي">المحتوى</artifact>`
 

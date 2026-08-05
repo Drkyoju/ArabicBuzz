@@ -1,6 +1,7 @@
 'use client'
 
 import type { Session } from '@supabase/supabase-js'
+import { GOOGLE_WORKSPACE_SCOPE_TAGS } from '@/lib/google/scopes'
 
 /**
  * Persist Google provider tokens from a Supabase session into
@@ -8,7 +9,7 @@ import type { Session } from '@supabase/supabase-js'
  */
 export async function persistGoogleProviderTokens(
   session: Session | null | undefined,
-  scopes = 'calendar,gmail.readonly,spreadsheets,drive.readonly'
+  scopes = GOOGLE_WORKSPACE_SCOPE_TAGS
 ): Promise<{ ok: boolean; error?: string }> {
   if (!session?.access_token) return { ok: false, error: 'لا جلسة' }
   const providerToken = (session as Session & { provider_token?: string })

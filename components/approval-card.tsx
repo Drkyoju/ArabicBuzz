@@ -15,7 +15,12 @@ type Props = {
 
 const ACTION_LABELS_AR: Record<string, string> = {
   send_email: 'إرسال بريد',
+  gmail_send: 'إرسال بريد Gmail',
+  sheets_write: 'كتابة Google Sheets',
   create_calendar_event: 'إنشاء موعد Google',
+  calendar_create_event: 'إنشاء موعد Google',
+  calendar_update_event: 'تعديل موعد Google',
+  calendar_delete_event: 'حذف موعد Google',
   room_calendar_create: 'إضافة لتقويم الغرفة',
   room_calendar_ingest: 'دمج مواعيد الفريق',
   room_calendar_update: 'تعديل موعد الغرفة',

@@ -68,6 +68,7 @@ const HIGH_RISK_TOOLS = new Set([
   'calendar_update_event',
   'calendar_delete_event',
   'sheets_write',
+  'gmail_send',
   'drive_sync_brain',
   'browser_rpa',
   'trigger_workflow',

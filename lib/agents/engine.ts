@@ -590,6 +590,33 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('gmail_read'),
         }),
     }),
+    gmail_send: tool({
+      description:
+        'إرسال بريد عبر Gmail المرتبط (إلى، موضوع، نص أو HTML). يتطلب موافقة بشرية (HITL) قبل الإرسال الفعلي. لا تختلق عناوين.',
+      inputSchema: z.object({
+        to: z.string().describe('عنوان المستلم (بريد حقيقي يحدده المستخدم)'),
+        subject: z.string().describe('موضوع الرسالة'),
+        bodyText: z
+          .string()
+          .optional()
+          .describe('نص الرسالة العادي (مفضّل)'),
+        bodyHtml: z
+          .string()
+          .optional()
+          .describe('نسخة HTML اختيارية'),
+        cc: z.string().optional().describe('نسخة كربونية اختيارية'),
+        bcc: z.string().optional().describe('نسخة مخفية اختيارية'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'gmail_send',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('gmail_send'),
+        }),
+    }),
     sheets_read: tool({
       description:
         'قراءة نطاق من Google Sheets (معرّف الجدول + نطاق A1 مثل Sheet1!A1:D20).',

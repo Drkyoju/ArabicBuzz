@@ -174,3 +174,121 @@ export async function readGmailMessage(
     bodyHtml: bodies.html ? bodies.html.slice(0, 40_000) : undefined,
   }
 }
+
+function toBase64Url(input: string): string {
+  return Buffer.from(input, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+/** RFC 2047 encoded-word so Arabic subjects survive SMTP headers. */
+function encodeHeaderUtf8(value: string): string {
+  return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
+}
+
+function buildRawMime(opts: {
+  to: string
+  subject: string
+  bodyText: string
+  bodyHtml?: string
+  cc?: string
+  bcc?: string
+}): string {
+  const lines: string[] = [
+    `To: ${opts.to}`,
+    `Subject: ${encodeHeaderUtf8(opts.subject)}`,
+  ]
+  if (opts.cc) lines.push(`Cc: ${opts.cc}`)
+  if (opts.bcc) lines.push(`Bcc: ${opts.bcc}`)
+  lines.push('MIME-Version: 1.0')
+
+  const text = opts.bodyText || ''
+  const html = opts.bodyHtml?.trim() || ''
+
+  if (html) {
+    const boundary = `ab_${Date.now().toString(36)}`
+    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
+    lines.push('')
+    lines.push(`--${boundary}`)
+    lines.push('Content-Type: text/plain; charset="UTF-8"')
+    lines.push('Content-Transfer-Encoding: base64')
+    lines.push('')
+    lines.push(Buffer.from(text || html.replace(/<[^>]+>/g, ' '), 'utf8').toString('base64'))
+    lines.push(`--${boundary}`)
+    lines.push('Content-Type: text/html; charset="UTF-8"')
+    lines.push('Content-Transfer-Encoding: base64')
+    lines.push('')
+    lines.push(Buffer.from(html, 'utf8').toString('base64'))
+    lines.push(`--${boundary}--`)
+  } else {
+    lines.push('Content-Type: text/plain; charset="UTF-8"')
+    lines.push('Content-Transfer-Encoding: base64')
+    lines.push('')
+    lines.push(Buffer.from(text, 'utf8').toString('base64'))
+  }
+
+  return lines.join('\r\n')
+}
+
+/**
+ * Send a message via the authenticated user's Gmail.
+ * Requires gmail.send scope — users who linked before this scope must re-consent.
+ */
+export async function sendGmailMessage(
+  userId: string,
+  opts: {
+    to: string
+    subject: string
+    bodyText?: string
+    bodyHtml?: string
+    cc?: string
+    bcc?: string
+  }
+): Promise<{ id: string; threadId?: string; labelIds?: string[] }> {
+  const to = opts.to.trim()
+  if (!to) throw new Error('يلزم عنوان المستلم (to).')
+  const subject = String(opts.subject ?? '').trim()
+  if (!subject) throw new Error('يلزم موضوع الرسالة (subject).')
+  const bodyText = String(opts.bodyText ?? '').trim()
+  const bodyHtml = opts.bodyHtml ? String(opts.bodyHtml).trim() : ''
+  if (!bodyText && !bodyHtml) {
+    throw new Error('يلزم نص الرسالة (bodyText أو bodyHtml).')
+  }
+
+  const raw = toBase64Url(
+    buildRawMime({
+      to,
+      subject,
+      bodyText,
+      bodyHtml: bodyHtml || undefined,
+      cc: opts.cc?.trim() || undefined,
+      bcc: opts.bcc?.trim() || undefined,
+    })
+  )
+
+  const res = await gmailFetch(userId, '/users/me/messages/send', {
+    method: 'POST',
+    body: JSON.stringify({ raw }),
+  })
+  const data = (await res.json()) as {
+    id?: string
+    threadId?: string
+    labelIds?: string[]
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message ||
+        `Gmail send HTTP ${res.status} — أعد ربط Google بصلاحية gmail.send`
+    )
+  }
+  if (!data.id) throw new Error('فشل إرسال البريد: لم يُرجع Gmail معرّفاً.')
+
+  return {
+    id: data.id,
+    threadId: data.threadId,
+    labelIds: data.labelIds,
+  }
+}

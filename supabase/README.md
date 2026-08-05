@@ -61,11 +61,12 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
    - `.../auth/calendar`
    - `.../auth/calendar.events`
    - `.../auth/gmail.readonly`
+   - `.../auth/gmail.send`
    - `.../auth/spreadsheets`
    - `.../auth/drive.readonly`
    - `.../auth/drive.file`
 6. On Netlify set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
-7. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read Gmail, and read/write Sheets (mutations go through HITL in AUTO/STRICT).
+7. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read/send Gmail, and read/write Sheets (`gmail_send` / Sheets writes go through HITL in AUTO/STRICT). Re-link after scope changes (e.g. adding `gmail.send`) so Google re-consents.
 
 ### 3) GitHub
 

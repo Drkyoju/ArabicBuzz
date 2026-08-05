@@ -1,4 +1,8 @@
-import { readGmailMessage, searchGmailMessages } from '@/lib/google/gmail'
+import {
+  readGmailMessage,
+  searchGmailMessages,
+  sendGmailMessage,
+} from '@/lib/google/gmail'
 import {
   readSpreadsheetRange,
   writeSpreadsheetRange,
@@ -47,6 +51,32 @@ export async function executeGmailRead(
     ok: true,
     message,
     messageAr: `قُرئت الرسالة: ${message.subject || messageId}`,
+  }
+}
+
+export async function executeGmailSend(
+  _name: string,
+  params: Record<string, unknown>
+) {
+  const userId = requireUser(params)
+  const to = String(params.to || '').trim()
+  const subject = String(params.subject || '').trim()
+  const bodyText = params.bodyText != null ? String(params.bodyText) : undefined
+  const bodyHtml = params.bodyHtml != null ? String(params.bodyHtml) : undefined
+  const result = await sendGmailMessage(userId, {
+    to,
+    subject,
+    bodyText,
+    bodyHtml,
+    cc: params.cc != null ? String(params.cc) : undefined,
+    bcc: params.bcc != null ? String(params.bcc) : undefined,
+  })
+  return {
+    ok: true,
+    ...result,
+    to,
+    subject,
+    messageAr: `أُرسل البريد إلى ${to} — الموضوع: ${subject}`,
   }
 }
 

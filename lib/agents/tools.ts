@@ -11,6 +11,7 @@ import {
 import {
   executeGmailRead,
   executeGmailSearch,
+  executeGmailSend,
   executeSheetsRead,
   executeSheetsWrite,
 } from '@/lib/agents/tools/workspace-google-tools'
@@ -231,6 +232,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   calendar_find_alignment: executeCalendarFindAlignment,
   gmail_search: executeGmailSearch,
   gmail_read: executeGmailRead,
+  gmail_send: executeGmailSend,
   sheets_read: executeSheetsRead,
   sheets_write: executeSheetsWrite,
   room_calendar_list: executeRoomCalendarList,

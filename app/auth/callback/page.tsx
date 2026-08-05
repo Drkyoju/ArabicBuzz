@@ -63,7 +63,7 @@ export default function AuthCallbackPage() {
           await persistGoogleProviderTokens(
             session,
             wantCalendar
-              ? 'calendar,gmail.readonly,spreadsheets,drive.readonly'
+              ? 'calendar,gmail.readonly,gmail.send,spreadsheets,drive.readonly'
               : 'login'
           )
         }

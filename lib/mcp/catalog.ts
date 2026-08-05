@@ -132,13 +132,13 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     nameAr: 'Google Workspace (أصلي)',
     nameEn: 'Google Workspace native tools',
     descriptionAr:
-      'Gmail و Sheets عبر OAuth الموجود في Arabic Buzz (gmail_search / gmail_read / sheets_read / sheets_write) — لا يحتاج حاوية MCP منفصلة.',
-    benefitsAr: 'فرز البريد وتحديث الجداول من الشات مع HITL على الكتابة.',
+      'Gmail و Sheets عبر OAuth الموجود في Arabic Buzz (gmail_search / gmail_read / gmail_send / sheets_read / sheets_write) — لا يحتاج حاوية MCP منفصلة.',
+    benefitsAr: 'فرز البريد وإرساله وتحديث الجداول من الشات مع HITL على الإرسال والكتابة.',
     categoryAr: 'مساحة عمل',
     runtime: 'remote',
     transport: 'sse',
     setupHintAr:
-      'اربط Google من الإعدادات (يشمل gmail.readonly و spreadsheets). فعّل Gmail API و Google Sheets API في Google Cloud. اختياري: MCP بعيد مثل taylorwilsdon/google_workspace_mcp عبر MCP_REMOTE_SERVERS.',
+      'اربط Google من الإعدادات (يشمل gmail.readonly و gmail.send و spreadsheets). فعّل Gmail API و Google Sheets API في Google Cloud. من ربطوا سابقاً: أعد «ربط تقويم Google» لمنح gmail.send. اختياري: MCP بعيد مثل taylorwilsdon/google_workspace_mcp عبر MCP_REMOTE_SERVERS.',
     envKeys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
     docsUrl: 'https://developers.google.com/workspace',
     recommended: true,
