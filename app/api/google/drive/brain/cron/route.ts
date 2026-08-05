@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
-import { getDriveBrainFolderId } from '@/lib/google/drive'
+import {
+  COMPANY_BRAIN_SCOPE_ID,
+  getDriveBrainFolderId,
+} from '@/lib/google/drive'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-/**
- * Server-side Drive → cloud brain sync for the association folder.
- * Auth: Bearer BRAIN_SYNC_SECRET / DRIVE_BRAIN_SYNC_SECRET / CRON_SECRET.
- * Owner: BRAIN_OWNER_USER_ID or DRIVE_BRAIN_OWNER_USER_ID (else latest Google token).
- */
 export async function POST(req: NextRequest) {
   const header = req.headers.get('authorization') || ''
   const secret =
@@ -53,11 +51,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => ({}))) as {
-    scopeId?: string
     maxFiles?: number
     force?: boolean
   }
-  const scopeId = body.scopeId || 'shared-demo'
 
   const rounds: Array<Record<string, unknown>> = []
   let hasMore = true
@@ -66,7 +62,7 @@ export async function POST(req: NextRequest) {
     guard += 1
     const result = await syncDriveFolderToBrain({
       userId,
-      scopeId,
+      scopeId: COMPANY_BRAIN_SCOPE_ID,
       folderId: getDriveBrainFolderId(),
       maxFiles: body.maxFiles ?? 6,
       force: Boolean(body.force) && guard === 1,

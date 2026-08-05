@@ -3,6 +3,7 @@ import {
   embedQuery,
   toPgVectorLiteral,
 } from '@/lib/rag/embeddings'
+import { COMPANY_BRAIN_SCOPE_ID } from '@/lib/google/drive'
 
 export type RAGDocument = {
   id: string
@@ -70,6 +71,14 @@ function sourceClause(source: KnowledgeSourceFilter): string {
   return ''
 }
 
+function resolveSearchScopeId(
+  scopeId: string,
+  source: KnowledgeSourceFilter
+): string {
+  if (source === 'drive') return COMPANY_BRAIN_SCOPE_ID
+  return scopeId || COMPANY_BRAIN_SCOPE_ID
+}
+
 async function lexicalBm25Search(
   tsQuery: string,
   scopeId: string,
@@ -86,13 +95,22 @@ async function lexicalBm25Search(
       source_file_id,
       source_path,
       ROW_NUMBER() OVER (
-        ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
+        ORDER BY GREATEST(
+          ts_rank_cd(tsv_content, to_tsquery('arabic', $1)),
+          ts_rank_cd(to_tsvector('arabic', coalesce(title_ar, '')), to_tsquery('arabic', $1))
+        ) DESC
       )::int AS rank
     FROM knowledge_documents
     WHERE scope_id::text = $2
-      AND tsv_content @@ to_tsquery('arabic', $1)
+      AND (
+        tsv_content @@ to_tsquery('arabic', $1)
+        OR to_tsvector('arabic', coalesce(title_ar, '')) @@ to_tsquery('arabic', $1)
+      )
       ${sourceClause(source)}
-    ORDER BY ts_rank_cd(tsv_content, to_tsquery('arabic', $1)) DESC
+    ORDER BY GREATEST(
+      ts_rank_cd(tsv_content, to_tsquery('arabic', $1)),
+      ts_rank_cd(to_tsvector('arabic', coalesce(title_ar, '')), to_tsquery('arabic', $1))
+    ) DESC
     LIMIT $3
     `,
     tsQuery,
@@ -149,6 +167,7 @@ export async function hybridArabicSearch(
   const trimmed = queryText?.trim()
   if (!trimmed) return []
   const source: KnowledgeSourceFilter = opts?.source ?? 'drive'
+  const searchScopeId = resolveSearchScopeId(scopeId, source)
 
   return withPrismaFallback(async () => {
     const tsQuery = buildArabicTsQuery(trimmed)
@@ -157,16 +176,19 @@ export async function hybridArabicSearch(
     let bm25Hits: RankedHit[] = []
     let vectorHits: RankedHit[] = []
 
-    bm25Hits = await lexicalBm25Search(tsQuery, scopeId, fetchLimit, source).catch(
-      () => [] as RankedHit[]
-    )
+    bm25Hits = await lexicalBm25Search(
+      tsQuery,
+      searchScopeId,
+      fetchLimit,
+      source
+    ).catch(() => [] as RankedHit[])
 
     try {
       const queryEmbedding = await embedQuery(trimmed)
       const embeddingLiteral = toPgVectorLiteral(queryEmbedding)
       vectorHits = await vectorSimilaritySearch(
         embeddingLiteral,
-        scopeId,
+        searchScopeId,
         fetchLimit,
         source
       ).catch(() => [] as RankedHit[])

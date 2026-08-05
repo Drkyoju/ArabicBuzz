@@ -3,18 +3,18 @@ import {
   listDriveBrainPreview,
   syncDriveFolderToBrain,
 } from '@/lib/google/drive-brain'
-import { getDriveBrainFolderId } from '@/lib/google/drive'
+import {
+  classifyDriveAccessError,
+  COMPANY_BRAIN_SCOPE_ID,
+  getDriveBrainFolderId,
+} from '@/lib/google/drive'
 import { insertRoomPost } from '@/lib/rooms/persist'
 import { getGoogleTokenRow } from '@/lib/google/tokens'
+import { isDirectorEmail } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-/**
- * Google Drive folder → cloud company brain (Supabase).
- * Default: ملفات الجمعية
- * https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW
- */
 export async function GET(req: Request) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
@@ -29,8 +29,9 @@ export async function GET(req: Request) {
       folderId,
       folderUrl: `https://drive.google.com/drive/folders/${folderId}`,
       brainMode: 'cloud',
+      errorCode: 'no_token',
       error:
-        'اربط Google من الإعدادات (تقويم/Drive) ثم امنح صلاحية قراءة Drive. المجلد: ملفات الجمعية.',
+        'اربط Google من الإعدادات (تقويم/Drive) بحساب يملك صلاحية على مجلد «ملفات الجمعية»، ثم اضغط «زامن العقل».',
     })
   }
 
@@ -40,19 +41,31 @@ export async function GET(req: Request) {
       connected: true,
       email: tokens.email,
       brainMode: 'cloud',
+      brainScopeId: COMPANY_BRAIN_SCOPE_ID,
+      emptyFolder: preview.files.length === 0,
       ...preview,
       count: preview.files.length,
+      ...(preview.files.length === 0
+        ? {
+            errorCode: 'empty_folder',
+            error:
+              'المجلد فارغ فعلاً — لا ملفات ظاهرة لحسابك. ارفع الملفات إلى «ملفات الجمعية» أو تأكد أن الحساب المربوط يرى المجلد، ثم اضغط «زامن العقل».',
+          }
+        : {}),
     })
   } catch (e) {
+    const classified = classifyDriveAccessError(e)
     return Response.json(
       {
         connected: true,
+        email: tokens.email,
         brainMode: 'cloud',
         folderId,
         folderUrl: `https://drive.google.com/drive/folders/${folderId}`,
-        error: e instanceof Error ? e.message : 'فشل قراءة المجلد',
+        errorCode: classified.code,
+        error: classified.messageAr,
       },
-      { status: 500 }
+      { status: classified.code === 'other' ? 500 : 403 }
     )
   }
 }
@@ -62,21 +75,34 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response
 
   const body = (await req.json().catch(() => ({}))) as {
-    scopeId?: string
     folderId?: string
     maxFiles?: number
     force?: boolean
   }
-  const scopeId = body.scopeId || 'shared-demo'
-  // Always the association brain folder unless explicitly overridden
+  const scopeId = COMPANY_BRAIN_SCOPE_ID
   const folderId = body.folderId || getDriveBrainFolderId()
 
   const tokens = await getGoogleTokenRow(auth.user.id)
   if (!tokens?.access_token) {
     return Response.json(
       {
+        errorCode: 'no_token',
         error:
-          'Google غير مربوط. من الإعدادات اضغط «ربط تقويم Google» (يشمل Drive) بحساب يملك صلاحية على مجلد ملفات الجمعية.',
+          'Google غير مربوط. من الإعدادات اضغط «ربط Google (Drive)» بحساب يملك صلاحية على مجلد ملفات الجمعية، ثم «زامن العقل».',
+      },
+      { status: 400 }
+    )
+  }
+
+  if (
+    tokens.email &&
+    isDirectorEmail(auth.user.email) &&
+    !isDirectorEmail(tokens.email)
+  ) {
+    return Response.json(
+      {
+        errorCode: 'wrong_google_account',
+        error: `الحساب المربوط (${tokens.email}) ليس حساب المدير. افصل Google وأعد الربط بـ ryodan71@gmail.com ثم زامن العقل.`,
       },
       { status: 400 }
     )
@@ -100,13 +126,14 @@ export async function POST(req: Request) {
         content: `📁 ${result.messageAr}\n${result.folderUrl}`,
       })
     } catch {
-      /* post is optional if guest write blocked */
+      /* optional */
     }
 
-    return Response.json(result)
+    return Response.json({ ...result, brainScopeId: scopeId })
   } catch (e) {
+    const classified = classifyDriveAccessError(e)
     return Response.json(
-      { error: e instanceof Error ? e.message : 'فشلت مزامنة Drive' },
+      { errorCode: classified.code, error: classified.messageAr },
       { status: 500 }
     )
   }

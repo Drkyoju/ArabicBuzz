@@ -9,7 +9,6 @@ import {
   connectGoogleCalendar,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
-import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 const BRAIN_FOLDER_URL =
   'https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
@@ -33,7 +32,6 @@ type Preview = {
 }
 
 export function GoogleDriveBrainPanel() {
-  const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
   const isGuest = signedIn === false
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -101,7 +99,7 @@ export function GoogleDriveBrainPanel() {
         const res = await fetch('/api/google/drive/brain', {
           method: 'POST',
           headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ scopeId, maxFiles: 8 }),
+          body: JSON.stringify({ maxFiles: 8 }),
         })
         const data = (await res.json()) as {
           error?: string
@@ -218,7 +216,7 @@ export function GoogleDriveBrainPanel() {
           >
             {syncing
               ? 'جاري الفهرسة السحابية…'
-              : '٢) مزامنة المجلد → عقل الشركة (سحابي)'}
+              : 'زامن العقل'}
           </button>
         )}
       </div>

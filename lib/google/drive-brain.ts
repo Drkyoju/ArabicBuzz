@@ -1,6 +1,8 @@
 import { extractDocumentText } from '@/lib/rag/extract'
 import { ingestArabicDocument } from '@/lib/rag/ingest'
 import {
+  classifyDriveAccessError,
+  COMPANY_BRAIN_SCOPE_ID,
   downloadDriveFile,
   getDriveBrainFolderId,
   listDriveFolderFiles,
@@ -125,7 +127,7 @@ async function alreadyIndexedIds(sourceIds: string[]): Promise<Set<string>> {
  */
 export async function syncDriveFolderToBrain(opts: {
   userId: string
-  scopeId: string
+  scopeId?: string
   folderId?: string
   maxFiles?: number
   force?: boolean
@@ -134,18 +136,38 @@ export async function syncDriveFolderToBrain(opts: {
   const folderUrl = `https://drive.google.com/drive/folders/${folderId}`
   const batchLimit = opts.maxFiles ?? 8
   const maxBytes = 40 * 1024 * 1024
+  const scopeId = COMPANY_BRAIN_SCOPE_ID
 
-  const listed = await listDriveFolderFiles(opts.userId, {
-    folderId,
-    recursive: true,
-  })
-  const allFiles = listed
-    .filter((f) => !SKIP_MIME.has(f.mimeType))
-    .sort((a, b) => {
-      const p = filePriority(a) - filePriority(b)
-      if (p !== 0) return p
-      return Number(a.size || 0) - Number(b.size || 0)
+  let allFiles: DriveFileMeta[] = []
+  try {
+    const listed = await listDriveFolderFiles(opts.userId, {
+      folderId,
+      recursive: true,
     })
+    allFiles = listed
+      .filter((f) => !SKIP_MIME.has(f.mimeType))
+      .sort((a, b) => {
+        const p = filePriority(a) - filePriority(b)
+        if (p !== 0) return p
+        return Number(a.size || 0) - Number(b.size || 0)
+      })
+  } catch (e) {
+    const classified = classifyDriveAccessError(e)
+    return {
+      ok: false,
+      folderId,
+      folderUrl,
+      scanned: 0,
+      ingested: 0,
+      skipped: 0,
+      alreadyIndexed: 0,
+      errors: [{ name: 'Drive', error: classified.messageAr }],
+      files: [],
+      hasMore: false,
+      remaining: 0,
+      messageAr: classified.messageAr,
+    }
+  }
 
   const sourceIds = allFiles.map((f) => `gdrive:${f.id}`)
   const indexed = opts.force
@@ -173,7 +195,7 @@ export async function syncDriveFolderToBrain(opts: {
           error: 'أكبر من 40MB — قسّم الملف أو ارفعه كنسخة أخف',
         })
         await markDriveFileSkipped({
-          scopeId: opts.scopeId,
+          scopeId,
           titleAr: file.name,
           sourceFileId,
           sourcePath: folderUrl,
@@ -191,7 +213,7 @@ export async function syncDriveFolderToBrain(opts: {
         skipped += 1
         errors.push({ name: file.name, error: 'لا نص قابل للاستخراج' })
         await markDriveFileSkipped({
-          scopeId: opts.scopeId,
+          scopeId,
           titleAr: file.name,
           sourceFileId,
           sourcePath: folderUrl,
@@ -200,7 +222,7 @@ export async function syncDriveFolderToBrain(opts: {
         continue
       }
       const chunks = await ingestTextCloud({
-        scopeId: opts.scopeId,
+        scopeId,
         titleAr: file.name,
         content: extracted.text,
         sourceFileId,
@@ -214,7 +236,7 @@ export async function syncDriveFolderToBrain(opts: {
       skipped += 1
       try {
         await markDriveFileSkipped({
-          scopeId: opts.scopeId,
+          scopeId,
           titleAr: file.name,
           sourceFileId,
           sourcePath: folderUrl,
@@ -241,9 +263,9 @@ export async function syncDriveFolderToBrain(opts: {
     remaining,
     messageAr:
       allFiles.length === 0
-        ? 'المجلد فارغ أو لا يمكن قراءته — تأكد أن حساب Google مربوط وله صلاحية على مجلد «ملفات الجمعية».'
+        ? 'المجلد فارغ فعلاً — لا توجد ملفات داخل «ملفات الجمعية». ارفع الملفات إلى المجلد ثم اضغط «زامن العقل».'
         : hasMore
-          ? `جُلسة مزامنة سحابية: ${ingested} ملف جديد · مفهرس سابقاً ${alreadyIndexed} · متبقّي ${remaining} — اضغط المزامنة مرة أخرى.`
+          ? `جُلسة مزامنة سحابية: ${ingested} ملف جديد · مفهرس سابقاً ${alreadyIndexed} · متبقّي ${remaining} — اضغط «زامن العقل» مرة أخرى.`
           : `اكتملت مزامنة عقل الشركة من Drive (سحابي، بدون ماك): ${alreadyIndexed + ingested + skipped} ملفاً من ${allFiles.length}.`,
   }
 }

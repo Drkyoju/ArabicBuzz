@@ -196,9 +196,7 @@ export async function executeSearchKnowledgeBase(
   params: Record<string, unknown>
 ): Promise<SearchKnowledgeBaseResult> {
   const queryAr = String(params.queryAr || params.query || '')
-  const scopeId = String(
-    params.scopeId || '00000000-0000-0000-0000-000000000001'
-  )
+  const scopeId = String(params.scopeId || 'shared-demo')
   const limit = typeof params.limit === 'number' ? params.limit : undefined
   return searchKnowledgeBase({ queryAr, scopeId, limit, source: 'drive' })
 }

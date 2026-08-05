@@ -6,6 +6,10 @@ const DRIVE = 'https://www.googleapis.com/drive/v3'
 export const DEFAULT_DRIVE_BRAIN_FOLDER_ID =
   '1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
 
+/** Canonical scope for company-brain Drive index (RAG works from any room). */
+export const COMPANY_BRAIN_SCOPE_ID =
+  process.env.COMPANY_BRAIN_SCOPE_ID?.trim() || 'shared-demo'
+
 export type DriveFileMeta = {
   id: string
   name: string
@@ -20,6 +24,39 @@ export function getDriveBrainFolderId() {
     process.env.GOOGLE_DRIVE_BRAIN_FOLDER_ID?.trim() ||
     DEFAULT_DRIVE_BRAIN_FOLDER_ID
   )
+}
+
+export function classifyDriveAccessError(err: unknown): {
+  code: 'no_token' | 'permission' | 'not_found' | 'other'
+  messageAr: string
+} {
+  const raw = err instanceof Error ? err.message : String(err || '')
+  const lower = raw.toLowerCase()
+  if (/غير مربوط|انتهت صلاحية|تعذّر تجديد|google غير|تقويم google غير/i.test(raw)) {
+    return {
+      code: 'no_token',
+      messageAr:
+        'Google غير مربوط أو انتهت صلاحية الرمز. من الإعدادات اضغط «ربط Google (Drive)» بحساب ryodan71@gmail.com ثم أعد المحاولة.',
+    }
+  }
+  if (
+    /403|401|insufficient|permission|accessDenied|forbidden|ليس لديك صلاحية/i.test(lower) ||
+    /صلاحية|أعد ربط google بصلاحية drive/i.test(raw)
+  ) {
+    return {
+      code: 'permission',
+      messageAr:
+        'الحساب المربوط لا يملك صلاحية قراءة مجلد «ملفات الجمعية». افتح رابط المجلد وشاركه مع البريد المربوط (عرض على الأقل)، أو أعد الربط بحساب يملك المجلد.',
+    }
+  }
+  if (/404|notFound|file not found/i.test(lower)) {
+    return {
+      code: 'not_found',
+      messageAr:
+        'معرّف مجلد عقل الشركة غير صحيح أو حُذف. تحقق من GOOGLE_DRIVE_BRAIN_FOLDER_ID على الاستضافة.',
+    }
+  }
+  return { code: 'other', messageAr: raw || 'فشل الوصول إلى Google Drive' }
 }
 
 async function driveFetch(userId: string, pathAndQuery: string) {
