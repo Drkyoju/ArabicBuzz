@@ -2,6 +2,7 @@ import {
   createRoomCalendarEvent,
   ingestProposedDates,
   listRoomCalendarEvents,
+  reconcileRoomCalendar,
   updateRoomCalendarEvent,
   cancelRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
@@ -134,5 +135,38 @@ export async function executeRoomCalendarCancel(
     ok: true,
     ...result,
     messageAr: 'أُلغي الموعد من لوحة التقويم المشتركة.',
+  }
+}
+
+export async function executeRoomCalendarReconcile(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = scopeOf(params)
+  const result = await reconcileRoomCalendar({
+    scopeId,
+    autoAdjust: Boolean(params.autoAdjust),
+    notify: params.notify !== false,
+  })
+  return {
+    ok: true,
+    scopeId,
+    count: result.events.length,
+    conflictCount: result.conflicts.length,
+    adjusted: result.adjusted,
+    conflicts: result.conflicts,
+    events: result.events.map((e) => ({
+      id: e.id,
+      titleAr: e.titleAr,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      status: e.status,
+    })),
+    messageAr:
+      result.conflicts.length === 0
+        ? 'تقويم الغرفة بلا تعارضات ظاهرة.'
+        : result.adjusted.length > 0
+          ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.`
+          : `وُجد ${result.conflicts.length} تعارضاً — مرّر autoAdjust=true لإزاحة المواعيد المتعارضة.`,
   }
 }

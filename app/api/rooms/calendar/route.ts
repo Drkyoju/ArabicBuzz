@@ -5,6 +5,7 @@ import {
   createRoomCalendarEvent,
   ingestProposedDates,
   listRoomCalendarEvents,
+  reconcileRoomCalendar,
   updateRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
 
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
     attendees?: string[]
     source?: 'manual' | 'ai' | 'email' | 'import'
     eventId?: string
+    autoAdjust?: boolean
+    notify?: boolean
     proposals?: Array<{
       titleAr: string
       startsAt: string
@@ -90,6 +93,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ...result,
         messageAr: `أُضيف ${result.created.length} · عُدّل ${result.adjusted.length} · تُخطّي ${result.skipped.length}`,
+      })
+    }
+
+    if (action === 'reconcile') {
+      const result = await reconcileRoomCalendar({
+        scopeId,
+        autoAdjust: Boolean(body.autoAdjust),
+        notify: body.notify !== false,
+      })
+      const messageAr =
+        result.conflicts.length === 0
+          ? 'تقويم الغرفة بلا تعارضات ظاهرة.'
+          : result.adjusted.length > 0
+            ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.`
+            : `وُجد ${result.conflicts.length} تعارضاً — مرّر autoAdjust=true لإزاحة المواعيد.`
+      return NextResponse.json({
+        events: result.events,
+        conflicts: result.conflicts,
+        adjusted: result.adjusted,
+        count: result.events.length,
+        conflictCount: result.conflicts.length,
+        messageAr,
       })
     }
 

@@ -251,6 +251,7 @@ export async function createRoomCalendarEvent(opts: {
   }
 
   const sb = getSupabaseAdmin()
+  let saved = event
   if (sb) {
     const { data, error } = await sb
       .from('room_calendar_events')
@@ -273,11 +274,25 @@ export async function createRoomCalendarEvent(opts: {
       .select('*')
       .single()
     if (!error && data) {
-      return { event: rowToEvent(data as DbRow), conflicts, suggestion }
+      saved = rowToEvent(data as DbRow)
+    } else {
+      memory.set(event.id, event)
     }
+  } else {
+    memory.set(event.id, event)
   }
-  memory.set(event.id, event)
-  return { event, conflicts, suggestion }
+
+  if (conflicts.length > 0) {
+    void notifyRoomCalendarConflicts({
+      scopeId: opts.scopeId,
+      titleAr: saved.titleAr,
+      startsAt: saved.startsAt,
+      conflicts,
+      createdByAr: saved.createdByAr,
+    })
+  }
+
+  return { event: saved, conflicts, suggestion }
 }
 
 export async function updateRoomCalendarEvent(
@@ -423,4 +438,109 @@ export async function ingestProposedDates(opts: {
     }
   }
   return { created, skipped, adjusted }
+}
+
+export type RoomCalendarConflictPair = {
+  a: { id: string; titleAr: string; startsAt: string; endsAt: string }
+  b: { id: string; titleAr: string; startsAt: string; endsAt: string }
+  overlapMinutes: number
+}
+
+/**
+ * Scan the room board for overlapping events. Optionally shift later events
+ * forward (`autoAdjust`) so the board is conflict-free.
+ */
+export async function reconcileRoomCalendar(opts: {
+  scopeId: string
+  autoAdjust?: boolean
+  /** Reserved for Telegram/email notify — currently a no-op flag. */
+  notify?: boolean
+}): Promise<{
+  events: RoomCalendarEvent[]
+  conflicts: RoomCalendarConflictPair[]
+  adjusted: Array<{ id: string; titleAr: string; from: string; to: string }>
+}> {
+  const events = await listRoomCalendarEvents({ scopeId: opts.scopeId })
+  const active = events
+    .filter((e) => e.status !== 'cancelled')
+    .sort(
+      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+    )
+
+  const conflicts: RoomCalendarConflictPair[] = []
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const a = active[i]
+      const b = active[j]
+      const mins = overlapMinutes(
+        new Date(a.startsAt),
+        new Date(a.endsAt),
+        new Date(b.startsAt),
+        new Date(b.endsAt)
+      )
+      if (mins > 0) {
+        conflicts.push({
+          a: {
+            id: a.id,
+            titleAr: a.titleAr,
+            startsAt: a.startsAt,
+            endsAt: a.endsAt,
+          },
+          b: {
+            id: b.id,
+            titleAr: b.titleAr,
+            startsAt: b.startsAt,
+            endsAt: b.endsAt,
+          },
+          overlapMinutes: mins,
+        })
+      }
+    }
+  }
+
+  const adjusted: Array<{
+    id: string
+    titleAr: string
+    from: string
+    to: string
+  }> = []
+
+  if (opts.autoAdjust && conflicts.length > 0) {
+    let working = [...active]
+    for (const pair of conflicts) {
+      const later =
+        new Date(pair.a.startsAt).getTime() <=
+        new Date(pair.b.startsAt).getTime()
+          ? working.find((e) => e.id === pair.b.id)
+          : working.find((e) => e.id === pair.a.id)
+      if (!later) continue
+      const others = working.filter((e) => e.id !== later.id)
+      const sug = proposeAdjustedSlot(
+        others,
+        later.startsAt,
+        later.endsAt,
+        later.id
+      )
+      if (!sug) continue
+      const from = later.startsAt
+      await updateRoomCalendarEvent(later.id, opts.scopeId, {
+        startsAt: sug.startsAt,
+        endsAt: sug.endsAt,
+      })
+      adjusted.push({
+        id: later.id,
+        titleAr: later.titleAr,
+        from,
+        to: sug.startsAt,
+      })
+      working = working.map((e) =>
+        e.id === later.id
+          ? { ...e, startsAt: sug.startsAt, endsAt: sug.endsAt }
+          : e
+      )
+    }
+  }
+
+  const refreshed = await listRoomCalendarEvents({ scopeId: opts.scopeId })
+  return { events: refreshed, conflicts, adjusted }
 }
