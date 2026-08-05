@@ -20,6 +20,7 @@ import {
   executeRoomCalendarCreate,
   executeRoomCalendarIngest,
   executeRoomCalendarList,
+  executeRoomCalendarReconcile,
   executeRoomCalendarUpdate,
 } from '@/lib/agents/tools/room-calendar-tools'
 import {
@@ -240,6 +241,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   room_calendar_update: executeRoomCalendarUpdate,
   room_calendar_cancel: executeRoomCalendarCancel,
   room_calendar_ingest: executeRoomCalendarIngest,
+  room_calendar_reconcile: executeRoomCalendarReconcile,
   room_tasks_list: executeRoomTasksList,
   room_tasks_create: executeRoomTasksCreate,
   room_tasks_update: executeRoomTasksUpdate,

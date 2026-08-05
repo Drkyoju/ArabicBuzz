@@ -198,10 +198,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let driveBrainSync: unknown = null
+  try {
+    const secret =
+      process.env.BRAIN_SYNC_SECRET ||
+      process.env.DRIVE_BRAIN_SYNC_SECRET ||
+      process.env.CRON_SECRET ||
+      ''
+    if (secret && secret !== 'change-me') {
+      const base = appBaseUrl()
+      const syncRes = await fetch(`${base}/api/google/drive/brain/cron`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ maxFiles: 6 }),
+        signal: AbortSignal.timeout(55_000),
+      })
+      driveBrainSync = await syncRes.json().catch(() => ({
+        ok: false,
+        status: syncRes.status,
+      }))
+    } else {
+      driveBrainSync = { skipped: true, reason: 'no_cron_secret' }
+    }
+  } catch (e) {
+    driveBrainSync = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'drive brain sync error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
     deadlineReminders,
     directorDigest,
+    driveBrainSync,
   })
 }

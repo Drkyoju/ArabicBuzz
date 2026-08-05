@@ -159,7 +159,6 @@ export async function POST(req: Request) {
           guard += 1
           const r = await syncDriveFolderToBrain({
             userId: auth.user.id,
-            scopeId: 'shared-demo',
             folderId: getDriveBrainFolderId(),
             maxFiles: 6,
           })
