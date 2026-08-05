@@ -10,6 +10,11 @@ export type ProviderDef = {
   hintAr: string
   /** Optional: where to get a free/paid key. */
   docsUrl?: string
+  /**
+   * Provider is advertised but not routable with our OpenAI chat client.
+   * Keys may still be stored; models must not be treated as serviceable.
+   */
+  degraded?: boolean
 }
 
 export const PROVIDER_DEFS: ProviderDef[] = [
@@ -50,11 +55,13 @@ export const PROVIDER_DEFS: ProviderDef[] = [
   },
   {
     envName: 'TOKENROUTER_API_KEY',
-    labelAr: 'TokenRouter',
-    labelEn: 'TokenRouter',
+    labelAr: 'TokenRouter (متوقف)',
+    labelEn: 'TokenRouter (degraded)',
     kind: 'llm',
-    hintAr: 'يفتح Kimi K3 مجاني عبر api.tokenrouter.io',
-    docsUrl: 'https://tokenrouter.io/console/api-keys',
+    hintAr:
+      'متوقف مؤقتاً: api.tokenrouter.io ألغى /v1/chat/completions (404) — المنصة تستخدم Responses فقط ولا تدعم Kimi K3 Free عبر عميلنا الحالي. لا تُوجَّه الطلبات إليه.',
+    docsUrl: 'https://docs.tokenrouter.io/',
+    degraded: true,
   },
   {
     envName: 'OPENAI_API_KEY',

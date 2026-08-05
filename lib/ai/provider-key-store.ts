@@ -83,6 +83,7 @@ export type ProviderKeyStatus = {
   kind: ProviderDef['kind']
   hintAr: string
   docsUrl?: string
+  degraded?: boolean
   source: KeySource
   configured: boolean
   /** Never the secret — only whether a non-empty value exists. */
@@ -225,6 +226,7 @@ export async function listProviderKeyStatuses(): Promise<ProviderKeyStatus[]> {
       kind: def.kind,
       hintAr: def.hintAr,
       docsUrl: def.docsUrl,
+      degraded: def.degraded,
       source,
       configured: source !== 'absent',
       maskedHint: value ? maskHint(value) : null,

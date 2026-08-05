@@ -54,19 +54,11 @@ export type HarnessModelMeta = {
     | 'tokenrouter'
   requiresKey: string
   airGapSafe: boolean
+  /** Catalog entry kept for history/UI honesty — never selected or routed. */
+  unavailable?: boolean
 }
 
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
-  {
-    // Prefer as سريع when TOKENROUTER_API_KEY is set (catalog order = tier pick).
-    slug: 'moonshotai/kimi-k3-free',
-    tier: 'fast',
-    labelAr: 'سريع · Kimi K3 Free',
-    labelEn: 'Kimi K3 Free',
-    provider: 'tokenrouter',
-    requiresKey: 'TOKENROUTER_API_KEY',
-    airGapSafe: false,
-  },
   {
     slug: 'gemini-3.1-pro',
     tier: 'max',
@@ -238,6 +230,17 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     requiresKey: 'OLLAMA_BASE_URL',
     airGapSafe: true,
   },
+  {
+    // Degraded: api.tokenrouter.io /v1/chat/completions → 404 (Responses-only).
+    slug: 'moonshotai/kimi-k3-free',
+    tier: 'fast',
+    labelAr: 'Kimi K3 Free · غير متاح',
+    labelEn: 'Kimi K3 Free (unavailable)',
+    provider: 'tokenrouter',
+    requiresKey: 'TOKENROUTER_API_KEY',
+    airGapSafe: false,
+    unavailable: true,
+  },
 ]
 
 export const HARNESS_MODEL_SLUGS: HarnessModelSlug[] =
@@ -246,8 +249,10 @@ export const HARNESS_MODEL_SLUGS: HarnessModelSlug[] =
 export function listAvailableHarnessModels(
   airGapped: boolean
 ): HarnessModelMeta[] {
-  if (!airGapped) return HARNESS_MODEL_CATALOG
-  return HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)
+  const base = airGapped
+    ? HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)
+    : HARNESS_MODEL_CATALOG
+  return base.filter((m) => !m.unavailable)
 }
 
 /** Filter catalog by which provider keys are configured (QM-style). */

@@ -80,7 +80,7 @@ export function getCloudProviders() {
       },
       name: 'agentrouter',
     }),
-    /** TokenRouter OpenAI-compatible gateway (docs: https://api.tokenrouter.io/v1). */
+    /** TokenRouter — degraded: api.tokenrouter.io chat routes 404 (Responses-only). */
     tokenrouter: createOpenAI({
       apiKey: resolveProviderKeySync('TOKENROUTER_API_KEY'),
       baseURL:
@@ -272,7 +272,9 @@ export function getModel(modelId: string) {
 
   const tokenRouterId = TOKENROUTER_IDS[id]
   if (tokenRouterId) {
-    return getCloudProviders().tokenrouter(tokenRouterId)
+    throw new Error(
+      'TokenRouter متوقف مؤقتاً: api.tokenrouter.io لا يوفّر /v1/chat/completions (404). اختر مزوّداً آخر من قدرة الرد.'
+    )
   }
 
   // Raw OpenRouter path: provider/model (after TokenRouter map)

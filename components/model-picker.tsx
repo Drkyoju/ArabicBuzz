@@ -54,7 +54,6 @@ export function ModelPicker({
           m.provider === 'google' ||
           m.provider === 'glm' ||
           m.provider === 'agentrouter' ||
-          m.provider === 'tokenrouter' ||
           m.slug.startsWith('claude')
       )
     }

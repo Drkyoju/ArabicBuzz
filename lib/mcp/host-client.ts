@@ -143,21 +143,32 @@ export async function connectEnvMcpServers(): Promise<string[]> {
 
   // 3) Free/recommended defaults + remote catalog URLs when env/keys present
   // Stdio-only catalog items never auto-connect on Netlify (no local process).
-  const autoDefaults =
-    process.env.MCP_AUTO_DEFAULTS !== '0' &&
-    process.env.MCP_AUTO_ANYBROWSE !== '0'
+  const autoDefaults = process.env.MCP_AUTO_DEFAULTS !== '0'
+
+  // Anybrowse: opt-in only (prefer Firecrawl when FIRECRAWL_API_KEY is set).
+  const anybrowseEnabled = process.env.MCP_AUTO_ANYBROWSE === '1'
 
   // Developer-docs servers are noise for association staff — opt in explicitly.
   const context7Enabled = process.env.MCP_AUTO_CONTEXT7 === '1'
-  const skipAuto = (id: string) => id === 'context7' && !context7Enabled
+  const skipAuto = (id: string) =>
+    (id === 'context7' && !context7Enabled) ||
+    (id === 'anybrowse' && !anybrowseEnabled)
 
   if (autoDefaults) {
-    for (const id of ['anybrowse', 'context7'] as const) {
+    for (const id of ['context7'] as const) {
       if (skipAuto(id)) continue
       const item = MCP_CATALOG.find((c) => c.id === id)
       if (item?.defaultUrl && !connected.includes(id)) {
         await tryConnect(id, item.nameAr, item.defaultUrl)
       }
+    }
+  }
+
+  // Explicit Anybrowse auto-connect (off by default)
+  if (anybrowseEnabled) {
+    const item = MCP_CATALOG.find((c) => c.id === 'anybrowse')
+    if (item?.defaultUrl && !connected.includes('anybrowse')) {
+      await tryConnect('anybrowse', item.nameAr, item.defaultUrl)
     }
   }
 

@@ -58,6 +58,10 @@ export async function GET() {
     ),
     authRequired: isAuthRequired(),
     tokenrouterConfigured: Boolean(process.env.TOKENROUTER_API_KEY?.trim()),
+    /** Chat gateway dead: /v1/chat/completions + /models → 404 on api.tokenrouter.io */
+    tokenrouterAvailable: false,
+    tokenrouterStatusAr:
+      'متوقف: بوابة chat/completions غير متاحة على api.tokenrouter.io — لا تُوجَّه النماذج إليه',
     // Drives whether the UI offers the «دخول تجريبي» button at all.
     demoLoginEnabled: process.env.ALLOW_DEMO_LOGIN === 'true',
     driveBrainOwnerConfigured: Boolean(

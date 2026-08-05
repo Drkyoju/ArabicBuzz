@@ -20,23 +20,42 @@ export type McpCatalogItem = {
   envKeys?: string[]
   docsUrl?: string
   recommended?: boolean
+  /** Catalog honesty: package removed / not supported as listed. */
+  unavailable?: boolean
 }
 
 export const MCP_CATALOG: McpCatalogItem[] = [
+  {
+    id: 'firecrawl',
+    nameAr: 'زحف مواقع (Firecrawl)',
+    nameEn: 'Firecrawl',
+    descriptionAr:
+      'يستخرج صفحات السياسات كـ Markdown للـ RAG — يتكامل مع ingest_url_to_brain عند FIRECRAWL_API_KEY.',
+    benefitsAr: 'بناء معرفة الجمعية من مواقع اللوائح والأنظمة.',
+    categoryAr: 'ويب وبحث',
+    runtime: 'remote',
+    transport: 'sse',
+    setupHintAr:
+      'المفضّل للزحف: عيّن FIRECRAWL_API_KEY (يتصل MCP تلقائياً) أو الصق رابط Firecrawl MCP.',
+    envKeys: ['FIRECRAWL_API_KEY', 'FIRECRAWL_MCP_URL'],
+    docsUrl: 'https://github.com/mendableai/firecrawl-mcp-server',
+    recommended: true,
+  },
   {
     id: 'anybrowse',
     nameAr: 'تصفح الويب (Anybrowse)',
     nameEn: 'Anybrowse',
     descriptionAr:
-      'يسحب صفحات السياسات والأنظمة ويستخرج نصاً نظيفاً — ثم يُفضّل ingest_url_to_brain للمعرفة.',
+      'يسحب صفحات السياسات والأنظمة ويستخرج نصاً نظيفاً — بديل اختياري عند غياب Firecrawl.',
     benefitsAr: 'بناء معرفة الجمعية من مواقع حكومية ولوائح دون لصق يدوي.',
     categoryAr: 'ويب وبحث',
     runtime: 'remote',
     transport: 'sse',
     defaultUrl: 'https://anybrowse.dev/mcp',
-    setupHintAr: 'يتصل تلقائياً مجاناً (حد يومي) — أو عطّل بـ MCP_AUTO_DEFAULTS=0.',
+    setupHintAr:
+      'غير موصى به كافتراضي — يُفضَّل Firecrawl عند توفر المفتاح. للاتصال اليدوي أو MCP_AUTO_ANYBROWSE=1.',
     docsUrl: 'https://github.com/kc23go/anybrowse',
-    recommended: true,
+    recommended: false,
   },
   {
     id: 'context7',
@@ -86,16 +105,26 @@ export const MCP_CATALOG: McpCatalogItem[] = [
   },
   {
     id: 'postgres',
-    nameAr: 'PostgreSQL',
-    nameEn: 'PostgreSQL',
-    descriptionAr: 'استعلامات قراءة/إدارة على قاعدة Postgres (نفس بيانات الجمعية).',
-    benefitsAr: 'تقارير مخصصة وتشخيص الجداول.',
+    nameAr: 'PostgreSQL (MCP Toolbox)',
+    nameEn: 'PostgreSQL via MCP Toolbox',
+    descriptionAr:
+      'استعلامات Postgres عبر MCP Toolbox — الحزمة الرسمية @modelcontextprotocol/server-postgres أُزيلت ولم تعد مدعومة.',
+    benefitsAr: 'تقارير مخصصة وتشخيص الجداول عبر البديل المعتمد من Google.',
     categoryAr: 'بيانات',
     runtime: 'local',
     transport: 'stdio',
-    setupHintAr: 'شغّل على الماك: npx -y @modelcontextprotocol/server-postgres $DATABASE_URL',
-    envKeys: ['DATABASE_URL'],
-    docsUrl: 'https://github.com/modelcontextprotocol/servers',
+    setupHintAr:
+      'على الماك: npx -y @toolbox-sdk/server --prebuilt=postgres --stdio مع متغيرات POSTGRES_* (انظر docs). لا تستخدم @modelcontextprotocol/server-postgres.',
+    envKeys: [
+      'POSTGRES_HOST',
+      'POSTGRES_PORT',
+      'POSTGRES_DATABASE',
+      'POSTGRES_USER',
+      'POSTGRES_PASSWORD',
+      'DATABASE_URL',
+    ],
+    docsUrl: 'https://mcp-toolbox.dev/documentation/connect-to/ides/postgres_mcp/',
+    recommended: false,
   },
   {
     id: 'filesystem',
@@ -189,22 +218,6 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     setupHintAr:
       'على الماك: pip install "markitdown[all]" ثم POST /markitdown عبر وكيل المزامنة.',
     docsUrl: 'https://github.com/microsoft/markitdown',
-    recommended: true,
-  },
-  {
-    id: 'firecrawl',
-    nameAr: 'زحف مواقع (Firecrawl)',
-    nameEn: 'Firecrawl',
-    descriptionAr:
-      'يستخرج صفحات السياسات كـ Markdown للـ RAG — يتكامل مع ingest_url_to_brain عند FIRECRAWL_API_KEY.',
-    benefitsAr: 'بناء معرفة الجمعية من مواقع اللوائح والأنظمة.',
-    categoryAr: 'ويب وبحث',
-    runtime: 'remote',
-    transport: 'sse',
-    setupHintAr:
-      'عيّن FIRECRAWL_API_KEY (يتصل MCP تلقائياً) أو الصق رابط Firecrawl MCP.',
-    envKeys: ['FIRECRAWL_API_KEY', 'FIRECRAWL_MCP_URL'],
-    docsUrl: 'https://github.com/mendableai/firecrawl-mcp-server',
     recommended: true,
   },
   {

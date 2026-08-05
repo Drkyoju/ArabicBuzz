@@ -174,7 +174,8 @@ curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
     "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..." }
   }'
 
-# Connect PostgreSQL MCP (use your Supabase DATABASE_URL)
+# Connect PostgreSQL via MCP Toolbox (googleapis/mcp-toolbox)
+# NOTE: @modelcontextprotocol/server-postgres was removed upstream — do not use it.
 curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
   -H 'Content-Type: application/json' \
   -d '{
@@ -182,7 +183,14 @@ curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
     "name": "PostgreSQL",
     "transport": "stdio",
     "commandOrUrl": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-postgres", "'"$DATABASE_URL"'"]
+    "args": ["-y", "@toolbox-sdk/server", "--prebuilt=postgres", "--stdio"],
+    "env": {
+      "POSTGRES_HOST": "db.example.com",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_DATABASE": "postgres",
+      "POSTGRES_USER": "postgres",
+      "POSTGRES_PASSWORD": "..."
+    }
   }'
 ```
 
