@@ -124,7 +124,7 @@ export function SdaiaAuditViewer() {
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = 'sdaia-audit.csv'
+          a.download = 'audit-export.csv'
           a.click()
           URL.revokeObjectURL(url)
         }
@@ -135,7 +135,7 @@ export function SdaiaAuditViewer() {
   if (signedIn === false) {
     return (
       <section className="border-t border-ab-border px-4 py-8" dir="rtl">
-        <h2 className="text-xl font-bold">سجل تدقيق SDAIA</h2>
+        <h2 className="text-xl font-bold">سجل التدقيق</h2>
         <div className="mt-4 rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-6 text-center">
           <p className="text-sm font-semibold text-ab-ink">
             يلزم تسجيل الدخول لعرض سجل التدقيق
@@ -164,7 +164,7 @@ export function SdaiaAuditViewer() {
     <section className="border-t border-ab-border px-4 py-8" dir="rtl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">سجل تدقيق SDAIA</h2>
+          <h2 className="text-xl font-bold">سجل التدقيق</h2>
           <p className="mt-0.5 text-[11px] text-stone-500">
             خط زمني لإجراءات الوكلاء مع تصنيف الخطر وختم المحلية.
           </p>

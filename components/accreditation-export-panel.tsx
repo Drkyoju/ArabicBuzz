@@ -19,7 +19,7 @@ export function AccreditationExportPanel() {
 
   async function exportPack() {
     setBusy(true)
-    setNote('جاري تجهيز PDF بختم سدايا…')
+    setNote('جاري تجهيز PDF بختم التدقيق…')
     try {
       const res = await fetch('/api/rooms/export-pack', {
         method: 'POST',
@@ -53,7 +53,7 @@ export function AccreditationExportPanel() {
         تصدير حزمة اعتماد
       </h3>
       <p className="mb-3 text-xs text-stone-500">
-        محضر + حضور + فهرس ملفات — PDF واحد بختم سدايا في ملفات الغرفة.
+        محضر + حضور + فهرس ملفات — PDF واحد بختم التدقيق في ملفات الغرفة.
       </p>
       <input
         className="mb-2 w-full rounded-md border border-ab-border px-3 py-2 text-sm"
@@ -87,7 +87,7 @@ export function AccreditationExportPanel() {
         className="inline-flex items-center gap-1.5 rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileStack className="h-3.5 w-3.5" />}
-        تصدير PDF بختم سدايا
+        تصدير PDF بختم التدقيق
       </button>
       {isGuest && (
         <p className="mt-2 text-xs text-amber-800">

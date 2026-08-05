@@ -42,6 +42,6 @@ export const dynamic = 'force-dynamic'
 
 ## Agent / product conventions
 
-- Preserve existing RTL workspace shell, scopes, HITL approvals, and SDAIA audit patterns
+- Preserve existing RTL workspace shell, scopes, HITL approvals, and audit log patterns
 - Sensitive actions go through RBAC (`lib/auth/rbac.ts`) before execution
 - Do not invent legal/tax facts; ground answers in RAG / provided sources when available

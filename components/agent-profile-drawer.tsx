@@ -56,7 +56,7 @@ export function AgentProfileDrawer({
     ],
     capabilitiesAr: agent.taskAr ? [agent.taskAr] : ['مهام الغرفة'],
     modelHintAr: modelCapabilityAr(agent.preferredModel),
-    ownerBondAr: 'مربوط بالنطاق الحالي · السجل في تدقيق سدايا',
+    ownerBondAr: 'مربوط بالنطاق الحالي · السجل في سجل التدقيق',
   }
 
   const fallbackActions =

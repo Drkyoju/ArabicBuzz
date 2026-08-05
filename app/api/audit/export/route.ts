@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="sdaia-audit.csv"',
+        'Content-Disposition': 'attachment; filename="audit-export.csv"',
       },
     })
   }

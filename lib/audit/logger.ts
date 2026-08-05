@@ -5,7 +5,7 @@ import type { SDAIAAuditRecord } from '@/lib/audit/provenance'
 const memoryLogs: SDAIAAuditRecord[] = []
 
 function auditHmacSecret(): string {
-  // Prefer secrets already on Netlify; no dedicated SDAIA env var required.
+  // Prefer secrets already on Netlify; no dedicated audit env var required.
   return (
     process.env.CRON_SECRET?.trim() ||
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||

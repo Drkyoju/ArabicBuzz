@@ -452,7 +452,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 سجل التدقيق
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم سدايا.
+                كل إجراء للبشر والوكلاء — وقت، فاعل، مستوى خطر، وختم التدقيق.
                 قابل للمراجعة دون تقرير إداري منفصل: هذا فرق الامتثال أمام
                 الأدوات الأفقية.
               </p>
@@ -643,7 +643,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   }
                 >
                   <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
-                    سجل التدقيق (SDAIA)
+                    سجل التدقيق
                   </summary>
                   {showSdaia && (
                     <div className="mt-3">
@@ -656,7 +656,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-5 text-sm text-stone-600">
                 <p className="font-medium text-ab-ink">أدوات متقدمة بعد تسجيل الدخول</p>
                 <p className="mt-1 text-xs">
-                  مفاتيح API، خوادم MCP، سجل سدايا، وإعدادات المطوّر تظهر بعد
+                  مفاتيح API، خوادم MCP، سجل التدقيق، وإعدادات المطوّر تظهر بعد
                   تسجيل الدخول حتى لا تزدحم الشاشة للزائر.
                 </p>
               </div>

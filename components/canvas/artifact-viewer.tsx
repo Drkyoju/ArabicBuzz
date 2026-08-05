@@ -33,7 +33,7 @@ function buildRtlPdfHtml(title: string, content: string, tech: boolean) {
   h1{font-size:20px;margin:0 0 16px;font-weight:600}
   .badge{display:inline-block;font-size:10px;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 8px;margin-bottom:12px}
 </style></head><body>
-<span class="badge">متوافق مع سدايا</span>
+<span class="badge">ختم التدقيق</span>
 <h1>${escapedTitle}</h1>
 ${body}
 ${sdaiaPdfFooterHtml()}
@@ -361,7 +361,7 @@ export function CanvasViewer({
               )}
             </div>
             <p className="mb-3 text-[10px] text-emerald-800">
-              سيُختم المستند بعبارة «متوافق مع سدايا» في التذييل.
+              سيُختم المستند بعبارة «ختم التدقيق» في التذييل.
             </p>
             <div className="flex flex-wrap gap-2">
               {pdfPreview && (

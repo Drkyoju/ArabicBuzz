@@ -1,5 +1,5 @@
 /**
- * Accreditation export pack: minutes + attendance + file list → one PDF + SDAIA stamp.
+ * Accreditation export pack: minutes + attendance + file list → one PDF + audit stamp.
  */
 import {
   buildPdfFromText,
@@ -38,7 +38,7 @@ async function stampSdaiaAllPages(pdf: Buffer): Promise<Buffer> {
   }
   const ts = new Date().toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })
   const line = shapeArabicForPdf(
-    `Arabic Buzz · متوافق مع إرشادات سدايا · ختم تدقيق · ${ts}`
+    `Arabic Buzz · ختم التدقيق · ${ts}`
   )
   for (const page of doc.getPages()) {
     const { width } = page.getSize()
@@ -147,7 +147,7 @@ export async function buildAccreditationPack(opts: {
   // Extra front stamp then footer on all pages
   merged = await stampPdf({
     pdf: merged,
-    text: 'حزمة اعتماد · Arabic Buzz · سدايا',
+    text: 'حزمة اعتماد · Arabic Buzz · ختم التدقيق',
     pageIndex: 0,
     size: 11,
   })
@@ -179,6 +179,6 @@ export async function buildAccreditationPack(opts: {
     ok: true,
     fileId: saved.file.id,
     fileName: saved.file.originalName || fileName,
-    messageAr: `صُدّرت حزمة الاعتماد «${fileName}» بختم سدايا إلى ملفات الغرفة.`,
+    messageAr: `صُدّرت حزمة الاعتماد «${fileName}» بختم التدقيق إلى ملفات الغرفة.`,
   }
 }
