@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/session'
+import { requireRealUser } from '@/lib/auth/session'
 import { uploadDriveTextFile } from '@/lib/google/drive'
 
 export const dynamic = 'force-dynamic'
 
 /** Save a canvas artifact into the company Drive brain folder. */
 export async function POST(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
   try {

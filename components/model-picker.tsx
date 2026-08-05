@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   HarnessModelSlug,
+  HarnessTier,
   listAvailableHarnessModels,
+  tiersForModels,
 } from '@/lib/ai/harness-catalog'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 
 type ModelAvailRow = { slug: string; available: boolean; labelAr?: string }
 
 /**
- * Capability / privacy framed picker (not engineer model names).
- * Advanced provider IDs stay in title tooltips only.
+ * Three capability tiers (سريع / متوازن / أعلى دقة). Provider model names stay
+ * in the subtitle and tooltip so the picker never reads like an engineering menu.
  */
 export function ModelPicker({
   airGapped = false,
@@ -59,14 +61,27 @@ export function ModelPicker({
     return catalog.filter((m) => availableSlugs.has(m.slug))
   }, [catalog, availableSlugs])
 
+  const tiers = useMemo(() => tiersForModels(readyModels), [readyModels])
+
+  const selectedTier: HarnessTier | '' = useMemo(() => {
+    const exact = readyModels.find((m) => m.slug === selectedModel)
+    if (exact && tiers.some((t) => t.tier === exact.tier)) return exact.tier
+    return tiers[0]?.tier || ''
+  }, [readyModels, selectedModel, tiers])
+
+  const activeTier = tiers.find((t) => t.tier === selectedTier)
+
   useEffect(() => {
     if (!loaded || !availableSlugs) return
     if (availableSlugs.has(selectedModel)) return
-    const fallback = readyModels[0]?.slug
+    const fallback = tiers[0]?.model.slug
     if (fallback) setSelectedModel(fallback as HarnessModelSlug)
-  }, [loaded, availableSlugs, selectedModel, readyModels, setSelectedModel])
+  }, [loaded, availableSlugs, selectedModel, tiers, setSelectedModel])
 
-  const selectedMeta = readyModels.find((m) => m.slug === selectedModel)
+  const currentModelName =
+    readyModels.find((m) => m.slug === selectedModel)?.labelEn ||
+    activeTier?.model.labelEn ||
+    ''
 
   return (
     <label
@@ -76,8 +91,10 @@ export function ModelPicker({
           : 'flex flex-col gap-1 text-sm'
       }
       title={
-        selectedMeta
-          ? `${selectedMeta.labelAr} · ${selectedMeta.labelEn}`
+        activeTier
+          ? `${activeTier.labelAr} — ${activeTier.hintAr}${
+              currentModelName ? ` (${currentModelName})` : ''
+            }`
           : 'اختر قدرة الرد'
       }
     >
@@ -85,34 +102,36 @@ export function ModelPicker({
         قدرة الرد
       </span>
       <select
-        aria-label="قدرة الرد والخصوصية"
+        aria-label="قدرة الرد"
         className={
           compact
             ? 'max-w-[11rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
             : 'max-w-[240px] rounded-md border border-ab-border bg-white px-3 py-1.5'
         }
-        value={
-          readyModels.some((m) => m.slug === selectedModel)
-            ? selectedModel
-            : readyModels[0]?.slug || ''
-        }
-        onChange={(e) =>
-          setSelectedModel(e.target.value as HarnessModelSlug)
-        }
-        disabled={readyModels.length === 0}
+        value={selectedTier}
+        onChange={(e) => {
+          const next = tiers.find((t) => t.tier === e.target.value)
+          if (next) setSelectedModel(next.model.slug)
+        }}
+        disabled={tiers.length === 0}
       >
-        {readyModels.length === 0 ? (
+        {tiers.length === 0 ? (
           <option value="">
             {loaded ? 'لا قدرة جاهزة — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
           </option>
         ) : (
-          readyModels.map((m) => (
-            <option key={m.slug} value={m.slug} title={m.labelEn}>
-              {m.labelAr}
+          tiers.map((t) => (
+            <option key={t.tier} value={t.tier} title={t.model.labelEn}>
+              {t.labelAr}
             </option>
           ))
         )}
       </select>
+      {!compact && currentModelName && (
+        <span className="text-[10px] text-stone-400" dir="ltr">
+          {currentModelName}
+        </span>
+      )}
     </label>
   )
 }

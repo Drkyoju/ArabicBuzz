@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import {
   createRoomTask,
   listRoomTasks,
@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic'
 
 /** Shared tasks/orders board for the room. */
 export async function GET(req: NextRequest) {
+  const auth = await requireSessionUser(req)
+  if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
   const tasks = await listRoomTasks(scopeId)
   return NextResponse.json({

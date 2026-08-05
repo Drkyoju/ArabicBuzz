@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import {
   authHeaders,
   connectGoogleCalendar,
@@ -32,10 +34,13 @@ type Preview = {
 
 export function GoogleDriveBrainPanel() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const signedIn = useSignedIn()
+  const isGuest = signedIn === false
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [note, setNote] = useState('')
+  const [autoSyncReady, setAutoSyncReady] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
     setBusy(true)
@@ -44,6 +49,11 @@ export function GoogleDriveBrainPanel() {
       const res = await fetch('/api/google/drive/brain', {
         headers: await authHeaders(),
       })
+      if (res.status === 401) {
+        setPreview({ connected: false })
+        setNote('سجّل الدخول أولاً لربط Drive ومزامنة عقل الشركة.')
+        return
+      }
       const data = (await res.json()) as Preview
       setPreview(data)
       if (data.error) setNote(data.error)
@@ -55,8 +65,28 @@ export function GoogleDriveBrainPanel() {
   }, [])
 
   useEffect(() => {
+    if (signedIn !== true) {
+      setPreview({ connected: false })
+      setBusy(false)
+      return
+    }
     void load()
-  }, [load])
+  }, [load, signedIn])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/integrations/status')
+      .then((r) => r.json())
+      .then((d: { driveBrainOwnerConfigured?: boolean }) => {
+        if (!cancelled) setAutoSyncReady(Boolean(d.driveBrainOwnerConfigured))
+      })
+      .catch(() => {
+        if (!cancelled) setAutoSyncReady(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function sync() {
     setSyncing(true)
@@ -149,7 +179,14 @@ export function GoogleDriveBrainPanel() {
       </p>
 
       <div className="mb-3 flex flex-wrap gap-2">
-        {!preview?.connected ? (
+        {isGuest ? (
+          <Link
+            href="/auth/login"
+            className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            سجّل الدخول لربط Drive
+          </Link>
+        ) : !preview?.connected ? (
           <button
             type="button"
             onClick={() => {
@@ -190,10 +227,17 @@ export function GoogleDriveBrainPanel() {
         <p className="mb-2 text-[11px] leading-snug text-stone-600">{note}</p>
       )}
 
-      {!preview?.connected && (
+      {!preview?.connected && !isGuest && (
         <p className="mb-3 text-[11px] leading-snug text-stone-500">
           استخدم حساب Google الذي يملك وصولاً لمجلد المشاركة أعلاه، ثم اضغط
           المزامنة. لا حاجة لخزنة الماك.
+        </p>
+      )}
+
+      {preview?.connected && autoSyncReady === false && (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
+          المزامنة اليدوية تعمل بحسابك. المزامنة التلقائية الليلية غير مفعّلة —
+          يحتاج المسؤول ضبط حساب مالك للمزامنة في الاستضافة.
         </p>
       )}
 

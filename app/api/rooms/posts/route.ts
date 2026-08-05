@@ -1,10 +1,14 @@
-import { requireUser, requireRealUser, isSyntheticUser } from '@/lib/auth/session'
+import {
+  requireSessionUser,
+  requireRealUser,
+  isSyntheticUser,
+} from '@/lib/auth/session'
 import { insertRoomPost, listRoomPosts, assertRoomCanPost } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'

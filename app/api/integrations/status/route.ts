@@ -58,6 +58,12 @@ export async function GET() {
     ),
     authRequired: isAuthRequired(),
     tokenrouterConfigured: Boolean(process.env.TOKENROUTER_API_KEY?.trim()),
+    // Drives whether the UI offers the «دخول تجريبي» button at all.
+    demoLoginEnabled: process.env.ALLOW_DEMO_LOGIN === 'true',
+    driveBrainOwnerConfigured: Boolean(
+      process.env.BRAIN_OWNER_USER_ID?.trim() ||
+        process.env.DRIVE_BRAIN_OWNER_USER_ID?.trim()
+    ),
     mcpCatalogCount: MCP_CATALOG.length,
     mcpConnectedServers: mcpServers,
     mcpConnectedTools: mcpTools,

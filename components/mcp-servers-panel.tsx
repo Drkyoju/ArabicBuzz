@@ -244,6 +244,23 @@ export function McpServersPanel() {
                         · متصل
                       </span>
                     )}
+                    {!on && (
+                      <span
+                        className={
+                          item.runtime === 'local'
+                            ? 'mr-1.5 rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-medium text-stone-500'
+                            : item.defaultUrl
+                              ? 'mr-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700'
+                              : 'mr-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-800'
+                        }
+                      >
+                        {item.runtime === 'local'
+                          ? 'يتطلب جهاز الماك'
+                          : item.defaultUrl
+                            ? 'متاح الآن'
+                            : 'يحتاج رابطاً'}
+                      </span>
+                    )}
                   </p>
                   <p className="mt-0.5 text-[11px] text-stone-600">
                     {item.descriptionAr}

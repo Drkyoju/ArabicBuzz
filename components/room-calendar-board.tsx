@@ -281,6 +281,8 @@ export function RoomCalendarBoard({
         <button
           type="button"
           disabled={busy || !titleAr.trim()}
+          title={!titleAr.trim() ? 'اكتب عنوان الموعد أولاً' : undefined}
+          aria-disabled={busy || !titleAr.trim()}
           onClick={() => void addManual()}
           className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
         >
@@ -311,6 +313,8 @@ export function RoomCalendarBoard({
         <button
           type="button"
           disabled={busy || !bulk.trim()}
+          title={!bulk.trim() ? 'الصق سطراً واحداً على الأقل للدمج' : undefined}
+          aria-disabled={busy || !bulk.trim()}
           onClick={() => void ingestBulk()}
           className="rounded-md bg-stone-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
         >

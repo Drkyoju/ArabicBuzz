@@ -16,6 +16,7 @@ import {
   getBrowserSession,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
+import { realEmailsOnly } from '@/lib/auth/synthetic'
 import { useTeamCalendarStore } from '@/lib/rooms/team-calendar-store'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
@@ -167,9 +168,9 @@ export function GoogleCalendarPanel({
         const data = (await res.json()) as {
           members?: Array<{ email?: string | null }>
         }
-        const fromRoom = (data.members || [])
-          .map((m) => (m.email || '').trim().toLowerCase())
-          .filter((e) => e.includes('@') && !e.endsWith('@example.com'))
+        const fromRoom = realEmailsOnly(
+          (data.members || []).map((m) => m.email)
+        )
         if (fromRoom.length > 0 && !cancelled) {
           const merged = [
             ...new Set([...fromRoom, ...useTeamCalendarStore.getState().memberEmails]),
@@ -191,6 +192,7 @@ export function GoogleCalendarPanel({
     try {
       if (!isSupabaseConfigured()) {
         setNote('Supabase غير مُعدّ — لا يمكن ربط Google.')
+        setBusy(false)
         return
       }
       await connectGoogleCalendar()

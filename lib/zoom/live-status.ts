@@ -253,16 +253,22 @@ function calendarWindowMeetings(
   return out
 }
 
-export async function getLiveZoomSnapshot(opts?: {
-  scopeId?: string
-}): Promise<{
+export type LiveZoomSnapshot = {
+  /** Zoom S2S credentials present, so live state can actually be confirmed. */
   configured: boolean
+  /** Only meetings Zoom itself reports as live — never calendar guesses. */
   liveCount: number
+  /** Room calendar events with a Zoom link whose window covers now. */
+  scheduledNowCount: number
   meetings: LiveZoomMeeting[]
   checkedAt: string
   messageAr: string
   warning?: string
-}> {
+}
+
+export async function getLiveZoomSnapshot(opts?: {
+  scopeId?: string
+}): Promise<LiveZoomSnapshot> {
   const scopeId = opts?.scopeId || 'shared-demo'
   const roomEvents = await listRoomCalendarEvents({
     scopeId,
@@ -272,16 +278,21 @@ export async function getLiveZoomSnapshot(opts?: {
 
   const calendarHint = calendarWindowMeetings(roomEvents)
 
+  const scheduledNowCount = calendarHint.filter((m) => m.live).length
+
   if (!isZoomCreateConfigured()) {
     return {
       configured: false,
-      liveCount: calendarHint.filter((m) => m.live).length,
+      liveCount: 0,
+      scheduledNowCount,
       meetings: calendarHint,
       checkedAt: new Date().toISOString(),
       messageAr:
-        calendarHint.length > 0
-          ? 'Zoom API غير مضبوط — عرض مواعيد الغرفة التي فيها رابط Zoom فقط.'
-          : 'Zoom غير مضبوط. أضف مفاتيح Zoom على Netlify لمعرفة الجلسات المباشرة.',
+        scheduledNowCount > 0
+          ? `Zoom غير مربوط — ${scheduledNowCount} موعد غرفة ضمن وقته الآن وفيه رابط Zoom (بدون تأكيد بث).`
+          : calendarHint.length > 0
+            ? 'Zoom غير مربوط — تُعرض مواعيد الغرفة التي فيها رابط Zoom فقط.'
+            : 'Zoom غير مربوط. اربط Zoom من الإعدادات لمعرفة الجلسات المباشرة.',
       warning: 'missing_zoom_env',
     }
   }
@@ -327,30 +338,29 @@ export async function getLiveZoomSnapshot(opts?: {
     const confirmedLive = meetings.filter(
       (m) => m.live && m.source !== 'calendar_window'
     )
-    const liveCount =
-      confirmedLive.length > 0
-        ? confirmedLive.length
-        : meetings.filter((m) => m.live).length
 
     return {
       configured: true,
-      liveCount,
+      liveCount: confirmedLive.length,
+      scheduledNowCount,
       meetings,
       checkedAt: new Date().toISOString(),
       messageAr:
         confirmedLive.length > 0
           ? `${confirmedLive.length} جلسة Zoom مباشرة الآن.`
-          : meetings.some((m) => m.live)
-            ? 'لا تأكيد مباشر من Zoom — توجد مواعيد غرفة ضمن الوقت الحالي برابط Zoom.'
+          : scheduledNowCount > 0
+            ? `لا بث مؤكد من Zoom — ${scheduledNowCount} موعد غرفة ضمن وقته الآن وفيه رابط Zoom.`
             : 'لا جلسات Zoom مباشرة الآن.',
     }
   } catch (e) {
     return {
       configured: true,
-      liveCount: calendarHint.filter((m) => m.live).length,
+      liveCount: 0,
+      scheduledNowCount,
       meetings: calendarHint,
       checkedAt: new Date().toISOString(),
-      messageAr: 'تعذّر الاتصال بـ Zoom API — عُرضت مواعيد الغرفة فقط.',
+      messageAr:
+        'تعذّر الاتصال بـ Zoom — تُعرض مواعيد الغرفة فقط دون تأكيد بث.',
       warning: e instanceof Error ? e.message : 'zoom_error',
     }
   }

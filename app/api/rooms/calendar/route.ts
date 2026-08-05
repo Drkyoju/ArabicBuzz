@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import {
   cancelRoomCalendarEvent,
   createRoomCalendarEvent,
@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic'
 
 /** Shared room calendar — belongs to scope, not one Google account. */
 export async function GET(req: NextRequest) {
+  const auth = await requireSessionUser(req)
+  if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
   const from = req.nextUrl.searchParams.get('from') || undefined
   const to = req.nextUrl.searchParams.get('to') || undefined

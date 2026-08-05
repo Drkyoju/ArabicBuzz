@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import { resumeWhatsAppInboxWithOwnerAnswer } from '@/lib/whatsapp/inbox-orchestrator'
 import { listPendingOwnerThreads } from '@/lib/whatsapp/pending-store'
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 /** List pending WhatsApp inbox threads awaiting owner. */
 export async function GET(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
 
   const scopeId =

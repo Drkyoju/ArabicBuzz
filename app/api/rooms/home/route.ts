@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isSyntheticIdentity } from '@/lib/auth/synthetic'
 import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
 import {
@@ -54,6 +55,10 @@ function fmtTime(iso: string) {
 
 /** Home digest: yesterday / today / tomorrow / week + Zoom + activity. */
 export async function GET(req: NextRequest) {
+  const { requireSessionUser } = await import('@/lib/auth/session')
+  const auth = await requireSessionUser(req)
+  if (!auth.ok) return auth.response
+
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
   const yesterday = dayBounds(-1)
   const today = dayBounds(0)
@@ -128,7 +133,7 @@ export async function GET(req: NextRequest) {
   const liveZoom = (zoomSnap?.meetings || []).filter(
     (m) => m.live && m.source !== 'calendar_window'
   )
-  const zoomLiveNow = liveZoom.length > 0 || (zoomSnap?.liveCount || 0) > 0
+  const zoomLiveNow = liveZoom.length > 0
 
   // Presence-ish actors from recent activity
   const peopleMap = new Map<
@@ -213,7 +218,8 @@ export async function GET(req: NextRequest) {
     })),
     zoom: {
       liveNow: zoomLiveNow,
-      liveCount: liveZoom.length || zoomSnap?.liveCount || 0,
+      liveCount: liveZoom.length,
+      scheduledNowCount: zoomSnap?.scheduledNowCount || 0,
       liveMeetings: liveZoom,
       lastLiveAt: lastZoom,
       lastLiveAtAr: lastZoom ? fmtTime(lastZoom) : null,
@@ -226,6 +232,7 @@ export async function GET(req: NextRequest) {
       atAr: fmtTime(a.createdAt),
     })),
     people: [...peopleMap.values()]
+      .filter((p) => !isSyntheticIdentity({ email: p.email }))
       .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
       .slice(0, 12)
       .map((p) => ({

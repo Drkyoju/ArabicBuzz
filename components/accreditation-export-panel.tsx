@@ -1,12 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { FileStack, Loader2 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 export function AccreditationExportPanel() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const signedIn = useSignedIn()
+  const isGuest = signedIn === false
   const [titleAr, setTitleAr] = useState('حزمة اعتماد — محضر الاجتماع')
   const [meetingDateAr, setMeetingDateAr] = useState('')
   const [minutesAr, setMinutesAr] = useState('')
@@ -72,13 +76,27 @@ export function AccreditationExportPanel() {
       />
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || isGuest}
         onClick={() => void exportPack()}
+        title={
+          isGuest
+            ? 'التصدير يحتاج تسجيل الدخول — الحزمة تُحفظ في ملفات الغرفة.'
+            : undefined
+        }
+        aria-disabled={busy || isGuest}
         className="inline-flex items-center gap-1.5 rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileStack className="h-3.5 w-3.5" />}
         تصدير PDF بختم سدايا
       </button>
+      {isGuest && (
+        <p className="mt-2 text-xs text-amber-800">
+          التصدير يحتاج تسجيل الدخول لأن الحزمة تُحفظ في ملفات الغرفة.{' '}
+          <Link href="/auth/login" className="font-semibold underline">
+            سجّل الدخول
+          </Link>
+        </p>
+      )}
       {note ? (
         <p className="mt-2 text-xs text-stone-600" role="status">
           {note}

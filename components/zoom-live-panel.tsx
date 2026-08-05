@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Radio, RefreshCw, Video } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +24,7 @@ type Meeting = {
  */
 export function ZoomLivePanel({ compact }: { compact?: boolean }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const signedIn = useSignedIn()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [liveCount, setLiveCount] = useState(0)
   const [msg, setMsg] = useState('')
@@ -44,6 +46,18 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
         messageAr?: string
         checkedAt?: string
         warning?: string
+        code?: string
+      }
+      if (!res.ok) {
+        setMeetings([])
+        setLiveCount(0)
+        setCheckedAt(null)
+        setMsg(
+          res.status === 401 || data.code === 'AUTH_REQUIRED'
+            ? 'سجّل الدخول لعرض جلسات Zoom.'
+            : data.messageAr || 'تعذّر فحص جلسات Zoom'
+        )
+        return
       }
       setConfigured(Boolean(data.configured))
       setLiveCount(Number(data.liveCount || 0))
@@ -58,12 +72,21 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
   }, [scopeId])
 
   useEffect(() => {
+    if (signedIn === null) return
+    if (signedIn === false) {
+      setBusy(false)
+      setMeetings([])
+      setLiveCount(0)
+      setMsg('سجّل الدخول لعرض جلسات Zoom.')
+      return
+    }
     void load()
     const id = window.setInterval(() => void load(), 45_000)
     return () => window.clearInterval(id)
-  }, [load])
+  }, [load, signedIn])
 
   if (compact) {
+    if (signedIn !== true) return null
     return (
       <button
         type="button"
@@ -83,7 +106,11 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
           )}
           aria-hidden
         />
-        {liveCount > 0 ? `Zoom مباشر (${liveCount})` : 'Zoom: لا بث الآن'}
+        {liveCount > 0
+          ? `Zoom مباشر (${liveCount})`
+          : configured
+            ? 'Zoom: لا بث الآن'
+            : 'Zoom غير مربوط'}
       </button>
     )
   }
@@ -109,7 +136,7 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
             {msg ||
               (configured
                 ? 'يُفحص الحساب كل دقيقة تقريباً.'
-                : 'اضبط مفاتيح Zoom لمعرفة البث المباشر.')}
+                : 'اربط Zoom من الإعدادات لمعرفة البث المباشر.')}
           </p>
         </div>
         <button

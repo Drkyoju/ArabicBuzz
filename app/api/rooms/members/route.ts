@@ -1,4 +1,5 @@
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
+import { isSyntheticIdentity } from '@/lib/auth/synthetic'
 import {
   addRoomMember,
   assertRoomOwner,
@@ -10,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId =
     new URL(req.url).searchParams.get('scopeId') || 'shared-demo'
@@ -21,7 +22,10 @@ export async function GET(req: Request) {
     auth.user.email
   )
   return Response.json({
-    members: result.members,
+    // Placeholder rows from the soft-auth fallback are not real invitees.
+    members: result.members.map((m) =>
+      isSyntheticIdentity(m) ? { ...m, email: null, userId: null } : m
+    ),
     myRole,
     canManage: myRole === 'owner',
     source: result.source,

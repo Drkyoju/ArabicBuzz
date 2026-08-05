@@ -147,8 +147,13 @@ export async function connectEnvMcpServers(): Promise<string[]> {
     process.env.MCP_AUTO_DEFAULTS !== '0' &&
     process.env.MCP_AUTO_ANYBROWSE !== '0'
 
+  // Developer-docs servers are noise for association staff — opt in explicitly.
+  const context7Enabled = process.env.MCP_AUTO_CONTEXT7 === '1'
+  const skipAuto = (id: string) => id === 'context7' && !context7Enabled
+
   if (autoDefaults) {
     for (const id of ['anybrowse', 'context7'] as const) {
+      if (skipAuto(id)) continue
       const item = MCP_CATALOG.find((c) => c.id === id)
       if (item?.defaultUrl && !connected.includes(id)) {
         await tryConnect(id, item.nameAr, item.defaultUrl)
@@ -192,7 +197,9 @@ export async function connectEnvMcpServers(): Promise<string[]> {
           : item.id === 'firecrawl'
             ? process.env.FIRECRAWL_MCP_URL?.trim()
             : undefined)
-    const url = explicit || (autoDefaults ? item.defaultUrl : undefined)
+    const url =
+      explicit ||
+      (autoDefaults && !skipAuto(item.id) ? item.defaultUrl : undefined)
     if (url && /^https?:\/\//i.test(url)) {
       await tryConnect(item.id, item.nameAr, url)
     }

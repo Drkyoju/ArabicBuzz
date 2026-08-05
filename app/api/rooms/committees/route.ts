@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import {
   COMMITTEE_KEYS,
   COMMITTEE_LABELS_AR,
@@ -14,7 +14,7 @@ import { assertRoomCanEdit } from '@/lib/rooms/persist'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
   const channels = await listCommitteeChannels(scopeId)

@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import { getUiNotifications } from '@/lib/notifications/emit'
 import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
  * List pending HITL approvals (DB/memory store + UI notification inbox).
  */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
 
   const stored = await listPendingApprovals()

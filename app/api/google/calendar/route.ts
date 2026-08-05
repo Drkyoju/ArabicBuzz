@@ -1,4 +1,5 @@
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
+import { realEmailsOnly } from '@/lib/auth/synthetic'
 import {
   deleteGoogleTokens,
   fetchGoogleAccountEmail,
@@ -23,7 +24,7 @@ export const maxDuration = 60
 
 /** Status + upcoming events, or save/disconnect tokens. */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)
@@ -218,14 +219,14 @@ export async function POST(req: Request) {
 
   if (action === 'create') {
     try {
-      const attendees = [
+      const attendees = realEmailsOnly([
         ...(Array.isArray(body.attendeeEmails)
           ? body.attendeeEmails.map(String)
           : []),
         ...(Array.isArray(body.guestEmails)
           ? body.guestEmails.map(String)
           : []),
-      ].filter((e) => e.includes('@'))
+      ])
 
       let conferenceUrl = body.conferenceUrl || body.zoomUrl || undefined
       let zoomCreated: { joinUrl: string; meetingId: number | string } | null =

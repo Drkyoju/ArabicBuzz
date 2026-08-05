@@ -1,4 +1,4 @@
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import {
   deleteLocalFile,
   readLocalFile,
@@ -22,7 +22,7 @@ export const maxDuration = 60
 
 /** Download from Mac vault (preferred) or local/cloud. */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)

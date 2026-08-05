@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { PanelRightOpen, MessageSquare } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
@@ -26,6 +27,7 @@ import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { HelpTip } from '@/components/help-tip'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
@@ -99,11 +101,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showCanvas, setShowCanvas] = useState(true)
   const [showMore, setShowMore] = useState(false)
   const [micNote, setMicNote] = useState('')
+  const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const runAbortRef = useRef<AbortController | null>(null)
+  const signedIn = useSignedIn()
+  const isGuest = signedIn === false
   useRosterCloudSync()
   const posture = useSecurityPostureStore((s) => s.posture)
   const hasArtifacts = artifacts.length > 0
@@ -200,6 +205,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   // Hydrate + realtime
   useEffect(() => {
+    if (signedIn !== true) return
     let cancelled = false
     async function hydrate() {
       const headers = await authHeaders()
@@ -318,6 +324,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     mergePost,
     setPostsForScope,
     upsertArtifact,
+    signedIn,
   ])
 
   if (!activeScope) {
@@ -400,8 +407,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
         const parsed = JSON.parse(raw) as { error?: string; code?: string }
         detail = parsed.error || raw.slice(0, 200)
         if (parsed.code === 'AUTH_REQUIRED') {
-          detail =
-            'يلزم تسجيل الدخول من الإعدادات ثم إعادة المحاولة.'
+          detail = 'سجّل الدخول للإرسال، ثم أعد المحاولة.'
+          setSendBlockedAr(
+            'سجّل الدخول للإرسال — انتهت جلستك أو لم تُسجّل الدخول بعد.'
+          )
         }
       } catch {
         /* ignore */
@@ -594,6 +603,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   async function sendPrompt() {
     const prompt = input.trim()
     if (!prompt || streaming) return
+    if (isGuest) {
+      // Keep the text so nothing the user typed disappears silently.
+      setSendBlockedAr(
+        'سجّل الدخول للإرسال — رسائل الغرفة والوكلاء تحتاج جلسة حقيقية.'
+      )
+      return
+    }
+    setSendBlockedAr('')
     setInput('')
 
     const headers = await authHeaders({
@@ -637,7 +654,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const cleanPrompt = handoff.cleanPrompt || prompt
     const humanId = `h-${Date.now()}`
 
-    await fetch('/api/rooms/posts', {
+    const savedHuman = await fetch('/api/rooms/posts', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -647,7 +664,24 @@ export function RoomWorkspace({ className }: { className?: string }) {
         authorNameAr: displayName,
         mentionAgentId: runTeam ? undefined : agentsToRun[0]?.id,
       }),
-    })
+    }).catch(() => null)
+
+    if (savedHuman && !savedHuman.ok) {
+      const failure = (await savedHuman.json().catch(() => ({}))) as {
+        error?: string
+        code?: string
+      }
+      if (savedHuman.status === 401 || failure.code === 'AUTH_REQUIRED') {
+        setInput(prompt)
+        setSendBlockedAr(
+          'سجّل الدخول للإرسال — لم تُحفظ الرسالة في الغرفة.'
+        )
+        return
+      }
+      setSendBlockedAr(
+        failure.error || 'لم تُحفظ الرسالة في الغرفة — أعد المحاولة.'
+      )
+    }
 
     appendPost({
       id: humanId,
@@ -1073,6 +1107,23 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 {micNote}
               </p>
             )}
+            {(isGuest || sendBlockedAr) && (
+              <div
+                className="mb-1.5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2"
+                role="alert"
+              >
+                <p className="text-[11px] font-medium leading-snug text-amber-950">
+                  {sendBlockedAr ||
+                    'سجّل الدخول للإرسال — المعاينة للقراءة فقط، ولا تُحفظ الرسائل.'}
+                </p>
+                <Link
+                  href="/auth/login"
+                  className="shrink-0 rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-semibold text-white"
+                >
+                  سجّل الدخول
+                </Link>
+              </div>
+            )}
             <form
               className="flex items-end gap-1.5"
               onSubmit={(e) => {
@@ -1083,7 +1134,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             >
               <LocalUploadPanel scopeId={activeScopeId} compact />
               <ComposerMicButton
-                disabled={streaming}
+                disabled={streaming || isGuest}
                 composerValue={input}
                 onStatus={(msg) => setMicNote(msg)}
                 onPartial={(draft) => {
@@ -1123,15 +1174,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     void sendPrompt()
                   }
                 }}
-                disabled={streaming}
+                disabled={streaming || isGuest}
                 placeholder={
-                  collabMode === 'team'
-                    ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
-                    : shared
-                      ? 'اكتب أو تكلم بالميك… وجّه بـ @اسم الوكيل'
-                      : activeScopeId === 'personal-research'
-                        ? 'اكتب أو تكلم بالميك… جرّب @research'
-                        : 'اكتب أو تكلم بالميك…'
+                  isGuest
+                    ? 'سجّل الدخول للإرسال…'
+                    : collabMode === 'team'
+                      ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
+                      : shared
+                        ? 'اكتب أو تكلم بالميك… وجّه بـ @اسم الوكيل'
+                        : activeScopeId === 'personal-research'
+                          ? 'اكتب أو تكلم بالميك… جرّب @research'
+                          : 'اكتب أو تكلم بالميك…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
@@ -1147,7 +1200,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
               ) : (
                 <button
                   type="submit"
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || isGuest}
+                  title={isGuest ? 'سجّل الدخول للإرسال' : undefined}
                   className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   إرسال

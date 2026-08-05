@@ -2,6 +2,7 @@ import {
   convertToModelMessages,
   streamText,
   stepCountIs,
+  type ToolSet,
   type UIMessage,
 } from 'ai'
 import { getModel, UnknownModelError } from '@/lib/ai/providers'
@@ -23,6 +24,8 @@ import {
   type SecurityPostureMode,
 } from '@/lib/security/posture'
 import { getNativeAiTools } from '@/lib/agents/engine'
+import { connectEnvMcpServers } from '@/lib/mcp/host-client'
+import { getMCPHostManager } from '@/lib/mcp/client-manager'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -89,6 +92,24 @@ function withDataStreamResponse(result: StreamTextResult) {
       return result.toUIMessageStreamResponse({ headers: netlifyHeaders })
     },
   })
+}
+
+/**
+ * Same MCP wiring as `runAgentEngine` so web chat sees the connected servers.
+ * Tool execution still routes through the HITL/RBAC interceptor in the engine
+ * for native tools; MCP tools remain bounded by the connected server's scope.
+ */
+async function loadMcpTools(): Promise<ToolSet> {
+  try {
+    await connectEnvMcpServers()
+    return await getMCPHostManager().getCombinedToolSet()
+  } catch (e) {
+    console.warn(
+      '[chat] MCP tools unavailable:',
+      e instanceof Error ? e.message : e
+    )
+    return {}
+  }
 }
 
 function scopeSystemBlock(
@@ -246,12 +267,15 @@ export async function POST(req: Request) {
     const persistAgent = body.persist !== false
     const enableTools = body.enableTools !== false
     const tools = enableTools
-      ? getNativeAiTools({
-          mode: posture,
-          requesterId: auth.user.id,
-          scopeId,
-          scopeMemory: body.scopeMemory,
-        })
+      ? {
+          ...getNativeAiTools({
+            mode: posture,
+            requesterId: auth.user.id,
+            scopeId,
+            scopeMemory: body.scopeMemory,
+          }),
+          ...(await loadMcpTools()),
+        }
       : undefined
 
     const result = withDataStreamResponse(

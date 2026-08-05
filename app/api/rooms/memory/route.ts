@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import {
   addRoomMemory,
   listRoomMemories,
@@ -9,6 +9,8 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireSessionUser(req)
+  if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
   const memories = await listRoomMemories(scopeId)
   return NextResponse.json({

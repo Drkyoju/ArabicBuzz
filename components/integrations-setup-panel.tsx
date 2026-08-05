@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { MessageCircle, Radio } from 'lucide-react'
+import { DevDisclosure } from '@/components/dev-disclosure'
 import { authHeaders } from '@/lib/supabase/browser'
 
 type ZoomHint = { configured: boolean }
@@ -146,23 +147,25 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 text-[11px]">
           لا يمكن تفعيلها من السحابة وحدها — تحتاج جهازك يعمل كوكيل + نفق عام.
         </p>
-        <ol className="list-decimal space-y-1 pe-4">
-          <li>
-            على الماك: <code dir="ltr">npm run storage:setup</code> (يشغّل الوكيل
-            ويطبع السر)
-          </li>
-          <li>
-            نفق: <code dir="ltr">npx ngrok http 7420</code> → انسخ الرابط
-            https
-          </li>
-          <li>
-            Netlify: <code dir="ltr">MAC_SYNC_URL</code>=رابط ngrok · نفس{' '}
-            <code dir="ltr">MAC_SYNC_SECRET</code> ·{' '}
-            <code dir="ltr">BRAIN_PRIMARY=mac</code> ·{' '}
-            <code dir="ltr">NEXT_PUBLIC_MAC_UPLOAD_URL</code>=نفس الرابط
-          </li>
-          <li>Redeploy ثم اضغط «فحص» في لوحة خزنة الماك</li>
-        </ol>
+        <DevDisclosure summaryAr="خطوات الربط للمسؤول التقني">
+          <ol className="list-decimal space-y-1 pe-4">
+            <li>
+              على الماك: <code dir="ltr">npm run storage:setup</code> (يشغّل
+              الوكيل ويطبع السر)
+            </li>
+            <li>
+              نفق: <code dir="ltr">npx ngrok http 7420</code> → انسخ الرابط
+              https
+            </li>
+            <li>
+              Netlify: <code dir="ltr">MAC_SYNC_URL</code>=رابط ngrok · نفس{' '}
+              <code dir="ltr">MAC_SYNC_SECRET</code> ·{' '}
+              <code dir="ltr">BRAIN_PRIMARY=mac</code> ·{' '}
+              <code dir="ltr">NEXT_PUBLIC_MAC_UPLOAD_URL</code>=نفس الرابط
+            </li>
+            <li>Redeploy ثم اضغط «فحص» في لوحة خزنة الماك</li>
+          </ol>
+        </DevDisclosure>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import {
   assertRoomOwner,
   createRoomInvite,
@@ -12,7 +12,7 @@ import { DEMO_SCOPES } from '@/lib/scopes/manager'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId =
     new URL(req.url).searchParams.get('scopeId') || 'shared-demo'

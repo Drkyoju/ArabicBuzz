@@ -157,6 +157,8 @@ export function RoomTasksBoard() {
         <button
           type="button"
           disabled={busy || !title.trim()}
+          title={!title.trim() ? 'اكتب عنوان المهمة أولاً' : undefined}
+          aria-disabled={busy || !title.trim()}
           onClick={() => void add()}
           className="inline-flex items-center gap-1 rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
@@ -165,6 +167,12 @@ export function RoomTasksBoard() {
         <button
           type="button"
           disabled={busy || open.length === 0}
+          title={
+            open.length === 0
+              ? 'لا مهام مفتوحة لترتيبها — أضف مهمة أولاً'
+              : undefined
+          }
+          aria-disabled={busy || open.length === 0}
           onClick={() => void reconcile()}
           className="inline-flex items-center gap-1 rounded-md bg-stone-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >

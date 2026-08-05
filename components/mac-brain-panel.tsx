@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { HardDrive, Loader2, RefreshCw } from 'lucide-react'
+import { DevDisclosure } from '@/components/dev-disclosure'
 import { authHeaders } from '@/lib/supabase/browser'
 
 type MacStatus = {
@@ -71,21 +72,26 @@ export function MacBrainPanel() {
             استبدال، وحذف من الموقع. الملفات وعقل الشركة على جهازك — الماك يجب
             أن يبقى متصلاً مع النفق.
           </p>
-          <ol className="mt-2 list-decimal space-y-1 pe-4 text-[11px] text-stone-600">
-            <li>
-              شغّل على الماك:{' '}
-              <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
-                npm run storage:sync
-              </code>
-            </li>
-            <li>افتح نفقاً (ngrok) واضبط MAC_SYNC_URL و MAC_SYNC_SECRET على Netlify.</li>
-            <li>
-              للمعرفة الحساسة عيّن{' '}
-              <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
-                BRAIN_PRIMARY=mac
-              </code>
-            </li>
-          </ol>
+          <DevDisclosure
+            className="mt-2 group rounded-lg border border-dashed border-ab-border bg-stone-50/70 px-2.5 py-1.5"
+            summaryAr="خطوات التشغيل للمسؤول التقني"
+          >
+            <ol className="list-decimal space-y-1 pe-4">
+              <li>
+                شغّل على الماك:{' '}
+                <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
+                  npm run storage:sync
+                </code>
+              </li>
+              <li>افتح نفقاً (ngrok) واضبط MAC_SYNC_URL و MAC_SYNC_SECRET على Netlify.</li>
+              <li>
+                للمعرفة الحساسة عيّن{' '}
+                <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">
+                  BRAIN_PRIMARY=mac
+                </code>
+              </li>
+            </ol>
+          </DevDisclosure>
         </div>
         <button
           type="button"
@@ -118,10 +124,15 @@ export function MacBrainPanel() {
               ? 'الوكيل متصل'
               : 'مضبوط · غير متصل'}
         </span>
-        <span className="rounded-md border border-ab-border bg-white px-2 py-1 text-stone-600">
+        <span
+          className="rounded-md border border-ab-border bg-white px-2 py-1 text-stone-600"
+          title={
+            status?.primaryMac ? 'BRAIN_PRIMARY=mac' : 'BRAIN_PRIMARY غير مضبوط'
+          }
+        >
           {status?.primaryMac
-            ? 'BRAIN_PRIMARY=mac'
-            : 'البحث السحابي (فعّل BRAIN_PRIMARY=mac)'}
+            ? 'المعرفة الحساسة على الماك'
+            : 'المعرفة على السحابة'}
         </span>
       </div>
 
@@ -151,20 +162,22 @@ export function MacBrainPanel() {
         </ul>
       )}
 
-      <ol className="list-decimal space-y-1 pr-4 text-[11px] leading-relaxed text-stone-600">
-        <li>
-          على الماك: <code dir="ltr">npm run storage:sync</code>
-        </li>
-        <li>
-          نفق عام: <code dir="ltr">npx ngrok http 7420</code>
-        </li>
-        <li>
-          Netlify: <code dir="ltr">MAC_SYNC_URL</code> و{' '}
-          <code dir="ltr">MAC_SYNC_SECRET</code> و{' '}
-          <code dir="ltr">BRAIN_PRIMARY=mac</code> و{' '}
-          <code dir="ltr">NEXT_PUBLIC_MAC_UPLOAD_URL</code>
-        </li>
-      </ol>
+      <DevDisclosure summaryAr="متغيّرات الاستضافة المطلوبة">
+        <ol className="list-decimal space-y-1 pe-4">
+          <li>
+            على الماك: <code dir="ltr">npm run storage:sync</code>
+          </li>
+          <li>
+            نفق عام: <code dir="ltr">npx ngrok http 7420</code>
+          </li>
+          <li>
+            Netlify: <code dir="ltr">MAC_SYNC_URL</code> و{' '}
+            <code dir="ltr">MAC_SYNC_SECRET</code> و{' '}
+            <code dir="ltr">BRAIN_PRIMARY=mac</code> و{' '}
+            <code dir="ltr">NEXT_PUBLIC_MAC_UPLOAD_URL</code>
+          </li>
+        </ol>
+      </DevDisclosure>
     </div>
   )
 }

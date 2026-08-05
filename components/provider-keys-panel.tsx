@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { ChevronDown, ExternalLink, KeyRound, Loader2, Trash2 } from 'lucide-react'
+import { DevDisclosure } from '@/components/dev-disclosure'
 
 type ProviderStatus = {
   envName: string
@@ -339,9 +340,14 @@ function ProviderEditor({
         <div>
           <p className="text-sm font-semibold text-ab-ink">{p.labelAr}</p>
           <p className="text-[11px] text-stone-500">{p.hintAr}</p>
-          <p className="mt-0.5 font-mono text-[10px] text-stone-400" dir="ltr">
-            {p.envName}
-          </p>
+          <DevDisclosure
+            className="group mt-1"
+            summaryAr="اسم المتغيّر في الاستضافة"
+          >
+            <code className="font-mono text-[10px] text-stone-500" dir="ltr">
+              {p.envName}
+            </code>
+          </DevDisclosure>
         </div>
         <span
           className={

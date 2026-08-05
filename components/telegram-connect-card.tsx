@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { MessageCircle, CheckCircle2, Circle } from 'lucide-react'
+import { DevDisclosure } from '@/components/dev-disclosure'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { CommitteeTelegramPanel } from '@/components/committee-telegram-panel'
@@ -161,10 +162,16 @@ export function ConnectedServicesPanel() {
       <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4 text-xs text-stone-600">
         <p className="mb-1 font-semibold text-ab-ink">تفريغ الصوت</p>
         <p>
-          الميكروفون في الغرفة يستخدم سلسلة: نماذج عربية مجانية → Groq Whisper →
-          Deepgram (إن وُجد DEEPGRAM_API_KEY) → OpenAI Whisper. عيّن المفتاح في
-          Netlify عند الحاجة.
+          الميكروفون في الغرفة يجرّب المزوّدين بالترتيب حتى ينجح أحدهم — لا حاجة
+          لاختيار شيء.
         </p>
+        <DevDisclosure
+          className="mt-2 group"
+          summaryAr="ترتيب مزوّدي التفريغ"
+        >
+          نماذج عربية مجانية → Groq Whisper → Deepgram (إن وُجد{' '}
+          <code dir="ltr">DEEPGRAM_API_KEY</code>) → OpenAI Whisper.
+        </DevDisclosure>
       </div>
     </div>
   )

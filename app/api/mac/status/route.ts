@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import {
   directMacUploadInfo,
   getMacSyncConfig,
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 /** Mac agent health + brain status for settings UI. */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
 
   const configured = macSyncConfigured()

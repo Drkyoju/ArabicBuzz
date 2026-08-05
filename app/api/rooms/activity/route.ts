@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import {
   listCanvasArtifacts,
   listRoomMembers,
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * Room activity: full-ish history of posts + canvas editors + members.
  */
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'

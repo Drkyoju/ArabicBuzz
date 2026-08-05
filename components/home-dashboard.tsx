@@ -13,12 +13,14 @@ import {
   Video,
   ListTodo,
   Fingerprint,
+  Rocket,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
 import { AssociationRecipes } from '@/components/association-recipes'
+import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { DateDual } from '@/components/date-dual'
 import { cn } from '@/lib/utils'
 
@@ -76,6 +78,8 @@ type Digest = {
   zoom?: {
     liveNow: boolean
     liveCount: number
+    scheduledNowCount?: number
+    configured?: boolean
     lastLiveAtAr?: string | null
     messageAr?: string
     recentSessions?: Array<{
@@ -91,6 +95,19 @@ type Digest = {
   tasks?: { openCount: number; items: Array<{ id: string; titleAr: string; status: string }> }
   recentPosts?: Array<{ authorAr: string; content: string; atAr: string; kind: string }>
   messageAr?: string
+}
+
+const TASK_STATUS_AR: Record<string, string> = {
+  open: 'مفتوحة',
+  in_progress: 'قيد التنفيذ',
+  blocked: 'متعطّلة',
+  done: 'منجزة',
+  cancelled: 'ملغاة',
+  deferred: 'مؤجّلة',
+}
+
+function taskStatusAr(status: string): string {
+  return TASK_STATUS_AR[status] || 'مفتوحة'
 }
 
 function DayBlock({
@@ -159,6 +176,12 @@ export function HomeDashboard({
   const demo = useMemo(() => buildGuestDemoDigest(), [])
 
   const load = useCallback(async () => {
+    if (signedIn !== true) {
+      setBusy(false)
+      setLiveData(null)
+      setErr('')
+      return
+    }
     setBusy(true)
     setErr('')
     try {
@@ -213,13 +236,14 @@ export function HomeDashboard({
     } finally {
       setBusy(false)
     }
-  }, [scopeId])
+  }, [scopeId, signedIn])
 
   useEffect(() => {
     void load()
+    if (signedIn !== true) return
     const t = window.setInterval(() => void load(), 60_000)
     return () => window.clearInterval(t)
-  }, [load])
+  }, [load, signedIn])
 
   // Guests always see seeded demo data so first paint proves value.
   const useDemo = signedIn === false
@@ -239,6 +263,18 @@ export function HomeDashboard({
   const zoom = viewData.zoom
   const isGuest = signedIn === false
   const demoTyped = isGuestDemo ? demo : null
+
+  // A brand-new signed-in scope has nothing to show. Guide the first three
+  // actions instead of stacking a dozen "لا مواعيد / لا مهام" cards.
+  const isEmptyWorkspace =
+    signedIn === true &&
+    liveData !== null &&
+    (liveData.commitments?.count || 0) === 0 &&
+    (liveData.systemDeadlines || []).length === 0 &&
+    (liveData.tasks?.openCount || 0) === 0 &&
+    (liveData.calendar?.week || []).length === 0 &&
+    (liveData.activity || []).length === 0 &&
+    (liveData.recentPosts || []).length === 0
 
 
   return (
@@ -498,9 +534,75 @@ export function HomeDashboard({
         </div>
       )}
 
-      {!isGuest && signedIn === true && (
+      {!isGuest && signedIn === true && !isEmptyWorkspace && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-[12px] text-emerald-900">
           جلسة مسجّلة — الغرف والموافقات والربط بـ Drive/تيليجرام تُحفظ لحسابك.
+        </div>
+      )}
+
+      {isEmptyWorkspace && (
+        <div className="space-y-3 rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-4">
+          <div>
+            <h2 className="flex items-center gap-1.5 text-base font-bold text-ab-ink">
+              <Rocket className="h-4 w-4 text-ab-accent" aria-hidden />
+              مساحتك جاهزة — ابدأ بثلاث خطوات
+            </h2>
+            <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-stone-600">
+              اللوحة فارغة لأن هذه الغرفة جديدة، وليست معطّلة. أكمل الخطوات
+              أدناه لتظهر المواعيد والمهام وسجل التدقيق تلقائياً.
+            </p>
+          </div>
+          <ol className="grid gap-2 sm:grid-cols-3">
+            <li className="rounded-lg border border-ab-border bg-white p-3">
+              <p className="text-[12px] font-semibold text-ab-ink">
+                ١. اربط Google
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                للدعوات الخارجية وملفات Drive — خطوة واحدة من الإعدادات.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('settings')}
+                className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
+              >
+                الإعدادات
+              </button>
+            </li>
+            <li className="rounded-lg border border-ab-border bg-white p-3">
+              <p className="text-[12px] font-semibold text-ab-ink">
+                ٢. زامن عقل الشركة
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                فهرسة مجلد Drive حتى يجيب الوكيل من ملفاتكم لا من تخمينه.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('settings')}
+                className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+              >
+                عقل الشركة
+              </button>
+            </li>
+            <li className="rounded-lg border border-ab-border bg-white p-3">
+              <p className="text-[12px] font-semibold text-ab-ink">
+                ٣. أضف أول مهمة أو موعد
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                من لوحة التقويم والمهام المشتركة — تظهر فوراً في لوحة اليوم.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('calendar')}
+                className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+              >
+                تقويم ومهام الفريق
+              </button>
+            </li>
+          </ol>
+          <FirstRunChecklist
+            onNavigate={onNavigate}
+            className="rounded-lg border border-ab-border bg-white p-3 text-sm"
+          />
         </div>
       )}
 
@@ -516,315 +618,327 @@ export function HomeDashboard({
         <p className="text-sm text-stone-500">جاري تحميل لوحة اليوم…</p>
       )}
 
-      {/* Zoom strip */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3',
-          zoom?.liveNow
-            ? 'border-red-200 bg-red-50'
-            : 'border-ab-border bg-ab-surface'
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <Video
-            className={cn(
-              'h-5 w-5',
-              zoom?.liveNow ? 'text-red-600' : 'text-stone-400'
-            )}
-          />
-          <div>
-            <p className="text-sm font-bold text-ab-ink">
-              {zoom?.liveNow
-                ? `Zoom مباشر الآن (${zoom.liveCount})`
-                : 'Zoom غير مباشر الآن'}
-            </p>
-            <p className="text-[11px] text-stone-500">
-              {zoom?.liveNow
-                ? ('liveMeetings' in (zoom || {}) &&
-                  Array.isArray((zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings) &&
-                  (zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings?.[0]
-                    ?.topic) ||
-                  zoom.messageAr
-                : zoom?.lastLiveAtAr
-                  ? `آخر بث: ${zoom.lastLiveAtAr}`
-                  : zoom?.messageAr || 'لا سجل بث بعد'}
-            </p>
+      {!isEmptyWorkspace && (
+        <>
+        {/* Zoom strip */}
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3',
+            zoom?.liveNow
+              ? 'border-red-200 bg-red-50'
+              : 'border-ab-border bg-ab-surface'
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Video
+              className={cn(
+                'h-5 w-5',
+                zoom?.liveNow ? 'text-red-600' : 'text-stone-400'
+              )}
+            />
+            <div>
+              <p className="text-sm font-bold text-ab-ink">
+                {zoom?.liveNow
+                  ? `Zoom مباشر الآن (${zoom.liveCount})`
+                  : 'Zoom غير مباشر الآن'}
+              </p>
+              <p className="text-[11px] text-stone-500">
+                {zoom?.liveNow
+                  ? ('liveMeetings' in (zoom || {}) &&
+                    Array.isArray((zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings) &&
+                    (zoom as { liveMeetings?: Array<{ topic: string }> }).liveMeetings?.[0]
+                      ?.topic) ||
+                    zoom.messageAr
+                  : zoom?.messageAr ||
+                    (zoom?.lastLiveAtAr
+                      ? `آخر بث: ${zoom.lastLiveAtAr}`
+                      : 'لا سجل بث بعد')}
+              </p>
+            </div>
+          </div>
+          {zoom?.liveNow && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white">
+              <Radio className="h-3 w-3 animate-pulse" />
+              LIVE
+            </span>
+          )}
+        </div>
+
+        <div>
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+            <CalendarDays className="h-4 w-4 text-ab-accent" />
+            المواعيد — أمس / اليوم / غداً / بعده
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <DayBlock
+              title="أمس"
+              subtitle={viewData.days?.yesterday}
+              events={cal?.yesterday || []}
+            />
+            <DayBlock
+              title="اليوم"
+              subtitle={viewData.days?.today}
+              events={cal?.today || []}
+              accent="ring-1 ring-ab-accent/30"
+            />
+            <DayBlock
+              title="غداً"
+              subtitle={viewData.days?.tomorrow}
+              events={cal?.tomorrow || []}
+            />
+            <DayBlock
+              title="بعد غد"
+              subtitle={viewData.days?.dayAfter}
+              events={cal?.dayAfter || []}
+            />
           </div>
         </div>
-        {zoom?.liveNow && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white">
-            <Radio className="h-3 w-3 animate-pulse" />
-            LIVE
-          </span>
-        )}
-      </div>
 
-      <div>
-        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-          <CalendarDays className="h-4 w-4 text-ab-accent" />
-          المواعيد — أمس / اليوم / غداً / بعده
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <DayBlock
-            title="أمس"
-            subtitle={viewData.days?.yesterday}
-            events={cal?.yesterday || []}
-          />
-          <DayBlock
-            title="اليوم"
-            subtitle={viewData.days?.today}
-            events={cal?.today || []}
-            accent="ring-1 ring-ab-accent/30"
-          />
-          <DayBlock
-            title="غداً"
-            subtitle={viewData.days?.tomorrow}
-            events={cal?.tomorrow || []}
-          />
-          <DayBlock
-            title="بعد غد"
-            subtitle={viewData.days?.dayAfter}
-            events={cal?.dayAfter || []}
-          />
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-ab-border bg-white p-4">
-        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-          <ListTodo className="h-4 w-4 text-ab-accent" />
-          التزامات هذا الأسبوع
-        </h2>
-        <p className="mb-3 text-[11px] text-stone-500">
-          من المهام + المواعيد + مواعيد النظام ({viewData.commitments?.count || 0})
-        </p>
-        {(viewData.commitments?.items || []).length === 0 ? (
-          <p className="text-xs text-stone-400">
-            لا التزامات ظاهرة — أضف مهاماً أو مواعيد نظام من التقويم.
+        <div className="rounded-xl border border-ab-border bg-white p-4">
+          <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+            <ListTodo className="h-4 w-4 text-ab-accent" />
+            التزامات هذا الأسبوع
+          </h2>
+          <p className="mb-3 text-[11px] text-stone-500">
+            من المهام + المواعيد + مواعيد النظام ({viewData.commitments?.count || 0})
           </p>
-        ) : (
-          <ul className="divide-y divide-ab-border">
-            {(viewData.commitments?.items || []).map((c) => (
-              <li
-                key={c.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
-              >
-                <span>
-                  <span className="ms-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
-                    {c.kind === 'task'
-                      ? 'مهمة'
-                      : c.kind === 'deadline'
-                        ? 'نظام'
-                        : 'موعد'}
-                  </span>
-                  <span className="font-medium text-ab-ink">{c.titleAr}</span>
-                </span>
-                <span className="text-[11px] text-stone-500">
-                  {c.whenAtAr}
-                  {c.detailAr ? ` · ${c.detailAr}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {(viewData.systemDeadlines || []).length > 0 && (
-          <div className="mt-3 border-t border-ab-border pt-3">
-            <p className="mb-1 text-[11px] font-semibold text-stone-600">
-              مواعيد النظام القادمة
+          {(viewData.commitments?.items || []).length === 0 ? (
+            <p className="text-xs text-stone-400">
+              لا التزامات ظاهرة — أضف مهاماً أو مواعيد نظام من التقويم.
             </p>
-            <ul className="space-y-1 text-xs">
-              {(viewData.systemDeadlines || []).map((d) => (
-                <li key={d.id} className="flex justify-between gap-2">
-                  <span>{d.labelAr}</span>
-                  <span className="tabular-nums text-stone-500">
-                    {d.daysLeft < 0
-                      ? `متأخر ${Math.abs(d.daysLeft)}ي`
-                      : `${d.daysLeft} يوم`}
+          ) : (
+            <ul className="divide-y divide-ab-border">
+              {(viewData.commitments?.items || []).map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
+                >
+                  <span>
+                    <span className="ms-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
+                      {c.kind === 'task'
+                        ? 'مهمة'
+                        : c.kind === 'deadline'
+                          ? 'نظام'
+                          : 'موعد'}
+                    </span>
+                    <span className="font-medium text-ab-ink">{c.titleAr}</span>
                   </span>
+                  <span className="text-[11px] text-stone-500">
+                    {c.whenAtAr}
+                    {c.detailAr ? ` · ${c.detailAr}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(viewData.systemDeadlines || []).length > 0 && (
+            <div className="mt-3 border-t border-ab-border pt-3">
+              <p className="mb-1 text-[11px] font-semibold text-stone-600">
+                مواعيد النظام القادمة
+              </p>
+              <ul className="space-y-1 text-xs">
+                {(viewData.systemDeadlines || []).map((d) => (
+                  <li key={d.id} className="flex justify-between gap-2">
+                    <span>{d.labelAr}</span>
+                    <span className="tabular-nums text-stone-500">
+                      {d.daysLeft < 0
+                        ? `متأخر ${Math.abs(d.daysLeft)}ي`
+                        : `${d.daysLeft} يوم`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+            <Clock className="h-4 w-4 text-ab-accent" />
+            أحداث هذا الأسبوع
+          </h2>
+          {(cal?.week || []).length === 0 ? (
+            <p className="text-xs text-stone-400">لا أحداث مسجّلة لهذا الأسبوع.</p>
+          ) : (
+            <ul className="divide-y divide-ab-border">
+              {(cal?.week || []).map((e) => (
+                <li
+                  key={e.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
+                >
+                  <span className="font-medium text-ab-ink">{e.titleAr}</span>
+                  <span className="text-[11px] text-stone-500">
+                    {e.startsAtAr}
+                    {e.hasZoom ? ' · Zoom' : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Mini audit preview */}
+        {demoTyped?.auditEntries && (
+          <div className="rounded-xl border border-ab-border bg-white p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+                <Fingerprint className="h-4 w-4 text-ab-accent" />
+                سجل التدقيق (سدايا)
+              </h2>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('audit')}
+                className="text-[11px] text-ab-accent underline"
+              >
+                العرض الكامل
+              </button>
+            </div>
+            <p className="mb-2 text-[11px] text-stone-500">
+              ختم لكل إجراء — جاهز للمراجعة دون تصدير منفصل.
+            </p>
+            <ul className="space-y-2">
+              {demoTyped.auditEntries.slice(0, 4).map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-lg border border-ab-border/70 px-2.5 py-2 text-[12px]"
+                >
+                  <p className="font-semibold text-ab-ink">
+                    {a.actorAr}
+                    <span className="mr-1 font-normal text-stone-500">
+                      · {a.actionAr}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-stone-400">
+                    {a.atAr} · {a.riskTier}
+                    <span className="mr-1 font-mono" dir="ltr">
+                      · {a.watermarkHint}
+                    </span>
+                  </p>
                 </li>
               ))}
             </ul>
           </div>
         )}
-      </div>
 
-      <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
-        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-          <Clock className="h-4 w-4 text-ab-accent" />
-          أحداث هذا الأسبوع
-        </h2>
-        {(cal?.week || []).length === 0 ? (
-          <p className="text-xs text-stone-400">لا أحداث مسجّلة لهذا الأسبوع.</p>
-        ) : (
-          <ul className="divide-y divide-ab-border">
-            {(cal?.week || []).map((e) => (
-              <li
-                key={e.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
-              >
-                <span className="font-medium text-ab-ink">{e.titleAr}</span>
-                <span className="text-[11px] text-stone-500">
-                  {e.startsAtAr}
-                  {e.hasZoom ? ' · Zoom' : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Mini audit preview */}
-      {demoTyped?.auditEntries && (
-        <div className="rounded-xl border border-ab-border bg-white p-4">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-              <Fingerprint className="h-4 w-4 text-ab-accent" />
-              سجل التدقيق (سدايا)
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-ab-border bg-white p-4">
+            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <Users className="h-4 w-4 text-ab-accent" />
+              من كانوا هنا وماذا عملوا
             </h2>
+            {(viewData.people || []).length === 0 ? (
+              <p className="text-xs text-stone-400">
+                سيظهر هنا من فتح الغرفة أو عدّل أو أرسل رسالة.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {(viewData.people || []).map((p) => (
+                  <li
+                    key={`${p.nameAr}-${p.email || ''}`}
+                    className="rounded-lg border border-ab-border/70 px-2.5 py-2"
+                  >
+                    <p className="text-[13px] font-semibold text-ab-ink">
+                      {p.nameAr}
+                      {p.email ? (
+                        <span
+                          className="mr-1 text-[10px] font-normal text-stone-400"
+                          dir="ltr"
+                        >
+                          {p.email}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] text-stone-500">
+                      {[
+                        p.lastAction,
+                        `${p.actions} إجراء`,
+                        p.lastAtAr,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-ab-border bg-white p-4">
+            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <Pencil className="h-4 w-4 text-ab-accent" />
+              آخر التعديلات
+            </h2>
+            {(viewData.activity || []).length === 0 ? (
+              <p className="text-xs text-stone-400">لا تعديلات مسجّلة بعد.</p>
+            ) : (
+              <ul className="max-h-72 space-y-2 overflow-auto">
+                {(viewData.activity || []).slice(0, 15).map((a) => (
+                  <li key={a.id} className="text-[12px] leading-snug text-stone-600">
+                    <span className="font-semibold text-ab-ink">{a.actorAr}</span>
+                    {' · '}
+                    {a.actionAr}
+                    {a.detailAr ? ` — ${a.detailAr}` : ''}
+                    <span className="text-stone-400"> · {a.atAr}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-ab-border bg-white p-4">
+            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <History className="h-4 w-4 text-ab-accent" />
+              آخر الرسائل
+            </h2>
+            {(viewData.recentPosts || []).length === 0 ? (
+              <p className="text-xs text-stone-400">لا رسائل حديثة.</p>
+            ) : (
+              <ul className="space-y-2">
+                {(viewData.recentPosts || []).map((p, i) => (
+                  <li key={`${p.atAr}-${i}`} className="text-[12px] text-stone-600">
+                    <span className="font-semibold text-ab-ink">{p.authorAr}</span>
+                    {' · '}
+                    {p.content}
+                    <span className="text-stone-400"> · {p.atAr}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-ab-border bg-white p-4">
+            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <ListTodo className="h-4 w-4 text-ab-accent" />
+              مهام مفتوحة ({viewData.tasks?.openCount || 0})
+            </h2>
+            {(viewData.tasks?.items || []).length === 0 ? (
+              <p className="text-xs text-stone-400">لا مهام مفتوحة.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {(viewData.tasks?.items || []).map((t) => (
+                  <li key={t.id} className="text-[12px] text-ab-ink">
+                    {t.titleAr}
+                    <span className="mr-1 text-[10px] text-stone-400">
+                      ({taskStatusAr(t.status)})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               type="button"
-              onClick={() => onNavigate?.('audit')}
-              className="text-[11px] text-ab-accent underline"
+              onClick={() => onNavigate?.('calendar')}
+              className="mt-3 text-[11px] text-ab-accent underline"
             >
-              العرض الكامل
+              عرض لوحة المهام في التقويم
             </button>
           </div>
-          <p className="mb-2 text-[11px] text-stone-500">
-            ختم لكل إجراء — جاهز للمراجعة دون تصدير منفصل.
-          </p>
-          <ul className="space-y-2">
-            {demoTyped.auditEntries.slice(0, 4).map((a) => (
-              <li
-                key={a.id}
-                className="rounded-lg border border-ab-border/70 px-2.5 py-2 text-[12px]"
-              >
-                <p className="font-semibold text-ab-ink">
-                  {a.actorAr}
-                  <span className="mr-1 font-normal text-stone-500">
-                    · {a.actionAr}
-                  </span>
-                </p>
-                <p className="mt-0.5 text-[10px] text-stone-400">
-                  {a.atAr} · {a.riskTier}
-                  <span className="mr-1 font-mono" dir="ltr">
-                    · {a.watermarkHint}
-                  </span>
-                </p>
-              </li>
-            ))}
-          </ul>
         </div>
+        </>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-ab-border bg-white p-4">
-          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-            <Users className="h-4 w-4 text-ab-accent" />
-            من كانوا هنا وماذا عملوا
-          </h2>
-          {(viewData.people || []).length === 0 ? (
-            <p className="text-xs text-stone-400">
-              سيظهر هنا من فتح الغرفة أو عدّل أو أرسل رسالة.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {(viewData.people || []).map((p) => (
-                <li
-                  key={`${p.nameAr}-${p.email || ''}`}
-                  className="rounded-lg border border-ab-border/70 px-2.5 py-2"
-                >
-                  <p className="text-[13px] font-semibold text-ab-ink">
-                    {p.nameAr}
-                    {p.email ? (
-                      <span
-                        className="mr-1 text-[10px] font-normal text-stone-400"
-                        dir="ltr"
-                      >
-                        {p.email}
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-[11px] text-stone-500">
-                    {p.lastAction} · {p.actions} إجراء · {p.lastAtAr}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-ab-border bg-white p-4">
-          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-            <Pencil className="h-4 w-4 text-ab-accent" />
-            آخر التعديلات
-          </h2>
-          {(viewData.activity || []).length === 0 ? (
-            <p className="text-xs text-stone-400">لا تعديلات مسجّلة بعد.</p>
-          ) : (
-            <ul className="max-h-72 space-y-2 overflow-auto">
-              {(viewData.activity || []).slice(0, 15).map((a) => (
-                <li key={a.id} className="text-[12px] leading-snug text-stone-600">
-                  <span className="font-semibold text-ab-ink">{a.actorAr}</span>
-                  {' · '}
-                  {a.actionAr}
-                  {a.detailAr ? ` — ${a.detailAr}` : ''}
-                  <span className="text-stone-400"> · {a.atAr}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-ab-border bg-white p-4">
-          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-            <History className="h-4 w-4 text-ab-accent" />
-            آخر الرسائل
-          </h2>
-          {(viewData.recentPosts || []).length === 0 ? (
-            <p className="text-xs text-stone-400">لا رسائل حديثة.</p>
-          ) : (
-            <ul className="space-y-2">
-              {(viewData.recentPosts || []).map((p, i) => (
-                <li key={`${p.atAr}-${i}`} className="text-[12px] text-stone-600">
-                  <span className="font-semibold text-ab-ink">{p.authorAr}</span>
-                  {' · '}
-                  {p.content}
-                  <span className="text-stone-400"> · {p.atAr}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-ab-border bg-white p-4">
-          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-            <ListTodo className="h-4 w-4 text-ab-accent" />
-            مهام مفتوحة ({viewData.tasks?.openCount || 0})
-          </h2>
-          {(viewData.tasks?.items || []).length === 0 ? (
-            <p className="text-xs text-stone-400">لا مهام مفتوحة.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {(viewData.tasks?.items || []).map((t) => (
-                <li key={t.id} className="text-[12px] text-ab-ink">
-                  · {t.titleAr}
-                  <span className="mr-1 text-[10px] text-stone-400">
-                    ({t.status})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            type="button"
-            onClick={() => onNavigate?.('calendar')}
-            className="mt-3 text-[11px] text-ab-accent underline"
-          >
-            عرض لوحة المهام في التقويم
-          </button>
-        </div>
-      </div>
     </section>
   )
 }

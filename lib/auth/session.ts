@@ -69,61 +69,52 @@ export async function getUserFromRequest(req: Request): Promise<User | null> {
   return null
 }
 
-export async function requireUser(req: Request): Promise<
-  | { ok: true; user: User }
-  | { ok: false; response: Response }
-> {
-  const user = await getUserFromRequest(req)
-  if (user) return { ok: true, user }
+function authRequiredResponse(errorAr: string): Response {
+  return Response.json(
+    { error: errorAr, code: 'AUTH_REQUIRED', loginUrl: '/auth/login' },
+    { status: 401 }
+  )
+}
 
-  return {
-    ok: false,
-    response: Response.json(
-      {
-        error: 'يلزم تسجيل الدخول لاستخدام النماذج.',
-        code: 'AUTH_REQUIRED',
-        loginUrl: '/auth/login',
-      },
-      { status: 401 }
-    ),
+async function requireNonSyntheticUser(
+  req: Request,
+  missingTokenAr: string,
+  syntheticAr: string
+): Promise<{ ok: true; user: User } | { ok: false; response: Response }> {
+  const header = req.headers.get('authorization') || ''
+  if (!/^Bearer\s+\S+/i.test(header)) {
+    return { ok: false, response: authRequiredResponse(missingTokenAr) }
   }
+  const user = await getUserFromRequest(req)
+  if (!user || isSyntheticUser(user)) {
+    return { ok: false, response: authRequiredResponse(syntheticAr) }
+  }
+  return { ok: true, user }
+}
+
+/**
+ * Require a real Supabase session before returning room / tenant data.
+ *
+ * `getUserFromRequest` falls back to the synthetic local owner whenever
+ * AUTH_REQUIRED is off, which made every room read world-readable on the
+ * public deployment. Reads of non-public data must use this instead.
+ */
+export function requireSessionUser(req: Request) {
+  return requireNonSyntheticUser(
+    req,
+    'سجّل الدخول لعرض بيانات الغرفة.',
+    'جلسة غير صالحة — سجّل الدخول بحساب حقيقي لعرض بيانات الغرفة.'
+  )
 }
 
 /**
  * Require a real Supabase session (not local-owner). Use for mutations that
  * must not hit production tables from anonymous guests.
  */
-export async function requireRealUser(req: Request): Promise<
-  | { ok: true; user: User }
-  | { ok: false; response: Response }
-> {
-  const header = req.headers.get('authorization') || ''
-  if (!/^Bearer\s+\S+/i.test(header)) {
-    return {
-      ok: false,
-      response: Response.json(
-        {
-          error: 'يلزم تسجيل الدخول لتنفيذ هذا الإجراء.',
-          code: 'AUTH_REQUIRED',
-          loginUrl: '/auth/login',
-        },
-        { status: 401 }
-      ),
-    }
-  }
-  const user = await getUserFromRequest(req)
-  if (!user || isSyntheticUser(user)) {
-    return {
-      ok: false,
-      response: Response.json(
-        {
-          error: 'جلسة غير صالحة — سجّل الدخول بحساب حقيقي.',
-          code: 'AUTH_REQUIRED',
-          loginUrl: '/auth/login',
-        },
-        { status: 401 }
-      ),
-    }
-  }
-  return { ok: true, user }
+export function requireRealUser(req: Request) {
+  return requireNonSyntheticUser(
+    req,
+    'يلزم تسجيل الدخول لتنفيذ هذا الإجراء.',
+    'جلسة غير صالحة — سجّل الدخول بحساب حقيقي.'
+  )
 }

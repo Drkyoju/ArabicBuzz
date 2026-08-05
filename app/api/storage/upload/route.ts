@@ -1,4 +1,4 @@
-import { requireUser, requireRealUser } from '@/lib/auth/session'
+import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import {
   getStorageStatus,
   isLocalStorageEnabled,
@@ -82,7 +82,7 @@ async function forwardToMacSync(opts: {
 }
 
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const direct = directMacUploadInfo()

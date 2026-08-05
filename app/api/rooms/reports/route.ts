@@ -1,10 +1,10 @@
-import { requireUser } from '@/lib/auth/session'
+import { requireSessionUser } from '@/lib/auth/session'
 import { reportRoomMembersAttendance } from '@/lib/rooms/association-reports'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const { searchParams } = new URL(req.url)
   const scopeId = searchParams.get('scopeId')?.trim() || 'shared-demo'
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireUser(req)
+  const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
