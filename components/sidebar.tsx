@@ -496,6 +496,18 @@ export function Sidebar({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const signedIn = useSignedIn()
+  // At md+ the aside is always laid out on screen, so it must never be inert.
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  const drawerActive = mobileOpen || isDesktop
 
   return (
     <>
@@ -549,8 +561,8 @@ export function Sidebar({
           mobileOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
         aria-label="الشريط الجانبي"
-        aria-hidden={mobileOpen ? undefined : true}
-        inert={!mobileOpen ? true : undefined}
+        aria-hidden={drawerActive ? undefined : true}
+        inert={!drawerActive ? true : undefined}
       >
         {mobileOpen && (
           <div className="flex items-center justify-between border-b border-ab-border px-3 py-2 md:hidden">
