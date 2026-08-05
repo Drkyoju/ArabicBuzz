@@ -68,6 +68,17 @@ export default function AuthCallbackPage() {
           )
         }
 
+        // Force org role from Google profile email (director allow-list).
+        if (session?.access_token) {
+          try {
+            await fetch('/api/me/role', {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+          } catch {
+            /* non-fatal — sidebar will retry */
+          }
+        }
+
         router.replace(wantCalendar ? '/?calendar=connected' : '/')
       } catch (e) {
         router.replace(

@@ -233,16 +233,24 @@ export async function getActorRoomRole(
   userId: string,
   email?: string | null
 ): Promise<RoomMemberRole | null> {
+  const { isDirectorEmail } = await import('@/lib/auth/roles')
+  // Org director always has room-owner powers.
+  if (isDirectorEmail(email)) return 'owner'
+
   const { members } = await listRoomMembers(scopeId)
   const byUser = members.find((m) => m.userId && m.userId === userId)
-  if (byUser) return byUser.role
-  if (email) {
-    const byEmail = members.find(
-      (m) => m.email && m.email.toLowerCase() === email.toLowerCase()
-    )
-    if (byEmail) return byEmail.role
-  }
-  return null
+  const stored =
+    byUser?.role ||
+    (email
+      ? members.find(
+          (m) => m.email && m.email.toLowerCase() === email.toLowerCase()
+        )?.role
+      : null) ||
+    null
+  if (!stored) return null
+  // Non-directors cannot keep the «مدير» room editor seat.
+  if (stored === 'editor') return 'member'
+  return stored
 }
 
 export async function assertRoomOwner(
@@ -250,6 +258,8 @@ export async function assertRoomOwner(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { isDirectorEmail } = await import('@/lib/auth/roles')
+  if (isDirectorEmail(email)) return { ok: true }
   const role = await getActorRoomRole(scopeId, userId, email)
   if (role === 'owner') return { ok: true }
   return {
@@ -680,6 +690,7 @@ export async function acceptInviteByToken(opts: {
   token: string
   displayNameAr: string
   userId?: string
+  email?: string | null
 }): Promise<{ ok: boolean; scopeId?: string; member?: RoomMember; error?: string }> {
   const name = opts.displayNameAr.trim()
   if (!name) return { ok: false, error: 'اكتب اسمك للانضمام' }
@@ -755,9 +766,12 @@ export async function acceptInviteByToken(opts: {
   }
 
   const email =
-    invite.email && !invite.email.includes('@invite.local')
+    (opts.email && opts.email.includes('@')
+      ? opts.email
+      : null) ||
+    (invite.email && !invite.email.includes('@invite.local')
       ? invite.email
-      : `guest-${opts.token.slice(0, 8)}@invite.local`
+      : `guest-${opts.token.slice(0, 8)}@invite.local`)
 
   const added = await addRoomMember({
     scopeId: invite.scopeId,
@@ -771,10 +785,13 @@ export async function acceptInviteByToken(opts: {
   if (opts.userId) {
     try {
       const { setOrgMemberRole } = await import('@/lib/auth/rbac')
+      const { orgRoleForEmail } = await import('@/lib/auth/roles')
+      const orgRole = orgRoleForEmail(email, { userId: opts.userId })
       await setOrgMemberRole(
         opts.userId,
         process.env.DEFAULT_ORG_ID || 'org-demo',
-        'MEMBER'
+        orgRole,
+        { email }
       )
     } catch {
       /* non-fatal */

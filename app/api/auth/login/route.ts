@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { syncOrgRoleFromEmail } from '@/lib/auth/rbac'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,11 @@ export async function POST(req: Request) {
       { error: error?.message || 'بيانات الدخول غير صحيحة.' },
       { status: 401 }
     )
+  }
+
+  const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
+  if (data.user?.id) {
+    await syncOrgRoleFromEmail(data.user.id, orgId, data.user.email || email)
   }
 
   return Response.json({ session: data.session, user: data.user })

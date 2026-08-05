@@ -18,10 +18,13 @@ export type DirectorDigestResult = {
   to?: string
 }
 
+import { getDirectorEmails } from '@/lib/auth/roles'
+
 function directorEmail(): string | null {
   return (
     process.env.DIRECTOR_EMAIL?.trim() ||
     process.env.DIGEST_EMAIL?.trim() ||
+    getDirectorEmails()[0] ||
     null
   )
 }

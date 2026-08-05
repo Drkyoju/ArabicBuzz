@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     token,
     displayNameAr,
     userId: auth.user.id,
+    email: auth.user.email,
   })
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 })

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { syncOrgRoleFromEmail } from '@/lib/auth/rbac'
 
 export const dynamic = 'force-dynamic'
 
@@ -6,6 +7,11 @@ type Body = { email?: string; password?: string }
 
 function bad(message: string, status = 400) {
   return Response.json({ error: message }, { status })
+}
+
+async function syncRole(userId: string, email: string) {
+  const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
+  await syncOrgRoleFromEmail(userId, orgId, email)
 }
 
 /**
@@ -48,6 +54,7 @@ export async function POST(req: Request) {
           400
         )
       }
+      if (signed.user?.id) await syncRole(signed.user.id, email)
       return Response.json({
         session: signed.session,
         user: signed.user,
@@ -69,9 +76,12 @@ export async function POST(req: Request) {
     )
   }
 
+  const user = signed.user || created.user
+  if (user?.id) await syncRole(user.id, email)
+
   return Response.json({
     session: signed.session,
-    user: signed.user || created.user,
+    user,
     created: true,
   })
 }

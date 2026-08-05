@@ -8,6 +8,13 @@ import {
   roomRoleIsDirector,
   roomRoleLabelAr,
 } from '@/lib/auth/role-labels'
+import {
+  isDirectorEmail,
+  labelArForEmail,
+  orgRoleForEmail,
+  personaForEmail,
+  roomRoleForEmail,
+} from '@/lib/auth/roles'
 
 export type { Role, UiPersona }
 export {
@@ -17,6 +24,11 @@ export {
   roleToPersona,
   roomRoleIsDirector,
   roomRoleLabelAr,
+  isDirectorEmail,
+  labelArForEmail,
+  orgRoleForEmail,
+  personaForEmail,
+  roomRoleForEmail,
 }
 
 export const ARABIC_AUTHZ_ERROR =
@@ -111,24 +123,33 @@ export async function getMemberRole(
 
 /**
  * Returns true when the member's role is at least as privileged as `requiredRole`.
+ * When `email` is provided, the director allow-list is the source of truth.
  */
 export async function hasPermission(
   userId: string,
   orgId: string,
-  requiredRole: Role
+  requiredRole: Role,
+  email?: string | null
 ): Promise<boolean> {
   if (!userId?.trim() || !orgId?.trim()) return false
+  if (email !== undefined) {
+    const role = orgRoleForEmail(email, { userId })
+    return ROLE_RANK[role] >= ROLE_RANK[requiredRole]
+  }
   const role = await getMemberRole(userId, orgId)
   if (!role) return false
+  // Without email, do not trust elevated DB rows (stale directors).
+  if (ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER) return false
   return ROLE_RANK[role] >= ROLE_RANK[requiredRole]
 }
 
 export async function assertPermission(
   userId: string,
   orgId: string,
-  requiredRole: Role
+  requiredRole: Role,
+  email?: string | null
 ): Promise<void> {
-  const ok = await hasPermission(userId, orgId, requiredRole)
+  const ok = await hasPermission(userId, orgId, requiredRole, email)
   if (!ok) {
     throw new AuthorizationError(ARABIC_AUTHZ_ERROR)
   }
@@ -161,18 +182,34 @@ export async function withRlsContext<T>(
 }
 
 /**
- * Upsert org membership role (directors/admins assign via settings / invites).
- * Falls back to in-memory map when Postgres is unavailable.
+ * Upsert org membership role.
+ * When `email` is provided, the role is forced from the director allow-list
+ * (Ryodan71 → OWNER; everyone else → MEMBER) — no self-promotion.
  */
 export async function setOrgMemberRole(
   userId: string,
   orgId: string,
-  role: Role
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  role: Role,
+  opts?: { email?: string | null }
+): Promise<{ ok: true; role: Role } | { ok: false; error: string }> {
   if (!userId?.trim() || !orgId?.trim() || !isRole(role)) {
     return { ok: false, error: 'معطيات الدور غير صالحة' }
   }
-  seedOrgMembership(userId, orgId, role)
+
+  let next: Role = role
+  if (opts && 'email' in opts) {
+    next = orgRoleForEmail(opts.email, { userId })
+  } else if (ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER) {
+    // Strict: cannot elevate without proving a director email.
+    return {
+      ok: false,
+      error: 'تعيين المدير محصور على البريد المعتمد فقط.',
+    }
+  } else {
+    next = 'MEMBER'
+  }
+
+  seedOrgMembership(userId, orgId, next)
   const saved = await withPrismaFallback(async () => {
     await prisma.$executeRawUnsafe(
       `
@@ -183,15 +220,43 @@ export async function setOrgMemberRole(
       `,
       userId,
       orgId,
-      role
+      next
     )
     return true
   }, false)
   if (!saved) {
     // Memory seed already applied — fine for demos / offline.
-    return { ok: true }
+    return { ok: true, role: next }
   }
-  return { ok: true }
+  return { ok: true, role: next }
+}
+
+/**
+ * Sync org membership from the signed-in email (call on login / role GET).
+ * Overrides stale director/admin rows for non-director emails.
+ */
+export async function syncOrgRoleFromEmail(
+  userId: string,
+  orgId: string,
+  email: string | null | undefined,
+  opts?: { allowSyntheticOwner?: boolean }
+): Promise<Role> {
+  const role = orgRoleForEmail(email, {
+    userId,
+    allowSyntheticOwner: opts?.allowSyntheticOwner,
+  })
+  if (
+    opts?.allowSyntheticOwner &&
+    (userId === 'local-owner' || userId === 'user-1') &&
+    !isDirectorEmail(email)
+  ) {
+    seedOrgMembership(userId, orgId, 'OWNER')
+    return 'OWNER'
+  }
+  const result = await setOrgMemberRole(userId, orgId, role, {
+    email: email ?? null,
+  })
+  return result.ok ? result.role : role
 }
 
 /** Minimum roles for sensitive product actions. */

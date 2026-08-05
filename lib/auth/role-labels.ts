@@ -29,8 +29,7 @@ export function roleLabelAr(role: Role): string {
 
 /** Room membership → Arabic badge (owner/editor ≈ مدير، member ≈ موظف). */
 export function roomRoleLabelAr(role: string): string {
-  if (role === 'owner') return 'مسؤول'
-  if (role === 'editor') return 'مدير'
+  if (role === 'owner' || role === 'editor') return 'مدير'
   if (role === 'viewer' || role === 'guest') return 'موظف'
   return 'موظف'
 }

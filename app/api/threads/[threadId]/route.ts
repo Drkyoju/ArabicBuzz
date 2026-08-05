@@ -34,7 +34,12 @@ export async function DELETE(
       )
     }
 
-    await assertPermission(userId, orgId, SENSITIVE_ACTION_ROLES.deleteThread)
+    await assertPermission(
+      userId,
+      orgId,
+      SENSITIVE_ACTION_ROLES.deleteThread,
+      auth.user.email
+    )
 
     const deleted = await withRlsContext({ userId, orgId }, async () => {
       return withPrismaFallback(

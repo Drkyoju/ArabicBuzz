@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { seedOrgMembership } from '@/lib/auth/rbac'
+import { syncOrgRoleFromEmail } from '@/lib/auth/rbac'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +11,7 @@ const DEMO_PASSWORD =
 /**
  * One-click demo login so the workspace UI is usable without OTP.
  * Creates the demo user if missing (service role), then returns a session.
+ * Role follows the director email allow-list (demo users are employees unless listed).
  */
 export async function POST() {
   if (process.env.ALLOW_DEMO_LOGIN !== 'true') {
@@ -53,7 +54,7 @@ export async function POST() {
     if (created.error) {
       const list = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
       const existing = list.data.users.find(
-        (u) => u.email?.toLowerCase() === DEMO_EMAIL
+        (u) => u.email?.toLowerCase() === DEMO_EMAIL.toLowerCase()
       )
       if (existing) {
         await admin.auth.admin.updateUserById(existing.id, {
@@ -79,8 +80,12 @@ export async function POST() {
     )
   }
 
-  seedOrgMembership(signIn.data.user.id, 'org-demo', 'OWNER')
-  seedOrgMembership('user-1', 'org-demo', 'OWNER')
+  const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
+  await syncOrgRoleFromEmail(
+    signIn.data.user.id,
+    orgId,
+    signIn.data.user.email || DEMO_EMAIL
+  )
 
   return Response.json({
     ok: true,

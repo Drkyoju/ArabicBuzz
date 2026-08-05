@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       approvedBy: userId,
       userId,
       orgId,
+      email: auth.user.email,
     })
     return NextResponse.json(result)
   } catch (e) {

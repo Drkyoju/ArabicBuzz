@@ -16,6 +16,7 @@ export type ResolveApprovalInput = {
   approvedBy?: string
   userId?: string
   orgId?: string
+  email?: string | null
 }
 
 const memoryApprovals = new Map<
@@ -135,7 +136,8 @@ export async function resolveApproval(input: ResolveApprovalInput) {
     await assertPermission(
       userId,
       orgId,
-      SENSITIVE_ACTION_ROLES.approveHighRisk
+      SENSITIVE_ACTION_ROLES.approveHighRisk,
+      input.email
     )
   }
 

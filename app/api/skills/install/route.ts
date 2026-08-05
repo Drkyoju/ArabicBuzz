@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
     await assertPermission(
       userId,
       orgId,
-      SENSITIVE_ACTION_ROLES.installSkill
+      SENSITIVE_ACTION_ROLES.installSkill,
+      auth.user.email
     )
 
     const skill = getMarketplaceSkill(skillId)

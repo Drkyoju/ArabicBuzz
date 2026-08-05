@@ -1,4 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { syncOrgRoleFromEmail } from '@/lib/auth/rbac'
+import type { Session, User } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,20 +27,25 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Supabase غير مُعدّ.' }, { status: 500 })
   }
 
+  async function finish(session: Session, user: User) {
+    const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
+    await syncOrgRoleFromEmail(user.id, orgId, user.email || email)
+    return Response.json({ session, user })
+  }
+
   const { data, error } = await admin.auth.verifyOtp({
     email,
     token,
     type: 'email',
   })
 
-  if (error || !data.session) {
-    // Try magiclink/token type variants
+  if (error || !data.session || !data.user) {
     const retry = await admin.auth.verifyOtp({
       email,
       token,
       type: 'magiclink',
     })
-    if (retry.error || !retry.data.session) {
+    if (retry.error || !retry.data.session || !retry.data.user) {
       return Response.json(
         {
           error:
@@ -49,11 +56,8 @@ export async function POST(req: Request) {
         { status: 401 }
       )
     }
-    return Response.json({
-      session: retry.data.session,
-      user: retry.data.user,
-    })
+    return finish(retry.data.session, retry.data.user)
   }
 
-  return Response.json({ session: data.session, user: data.user })
+  return finish(data.session, data.user)
 }

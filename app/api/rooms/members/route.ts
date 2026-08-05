@@ -1,5 +1,6 @@
 import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import { isSyntheticIdentity } from '@/lib/auth/synthetic'
+import { isDirectorEmail } from '@/lib/auth/roles'
 import {
   addRoomMember,
   assertRoomOwner,
@@ -23,9 +24,20 @@ export async function GET(req: Request) {
   )
   return Response.json({
     // Placeholder rows from the soft-auth fallback are not real invitees.
-    members: result.members.map((m) =>
-      isSyntheticIdentity(m) ? { ...m, email: null, userId: null } : m
-    ),
+    members: result.members.map((m) => {
+      const row = isSyntheticIdentity(m)
+        ? { ...m, email: null, userId: null }
+        : m
+      // Email allow-list wins over stale DB room roles.
+      if (isDirectorEmail(row.email)) {
+        return { ...row, role: 'owner' as const }
+      }
+      // Non-director emails never display as room «مدير».
+      if (row.role === 'owner' || row.role === 'editor') {
+        return { ...row, role: 'member' as const }
+      }
+      return row
+    }),
     myRole,
     canManage: myRole === 'owner',
     source: result.source,
@@ -54,7 +66,9 @@ export async function POST(req: Request) {
   }
 
   if (body.action === 'update' && body.memberId) {
-    const { updateRoomMember } = await import('@/lib/rooms/persist')
+    const { updateRoomMember, listRoomMembers } = await import(
+      '@/lib/rooms/persist'
+    )
     const role =
       body.role === 'editor' ||
       body.role === 'member' ||
@@ -62,6 +76,23 @@ export async function POST(req: Request) {
       body.role === 'guest'
         ? body.role
         : undefined
+
+    // Strict: only director allow-list emails may hold room editor.
+    if (role === 'editor') {
+      const listed = await listRoomMembers(scopeId)
+      const existing = listed.members.find((m) => m.id === body.memberId)
+      const targetEmail = body.email || existing?.email
+      if (!isDirectorEmail(targetEmail)) {
+        return Response.json(
+          {
+            error:
+              'دور المدير محصور على البريد المعتمد. باقي الأعضاء موظفون فقط.',
+          },
+          { status: 403 }
+        )
+      }
+    }
+
     const result = await updateRoomMember({
       scopeId,
       memberId: body.memberId,
@@ -76,15 +107,17 @@ export async function POST(req: Request) {
       return Response.json({ error: result.error }, { status: 400 })
     }
 
-    // Mirror room director/employee onto org RBAC when the member has a userId.
+    // Mirror room role onto org RBAC when the member has a userId.
     if (role && result.member?.userId) {
       const { setOrgMemberRole } = await import('@/lib/auth/rbac')
+      const { orgRoleForEmail } = await import('@/lib/auth/roles')
       const orgId = process.env.DEFAULT_ORG_ID || 'org-demo'
-      await setOrgMemberRole(
-        result.member.userId,
-        orgId,
-        role === 'editor' ? 'DEPARTMENT_MANAGER' : 'MEMBER'
-      )
+      const orgRole = orgRoleForEmail(result.member.email, {
+        userId: result.member.userId,
+      })
+      await setOrgMemberRole(result.member.userId, orgId, orgRole, {
+        email: result.member.email,
+      })
     }
 
     return Response.json({
