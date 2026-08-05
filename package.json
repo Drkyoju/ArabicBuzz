@@ -20,7 +20,9 @@
     "test:multiplayer": "tsx scripts/test-multiplayer-loop.ts",
     "test:evals": "tsx scripts/run-evals.ts",
     "test:evals:arabic-fc": "tsx scripts/run-arabic-fc-evals.ts",
-    "evals:fetch-arabic-fc": "tsx scripts/fetch-arabic-fc-subset.ts"
+    "evals:fetch-arabic-fc": "tsx scripts/fetch-arabic-fc-subset.ts",
+    "ops:bridge": "node packages/ops-bridge/bin/ab-ops-bridge.mjs",
+    "ops:health": "node packages/ops-bridge/bin/healthcheck.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.31",

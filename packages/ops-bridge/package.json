@@ -1,0 +1,16 @@
+{
+  "name": "@arabic-buzz/ops-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mac/VPS ops bridge: Supergateway wrappers for stdio MCPs + healthcheck helpers for Arabic Buzz on Netlify.",
+  "bin": {
+    "ab-ops-bridge": "./bin/ab-ops-bridge.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/ab-ops-bridge.mjs",
+    "health": "node ./bin/healthcheck.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

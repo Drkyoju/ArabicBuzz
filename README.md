@@ -118,11 +118,25 @@ curl -X POST "https://arabicbuzz.netlify.app/api/crons/director-digest?force=1" 
 ## Evaluation benchmark
 
 ```bash
-npm run test:evals           # offline-capable CI gate
+npm run test:evals           # offline-capable CI gate (+ Arabic FC when live keys)
 npm run test:evals -- --live # Agent Orchestrator + LLM-as-Judge when keys exist
+npm run test:evals:arabic-fc # MSA function-calling subset (HeshamHaroon)
+npm run evals:fetch-arabic-fc # regenerate vendored subset from Hugging Face
 ```
 
-Fails with exit code `1` if overall `Accuracy < 90%`. Metrics: `ToolSelectionAccuracy`, `ArabicSyntaxScore`, `SafetyPassRate`.
+Fails with exit code `1` if overall `Accuracy < 90%`. Metrics: `ToolSelectionAccuracy`, `ArabicSyntaxScore`, `SafetyPassRate`. Arabic FC suite skips offline when no provider key is set.
+
+## Ops spine (Langfuse · Toolbox · Mac bridge)
+
+See **[docs/ops-spine.md](docs/ops-spine.md)** and **`packages/ops-bridge`**.
+
+```bash
+npm run ops:bridge -- list          # Supergateway presets (filesystem, github, …)
+npm run storage:sync                # Mac agent: /health /task /markitdown
+npm run ops:health                  # probe MAC_SYNC_URL / Toolbox
+```
+
+Netlify env highlights: `LANGFUSE_*`, `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`, `FIRECRAWL_API_KEY`, `BRAVE_API_KEY`. TokenRouter stays tombstoned until a paid key works.
 
 ## Multi-tenant RBAC + RLS
 
