@@ -374,6 +374,57 @@ export async function updateRoomCalendarEvent(
   return { event: next, conflicts }
 }
 
+/** Notify room (Telegram + in-app inbox) when a slot overlaps another. */
+export async function notifyRoomCalendarConflicts(opts: {
+  scopeId: string
+  titleAr: string
+  startsAt: string
+  conflicts: ConflictInfo[]
+  createdByAr?: string | null
+}): Promise<{ telegramOk: boolean }> {
+  if (!opts.conflicts.length) return { telegramOk: false }
+  const when = (() => {
+    try {
+      return new Date(opts.startsAt).toLocaleString('ar-SA', {
+        timeZone: 'Asia/Riyadh',
+      })
+    } catch {
+      return opts.startsAt
+    }
+  })()
+  const lines = opts.conflicts
+    .slice(0, 6)
+    .map((c) => `• «${c.titleAr}» — تداخل ${c.overlapMinutes} د`)
+  const messageAr = [
+    '⚠️ تعارض مواعيد في تقويم الغرفة المشترك',
+    `الموعد: «${opts.titleAr}» · ${when}`,
+    opts.createdByAr ? `أضافه: ${opts.createdByAr}` : null,
+    'يتعارض مع:',
+    ...lines,
+    'افتح: /?section=calendar',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  try {
+    const { emitPassiveNotification, emitNotification } = await import(
+      '@/lib/notifications/emit'
+    )
+    await emitPassiveNotification({
+      messageAr,
+      actionName: 'room_calendar_conflict',
+    })
+    const tg = await emitNotification({
+      channel: 'telegram',
+      textAr: messageAr,
+      meta: { scopeId: opts.scopeId },
+    })
+    return { telegramOk: tg.ok }
+  } catch {
+    return { telegramOk: false }
+  }
+}
+
 export async function cancelRoomCalendarEvent(id: string, scopeId: string) {
   return updateRoomCalendarEvent(id, scopeId, { status: 'cancelled' })
 }
@@ -441,37 +492,41 @@ export async function ingestProposedDates(opts: {
 }
 
 export type RoomCalendarConflictPair = {
-  a: { id: string; titleAr: string; startsAt: string; endsAt: string }
-  b: { id: string; titleAr: string; startsAt: string; endsAt: string }
-  overlapMinutes: number
+  a: ConflictInfo & { createdByAr: string | null }
+  b: ConflictInfo & { createdByAr: string | null }
 }
 
 /**
- * Scan the room board for overlapping events. Optionally shift later events
- * forward (`autoAdjust`) so the board is conflict-free.
+ * Sort board by date/time then who added; surface overlapping pairs;
+ * optionally auto-shift later events; notify room on conflicts.
  */
 export async function reconcileRoomCalendar(opts: {
   scopeId: string
   autoAdjust?: boolean
-  /** Reserved for Telegram/email notify — currently a no-op flag. */
   notify?: boolean
 }): Promise<{
   events: RoomCalendarEvent[]
   conflicts: RoomCalendarConflictPair[]
   adjusted: Array<{ id: string; titleAr: string; from: string; to: string }>
+  messageAr: string
 }> {
-  const events = await listRoomCalendarEvents({ scopeId: opts.scopeId })
-  const active = events
+  let events = await listRoomCalendarEvents({ scopeId: opts.scopeId })
+  events = [...events]
     .filter((e) => e.status !== 'cancelled')
-    .sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-    )
+    .sort((a, b) => {
+      const byStart = a.startsAt.localeCompare(b.startsAt)
+      if (byStart) return byStart
+      const byWho = (a.createdByAr || '').localeCompare(b.createdByAr || '', 'ar')
+      if (byWho) return byWho
+      return a.createdAt.localeCompare(b.createdAt)
+    })
 
   const conflicts: RoomCalendarConflictPair[] = []
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const a = active[i]
-      const b = active[j]
+  for (let i = 0; i < events.length; i++) {
+    for (let j = i + 1; j < events.length; j++) {
+      const a = events[i]
+      const b = events[j]
+      if (new Date(b.startsAt).getTime() >= new Date(a.endsAt).getTime()) break
       const mins = overlapMinutes(
         new Date(a.startsAt),
         new Date(a.endsAt),
@@ -481,18 +536,21 @@ export async function reconcileRoomCalendar(opts: {
       if (mins > 0) {
         conflicts.push({
           a: {
-            id: a.id,
+            eventId: a.id,
             titleAr: a.titleAr,
             startsAt: a.startsAt,
             endsAt: a.endsAt,
+            overlapMinutes: mins,
+            createdByAr: a.createdByAr,
           },
           b: {
-            id: b.id,
+            eventId: b.id,
             titleAr: b.titleAr,
             startsAt: b.startsAt,
             endsAt: b.endsAt,
+            overlapMinutes: mins,
+            createdByAr: b.createdByAr,
           },
-          overlapMinutes: mins,
         })
       }
     }
@@ -506,13 +564,19 @@ export async function reconcileRoomCalendar(opts: {
   }> = []
 
   if (opts.autoAdjust && conflicts.length > 0) {
-    let working = [...active]
+    const shiftedIds = new Set<string>()
+    let working = [...events]
     for (const pair of conflicts) {
-      const later =
-        new Date(pair.a.startsAt).getTime() <=
-        new Date(pair.b.startsAt).getTime()
-          ? working.find((e) => e.id === pair.b.id)
-          : working.find((e) => e.id === pair.a.id)
+      const aCreated =
+        working.find((e) => e.id === pair.a.eventId)?.createdAt || ''
+      const bCreated =
+        working.find((e) => e.id === pair.b.eventId)?.createdAt || ''
+      const keepA =
+        pair.a.startsAt < pair.b.startsAt ||
+        (pair.a.startsAt === pair.b.startsAt && aCreated <= bCreated)
+      const moveId = keepA ? pair.b.eventId : pair.a.eventId
+      if (shiftedIds.has(moveId)) continue
+      const later = working.find((e) => e.id === moveId)
       if (!later) continue
       const others = working.filter((e) => e.id !== later.id)
       const sug = proposeAdjustedSlot(
@@ -533,6 +597,7 @@ export async function reconcileRoomCalendar(opts: {
         from,
         to: sug.startsAt,
       })
+      shiftedIds.add(later.id)
       working = working.map((e) =>
         e.id === later.id
           ? { ...e, startsAt: sug.startsAt, endsAt: sug.endsAt }
@@ -541,6 +606,36 @@ export async function reconcileRoomCalendar(opts: {
     }
   }
 
+  if (opts.notify !== false && conflicts.length > 0) {
+    const sample = conflicts[0]
+    await notifyRoomCalendarConflicts({
+      scopeId: opts.scopeId,
+      titleAr: sample.a.titleAr,
+      startsAt: sample.a.startsAt,
+      createdByAr: 'ترتيب التقويم',
+      conflicts: conflicts.slice(0, 8).map((p) => ({
+        eventId: p.b.eventId,
+        titleAr: `«${p.a.titleAr}» ↔ «${p.b.titleAr}»`,
+        startsAt: p.b.startsAt,
+        endsAt: p.b.endsAt,
+        overlapMinutes: p.a.overlapMinutes,
+      })),
+    })
+  }
+
   const refreshed = await listRoomCalendarEvents({ scopeId: opts.scopeId })
-  return { events: refreshed, conflicts, adjusted }
+  const sorted = [...refreshed].sort((a, b) => {
+    const byStart = a.startsAt.localeCompare(b.startsAt)
+    if (byStart) return byStart
+    return (a.createdByAr || '').localeCompare(b.createdByAr || '', 'ar')
+  })
+
+  const messageAr =
+    conflicts.length === 0
+      ? `تقويم الغرفة مرتّب: ${sorted.length} موعداً بلا تعارض.`
+      : opts.autoAdjust && adjusted.length
+        ? `وُجد ${conflicts.length} تعارض — عُدّل زمن ${adjusted.length} موعداً. راجع اللوحة.`
+        : `تنبيه: ${conflicts.length} تعارض في نفس الوقت. اطلب التسوية التلقائية أو عدّل يدوياً.`
+
+  return { events: sorted, conflicts, adjusted, messageAr }
 }

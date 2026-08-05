@@ -880,6 +880,29 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('room_calendar_cancel'),
         }),
     }),
+    room_calendar_reconcile: tool({
+      description:
+        'ترتيب مواعيد تقويم الغرفة حسب التاريخ/الوقت ومن أضافها، وكشف التعارضات (نفس الوقت). مع autoAdjust=true يُزاح الموعد اللاحق ويُنبَّه الغرفة.',
+      inputSchema: z.object({
+        autoAdjust: z
+          .boolean()
+          .optional()
+          .describe('إن true يُعدّل زمن المواعيد المتعارضة تلقائياً'),
+        notify: z
+          .boolean()
+          .optional()
+          .describe('تنبيه الغرفة (تيليجرام إن رُبط) عند وجود تعارض'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_calendar_reconcile',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_calendar_reconcile'),
+        }),
+    }),
     room_tasks_list: tool({
       description:
         'عرض لوحة مهام/طلبات الغرفة المشتركة (ليست قائمة شخص واحد).',

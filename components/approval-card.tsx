@@ -26,6 +26,7 @@ const ACTION_LABELS_AR: Record<string, string> = {
   room_calendar_ingest: 'دمج مواعيد الفريق',
   room_calendar_update: 'تعديل موعد الغرفة',
   room_calendar_cancel: 'إلغاء موعد الغرفة',
+  room_calendar_reconcile: 'ترتيب تقويم الغرفة',
   room_tasks_create: 'إضافة مهمة للغرفة',
   room_tasks_update: 'تعديل مهمة الغرفة',
   room_tasks_reconcile: 'إعادة ترتيب مهام الغرفة',
