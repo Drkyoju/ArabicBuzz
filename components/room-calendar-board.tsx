@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { CalendarDays, Plus, Sparkles, Trash2, AlertTriangle } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -348,8 +349,11 @@ export function RoomCalendarBoard({
           <p className="p-4 text-sm text-stone-500">جاري تحميل المواعيد…</p>
         ) : err === 'GUEST' ? (
           <p className="p-6 text-center text-sm text-stone-500">
-            سجّل الدخول من الإعدادات لرؤية مواعيد الغرفة المحفوظة، أو أضف موعداً
-            يدوياً أدناه إن كان متاحاً.
+            مواعيد الغرفة المحفوظة تحتاج حساباً.{' '}
+            <Link href="/auth/login" className="font-semibold text-ab-accent underline">
+              سجّل الدخول
+            </Link>{' '}
+            لرؤيتها ولإضافة مواعيد للفريق.
           </p>
         ) : upcoming.length === 0 ? (
           <p className="p-6 text-center text-sm text-stone-400">
