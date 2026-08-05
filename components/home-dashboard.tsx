@@ -243,6 +243,7 @@ export function HomeDashboard({
   }, [load, signedIn])
 
   const isGuest = signedIn === false
+  const authPending = signedIn === null
   const viewData: Digest | DemoDigest = isGuest
     ? demo
     : liveData || {
@@ -269,42 +270,61 @@ export function HomeDashboard({
       (liveData.recentPosts || []).length === 0 &&
       pendingApprovalsCount === 0)
 
-  const livePending = isGuest ? 0 : pendingApprovalsCount
-  const deadlines = (viewData.systemDeadlines || []).slice(0, 4)
-  const acts = isGuest
-    ? []
-    : [
-        ...(liveData?.activity || [])
-          .filter(
-            (a) =>
-              a.kind === 'agent' ||
-              a.kind === 'hitl' ||
-              a.kind === 'message' ||
-              a.kind === 'system'
-          )
-          .slice(0, 3)
-          .map((a) => ({
-            agentAr: a.actorAr,
-            statusAr: a.actionAr,
-            detailAr: a.detailAr || a.atAr,
-          })),
-      ]
+  const livePending = isGuest || authPending ? 0 : pendingApprovalsCount
+  const deadlines =
+    isGuest || authPending ? [] : (viewData.systemDeadlines || []).slice(0, 4)
+  const acts =
+    isGuest || authPending
+      ? []
+      : [
+          ...(liveData?.activity || [])
+            .filter(
+              (a) =>
+                a.kind === 'agent' ||
+                a.kind === 'hitl' ||
+                a.kind === 'message' ||
+                a.kind === 'system'
+            )
+            .slice(0, 3)
+            .map((a) => ({
+              agentAr: a.actorAr,
+              statusAr: a.actionAr,
+              detailAr: a.detailAr || a.atAr,
+            })),
+        ]
 
   const hasDayEvents =
+    !authPending &&
     (cal?.yesterday || []).length +
       (cal?.today || []).length +
       (cal?.tomorrow || []).length +
       (cal?.dayAfter || []).length >
-    0
-  const hasCommitments = (viewData.commitments?.items || []).length > 0
-  const hasWeek = (cal?.week || []).length > 0
-  const hasPeople = (viewData.people || []).length > 0
-  const hasActivity = (viewData.activity || []).length > 0
-  const hasPosts = (viewData.recentPosts || []).length > 0
-  const hasTasks = (viewData.tasks?.items || []).length > 0
-  const showZoomStrip = Boolean(zoom?.liveNow)
+      0
+  const hasCommitments =
+    !authPending && (viewData.commitments?.items || []).length > 0
+  const hasWeek = !authPending && (cal?.week || []).length > 0
+  const hasPeople = !authPending && (viewData.people || []).length > 0
+  const hasActivity = !authPending && (viewData.activity || []).length > 0
+  const hasPosts = !authPending && (viewData.recentPosts || []).length > 0
+  const hasTasks = !authPending && (viewData.tasks?.items || []).length > 0
+  const showZoomStrip = !authPending && Boolean(zoom?.liveNow)
   const showCockpit =
-    !isGuest && (livePending > 0 || deadlines.length > 0 || acts.length > 0)
+    !isGuest &&
+    !authPending &&
+    (livePending > 0 || deadlines.length > 0 || acts.length > 0)
+
+  // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
+  if (authPending) {
+    return (
+      <section className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:px-6" dir="rtl">
+        <header>
+          <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
+          <DateDual className="mt-2" />
+        </header>
+        <p className="text-sm text-stone-500">جاري التحميل…</p>
+      </section>
+    )
+  }
 
   // ── Guest: one clear login path, no empty chrome ──
   if (isGuest) {

@@ -28,10 +28,19 @@ Catalog id `postgres` points at [googleapis/mcp-toolbox](https://github.com/goog
 
 ### Deploy Toolbox (you own the container)
 
-Example (Fly / Railway / any Docker host) — read-only SQL tools preferred:
+In-repo package: [`deploy/toolbox`](../deploy/toolbox/README.md) (Compose + Fly/Railway scripts). Prefer read-only SQL tools (`--prebuilt postgres/data`).
 
 ```bash
-# Pull / build from upstream docs, then expose Streamable HTTP
+cd deploy/toolbox
+./scripts/env-from-database-url.sh   # from DATABASE_URL → POSTGRES_*
+docker compose up -d                 # local/VPS → http://127.0.0.1:5000/mcp
+# or: ./scripts/deploy-fly.sh
+# or: ./scripts/deploy-railway.sh
+```
+
+Upstream image example:
+
+```bash
 # https://github.com/googleapis/mcp-toolbox
 docker run --rm -p 5000:5000 \
   -e POSTGRES_HOST=… \
@@ -39,11 +48,12 @@ docker run --rm -p 5000:5000 \
   -e POSTGRES_DATABASE=… \
   -e POSTGRES_USER=… \
   -e POSTGRES_PASSWORD=… \
-  us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest \
-  --prebuilt postgres --address 0.0.0.0 --port 5000
+  -e POSTGRES_QUERY_PARAMS=sslmode=require \
+  us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.8.0 \
+  --prebuilt postgres/data --address 0.0.0.0 --port 5000
 ```
 
-Netlify:
+Netlify (after public HTTPS host exists):
 
 ```env
 MCP_TOOLBOX_URL=https://your-toolbox-host/mcp
@@ -114,7 +124,9 @@ npm run evals:fetch-arabic-fc   # regenerate vendor subset from HF
 ## External deploy checklist (operator)
 
 1. **Langfuse Cloud** account + Netlify `LANGFUSE_*`
-2. **MCP Toolbox** container (Fly/Railway/VPS) + `MCP_TOOLBOX_URL`
+2. **MCP Toolbox** container (Fly/Railway/VPS via `deploy/toolbox`) + `MCP_TOOLBOX_URL`
 3. **Mac bridge** (`storage:sync` + ngrok/Cloudflare tunnel) + `MAC_SYNC_*`
 4. Optional: `BROWSER_USE_URL`, `STEEL_API_KEY`, `FIRECRAWL_API_KEY`, `BRAVE_API_KEY`
 5. Redeploy Netlify → verify صحة التشغيل on the live site
+6. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify)
+7. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in
