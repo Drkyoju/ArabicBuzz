@@ -8,6 +8,7 @@
  *  2) MAC_SYNC_URL — Mac sync agent POST /task (browser-use first, Playwright fallback)
  *  3) STEEL_API_KEY — Steel.dev cloud browser sessions
  *
+ * Unreachable bridges fall through to the next provider.
  * GitHub refs: browser-use/browser-use · steel-dev/steel-sdk
  */
 
@@ -19,43 +20,40 @@ export type BrowserTaskResult = {
   pdfBase64?: string | null
   logs: string[]
   messageAr: string
-  provider?: 'browser-use' | 'steel' | 'none'
+  provider?: 'browser-use' | 'mac-sync' | 'steel' | 'none'
 }
 
 function pushLog(logs: string[], line: string) {
   logs.push(`[${new Date().toISOString()}] ${line}`)
 }
 
-async function viaBrowserUseBridge(
+type BridgeCall = {
+  base: string
+  secret: string
+  label: 'browser-use' | 'mac-sync'
+}
+
+async function viaHttpBridge(
+  bridge: BridgeCall,
   taskPrompt: string,
   targetUrl: string,
   logs: string[]
 ): Promise<BrowserTaskResult | null> {
-  // Prefer dedicated BROWSER_USE_URL; fall back to Mac sync agent /task.
-  const dedicated = process.env.BROWSER_USE_URL?.trim()
-  const mac = process.env.MAC_SYNC_URL?.trim()
-  const base = (dedicated || mac || '').replace(/\/$/, '')
-  if (!base) return null
-  const secret = dedicated
-    ? process.env.BROWSER_USE_SECRET?.trim() ||
-      process.env.MAC_SYNC_SECRET?.trim() ||
-      ''
-    : process.env.MAC_SYNC_SECRET?.trim() ||
-      process.env.BROWSER_USE_SECRET?.trim() ||
-      ''
   const engine =
     (process.env.BROWSER_ENGINE as 'playwright' | 'browser-use' | 'auto') ||
     'auto'
   pushLog(
     logs,
-    `Calling browser bridge ${base} (engine=${engine}${dedicated ? ', BROWSER_USE_URL' : ', MAC_SYNC_URL'})`
+    `Calling ${bridge.label} bridge ${bridge.base} (engine=${engine})`
   )
   try {
-    const res = await fetch(`${base}/task`, {
+    const res = await fetch(`${bridge.base}/task`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+        ...(bridge.secret
+          ? { Authorization: `Bearer ${bridge.secret}` }
+          : {}),
       },
       body: JSON.stringify({
         task: taskPrompt,
@@ -66,15 +64,8 @@ async function viaBrowserUseBridge(
       signal: AbortSignal.timeout(120_000),
     })
     if (!res.ok) {
-      pushLog(logs, `bridge HTTP ${res.status}`)
-      return {
-        ok: false,
-        extracted: {},
-        currentUrl: targetUrl,
-        logs,
-        messageAr: `فشل جسر المتصفح (HTTP ${res.status})`,
-        provider: 'browser-use',
-      }
+      pushLog(logs, `${bridge.label} HTTP ${res.status} — trying next`)
+      return null
     }
     const data = (await res.json()) as {
       extracted?: Record<string, unknown>
@@ -97,19 +88,19 @@ async function viaBrowserUseBridge(
       screenshotBase64: data.screenshotBase64 || null,
       pdfBase64: data.pdfBase64 || null,
       logs,
-      messageAr: data.messageAr || 'اكتملت مهمة المتصفح عبر الجسر المحلي.',
-      provider: 'browser-use',
+      messageAr:
+        data.messageAr ||
+        (bridge.label === 'mac-sync'
+          ? 'اكتملت مهمة المتصفح عبر جسر الماك.'
+          : 'اكتملت مهمة المتصفح عبر جسر browser-use.'),
+      provider: bridge.label,
     }
   } catch (e) {
-    pushLog(logs, e instanceof Error ? e.message : 'bridge error')
-    return {
-      ok: false,
-      extracted: {},
-      currentUrl: targetUrl,
+    pushLog(
       logs,
-      messageAr: 'تعذّر الاتصال بجسر browser-use.',
-      provider: 'browser-use',
-    }
+      `${bridge.label} unreachable: ${e instanceof Error ? e.message : 'error'}`
+    )
+    return null
   }
 }
 
@@ -148,7 +139,7 @@ async function viaSteel(
         extracted: {},
         currentUrl: targetUrl,
         logs,
-        messageAr: `فشل إنشاء جلسة Steel (HTTP ${sessionRes.status})`,
+        messageAr: `فشل إنشاء جلسة Steel (HTTP ${sessionRes.status}). تحقق من STEEL_API_KEY.`,
         provider: 'steel',
       }
     }
@@ -161,7 +152,6 @@ async function viaSteel(
     const sessionId = session.id || session.sessionId
     pushLog(logs, `Steel session ${sessionId || 'unknown'}`)
 
-    // Optional agent/task endpoint (varies by Steel plan)
     let extracted: Record<string, unknown> = {
       sessionId,
       debugUrl: session.debugUrl || session.viewerUrl || null,
@@ -216,14 +206,19 @@ async function viaSteel(
       extracted: {},
       currentUrl: targetUrl,
       logs,
-      messageAr: 'تعذّر الاتصال بـ Steel.',
+      messageAr: 'تعذّر الاتصال بـ Steel. تحقق من STEEL_API_KEY والشبكة.',
       provider: 'steel',
     }
   }
 }
 
+function normalizeBase(url: string): string {
+  return url.replace(/\/$/, '')
+}
+
 /**
  * Run a browser automation task against an external site.
+ * Order: browser-use URL → Mac sync → Steel. Unreachable hops fall through.
  */
 export async function executeBrowserTask(
   taskPrompt: string,
@@ -256,11 +251,58 @@ export async function executeBrowserTask(
   pushLog(logs, `Task: ${task.slice(0, 200)}`)
   pushLog(logs, `URL: ${url}`)
 
-  const bridge = await viaBrowserUseBridge(task, url, logs)
-  if (bridge) return bridge
+  const dedicated = process.env.BROWSER_USE_URL?.trim()
+  const mac = process.env.MAC_SYNC_URL?.trim()
+  const lastFailures: BrowserTaskResult[] = []
+
+  if (dedicated) {
+    const result = await viaHttpBridge(
+      {
+        base: normalizeBase(dedicated),
+        secret:
+          process.env.BROWSER_USE_SECRET?.trim() ||
+          process.env.MAC_SYNC_SECRET?.trim() ||
+          '',
+        label: 'browser-use',
+      },
+      task,
+      url,
+      logs
+    )
+    if (result?.ok) return result
+    if (result) lastFailures.push(result)
+  }
+
+  if (mac && normalizeBase(mac) !== (dedicated ? normalizeBase(dedicated) : '')) {
+    const result = await viaHttpBridge(
+      {
+        base: normalizeBase(mac),
+        secret:
+          process.env.MAC_SYNC_SECRET?.trim() ||
+          process.env.BROWSER_USE_SECRET?.trim() ||
+          '',
+        label: 'mac-sync',
+      },
+      task,
+      url,
+      logs
+    )
+    if (result?.ok) return result
+    if (result) lastFailures.push(result)
+  }
 
   const steel = await viaSteel(task, url, logs)
   if (steel) return steel
+
+  if (lastFailures.length > 0) {
+    const last = lastFailures[lastFailures.length - 1]!
+    return {
+      ...last,
+      messageAr:
+        last.messageAr ||
+        'فشلت أتمتة المتصفح على الجسور المتاحة. راجع السجلات أو فعّل STEEL_API_KEY.',
+    }
+  }
 
   pushLog(logs, 'No browser provider configured')
   return {
@@ -269,7 +311,7 @@ export async function executeBrowserTask(
     currentUrl: url,
     logs,
     messageAr:
-      'أتمتة المتصفح غير مفعّلة. اضبط MAC_SYNC_URL (Playwright على الماك) أو BROWSER_USE_URL أو STEEL_API_KEY.',
+      'أتمتة المتصفح غير مفعّلة. اضبط BROWSER_USE_URL أو MAC_SYNC_URL (جسر الماك) أو STEEL_API_KEY. المهمة تتطلب موافقة بشرية (HITL).',
     provider: 'none',
   }
 }

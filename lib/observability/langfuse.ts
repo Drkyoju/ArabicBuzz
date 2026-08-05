@@ -17,6 +17,7 @@ export type LangfuseOtelConfig = {
 function langfuseHost(): string {
   return (
     process.env.LANGFUSE_HOST?.trim() ||
+    process.env.LANGFUSE_BASEURL?.trim() ||
     process.env.LANGFUSE_BASE_URL?.trim() ||
     'https://cloud.langfuse.com'
   ).replace(/\/$/, '')

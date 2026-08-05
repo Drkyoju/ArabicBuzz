@@ -1,6 +1,6 @@
 /**
  * Pull policy/regulation pages into the association knowledge brain.
- * Providers: Anybrowse (free) → Firecrawl → plain fetch.
+ * Providers: Firecrawl (native key) → plain fetch → Anybrowse (opt-in only).
  */
 import { ingestArabicDocument } from '@/lib/rag/ingest'
 
@@ -34,7 +34,11 @@ async function viaAnybrowse(url: string): Promise<string | null> {
         signal: AbortSignal.timeout(45_000),
       })
       if (!res2.ok) return null
-      const d2 = (await res2.json()) as { markdown?: string; content?: string; text?: string }
+      const d2 = (await res2.json()) as {
+        markdown?: string
+        content?: string
+        text?: string
+      }
       return d2.markdown || d2.content || d2.text || null
     }
     const data = (await res.json()) as {
@@ -87,7 +91,8 @@ async function viaPlainFetch(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz.netlify.app)',
+        'User-Agent':
+          'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz.netlify.app)',
         Accept: 'text/html,application/xhtml+xml,text/plain,application/pdf',
       },
       signal: AbortSignal.timeout(30_000),
@@ -154,15 +159,19 @@ export async function ingestUrlToBrain(opts: {
   let text: string | null = null
   let provider: WebIngestResult['provider'] = 'none'
 
-  text = await viaAnybrowse(url)
-  if (text?.trim()) provider = 'anybrowse'
-  if (!text?.trim()) {
-    text = await viaFirecrawl(url)
-    if (text?.trim()) provider = 'firecrawl'
-  }
+  // Prefer native Firecrawl key path
+  text = await viaFirecrawl(url)
+  if (text?.trim()) provider = 'firecrawl'
+
   if (!text?.trim()) {
     text = await viaPlainFetch(url)
     if (text?.trim()) provider = 'fetch'
+  }
+
+  // Anybrowse is demoted — opt-in via MCP_AUTO_ANYBROWSE=1 only
+  if (!text?.trim() && process.env.MCP_AUTO_ANYBROWSE === '1') {
+    text = await viaAnybrowse(url)
+    if (text?.trim()) provider = 'anybrowse'
   }
 
   if (!text?.trim()) {
@@ -174,7 +183,7 @@ export async function ingestUrlToBrain(opts: {
       chars: 0,
       provider: 'none',
       messageAr:
-        'تعذّر سحب الصفحة. جرّب لاحقاً أو فعّل FIRECRAWL_API_KEY أو Anybrowse.',
+        'تعذّر سحب الصفحة. عيّن FIRECRAWL_API_KEY على Netlify (المفضّل) أو جرّب لاحقاً.',
       error: 'empty',
     }
   }

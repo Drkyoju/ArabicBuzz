@@ -19,6 +19,15 @@ type Snapshot = {
   mcpConnectedServers?: number
   mcpConnectedTools?: number
   mcpCatalogCount?: number
+  langfuseConfigured?: boolean
+  braveConfigured?: boolean
+  firecrawlConfigured?: boolean
+  mcpToolboxConfigured?: boolean
+  steelConfigured?: boolean
+  browserUseConfigured?: boolean
+  browserRpaConfigured?: boolean
+  tokenrouterAvailable?: boolean
+  tokenrouterStatusAr?: string
 }
 
 /**
@@ -63,6 +72,15 @@ export function OpsHealthPanel() {
         mcpConnectedServers: Number(integ?.mcpConnectedServers || 0),
         mcpConnectedTools: Number(integ?.mcpConnectedTools || 0),
         mcpCatalogCount: Number(integ?.mcpCatalogCount || 0),
+        langfuseConfigured: Boolean(integ?.langfuseConfigured),
+        braveConfigured: Boolean(integ?.braveConfigured),
+        firecrawlConfigured: Boolean(integ?.firecrawlConfigured),
+        mcpToolboxConfigured: Boolean(integ?.mcpToolboxConfigured),
+        steelConfigured: Boolean(integ?.steelConfigured),
+        browserUseConfigured: Boolean(integ?.browserUseConfigured),
+        browserRpaConfigured: Boolean(integ?.browserRpaConfigured),
+        tokenrouterAvailable: Boolean(integ?.tokenrouterAvailable),
+        tokenrouterStatusAr: String(integ?.tokenrouterStatusAr || ''),
       })
     } catch (e) {
       setSnap(null)
@@ -86,6 +104,63 @@ export function OpsHealthPanel() {
           detail: `${snap.modelsReady || 0} جاهز`,
         },
         {
+          label: 'Langfuse (تتبّع)',
+          ok: Boolean(snap.langfuseConfigured),
+          detail: snap.langfuseConfigured ? 'مباشر' : 'غير مضبوط',
+        },
+        {
+          label: 'Brave Search',
+          ok: Boolean(snap.braveConfigured),
+          detail: snap.braveConfigured ? 'مباشر' : 'غير مضبوط',
+        },
+        {
+          label: 'Firecrawl',
+          ok: Boolean(snap.firecrawlConfigured),
+          detail: snap.firecrawlConfigured ? 'مباشر' : 'غير مضبوط',
+        },
+        {
+          label: 'MCP Toolbox',
+          ok: Boolean(snap.mcpToolboxConfigured),
+          detail: snap.mcpToolboxConfigured ? 'مباشر' : 'غير مضبوط',
+        },
+        {
+          label: 'جسر الماك',
+          ok: Boolean(snap.macOnline),
+          detail: snap.macOnline
+            ? 'متصل'
+            : snap.macConfigured
+              ? 'مضبوط · غير متصل'
+              : 'غير مضبوط',
+        },
+        {
+          label: 'browser-use',
+          ok: Boolean(snap.browserUseConfigured || snap.macConfigured),
+          detail: snap.browserUseConfigured
+            ? 'BROWSER_USE_URL'
+            : snap.macConfigured
+              ? 'عبر جسر الماك'
+              : 'غير مضبوط',
+        },
+        {
+          label: 'Steel (احتياطي)',
+          ok: Boolean(snap.steelConfigured),
+          detail: snap.steelConfigured ? 'مباشر' : 'غير مضبوط',
+        },
+        {
+          label: 'أتمتة المتصفح (HITL)',
+          ok: Boolean(snap.browserRpaConfigured),
+          detail: snap.browserRpaConfigured
+            ? 'browser-use → ماك → Steel'
+            : 'غير مضبوط',
+        },
+        {
+          label: 'TokenRouter',
+          ok: Boolean(snap.tokenrouterAvailable),
+          detail: snap.tokenrouterAvailable
+            ? 'متاح'
+            : snap.tokenrouterStatusAr || 'متوقف',
+        },
+        {
           label: 'تقويم Google',
           ok: Boolean(snap.googleConnected),
           detail: snap.googleConnected ? 'مربوط' : 'غير مربوط',
@@ -96,42 +171,9 @@ export function OpsHealthPanel() {
           detail: `${snap.driveFiles || 0} ملف`,
         },
         {
-          label: 'اجتماعات Zoom',
-          ok: Boolean(snap.zoomConfigured),
-          detail: snap.zoomConfigured ? 'مضبوط' : 'اختياري',
-        },
-        {
           label: 'تيليجرام',
           ok: Boolean(snap.telegramConfigured),
           detail: snap.telegramConfigured ? 'مضبوط' : 'غير مضبوط',
-        },
-        {
-          label: 'مالك تيليجرام',
-          ok: Boolean(snap.telegramOwnerConfigured),
-          detail: snap.telegramOwnerConfigured
-            ? 'مضبوط'
-            : 'أرسل /start للبوت لربط المحادثة',
-        },
-        {
-          label: 'مالك قنوات Google',
-          ok: Boolean(snap.channelOwnerConfigured),
-          detail: snap.channelOwnerConfigured
-            ? 'مضبوط'
-            : 'يحتاج ربط من المسؤول',
-        },
-        {
-          label: 'التوزيع غير المتزامن',
-          ok: Boolean(snap.triggerDispatchConfigured),
-          detail: snap.triggerDispatchConfigured ? 'جاهز' : 'غير مضبوط',
-        },
-        {
-          label: 'خزنة الماك',
-          ok: Boolean(snap.macOnline),
-          detail: snap.macOnline
-            ? 'متصلة'
-            : snap.macConfigured
-              ? 'مضبوطة · غير متصلة'
-              : 'اختياري',
         },
         {
           label: 'أدوات MCP',
@@ -155,7 +197,7 @@ export function OpsHealthPanel() {
             صحة التشغيل
           </h2>
           <p className="mt-1 text-sm text-stone-500">
-            نظرة سريعة على التكاملات والنماذج.
+            نظرة سريعة على التكاملات والنماذج — Langfuse وBrave وFirecrawl والجسور.
           </p>
         </div>
         <button
@@ -186,6 +228,7 @@ export function OpsHealthPanel() {
                     ? 'text-[11px] text-emerald-700'
                     : 'text-[11px] text-stone-500'
                 }
+                dir={r.label === 'TokenRouter' ? 'rtl' : undefined}
               >
                 {r.detail}
               </span>

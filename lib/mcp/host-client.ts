@@ -199,10 +199,9 @@ export async function connectEnvMcpServers(): Promise<string[]> {
     await tryConnect('postgres', 'PostgreSQL (MCP Toolbox)', toolboxUrl)
   }
 
-  // Remaining remote/both catalog items: explicit MCP_<ID>_URL, or defaultUrl when autoDefaults
+  // Remaining catalog items: explicit MCP_<ID>_URL (incl. stdio/local via Supergateway),
+  // or defaultUrl for remote/both when autoDefaults.
   for (const item of MCP_CATALOG) {
-    if (item.runtime === 'local') continue
-    if (item.transport === 'stdio' && !item.defaultUrl) continue
     if (connected.includes(item.id)) continue
     const envKey = `MCP_${item.id.replace(/-/g, '_').toUpperCase()}_URL`
     const explicit =
@@ -213,7 +212,13 @@ export async function connectEnvMcpServers(): Promise<string[]> {
           ? process.env.SUPABASE_MCP_URL?.trim()
           : item.id === 'firecrawl'
             ? process.env.FIRECRAWL_MCP_URL?.trim()
-            : undefined)
+            : item.id === 'github'
+              ? process.env.MCP_GITHUB_URL?.trim()
+              : undefined)
+    // Stdio/local catalog rows only auto-connect when an HTTPS URL is provided
+    // (Supergateway / Mac tunnel) — never invent a stdio process on Netlify.
+    if (!explicit && item.runtime === 'local') continue
+    if (!explicit && item.transport === 'stdio' && !item.defaultUrl) continue
     const url =
       explicit ||
       (autoDefaults && !skipAuto(item.id) ? item.defaultUrl : undefined)

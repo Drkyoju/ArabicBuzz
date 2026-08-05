@@ -25,6 +25,6 @@ export async function GET() {
     configured: isBrowserRpaConfigured(),
     messageAr: isBrowserRpaConfigured()
       ? 'أتمتة المتصفح جاهزة.'
-      : 'اضبط BROWSER_USE_URL أو STEEL_API_KEY.',
+      : 'اضبط BROWSER_USE_URL أو MAC_SYNC_URL أو STEEL_API_KEY.',
   })
 }

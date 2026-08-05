@@ -98,8 +98,8 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'both',
     transport: 'stdio',
     setupHintAr:
-      'محلياً: npx مع GITHUB_PERSONAL_ACCESS_TOKEN. على Netlify استخدم خادماً بعيداً أو جسر الماك.',
-    envKeys: ['GITHUB_PERSONAL_ACCESS_TOKEN'],
+      'لا stdio على Netlify. على الماك/VPS: node packages/ops-bridge/bin/ab-ops-bridge.mjs github ثم عيّن MCP_GITHUB_URL أو MCP_REMOTE_SERVERS. محلياً فقط: npx مع GITHUB_PERSONAL_ACCESS_TOKEN.',
+    envKeys: ['GITHUB_PERSONAL_ACCESS_TOKEN', 'MCP_GITHUB_URL'],
     docsUrl: 'https://github.com/github/github-mcp-server',
     recommended: true,
   },
@@ -250,15 +250,32 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     nameAr: 'تحويل مستندات (MarkItDown)',
     nameEn: 'MarkItDown',
     descriptionAr:
-      'يحوّل قرارات PDF طويلة/ممسوحة إلى Markdown — عبر جسر الماك أو read_decision_document.',
+      'يحوّل قرارات PDF طويلة/ممسوحة إلى Markdown — عبر جسر الماك (MAC_SYNC_URL) أو أداة read_decision_document. ليس خادماً عاماً على الإنترنت.',
     benefitsAr: 'قراءة أوضح للقرارات ثم إضافتها للمعرفة.',
     categoryAr: 'مستندات',
-    runtime: 'local',
+    runtime: 'both',
     transport: 'stdio',
     setupHintAr:
-      'على الماك: pip install "markitdown[all]" ثم POST /markitdown عبر وكيل المزامنة.',
+      'على الماك: pip install "markitdown[all]" + npm run storage:sync. Netlify: MAC_SYNC_URL (read_decision_document). اختياري MCP بعيد: MCP_MARKITDOWN_URL عبر packages/ops-bridge.',
+    envKeys: ['MAC_SYNC_URL', 'MAC_SYNC_SECRET', 'MCP_MARKITDOWN_URL'],
     docsUrl: 'https://github.com/microsoft/markitdown',
     recommended: true,
+  },
+  {
+    id: 'steel',
+    nameAr: 'متصفح Steel (سحابة · احتياطي)',
+    nameEn: 'Steel.dev cloud browser',
+    descriptionAr:
+      'جلسة متصفح سحابية احتياطية لـ browser_rpa عند غياب browser-use/جسر الماك — HITL مطلوب. لا يشغّل داخل Netlify مباشرة.',
+    benefitsAr: 'Failover سحابي للبوابات الحكومية عند تعذّر الجسر المحلي.',
+    categoryAr: 'أتمتة',
+    runtime: 'remote',
+    transport: 'sse',
+    setupHintAr:
+      'عيّن STEEL_API_KEY على Netlify. الأولوية: BROWSER_USE_URL ثم MAC_SYNC_URL ثم Steel.',
+    envKeys: ['STEEL_API_KEY', 'STEEL_API_URL'],
+    docsUrl: 'https://github.com/steel-dev/steel-sdk',
+    recommended: false,
   },
   {
     id: 'sqlite',

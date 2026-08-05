@@ -4,6 +4,8 @@ import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
 import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { MCP_CATALOG } from '@/lib/mcp/catalog'
+import { isLangfuseConfigured } from '@/lib/observability/langfuse'
+import { isBrowserRpaConfigured } from '@/lib/tools/browser-rpa'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,16 +54,13 @@ export async function GET() {
         process.env.NEXT_PUBLIC_APP_URL?.trim()
     ),
     otelConfigured: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()),
-    langfuseConfigured: Boolean(
-      process.env.LANGFUSE_PUBLIC_KEY?.trim() &&
-        process.env.LANGFUSE_SECRET_KEY?.trim()
-    ),
+    langfuseConfigured: isLangfuseConfigured(),
+    braveConfigured: Boolean(process.env.BRAVE_API_KEY?.trim()),
+    firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY?.trim()),
     mcpToolboxConfigured: Boolean(process.env.MCP_TOOLBOX_URL?.trim()),
-    browserRpaConfigured: Boolean(
-      process.env.BROWSER_USE_URL?.trim() ||
-        process.env.MAC_SYNC_URL?.trim() ||
-        process.env.STEEL_API_KEY?.trim()
-    ),
+    steelConfigured: Boolean(process.env.STEEL_API_KEY?.trim()),
+    browserUseConfigured: Boolean(process.env.BROWSER_USE_URL?.trim()),
+    browserRpaConfigured: isBrowserRpaConfigured(),
     upstashConfigured: Boolean(
       process.env.UPSTASH_REDIS_REST_URL?.trim() &&
         process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
