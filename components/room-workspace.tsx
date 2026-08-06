@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { PanelRightOpen, MessageSquare } from 'lucide-react'
+import { PanelRightOpen, MessageSquare, Eye } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
+import { FilePreviewPane } from '@/components/file-preview-pane'
 import { ComposerMicButton } from '@/components/composer-mic-button'
 import { useCanvasStore } from '@/lib/canvas/store'
+import { useFilePreviewStore } from '@/lib/files/preview-store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import {
   createBrowserSupabaseClient,
@@ -172,7 +174,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useRosterCloudSync()
   const posture = useSecurityPostureStore((s) => s.posture)
   const hasArtifacts = artifacts.length > 0
+  const previewOpen = useFilePreviewStore((s) => s.open)
+  const previewFile = useFilePreviewStore((s) => s.file)
+  const notifyFileReady = useFilePreviewStore((s) => s.notifyFileReady)
+  const closePreview = useFilePreviewStore((s) => s.closePreview)
+  const [sideTab, setSideTab] = useState<'file' | 'canvas'>('file')
   const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
+  const sidePanelOpen =
+    previewOpen || canvasOpen || (showCanvas && hasArtifacts)
 
   const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
   const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
@@ -189,9 +198,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     if (artifacts.length > prevArtifactCount.current) {
       setShowCanvas(true)
+      if (!previewOpen) setSideTab('canvas')
     }
     prevArtifactCount.current = artifacts.length
-  }, [artifacts.length])
+  }, [artifacts.length, previewOpen])
+
+  // Prefer file tab when preview opens
+  useEffect(() => {
+    if (previewOpen) setSideTab('file')
+  }, [previewOpen])
 
   // Shared rooms: keep activity collapsed by default so chat stays primary
   useEffect(() => {
@@ -579,7 +594,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 for (const a of attachList) {
                   if (!a?.fileId || !a?.name) continue
                   if (attachments.some((x) => x.fileId === a.fileId)) continue
-                  attachments.push({
+                  const att: RoomFileAttachment = {
                     fileId: String(a.fileId),
                     name: String(a.name),
                     mimeType: a.mimeType ? String(a.mimeType) : undefined,
@@ -587,6 +602,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     downloadPath: a.downloadPath
                       ? String(a.downloadPath)
                       : undefined,
+                  }
+                  attachments.push(att)
+                  notifyFileReady({
+                    fileId: att.fileId,
+                    scopeId: att.scopeId,
+                    name: att.name,
+                    mimeType: att.mimeType,
                   })
                 }
               } else if (
@@ -596,7 +618,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               ) {
                 const fileId = nested.fileId
                 if (!attachments.some((x) => x.fileId === fileId)) {
-                  attachments.push({
+                  const att: RoomFileAttachment = {
                     fileId,
                     name: nested.name,
                     mimeType:
@@ -607,6 +629,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     downloadPath: String(
                       nested.downloadPath || nested.downloadUrl || ''
                     ),
+                  }
+                  attachments.push(att)
+                  notifyFileReady({
+                    fileId: att.fileId,
+                    scopeId: att.scopeId,
+                    name: att.name,
+                    mimeType: att.mimeType,
                   })
                 }
               }
@@ -891,10 +920,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
           ref={chatColumnRef}
           className={cn(
             'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
-            canvasOpen ? 'md:shrink-0' : 'w-full flex-1'
+            sidePanelOpen ? 'md:shrink-0' : 'w-full flex-1'
           )}
           style={
-            canvasOpen
+            sidePanelOpen
               ? {
                   width: `${Math.round((1 - splitRatio) * 100)}%`,
                   flexBasis: `${Math.round((1 - splitRatio) * 100)}%`,
@@ -959,10 +988,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                           setShowCanvas(false)
                         } else {
                           setShowCanvas(true)
+                          setSideTab('canvas')
                           toggleCanvasFullscreen()
                         }
                       } else {
                         setShowCanvas((v) => !v)
+                        setSideTab('canvas')
                       }
                     }}
                     className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
@@ -974,6 +1005,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   >
                     <PanelRightOpen className="h-3 w-3" />
                     {canvasOpen || isCanvasFullscreen ? 'إخفاء اللوحة' : 'اللوحة'}
+                  </button>
+                )}
+                {previewOpen && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closePreview()
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800 hover:bg-emerald-100"
+                    aria-label="إغلاق معاينة الملف"
+                  >
+                    <Eye className="h-3 w-3" />
+                    إغلاق المعاينة
                   </button>
                 )}
                 {shared && (
@@ -1431,12 +1475,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
         </section>
       )}
 
-      {canvasOpen && !isCanvasFullscreen && (
+      {sidePanelOpen && !isCanvasFullscreen && (
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="اسحب لتكبير الدردشة أو اللوحة"
-          title="اسحب يميناً/يساراً لتكبير الدردشة أو اللوحة"
+          aria-label="اسحب لتكبير الدردشة أو المعاينة"
+          title="اسحب يميناً/يساراً لتكبير الدردشة أو المعاينة"
           className="mx-0.5 hidden w-2.5 shrink-0 cursor-col-resize items-stretch rounded-full bg-ab-border/80 hover:bg-ab-accent md:flex"
           onMouseDown={() => {
             dragSplit.current = true
@@ -1462,64 +1506,113 @@ export function RoomWorkspace({ className }: { className?: string }) {
         />
       )}
 
-      {canvasOpen && (
+      {sidePanelOpen && (
         <section
           className={cn(
             'min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!basis-full',
-            isCanvasFullscreen
-              ? 'flex flex-1 flex-col'
+            isCanvasFullscreen || previewOpen
+              ? 'flex flex-1 flex-col max-md:fixed max-md:inset-0 max-md:z-[70] max-md:rounded-none'
               : 'hidden md:flex md:flex-col md:shrink-0'
           )}
           style={
-            !isCanvasFullscreen
-              ? {
+            isCanvasFullscreen
+              ? undefined
+              : {
                   width: `${Math.round(splitRatio * 100)}%`,
                   flexBasis: `${Math.round(splitRatio * 100)}%`,
                 }
-              : undefined
           }
-          aria-label="لوحة المخرجات"
+          aria-label="معاينة الملف أو لوحة المخرجات"
           onFocusCapture={() => setPresenceSurface('canvas')}
         >
-          <CanvasWorkspace
-            scopeId={activeScopeId}
-            displayName={displayName}
-            onSurfaceChange={setPresenceSurface}
-            onClose={() => {
-              if (isCanvasFullscreen) toggleCanvasFullscreen()
-              else setShowCanvas(false)
-            }}
-            onPersist={async (artifact) => {
-              const res = await fetch('/api/rooms/canvas', {
-                method: 'POST',
-                headers: await authHeaders({
-                  'Content-Type': 'application/json',
-                }),
-                body: JSON.stringify({
-                  id: artifact.id,
-                  scopeId: activeScopeId,
-                  type: artifact.type,
-                  titleAr: artifact.titleAr,
-                  content: artifact.content,
-                  language: artifact.language,
-                  updatedBy: displayName,
-                }),
-              })
-              if (!res.ok) {
-                const data = (await res.json().catch(() => ({}))) as {
-                  error?: string
+          {(previewOpen || hasArtifacts) && (
+            <div className="flex shrink-0 gap-1 border-b border-ab-border px-2 py-1.5">
+              {previewOpen && (
+                <button
+                  type="button"
+                  onClick={() => setSideTab('file')}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-[11px]',
+                    sideTab === 'file' || !hasArtifacts
+                      ? 'bg-emerald-50 font-semibold text-emerald-900'
+                      : 'text-stone-500 hover:bg-stone-50'
+                  )}
+                >
+                  معاينة الملف
+                  {previewFile ? ` · ${previewFile.name.slice(0, 18)}` : ''}
+                </button>
+              )}
+              {hasArtifacts && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSideTab('canvas')
+                    setShowCanvas(true)
+                  }}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-[11px]',
+                    sideTab === 'canvas' || !previewOpen
+                      ? 'bg-stone-100 font-semibold text-ab-ink'
+                      : 'text-stone-500 hover:bg-stone-50'
+                  )}
+                >
+                  اللوحة
+                </button>
+              )}
+            </div>
+          )}
+          {previewOpen && (sideTab === 'file' || !hasArtifacts) ? (
+            <FilePreviewPane
+              className="min-h-0 flex-1"
+              onClose={() => {
+                if (!hasArtifacts) {
+                  /* pane closes via store */
+                } else {
+                  setSideTab('canvas')
                 }
-                throw new Error(data.error || `فشل الحفظ (HTTP ${res.status})`)
-              }
-              void broadcastRoomEdit(activeScopeId, {
-                id: `canvas-${artifact.id}-${Date.now()}`,
-                actorAr: displayName,
-                actionAr: 'عدّل اللوحة',
-                detailAr: artifact.titleAr,
-                at: Date.now(),
-              })
-            }}
-          />
+              }}
+            />
+          ) : (
+            <CanvasWorkspace
+              scopeId={activeScopeId}
+              displayName={displayName}
+              onSurfaceChange={setPresenceSurface}
+              onClose={() => {
+                if (isCanvasFullscreen) toggleCanvasFullscreen()
+                else setShowCanvas(false)
+              }}
+              onPersist={async (artifact) => {
+                const res = await fetch('/api/rooms/canvas', {
+                  method: 'POST',
+                  headers: await authHeaders({
+                    'Content-Type': 'application/json',
+                  }),
+                  body: JSON.stringify({
+                    id: artifact.id,
+                    scopeId: activeScopeId,
+                    type: artifact.type,
+                    titleAr: artifact.titleAr,
+                    content: artifact.content,
+                    language: artifact.language,
+                    updatedBy: displayName,
+                  }),
+                })
+                if (!res.ok) {
+                  const data = (await res.json().catch(() => ({}))) as {
+                    error?: string
+                  }
+                  throw new Error(data.error || `فشل الحفظ (HTTP ${res.status})`)
+                }
+                void broadcastRoomEdit(activeScopeId, {
+                  id: `canvas-${artifact.id}-${Date.now()}`,
+                  actorAr: displayName,
+                  actionAr: 'عدّل اللوحة',
+                  detailAr: artifact.titleAr,
+                  at: Date.now(),
+                })
+              }}
+            />
+          )}
         </section>
       )}
     </div>

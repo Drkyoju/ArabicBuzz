@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Brain,
   Download,
+  Eye,
   FileText,
   Pencil,
   RefreshCw,
@@ -16,6 +17,7 @@ import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { openFilePreviewInChat } from '@/lib/files/preview-store'
 
 type ListedFile = {
   id?: string
@@ -387,6 +389,23 @@ export function FilesPanel() {
                   </p>
                 </div>
                 <div className="flex flex-wrap shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={!id || busy}
+                    onClick={() => {
+                      if (!id) return
+                      openFilePreviewInChat({
+                        fileId: id,
+                        scopeId,
+                        name,
+                        mimeType: f.mimeType,
+                      })
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+                  >
+                    <Eye className="h-3 w-3" />
+                    معاينة
+                  </button>
                   <button
                     type="button"
                     disabled={!id || busy}

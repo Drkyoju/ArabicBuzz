@@ -9,6 +9,7 @@ import {
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
 import { authHeaders } from '@/lib/supabase/browser'
+import { openFilePreviewInChat } from '@/lib/files/preview-store'
 import { cn } from '@/lib/utils'
 
 type StoredFile = {
@@ -194,6 +195,11 @@ export function LocalUploadPanel({
         messageAr?: string
         ok?: boolean
         source?: string
+        file?: {
+          id?: string
+          originalName?: string
+          mimeType?: string
+        }
         directUploadRequired?: boolean
         directUpload?: {
           uploadUrl: string
@@ -222,6 +228,14 @@ export function LocalUploadPanel({
       setMessage(`${data.messageAr || 'تم الحفظ'} · ${via}`)
       await refresh()
       onUploaded?.()
+      if (data.file?.id) {
+        openFilePreviewInChat({
+          fileId: data.file.id,
+          scopeId,
+          name: data.file.originalName || asFile.name,
+          mimeType: data.file.mimeType || asFile.type,
+        })
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'خطأ في الرفع')
     } finally {

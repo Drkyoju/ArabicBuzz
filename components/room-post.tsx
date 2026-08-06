@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, BookmarkPlus, Download, Send, Sparkles, User } from 'lucide-react'
+import { Bot, BookmarkPlus, Download, Eye, Send, Sparkles, User } from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useFilePreviewStore } from '@/lib/files/preview-store'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 
@@ -103,6 +104,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const isAgent = post.authorKind === 'agent'
   const isChannel =
     post.authorKind === 'channel' || post.authorKind === 'system'
+  const openPreview = useFilePreviewStore((s) => s.openPreview)
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [memNote, setMemNote] = useState('')
@@ -321,6 +323,23 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
           {attachments.map((a) => (
             <span key={a.fileId} className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                dir="ltr"
+                title="معاينة جنب الشات"
+                onClick={() =>
+                  openPreview({
+                    fileId: a.fileId,
+                    scopeId: a.scopeId,
+                    name: a.name,
+                    mimeType: a.mimeType,
+                  })
+                }
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-ab-accent/30 bg-white px-2 py-1 text-[11px] font-medium text-ab-accent hover:bg-emerald-50"
+              >
+                <Eye className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">معاينة</span>
+              </button>
               <button
                 type="button"
                 dir="ltr"
