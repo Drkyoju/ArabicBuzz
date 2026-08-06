@@ -68,8 +68,8 @@ function clampMembersPanePx(px: number): number {
 function defaultMembersPanePx(): number {
   const vh =
     typeof window !== 'undefined' ? window.innerHeight : 800
-  // Usable default (~45vh, floor 320px) — drag handle adjusts further.
-  return clampMembersPanePx(Math.round(vh * 0.45))
+  // Tall enough that invite CTAs stay in-pane above the chat feed.
+  return clampMembersPanePx(Math.round(vh * 0.55))
 }
 
 function readMembersPanePx(scopeId: string): number {
@@ -1234,7 +1234,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
               {/* Desktop / tablet: inline resizable pane — z above feed so invite/copy stay clickable */}
               <div
-                className="relative z-20 hidden shrink-0 flex-col border-b border-ab-border bg-stone-50 md:flex"
+                className="relative z-20 hidden shrink-0 flex-col overflow-hidden border-b border-ab-border bg-stone-50 md:flex"
                 style={{
                   height: membersPanePx,
                   minHeight: MEMBERS_PANE_MIN,

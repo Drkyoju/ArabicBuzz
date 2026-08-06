@@ -327,73 +327,8 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
 
       {tab === 'people' ? (
         <>
-          <div>
-            <p className="mb-1.5 font-semibold text-ab-ink">
-              الأعضاء ({members.length})
-            </p>
-            <ul className="space-y-1">
-              {members.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-ab-border bg-white px-2 py-1.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate font-medium">{m.displayNameAr}</p>
-                      <RoleBadge
-                        labelAr={
-                          isDirectorEmail(m.email)
-                            ? labelArForEmail(m.email)
-                            : roomRoleLabelAr(m.role)
-                        }
-                      />
-                    </div>
-                    <p className="truncate text-[10px] text-stone-400" dir="ltr">
-                      {[m.email, m.phone].filter(Boolean).join(' · ') || '—'}
-                    </p>
-                    {(m.committee || m.notesAr) && (
-                      <p className="truncate text-[10px] text-stone-500">
-                        {m.committee === 'finance'
-                          ? 'مالية'
-                          : m.committee === 'programs'
-                            ? 'برامج'
-                            : m.committee === 'board'
-                              ? 'مجلس'
-                              : m.committee || ''}
-                        {m.notesAr ? ` · ${m.notesAr}` : ''}
-                      </p>
-                    )}
-                    {m.role !== 'owner' && canManage && (
-                      <p className="mt-1 text-[10px] text-stone-500">
-                        موظف — ترقية المدير محصورة على البريد المعتمد.
-                      </p>
-                    )}
-                  </div>
-                  {m.role !== 'owner' && canManage ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `إزالة العضو «${m.displayNameAr}» من الغرفة؟`
-                          )
-                        ) {
-                          void removeMember(m.id)
-                        }
-                      }}
-                      className="rounded p-1 text-stone-400 hover:text-red-600"
-                      aria-label={`حذف ${m.displayNameAr}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="rounded-md border border-ab-border bg-white p-2 space-y-2">
+          {/* Invite first so «رابط دعوة» stays above the chat feed without scrolling */}
+          <div className="relative z-20 rounded-md border border-ab-border bg-white p-2 space-y-2 shadow-sm">
             <p className="font-semibold text-ab-ink">دعوة زميل للغرفة</p>
             {canManage && (
               <ol className="list-decimal space-y-1 pe-4 text-[10px] leading-relaxed text-stone-600">
@@ -550,7 +485,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           </div>
 
           {invites.length > 0 && (
-            <div>
+            <div className="relative z-20">
               <p className="mb-1 font-semibold">دعوات معلّقة</p>
               <ul className="space-y-1">
                 {invites.map((i) => (
@@ -565,7 +500,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                       <button
                         type="button"
                         onClick={() => void copyLink(i.inviteUrl!)}
-                        className="text-[10px] text-ab-accent"
+                        className="relative z-20 text-[10px] font-medium text-ab-accent"
                       >
                         نسخ
                       </button>
@@ -575,6 +510,72 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               </ul>
             </div>
           )}
+
+          <div>
+            <p className="mb-1.5 font-semibold text-ab-ink">
+              الأعضاء ({members.length})
+            </p>
+            <ul className="space-y-1">
+              {members.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-ab-border bg-white px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate font-medium">{m.displayNameAr}</p>
+                      <RoleBadge
+                        labelAr={
+                          isDirectorEmail(m.email)
+                            ? labelArForEmail(m.email)
+                            : roomRoleLabelAr(m.role)
+                        }
+                      />
+                    </div>
+                    <p className="truncate text-[10px] text-stone-400" dir="ltr">
+                      {[m.email, m.phone].filter(Boolean).join(' · ') || '—'}
+                    </p>
+                    {(m.committee || m.notesAr) && (
+                      <p className="truncate text-[10px] text-stone-500">
+                        {m.committee === 'finance'
+                          ? 'مالية'
+                          : m.committee === 'programs'
+                            ? 'برامج'
+                            : m.committee === 'board'
+                              ? 'مجلس'
+                              : m.committee || ''}
+                        {m.notesAr ? ` · ${m.notesAr}` : ''}
+                      </p>
+                    )}
+                    {m.role !== 'owner' && canManage && (
+                      <p className="mt-1 text-[10px] text-stone-500">
+                        موظف — ترقية المدير محصورة على البريد المعتمد.
+                      </p>
+                    )}
+                  </div>
+                  {m.role !== 'owner' && canManage ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `إزالة العضو «${m.displayNameAr}» من الغرفة؟`
+                          )
+                        ) {
+                          void removeMember(m.id)
+                        }
+                      }}
+                      className="rounded p-1 text-stone-400 hover:text-red-600"
+                      aria-label={`حذف ${m.displayNameAr}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
         </>
       ) : (
         <div className="space-y-3">
