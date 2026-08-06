@@ -29,6 +29,7 @@ import { ModelPicker } from '@/components/model-picker'
 import { HelpTip } from '@/components/help-tip'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
+import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { useRosterCloudSync } from '@/lib/rooms/use-roster-cloud-sync'
@@ -284,12 +285,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       if (!res.ok || cancelled) return
       const data = (await res.json()) as { posts?: RoomPost[] }
       if (data.posts && data.posts.length > 0) {
-        const cleaned = data.posts.filter((p) => {
-          const c = p.content || ''
-          if (c.includes('واحدةحدة')) return false
-          if (c.includes('المجلد فارغ أو لا يمكن قراءته')) return false
-          return true
-        })
+        const cleaned = data.posts.filter((p) => !isNoiseRoomPost(p.content || ''))
         setPostsForScope(activeScopeId, cleaned)
       }
 
@@ -342,6 +338,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         },
         (payload) => {
           const row = payload.new as Record<string, string>
+          if (isNoiseRoomPost(row.content || '')) return
           mergePost({
             id: row.id,
             scopeId: row.scope_id,

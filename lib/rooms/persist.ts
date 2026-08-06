@@ -1,6 +1,9 @@
 import { appBaseUrl } from '@/lib/app-url'
+import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import type { RoomPost } from '@/lib/scopes/types'
+
+export { isNoiseRoomPost } from '@/lib/rooms/noise'
 
 export type DbRoomPost = {
   id: string
@@ -47,7 +50,9 @@ export async function listRoomPosts(scopeId: string, limit = 100) {
   if (error) return { ok: false as const, posts: [] as RoomPost[], error: error.message }
   return {
     ok: true as const,
-    posts: (data as DbRoomPost[]).map(rowToRoomPost),
+    posts: (data as DbRoomPost[])
+      .map(rowToRoomPost)
+      .filter((p) => !isNoiseRoomPost(p.content)),
   }
 }
 

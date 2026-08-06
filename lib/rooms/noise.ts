@@ -1,0 +1,10 @@
+/** Drop QA/debug noise and stale empty-brain system posts from room feeds. */
+export function isNoiseRoomPost(content: string): boolean {
+  const c = (content || '').trim()
+  if (!c) return true
+  if (c === 'x' || c === 'guest-probe') return true
+  if (c.includes('guest-probe')) return true
+  if (c.includes('واحدةحدة')) return true
+  if (c.includes('المجلد فارغ أو لا يمكن قراءته')) return true
+  return false
+}

@@ -12,8 +12,8 @@ const RECIPES = [
   },
   {
     id: 'deadlines',
-    titleAr: 'ترخيص وإفصاح',
-    detailAr: 'مواعيد النظام + تذكير تيليجرام قبل انتهاء الترخيص أو الإفصاح.',
+    titleAr: 'مواعيد النظام',
+    detailAr: 'تقويم الفريق + تذكير تيليجرام قبل انتهاء المواعيد المهمة.',
     section: 'calendar',
     icon: CalendarDays,
   },
@@ -41,7 +41,7 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">وصفات عمل الجمعية</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        مسارات جاهزة لدورة الحوكمة: مجلس → موافقة بشرية → إفصاح وترخيص.
+        مسارات جاهزة: مجلس → موافقة بشرية → مواعيد النظام.
       </p>
       <ul className="mt-3 grid gap-2 sm:grid-cols-3">
         {RECIPES.map((r) => {
