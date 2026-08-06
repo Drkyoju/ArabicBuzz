@@ -107,7 +107,7 @@ export async function buildTeamInbox(opts: {
       detailAr: t.status === 'in_progress' ? 'قيد التنفيذ' : 'مهمة مفتوحة',
       whenAt: t.dueAt,
       whenAtAr: t.dueAt ? fmtTime(t.dueAt) : 'بدون موعد',
-      hrefHint: 'calendar?tab=tasks',
+      hrefHint: 'calendar:tasks',
     })
   }
 

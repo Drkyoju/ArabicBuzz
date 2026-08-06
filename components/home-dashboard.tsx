@@ -487,8 +487,8 @@ export function HomeDashboard({
                       window.location.href = `/${hint}`
                       return
                     }
-                    if (hint.includes('tasks')) {
-                      onNavigate?.('calendar')
+                    if (hint === 'calendar:tasks' || hint.includes('tasks')) {
+                      onNavigate?.('calendar:tasks')
                       return
                     }
                     if (hint === 'approvals') {
@@ -505,10 +505,21 @@ export function HomeDashboard({
                 >
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold text-ab-ink">
-                      <span className="me-1.5 text-[10px] font-medium text-stone-500">
-                        {INBOX_KIND_AR[item.kind]}
-                      </span>
-                      {item.titleAr}
+                      {(() => {
+                        const kindAr = INBOX_KIND_AR[item.kind]
+                        const title = item.titleAr.trim()
+                        const stripped = title
+                          .replace(new RegExp(`^${kindAr}[\\s·\\-–—]+`), '')
+                          .trim()
+                        return (
+                          <>
+                            <span className="me-1.5 text-[10px] font-medium text-stone-500">
+                              {kindAr}
+                            </span>
+                            {stripped || title}
+                          </>
+                        )
+                      })()}
                     </p>
                     {(item.detailAr || item.whenAtAr) && (
                       <p className="mt-0.5 text-[10px] text-stone-500">

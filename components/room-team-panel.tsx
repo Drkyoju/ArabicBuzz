@@ -289,7 +289,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
   }
 
   return (
-    <div className="space-y-3 text-xs" dir="rtl">
+    <div className="relative z-10 space-y-3 text-xs" dir="rtl">
       <div className="flex gap-1 rounded-md bg-stone-100 p-0.5">
         <button
           type="button"
@@ -454,7 +454,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               disabled={!canManage}
               className="w-full rounded border border-ab-border px-2 py-1.5 disabled:opacity-50"
             />
-            <div className="flex flex-wrap gap-1.5">
+            <div className="relative z-10 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 disabled={busy || !canManage || !nameAr.trim()}
@@ -466,7 +466,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                       : 'إضافة عضو للاسم الظاهر'
                 }
                 onClick={() => void addMember()}
-                className="inline-flex items-center gap-1 rounded-md bg-ab-ink px-2.5 py-1.5 text-white disabled:opacity-40"
+                className="relative z-10 inline-flex items-center gap-1 rounded-md bg-ab-ink px-2.5 py-1.5 text-white disabled:opacity-40"
               >
                 <UserPlus className="h-3 w-3" />
                 أضف للسجل
@@ -492,7 +492,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                 disabled={busy || !canManage}
                 title={!canManage ? 'للمالك فقط' : 'ينشئ رابط انضمام يمكن نسخه'}
                 onClick={() => void createLink()}
-                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
+                className="relative z-10 inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 disabled:opacity-40"
               >
                 <Link2 className="h-3 w-3" />
                 رابط دعوة
@@ -527,15 +527,15 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               وmailto يعملان. تيليجرام يرسل الرابط للقناة المضبوطة إن وُجدت.
             </p>
             {linkUrl && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
+              <div className="relative z-10 space-y-1.5">
+                <div className="relative z-10 flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
                   <code className="min-w-0 flex-1 truncate text-[10px]">
                     {linkUrl}
                   </code>
                   <button
                     type="button"
                     onClick={() => void copyLink(linkUrl)}
-                    className="inline-flex items-center gap-1 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-ink"
+                    className="relative z-10 inline-flex shrink-0 items-center gap-1 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-ink"
                     aria-label="نسخ الرابط"
                   >
                     <Copy className="h-3 w-3" />

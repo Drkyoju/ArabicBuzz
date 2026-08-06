@@ -28,6 +28,33 @@ export async function executeRoomTasksCreate(
   _n: string,
   params: Record<string, unknown>
 ) {
+  let assigneeAr = params.assigneeAr ? String(params.assigneeAr) : undefined
+  let assigneeEmail = params.assigneeEmail
+    ? String(params.assigneeEmail)
+    : undefined
+  let assigneeUserId = params.assigneeUserId
+    ? String(params.assigneeUserId)
+    : undefined
+  const selfAliases = /^(لي|إلي|انا|أنا|نفسي|لنفسي)$/u
+  if (assigneeAr && selfAliases.test(assigneeAr.trim())) {
+    const userId = String(params.userId || '')
+    try {
+      const { listRoomMembers } = await import('@/lib/rooms/persist')
+      const { members } = await listRoomMembers(scopeOf(params))
+      const hit = members.find((m) => m.userId && m.userId === userId)
+      if (hit) {
+        assigneeAr = hit.displayNameAr
+        assigneeEmail = hit.email || assigneeEmail
+        assigneeUserId = hit.userId || userId
+      } else {
+        assigneeAr = 'أنا'
+        assigneeUserId = userId || undefined
+      }
+    } catch {
+      assigneeAr = 'أنا'
+      assigneeUserId = userId || undefined
+    }
+  }
   const task = await createRoomTask({
     scopeId: scopeOf(params),
     titleAr: String(params.titleAr || params.title || ''),
@@ -35,10 +62,9 @@ export async function executeRoomTasksCreate(
     priority:
       typeof params.priority === 'number' ? params.priority : undefined,
     dueAt: params.dueAt ? String(params.dueAt) : undefined,
-    assigneeAr: params.assigneeAr ? String(params.assigneeAr) : undefined,
-    assigneeEmail: params.assigneeEmail
-      ? String(params.assigneeEmail)
-      : undefined,
+    assigneeAr,
+    assigneeEmail,
+    assigneeUserId,
     source: 'ai',
     createdBy: String(params.userId || 'agent'),
     createdByAr: 'الوكيل',

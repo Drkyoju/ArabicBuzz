@@ -300,28 +300,37 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [loadApprovals, signedIn])
 
+  const goToSection = useCallback((target: string) => {
+    if (target === 'calendar:tasks') {
+      setCalendarTab('tasks')
+      setSection('calendar')
+      return
+    }
+    if (
+      target === 'home' ||
+      target === 'calendar' ||
+      target === 'chats' ||
+      target === 'settings' ||
+      target === 'files' ||
+      target === 'memory' ||
+      target === 'approvals' ||
+      target === 'audit' ||
+      target === 'skills' ||
+      target === 'api-keys' ||
+      target === 'ops'
+    ) {
+      setSection(target)
+    }
+  }, [])
+
   useEffect(() => {
     const onNav = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail
-      if (
-        detail === 'home' ||
-        detail === 'calendar' ||
-        detail === 'chats' ||
-        detail === 'settings' ||
-        detail === 'files' ||
-        detail === 'memory' ||
-        detail === 'approvals' ||
-        detail === 'audit' ||
-        detail === 'skills' ||
-        detail === 'api-keys' ||
-        detail === 'ops'
-      ) {
-        setSection(detail)
-      }
+      if (typeof detail === 'string') goToSection(detail)
     }
     window.addEventListener('ab-nav', onNav)
     return () => window.removeEventListener('ab-nav', onNav)
-  }, [])
+  }, [goToSection])
 
   return (
     <div className="min-h-dvh bg-ab-bg">
@@ -346,7 +355,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
         {section === 'home' && (
           <HomeDashboard
-            onNavigate={(s) => setSection(s as SidebarSection)}
+            onNavigate={goToSection}
             pendingApprovalsCount={pendingCount}
           />
         )}

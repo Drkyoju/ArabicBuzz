@@ -247,9 +247,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...result,
+      created: true,
       messageAr:
         result.conflicts.length > 0
-          ? `أُضيف الموعد إلى تقويم الغرفة المشترك — تنبيه: ${result.conflicts.length} تعارض. ${result.suggestion?.messageAr || ''}${googleNote}`
+          ? `تم إنشاء الموعد في تقويم الغرفة (ظاهر للفريق). تنبيه فقط: ${result.conflicts.length} تعارض زمني محتمل. ${result.suggestion?.messageAr || ''}${googleNote}`
           : `أُضيف الموعد إلى تقويم الغرفة المشترك (ظاهر للفريق)${googleNote}`,
     })
   } catch (e) {

@@ -190,6 +190,14 @@ export function RoomCalendarBoard({
   }, [scopeId])
 
   useEffect(() => {
+    // Wait for session resolve so we don't mark GUEST from a token-less probe.
+    if (signedIn === null) return
+    if (signedIn === false) {
+      setEvents([])
+      setErr('GUEST')
+      setLoading(false)
+      return
+    }
     void load()
     try {
       localStorage.setItem('ab-room-collab-seen', '1')
@@ -197,7 +205,7 @@ export function RoomCalendarBoard({
     } catch {
       /* ignore */
     }
-  }, [load])
+  }, [load, signedIn])
 
   useEffect(() => {
     if (signedIn !== true) {
@@ -513,9 +521,9 @@ export function RoomCalendarBoard({
             ? 'Google'
             : 'يدوي'
 
-  /** Only treat as signed-in when session is confirmed — never show add form while null. */
-  const isGuest = signedIn !== true || err === 'GUEST'
-  const sessionPending = signedIn === null && err !== 'GUEST'
+  /** Wait for session resolve before guest CTA; ignore stale GUEST once signed in. */
+  const sessionPending = signedIn === null
+  const isGuest = signedIn === false || (signedIn === true && err === 'GUEST')
 
   function renderEventRow(e: RoomEvent) {
     return (
@@ -818,11 +826,11 @@ export function RoomCalendarBoard({
           </div>
         </div>
 
-        {loading && signedIn === true ? (
+        {sessionPending || (loading && signedIn === true) ? (
           <p className="rounded-xl border border-ab-border bg-white p-4 text-sm text-stone-500">
-            جاري تحميل المواعيد…
+            {sessionPending ? 'جاري التحقق من الحساب…' : 'جاري تحميل المواعيد…'}
           </p>
-        ) : isGuest || sessionPending ? (
+        ) : isGuest ? (
           <p className="rounded-xl border border-ab-border bg-white p-6 text-center text-sm text-stone-500">
             مواعيد الغرفة المحفوظة تحتاج حساباً.{' '}
             <Link

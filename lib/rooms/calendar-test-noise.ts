@@ -1,15 +1,16 @@
 /**
  * Detect / soft-cancel test calendar events that clutter the team agenda.
- * Titles like «اختبار تقويم الفريق» are QA leftovers, not real meetings.
+ * Keep patterns narrow — only clear obvious QA leftovers, not real meetings
+ * whose titles happen to mention «اختبار» in passing.
  */
 
 const TEST_TITLE_PATTERNS: RegExp[] = [
-  /^اختبار[\s·\-–—]/,
-  /اختبار\s*تقويم/,
-  /اختبار\s*بدون\s*موافقة/,
-  /اختبار\s*الموافقة/,
-  /test\s*(calendar|event|meeting)/i,
-  /^qa[\s\-]/i,
+  /^اختبار\s*تقويم/,
+  /^اختبار\s*بدون\s*موافقة/,
+  /^اختبار\s*الموافقة/,
+  /^اختبار\s*موعد(\s|$)/,
+  /^qa[\s\-·–—]/i,
+  /^test[\s\-·–—]*(calendar|event|meeting)/i,
 ]
 
 export function isTestCalendarTitle(titleAr: string | null | undefined): boolean {

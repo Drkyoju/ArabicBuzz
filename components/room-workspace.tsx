@@ -1232,15 +1232,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
 
-              {/* Desktop / tablet: inline resizable pane */}
+              {/* Desktop / tablet: inline resizable pane — z above feed so invite/copy stay clickable */}
               <div
-                className="hidden shrink-0 flex-col border-b border-ab-border bg-stone-50 md:flex"
+                className="relative z-20 hidden shrink-0 flex-col border-b border-ab-border bg-stone-50 md:flex"
                 style={{
                   height: membersPanePx,
                   minHeight: MEMBERS_PANE_MIN,
                 }}
               >
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2">
+                <div className="relative z-20 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
                   <RoomTeamPanel scopeId={activeScopeId} />
                   <TelegramOutboundBlock
                     telegramReady={telegramReady}
@@ -1295,7 +1295,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           )}
 
           <div
-            className="shrink-0 border-b border-ab-border/70 px-3 py-1.5"
+            className="relative z-0 shrink-0 border-b border-ab-border/70 px-3 py-1.5"
             style={
               seatsCollapsed
                 ? { maxHeight: 40, overflow: 'hidden' }
@@ -1363,7 +1363,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3">
+          <div
+            ref={feedRef}
+            className="relative z-0 min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
             <div className="mx-auto w-full max-w-2xl">
               {posts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-4 py-6 text-center">

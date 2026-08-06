@@ -178,10 +178,13 @@ export async function listRoomCalendarEvents(opts: {
   from?: string
   to?: string
   includeCancelled?: boolean
-  /** When true (default), hide QA titles like «اختبار تقويم الفريق». */
+  /**
+   * When true, hide QA titles like «اختبار تقويم الفريق».
+   * Default false — list shows all non-cancelled events; use cleanup_test to soft-cancel noise.
+   */
   hideTestTitles?: boolean
 }): Promise<RoomCalendarEvent[]> {
-  const hideTest = opts.hideTestTitles !== false
+  const hideTest = opts.hideTestTitles === true
   const sb = getSupabaseAdmin()
   let rows: RoomCalendarEvent[] | null = null
   if (sb) {
@@ -229,6 +232,27 @@ export async function cancelTestCalendarEvents(scopeId: string): Promise<{
   return { cancelled: titles.length, titles }
 }
 
+export async function findRoomEventByGoogleId(
+  scopeId: string,
+  googleEventId: string
+): Promise<RoomCalendarEvent | null> {
+  if (!googleEventId) return null
+  const sb = getSupabaseAdmin()
+  if (sb) {
+    const { data, error } = await sb
+      .from('room_calendar_events')
+      .select('*')
+      .eq('scope_id', scopeId)
+      .eq('google_event_id', googleEventId)
+      .maybeSingle()
+    if (!error && data) return rowToEvent(data as DbRow)
+  }
+  for (const e of memory.values()) {
+    if (e.scopeId === scopeId && e.googleEventId === googleEventId) return e
+  }
+  return null
+}
+
 export async function createRoomCalendarEvent(opts: {
   scopeId: string
   titleAr: string
@@ -242,7 +266,10 @@ export async function createRoomCalendarEvent(opts: {
   createdBy?: string
   createdByAr?: string
   status?: RoomEventStatus
+  googleEventId?: string | null
   meta?: Record<string, unknown>
+  /** Skip conflict Telegram noise (used by Google sync). */
+  quiet?: boolean
 }): Promise<{ event: RoomCalendarEvent; conflicts: ConflictInfo[]; suggestion: ReturnType<typeof proposeAdjustedSlot> }> {
   const titleAr = opts.titleAr.trim()
   if (!titleAr) throw new Error('عنوان الموعد مطلوب')
@@ -252,11 +279,16 @@ export async function createRoomCalendarEvent(opts: {
     throw new Error('وقت النهاية يجب أن يكون بعد البداية')
   }
 
-  const existing = await listRoomCalendarEvents({ scopeId: opts.scopeId })
-  const conflicts = findRoomConflicts(existing, { startsAt, endsAt })
+  const existing = await listRoomCalendarEvents({
+    scopeId: opts.scopeId,
+    includeCancelled: true,
+    hideTestTitles: false,
+  })
+  const active = existing.filter((e) => e.status !== 'cancelled')
+  const conflicts = findRoomConflicts(active, { startsAt, endsAt })
   const suggestion =
     conflicts.length > 0
-      ? proposeAdjustedSlot(existing, startsAt, endsAt)
+      ? proposeAdjustedSlot(active, startsAt, endsAt)
       : null
 
   const now = new Date().toISOString()
@@ -274,7 +306,7 @@ export async function createRoomCalendarEvent(opts: {
     createdBy: opts.createdBy || null,
     createdByAr: opts.createdByAr || null,
     status: opts.status || 'confirmed',
-    googleEventId: null,
+    googleEventId: opts.googleEventId || null,
     meta: opts.meta || {},
     createdAt: now,
     updatedAt: now,
@@ -299,20 +331,25 @@ export async function createRoomCalendarEvent(opts: {
         created_by: event.createdBy,
         created_by_ar: event.createdByAr,
         status: event.status,
+        google_event_id: event.googleEventId,
         meta: event.meta,
       })
       .select('*')
       .single()
-    if (!error && data) {
-      saved = rowToEvent(data as DbRow)
-    } else {
-      memory.set(event.id, event)
+    if (error || !data) {
+      throw new Error(
+        error?.message
+          ? `تعذّر حفظ الموعد في قاعدة البيانات: ${error.message}`
+          : 'تعذّر حفظ الموعد في قاعدة البيانات'
+      )
     }
+    saved = rowToEvent(data as DbRow)
+    memory.set(saved.id, saved)
   } else {
     memory.set(event.id, event)
   }
 
-  if (conflicts.length > 0) {
+  if (conflicts.length > 0 && !opts.quiet) {
     void notifyRoomCalendarConflicts({
       scopeId: opts.scopeId,
       titleAr: saved.titleAr,
@@ -337,12 +374,14 @@ export async function updateRoomCalendarEvent(
     locationAr: string | null
     attendees: string[]
     status: RoomEventStatus
+    googleEventId: string | null
     meta: Record<string, unknown>
   }>
 ): Promise<{ event: RoomCalendarEvent; conflicts: ConflictInfo[] }> {
   const list = await listRoomCalendarEvents({
     scopeId,
     includeCancelled: true,
+    hideTestTitles: false,
   })
   const current = list.find((e) => e.id === id)
   if (!current) throw new Error('الموعد غير موجود في تقويم الغرفة')
@@ -365,6 +404,10 @@ export async function updateRoomCalendarEvent(
       patch.locationAr !== undefined ? patch.locationAr : current.locationAr,
     attendees: patch.attendees ?? current.attendees,
     status: patch.status ?? current.status,
+    googleEventId:
+      patch.googleEventId !== undefined
+        ? patch.googleEventId
+        : current.googleEventId,
     meta: patch.meta ?? current.meta,
     updatedAt: new Date().toISOString(),
   }
@@ -389,6 +432,7 @@ export async function updateRoomCalendarEvent(
         location_ar: next.locationAr,
         attendees: next.attendees,
         status: next.status,
+        google_event_id: next.googleEventId,
         meta: next.meta,
         updated_at: next.updatedAt,
       })

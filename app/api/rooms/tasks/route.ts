@@ -55,6 +55,24 @@ export async function POST(req: NextRequest) {
     user.email?.split('@')[0] ||
     'عضو'
 
+  const selfAliases = /^(لي|إلي|انا|أنا|نفسي|لنفسي)$/u
+  function resolveSelfAssignee(raw: string | null | undefined): {
+    assigneeAr?: string | null
+    assigneeEmail?: string | null
+    assigneeUserId?: string | null
+  } {
+    if (raw == null) return {}
+    const t = String(raw).trim()
+    if (!selfAliases.test(t)) {
+      return { assigneeAr: t || null }
+    }
+    return {
+      assigneeAr: createdByAr,
+      assigneeEmail: user.email || null,
+      assigneeUserId: user.id,
+    }
+  }
+
   try {
     if (action === 'reconcile') {
       const result = await reconcileRoomTasks({
@@ -66,24 +84,31 @@ export async function POST(req: NextRequest) {
     if (action === 'update') {
       const prevList = await listRoomTasks(scopeId, { includeDone: true })
       const prev = prevList.find((t) => t.id === String(body.taskId || ''))
-      const patchAssigneeAr =
+      let patchAssigneeAr =
         body.patch?.assigneeAr !== undefined
           ? body.patch.assigneeAr == null
             ? null
             : String(body.patch.assigneeAr)
           : undefined
-      const patchAssigneeEmail =
+      let patchAssigneeEmail =
         body.patch?.assigneeEmail !== undefined
           ? body.patch.assigneeEmail == null
             ? null
             : String(body.patch.assigneeEmail)
           : undefined
-      const patchAssigneeUserId =
+      let patchAssigneeUserId =
         body.patch?.assigneeUserId !== undefined
           ? body.patch.assigneeUserId == null
             ? null
             : String(body.patch.assigneeUserId)
           : undefined
+
+      if (patchAssigneeAr != null && selfAliases.test(patchAssigneeAr.trim())) {
+        const self = resolveSelfAssignee(patchAssigneeAr)
+        patchAssigneeAr = self.assigneeAr ?? patchAssigneeAr
+        patchAssigneeEmail = self.assigneeEmail ?? patchAssigneeEmail
+        patchAssigneeUserId = self.assigneeUserId ?? patchAssigneeUserId
+      }
 
       const task = await updateRoomTask(String(body.taskId || ''), scopeId, {
         titleAr:
@@ -148,15 +173,25 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ task, messageAr: 'حُدّثت المهمة' })
     }
+    const selfCreate = resolveSelfAssignee(body.assigneeAr)
     const task = await createRoomTask({
       scopeId,
       titleAr: String(body.titleAr || ''),
       notesAr: body.notesAr,
       priority: body.priority,
       dueAt: body.dueAt,
-      assigneeAr: body.assigneeAr,
-      assigneeEmail: body.assigneeEmail,
-      assigneeUserId: body.assigneeUserId,
+      assigneeAr:
+        selfCreate.assigneeAr !== undefined
+          ? selfCreate.assigneeAr || undefined
+          : body.assigneeAr,
+      assigneeEmail:
+        selfCreate.assigneeEmail !== undefined
+          ? selfCreate.assigneeEmail || undefined
+          : body.assigneeEmail,
+      assigneeUserId:
+        selfCreate.assigneeUserId !== undefined
+          ? selfCreate.assigneeUserId || undefined
+          : body.assigneeUserId,
       source: 'manual',
       createdBy: user?.id,
       createdByAr,

@@ -43,7 +43,8 @@ export function FilesPanel() {
   const scopes = useWorkspaceStore((s) => s.scopes)
   const scope = scopes.find((s) => s.id === scopeId)
   const signedIn = useSignedIn()
-  const isGuest = signedIn !== true
+  const authPending = signedIn === null
+  const isGuest = signedIn === false
   const [files, setFiles] = useState<ListedFile[]>([])
   const [source, setSource] = useState<string>('none')
   const [error, setError] = useState('')
@@ -278,6 +279,17 @@ export function FilesPanel() {
     source === 'local' || source === 'mac'
       ? 'زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة مشتركة طالما وكيل المزامنة يعمل.'
       : 'على الموقع السحابي تُحفظ الملفات الصغيرة في التخزين السحابي. للملفات الكبيرة اربط وكيل مزامنة الماك من الإعدادات.'
+
+  if (authPending) {
+    return (
+      <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+        <h2 className="text-xl font-bold">ملفات المساحة</h2>
+        <p className="mt-4 rounded-xl border border-ab-border bg-white px-4 py-3 text-sm text-stone-500">
+          جاري التحقق من الحساب…
+        </p>
+      </section>
+    )
+  }
 
   if (isGuest) {
     return (

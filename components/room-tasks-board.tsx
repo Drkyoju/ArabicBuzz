@@ -120,19 +120,25 @@ export function RoomTasksBoard() {
         const { data } = await sb.auth.getUser()
         const u = data.user
         if (!u) return
+        const fallback =
+          (u.user_metadata?.full_name as string) ||
+          u.email?.split('@')[0] ||
+          'أنا'
+        const fromRoster = members.find(
+          (m) =>
+            (m.userId && m.userId === u.id) ||
+            (m.email && u.email && m.email.toLowerCase() === u.email.toLowerCase())
+        )
         setMe({
           userId: u.id,
           email: u.email || null,
-          nameAr:
-            (u.user_metadata?.full_name as string) ||
-            u.email?.split('@')[0] ||
-            'أنا',
+          nameAr: fromRoster?.displayNameAr || fallback,
         })
       } catch {
         /* ignore */
       }
     })()
-  }, [signedIn])
+  }, [signedIn, members])
 
   function memberByKey(key: string): Member | null {
     if (!key) return null
@@ -217,23 +223,34 @@ export function RoomTasksBoard() {
     member: Member | null,
     self?: boolean
   ) {
-    const patch = self && me
-      ? {
-          assigneeAr: me.nameAr,
-          assigneeEmail: me.email,
-          assigneeUserId: me.userId,
-        }
-      : member
+    const selfMember =
+      self && me
+        ? members.find(
+            (m) =>
+              (me.userId && m.userId === me.userId) ||
+              (me.email &&
+                m.email &&
+                m.email.toLowerCase() === me.email.toLowerCase())
+          ) || null
+        : null
+    const patch =
+      self && me
         ? {
-            assigneeAr: member.displayNameAr,
-            assigneeEmail: member.email,
-            assigneeUserId: member.userId,
+            assigneeAr: selfMember?.displayNameAr || me.nameAr,
+            assigneeEmail: selfMember?.email || me.email,
+            assigneeUserId: selfMember?.userId || me.userId,
           }
-        : {
-            assigneeAr: null,
-            assigneeEmail: null,
-            assigneeUserId: null,
-          }
+        : member
+          ? {
+              assigneeAr: member.displayNameAr,
+              assigneeEmail: member.email,
+              assigneeUserId: member.userId,
+            }
+          : {
+              assigneeAr: null,
+              assigneeEmail: null,
+              assigneeUserId: null,
+            }
     setBusy(true)
     try {
       const res = await fetch('/api/rooms/tasks', {

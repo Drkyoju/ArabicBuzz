@@ -17,15 +17,18 @@ export function isSupabaseConfigured() {
   return Boolean(url && anonKey)
 }
 
-/** Browser Supabase client (email + optional OAuth). */
+let browserClient: SupabaseClient | null = null
+
+/** Browser Supabase client (email + optional OAuth) — singleton for one session. */
 export function createBrowserSupabaseClient(): SupabaseClient {
+  if (browserClient) return browserClient
   const { url, anonKey } = publicSupabaseConfig()
   if (!url || !anonKey) {
     throw new Error(
       'Supabase غير مُعدّ. اضبط NEXT_PUBLIC_SUPABASE_URL و NEXT_PUBLIC_SUPABASE_ANON_KEY.'
     )
   }
-  return createClient(url, anonKey, {
+  browserClient = createClient(url, anonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -33,6 +36,7 @@ export function createBrowserSupabaseClient(): SupabaseClient {
       flowType: 'pkce',
     },
   })
+  return browserClient
 }
 
 export type OAuthProvider = 'google' | 'github'

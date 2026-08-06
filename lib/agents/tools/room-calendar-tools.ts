@@ -57,11 +57,13 @@ export async function executeRoomCalendarCreate(
   })
   return {
     ok: true,
+    created: true,
+    eventId: result.event.id,
     ...result,
     messageAr:
       result.conflicts.length > 0
-        ? `أُضيف مع تنبيه تعارض (${result.conflicts.length}). ${result.suggestion?.messageAr || 'راجع التقويم المشترك.'}`
-        : `أُضيف «${result.event.titleAr}» إلى تقويم الغرفة المشترك.`,
+        ? `تم إنشاء الموعد «${result.event.titleAr}» في تقويم الغرفة (ظاهر للفريق). تنبيه فقط: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
+        : `أُضيف «${result.event.titleAr}» إلى تقويم الغرفة المشترك وهو ظاهر للفريق الآن.`,
   }
 }
 
