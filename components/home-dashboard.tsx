@@ -155,7 +155,7 @@ function DayBlock({
 
 
 /**
- * لوحة اليوم — غرفة عمليات الجمعية: قرار معلّق، مواعيد نظام، وكلاء يعملون.
+ * لوحة اليوم — غرفة عمليات الفريق: قرار معلّق، مواعيد، وكلاء يعملون.
  * Empty sections are omitted entirely (no decorative «لا يوجد» cards).
  */
 export function HomeDashboard({

@@ -665,8 +665,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
     return finalContent
   }
 
-  async function sendPrompt() {
-    const prompt = input.trim()
+  async function sendPrompt(overridePrompt?: string) {
+    const prompt = (overridePrompt ?? input).trim()
     if (!prompt || streaming) return
     if (isGuest) {
       // Keep the text so nothing the user typed disappears silently.
@@ -1245,21 +1245,27 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     <div className="mt-3 flex flex-wrap justify-center gap-2">
                       <button
                         type="button"
+                        disabled={streaming}
                         onClick={() =>
-                          setInput('لخّص قرارات هذا الأسبوع بالعربية الفصحى')
+                          void sendPrompt(
+                            'لخّص قرارات وأعمال هذا الأسبوع بالعربية الفصحى في نقاط قصيرة.'
+                          )
                         }
-                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50 disabled:opacity-40"
                       >
                         ملخص قرارات
                       </button>
                       <button
                         type="button"
+                        disabled={streaming}
                         onClick={() =>
-                          setInput('ابحث في معرفة الفريق عن سياسة الموافقات')
+                          void sendPrompt(
+                            'استخدم search_knowledge_base فقط: ابحث في معرفة الفريق عن أهم الملفات، ولخّص ما تجده مع ذكر المصادر.'
+                          )
                         }
-                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50"
+                        className="rounded-md border border-ab-accent/40 bg-ab-accent/5 px-3 py-1.5 text-[11px] font-medium text-ab-accent hover:bg-ab-accent/10 disabled:opacity-40"
                       >
-                        ابحث في المعرفة
+                        اسأل ملفات الفريق
                       </button>
                     </div>
                   )}
@@ -1309,6 +1315,32 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 >
                   سجّل الدخول
                 </Link>
+              </div>
+            )}
+            {!isGuest && !streaming && (
+              <div className="mb-1.5 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void sendPrompt(
+                      'استخدم search_knowledge_base فقط: ابحث في معرفة الفريق ولخّص أهم النتائج مع المصادر.'
+                    )
+                  }
+                  className="rounded-md border border-ab-accent/30 bg-ab-accent/5 px-2 py-1 text-[10px] font-medium text-ab-accent hover:bg-ab-accent/10"
+                >
+                  اسأل ملفات الفريق
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void sendPrompt(
+                      'اعرض مواعيد تقويم الغرفة القادمة باختصار.'
+                    )
+                  }
+                  className="rounded-md border border-ab-border bg-white px-2 py-1 text-[10px] text-stone-600 hover:bg-stone-50"
+                >
+                  مواعيد قادمة
+                </button>
               </div>
             )}
             <form

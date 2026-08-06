@@ -1,33 +1,32 @@
 'use client'
 
-import { ShieldCheck, CalendarDays, Users } from 'lucide-react'
+import { CalendarDays, FolderSearch, Users } from 'lucide-react'
 
 const RECIPES = [
   {
-    id: 'board',
-    titleAr: 'تحضير اجتماع مجلس',
-    detailAr: 'غرفة الفريق + ملخص قرارات يُسجَّل في سجل العمل.',
+    id: 'meeting',
+    titleAr: 'تحضير اجتماع فريق',
+    detailAr: 'غرفة مشتركة + ملخص قرارات يُسجَّل في سجل العمل.',
     section: 'chats',
     icon: Users,
   },
   {
-    id: 'deadlines',
-    titleAr: 'مواعيد النظام',
-    detailAr: 'تقويم الفريق + تذكير تيليجرام قبل انتهاء المواعيد المهمة.',
+    id: 'knowledge',
+    titleAr: 'اسأل ملفات الفريق',
+    detailAr: 'ابحث في معرفة Drive واطلب ملخصاً مع المصادر.',
+    section: 'chats',
+    icon: FolderSearch,
+  },
+  {
+    id: 'calendar',
+    titleAr: 'مواعيد الفريق',
+    detailAr: 'تقويم مشترك + تذكير تيليجرام قبل المواعيد المهمة.',
     section: 'calendar',
     icon: CalendarDays,
   },
-  {
-    id: 'approval',
-    titleAr: 'موافقة بشرية حساسة',
-    detailAr:
-      'راجع صندوق الموافقات قبل مزامنة Drive أو إرسال جماعي — لا تنفيذ بلا اعتماد.',
-    section: 'approvals',
-    icon: ShieldCheck,
-  },
 ] as const
 
-/** Association one-click workflows — governance cycle, not generic agent chat. */
+/** One-click team workflows — Gulf multiplayer workspace, not association-only. */
 export function AssociationRecipes({
   onNavigate,
 }: {
@@ -39,9 +38,9 @@ export function AssociationRecipes({
       className="rounded-xl border border-ab-border bg-white p-4"
       dir="rtl"
     >
-      <h2 className="text-sm font-bold text-ab-ink">وصفات عمل الجمعية</h2>
+      <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        مسارات جاهزة: مجلس → موافقة بشرية → مواعيد النظام.
+        غرفة → معرفة الملفات → مواعيد مشتركة.
       </p>
       <ul className="mt-3 grid gap-2 sm:grid-cols-3">
         {RECIPES.map((r) => {
@@ -70,3 +69,6 @@ export function AssociationRecipes({
     </div>
   )
 }
+
+/** @deprecated alias — same component */
+export const TeamRecipes = AssociationRecipes

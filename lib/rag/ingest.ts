@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import {
   embedTexts,
+  hashEmbedding,
   toPgVectorLiteral,
-  EMBEDDING_DIMENSIONS,
 } from '@/lib/rag/embeddings'
 import { prisma, withPrismaFallback } from '@/lib/db'
 import { extractDocumentText } from '@/lib/rag/extract'
@@ -18,16 +18,6 @@ function chunkText(text: string, size = 1200, overlap = 150): string[] {
     i += size - overlap
   }
   return chunks
-}
-
-function fallbackEmbedding(text: string): number[] {
-  const vec = new Array(EMBEDDING_DIMENSIONS).fill(0)
-  for (let i = 0; i < text.length; i++) {
-    const idx = (text.charCodeAt(i) * (i + 7)) % EMBEDDING_DIMENSIONS
-    vec[idx] += 1
-  }
-  const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1
-  return vec.map((v) => v / norm)
 }
 
 export async function ingestArabicDocument(opts: {
@@ -55,7 +45,7 @@ export async function ingestArabicDocument(opts: {
   try {
     embeddings = await embedTexts(chunks, 'search_document')
   } catch {
-    embeddings = chunks.map((c) => fallbackEmbedding(c))
+    embeddings = chunks.map((c) => hashEmbedding(c))
   }
 
   const rows = chunks.map((content, i) => ({

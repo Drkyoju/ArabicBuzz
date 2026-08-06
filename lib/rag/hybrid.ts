@@ -5,6 +5,7 @@ import {
 } from '@/lib/rag/embeddings'
 import { COMPANY_BRAIN_SCOPE_ID } from '@/lib/google/drive'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { rerankArabicLexical } from '@/lib/rag/rerank'
 
 export type RAGDocument = {
   id: string
@@ -342,8 +343,12 @@ export async function hybridArabicSearch(
       .slice(0, limit)
   }, [] as RAGDocument[])
 
-  if (viaPrisma.length > 0) return viaPrisma
-  return supabaseLexicalFallback(trimmed, searchScopeId, limit, source)
+  const base =
+    viaPrisma.length > 0
+      ? viaPrisma
+      : await supabaseLexicalFallback(trimmed, searchScopeId, Math.max(limit * 3, 12), source)
+
+  return rerankArabicLexical(trimmed, base, limit)
 }
 
 /** Insert / update a knowledge chunk (embeds content with the active provider). */

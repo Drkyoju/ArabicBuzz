@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client'
+import { ensurePooledDatabaseUrl } from '@/lib/db-url'
+
+ensurePooledDatabaseUrl()
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
