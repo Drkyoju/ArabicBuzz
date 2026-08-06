@@ -246,6 +246,8 @@ export type RoomMember = {
   /** finance | programs | board | null */
   committee: string | null
   notesAr: string | null
+  /** Opt-in: mirror this member's Google Calendar into the room shared calendar. */
+  calendarSyncEnabled: boolean
   createdAt: string
 }
 
@@ -281,6 +283,7 @@ function demoSeedMembers(scopeId: string): RoomMember[] {
       phone: null,
       committee: scopeId.startsWith('shared-') ? 'board' : null,
       notesAr: null,
+      calendarSyncEnabled: false,
       createdAt: new Date().toISOString(),
     },
   ]
@@ -408,6 +411,7 @@ function mapDbMember(r: Record<string, unknown>): RoomMember {
     phone: (r.phone as string) || null,
     committee: (r.committee as string) || null,
     notesAr: (r.notes_ar as string) || null,
+    calendarSyncEnabled: Boolean(r.calendar_sync_enabled),
     createdAt: r.created_at as string,
   }
 }
@@ -470,6 +474,7 @@ export async function addRoomMember(opts: {
     phone: opts.phone?.trim() || null,
     committee: opts.committee?.trim() || null,
     notesAr: opts.notesAr?.trim() || null,
+    calendarSyncEnabled: false,
     createdAt: new Date().toISOString(),
   }
 
@@ -532,6 +537,7 @@ export async function updateRoomMember(opts: {
   committee?: string | null
   notesAr?: string | null
   role?: RoomMember['role']
+  calendarSyncEnabled?: boolean
 }): Promise<{ ok: boolean; member?: RoomMember; error?: string }> {
   const sb = getSupabaseAdmin()
   const patch: Record<string, unknown> = {}
@@ -541,6 +547,9 @@ export async function updateRoomMember(opts: {
   if (opts.committee !== undefined) patch.committee = opts.committee?.trim() || null
   if (opts.notesAr !== undefined) patch.notes_ar = opts.notesAr?.trim() || null
   if (opts.role) patch.role = opts.role
+  if (opts.calendarSyncEnabled !== undefined) {
+    patch.calendar_sync_enabled = Boolean(opts.calendarSyncEnabled)
+  }
 
   if (!sb) {
     const list = ensureMemMembers(opts.scopeId)
@@ -552,6 +561,9 @@ export async function updateRoomMember(opts: {
     if (opts.committee !== undefined) m.committee = opts.committee?.trim() || null
     if (opts.notesAr !== undefined) m.notesAr = opts.notesAr?.trim() || null
     if (opts.role) m.role = opts.role
+    if (opts.calendarSyncEnabled !== undefined) {
+      m.calendarSyncEnabled = Boolean(opts.calendarSyncEnabled)
+    }
     return { ok: true, member: m }
   }
 
@@ -567,6 +579,84 @@ export async function updateRoomMember(opts: {
     return { ok: false, error: error?.message || 'تعذّر التحديث' }
   }
   return { ok: true, member: mapDbMember(data as Record<string, unknown>) }
+}
+
+/**
+ * Set Google→room calendar sync opt-in for the signed-in user in a room.
+ * Ensures a room_members row exists (upsert by email) then flips the flag.
+ */
+export async function setMemberCalendarSync(opts: {
+  scopeId: string
+  userId: string
+  email?: string | null
+  displayNameAr?: string | null
+  enabled: boolean
+}): Promise<{ ok: boolean; member?: RoomMember; error?: string }> {
+  const email = opts.email?.trim().toLowerCase() || null
+  const { members } = await listRoomMembers(opts.scopeId)
+  let member =
+    members.find((m) => m.userId && m.userId === opts.userId) ||
+    (email
+      ? members.find((m) => m.email && m.email.toLowerCase() === email)
+      : undefined)
+
+  if (!member) {
+    const name =
+      opts.displayNameAr?.trim() ||
+      email?.split('@')[0] ||
+      'عضو'
+    const added = await addRoomMember({
+      scopeId: opts.scopeId,
+      displayNameAr: name,
+      email,
+      userId: opts.userId,
+      role: 'member',
+    })
+    if (!added.ok || !added.member) {
+      return { ok: false, error: added.error || 'تعذّر تسجيل العضوية' }
+    }
+    member = added.member
+  } else if (!member.userId) {
+    // Link user id on existing email row
+    const sb = getSupabaseAdmin()
+    if (sb) {
+      await sb
+        .from('room_members')
+        .update({ user_id: opts.userId })
+        .eq('id', member.id)
+        .eq('scope_id', opts.scopeId)
+    } else {
+      member.userId = opts.userId
+    }
+  }
+
+  return updateRoomMember({
+    scopeId: opts.scopeId,
+    memberId: member.id,
+    calendarSyncEnabled: opts.enabled,
+  })
+}
+
+/** All room members who opted in to Google→room calendar sync. */
+export async function listCalendarSyncEnabledMembers(): Promise<RoomMember[]> {
+  const sb = getSupabaseAdmin()
+  if (!sb) {
+    const out: RoomMember[] = []
+    for (const list of memMembers.values()) {
+      for (const m of list) {
+        if (m.calendarSyncEnabled && m.userId) out.push(m)
+      }
+    }
+    return out
+  }
+  const { data, error } = await sb
+    .from('room_members')
+    .select('*')
+    .eq('calendar_sync_enabled', true)
+    .not('user_id', 'is', null)
+    .limit(500)
+  if (error || !data) return []
+  return data.map((r) => mapDbMember(r as Record<string, unknown>))
 }
 
 export async function removeRoomMember(opts: {

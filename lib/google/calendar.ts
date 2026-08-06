@@ -336,15 +336,23 @@ function mapEvent(
 async function listUpcomingForAccount(
   userId: string,
   accountEmail: string,
-  opts?: { maxResults?: number; query?: string }
+  opts?: {
+    maxResults?: number
+    query?: string
+    timeMin?: string
+    timeMax?: string
+    showDeleted?: boolean
+  }
 ): Promise<CalendarEventSummary[]> {
   const params = new URLSearchParams({
     calendarId: 'primary',
     singleEvents: 'true',
     orderBy: 'startTime',
-    timeMin: new Date().toISOString(),
+    timeMin: opts?.timeMin || new Date().toISOString(),
     maxResults: String(opts?.maxResults || 15),
   })
+  if (opts?.timeMax) params.set('timeMax', opts.timeMax)
+  if (opts?.showDeleted) params.set('showDeleted', 'true')
   if (opts?.query) params.set('q', opts.query)
   const res = await googleFetch(
     userId,
@@ -362,6 +370,67 @@ async function listUpcomingForAccount(
     )
   }
   return (data.items || []).map((e) => mapEvent(e, accountEmail))
+}
+
+/**
+ * Primary-calendar events in a window (for Google→room sync).
+ * Includes cancelled items when showDeleted so mirrors can be soft-cancelled.
+ */
+export async function listPrimaryEventsInWindow(
+  userId: string,
+  opts?: {
+    daysAhead?: number
+    maxResults?: number
+    emails?: string[]
+    showDeleted?: boolean
+  }
+): Promise<CalendarEventSummary[]> {
+  const days = Math.min(60, Math.max(1, opts?.daysAhead ?? 21))
+  const timeMin = new Date().toISOString()
+  const timeMax = new Date(Date.now() + days * 86400_000).toISOString()
+  const maxResults = opts?.maxResults || 80
+  const tokens = await getValidGoogleAccessTokens(userId, opts?.emails)
+  const accounts = tokens.map((t) => t.email)
+
+  if (accounts.length === 0) {
+    const tok = await getValidGoogleAccessToken(userId)
+    if (!tok.ok) throw new Error(tok.error)
+    return listUpcomingForAccount(userId, tok.email || 'primary', {
+      maxResults,
+      timeMin,
+      timeMax,
+      showDeleted: opts?.showDeleted,
+    })
+  }
+
+  const perAccount = Math.max(10, Math.ceil(maxResults / accounts.length))
+  const batches = await Promise.all(
+    accounts.map(async (email) => {
+      try {
+        return await listUpcomingForAccount(userId, email, {
+          maxResults: perAccount,
+          timeMin,
+          timeMax,
+          showDeleted: opts?.showDeleted,
+        })
+      } catch (e) {
+        console.warn(
+          '[calendar] sync list failed for',
+          email,
+          e instanceof Error ? e.message : e
+        )
+        return [] as CalendarEventSummary[]
+      }
+    })
+  )
+  return batches
+    .flat()
+    .sort((a, b) => {
+      const sa = a.start ? Date.parse(a.start) : 0
+      const sb = b.start ? Date.parse(b.start) : 0
+      return sa - sb
+    })
+    .slice(0, maxResults)
 }
 
 /**

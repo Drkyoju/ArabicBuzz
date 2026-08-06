@@ -130,6 +130,8 @@ export async function GET(req: NextRequest) {
       endsAtAr: fmtTime(e.endsAt),
       locationAr: e.locationAr,
       attendees: e.attendees,
+      source: e.source,
+      createdByAr: e.createdByAr,
       hasZoom: /zoom\.us/i.test(
         `${e.descriptionAr || ''} ${e.locationAr || ''} ${JSON.stringify(e.meta || {})}`
       ),

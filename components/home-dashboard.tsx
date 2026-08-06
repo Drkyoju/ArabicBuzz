@@ -32,6 +32,8 @@ type CalEvent = {
   endsAtAr: string
   hasZoom?: boolean
   locationAr?: string | null
+  source?: string
+  createdByAr?: string | null
 }
 
 type Activity = {
@@ -173,6 +175,12 @@ function DayBlock({
                 {e.hasZoom ? ' · Zoom' : ''}
                 {e.locationAr ? ` · ${e.locationAr}` : ''}
               </p>
+              {e.source === 'google_sync' && (
+                <p className="mt-0.5 text-[10px] text-sky-800">
+                  من Google
+                  {e.createdByAr ? ` · ${e.createdByAr}` : ''}
+                </p>
+              )}
             </li>
           ))}
         </ul>
@@ -243,7 +251,35 @@ export function HomeDashboard({
       } else {
         setTeamInbox([])
       }
-      // Presence page-opens are no longer logged — they flooded «من كانوا هنا».
+      // Soft Google→room sync when the member opted in (no error surfacing).
+      void fetch('/api/rooms/calendar/sync', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'sync_now', scopeId }),
+      })
+        .then(async (syncRes) => {
+          if (!syncRes.ok) return
+          const syncJson = (await syncRes.json()) as {
+            created?: number
+            updated?: number
+            cancelled?: number
+          }
+          const changed =
+            (syncJson.created || 0) +
+              (syncJson.updated || 0) +
+              (syncJson.cancelled || 0) >
+            0
+          if (changed) {
+            const again = await fetch(
+              `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
+              { headers: await authHeaders() }
+            )
+            if (again.ok) {
+              setLiveData((await again.json()) as Digest)
+            }
+          }
+        })
+        .catch(() => undefined)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
     } finally {

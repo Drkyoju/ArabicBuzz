@@ -27,6 +27,7 @@ type RoomEvent = {
   source: string
   createdByAr: string | null
   status: string
+  googleEventId?: string | null
 }
 
 type ConflictInfo = {
@@ -158,6 +159,9 @@ export function RoomCalendarBoard({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
   const [copyToGoogle, setCopyToGoogle] = useState(false)
+  const [publishGoogle, setPublishGoogle] = useState(false)
+  const [publishAck, setPublishAck] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -189,6 +193,89 @@ export function RoomCalendarBoard({
     }
   }, [scopeId])
 
+  const loadSyncPref = useCallback(async () => {
+    if (signedIn !== true) {
+      setPublishGoogle(false)
+      return
+    }
+    try {
+      const res = await fetch(
+        `/api/rooms/calendar/sync?scopeId=${encodeURIComponent(scopeId)}`,
+        { headers: await authHeaders() }
+      )
+      const data = (await res.json()) as { calendarSyncEnabled?: boolean }
+      if (res.ok) {
+        setPublishGoogle(Boolean(data.calendarSyncEnabled))
+        if (data.calendarSyncEnabled) setPublishAck(true)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [scopeId, signedIn])
+
+  const runGoogleSync = useCallback(async () => {
+    if (signedIn !== true) return
+    setSyncBusy(true)
+    try {
+      const res = await fetch('/api/rooms/calendar/sync', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'sync_now', scopeId }),
+      })
+      const data = (await res.json()) as {
+        messageAr?: string
+        error?: string
+        code?: string
+      }
+      if (res.ok) {
+        setMsg(data.messageAr || 'تمت المزامنة من Google')
+        await load()
+      } else if (data.code !== 'SYNC_DISABLED') {
+        setErr(data.error || 'فشلت مزامنة Google')
+      }
+    } catch {
+      /* soft fail */
+    } finally {
+      setSyncBusy(false)
+    }
+  }, [scopeId, signedIn, load])
+
+  async function setPublishPreference(enabled: boolean) {
+    if (signedIn !== true || syncBusy) return
+    if (enabled && !publishAck) {
+      setErr('وافق أولاً على مشاركة مواعيدك القادمة مع فريق الغرفة.')
+      return
+    }
+    setSyncBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const res = await fetch('/api/rooms/calendar/sync', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'set_preference',
+          scopeId,
+          enabled,
+          acknowledged: enabled ? true : undefined,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        calendarSyncEnabled?: boolean
+      }
+      if (!res.ok) throw new Error(data.error || 'تعذّر حفظ التفضيل')
+      setPublishGoogle(Boolean(data.calendarSyncEnabled))
+      setMsg(data.messageAr || (enabled ? 'تم التفعيل' : 'تم الإيقاف'))
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
   useEffect(() => {
     // Wait for session resolve so we don't mark GUEST from a token-less probe.
     if (signedIn === null) return
@@ -211,6 +298,7 @@ export function RoomCalendarBoard({
     if (signedIn !== true) {
       setGoogleConnected(false)
       setCopyToGoogle(false)
+      setPublishGoogle(false)
       return
     }
     let cancelled = false
@@ -224,11 +312,19 @@ export function RoomCalendarBoard({
       } catch {
         if (!cancelled) setGoogleConnected(false)
       }
+      if (!cancelled) await loadSyncPref()
     })()
     return () => {
       cancelled = true
     }
-  }, [signedIn])
+  }, [signedIn, loadSyncPref])
+
+  useEffect(() => {
+    if (signedIn !== true || !publishGoogle || !googleConnected) return
+    void runGoogleSync()
+    // On-demand sync when opening team calendar with opt-in enabled.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per room/opt-in flip
+  }, [signedIn, publishGoogle, googleConnected, scopeId])
 
   const upcoming = useMemo(
     () =>
@@ -510,16 +606,16 @@ export function RoomCalendarBoard({
     }
   }
 
-  const sourceLabel = (s: string) =>
-    s === 'ai'
+  const sourceLabel = (e: RoomEvent) =>
+    e.source === 'ai'
       ? 'وكيل'
-      : s === 'email'
+      : e.source === 'email'
         ? 'بريد'
-        : s === 'import'
+        : e.source === 'import'
           ? 'استيراد'
-          : s === 'google_sync'
-            ? 'Google'
-            : 'يدوي'
+          : e.source === 'google_sync'
+            ? `من Google${e.createdByAr ? ` · ${e.createdByAr}` : ''}`
+            : 'موعد فريق'
 
   /** Wait for session resolve before guest CTA; ignore stale GUEST once signed in. */
   const sessionPending = signedIn === null
@@ -556,12 +652,14 @@ export function RoomCalendarBoard({
                   ? 'bg-emerald-50 text-emerald-900'
                   : e.source === 'email'
                     ? 'bg-amber-50 text-amber-900'
-                    : 'bg-stone-100 text-stone-600'
+                    : e.source === 'google_sync'
+                      ? 'bg-sky-50 text-sky-900'
+                      : 'bg-stone-100 text-stone-600'
               )}
             >
-              {sourceLabel(e.source)}
+              {sourceLabel(e)}
             </span>
-            {e.createdByAr && (
+            {e.source !== 'google_sync' && e.createdByAr && (
               <span className="text-stone-400">بواسطة {e.createdByAr}</span>
             )}
           </div>
@@ -602,10 +700,72 @@ export function RoomCalendarBoard({
           تقويم الغرفة المشترك
         </h2>
         <p className="text-sm text-stone-500">
-          تقويم الفريق للجميع — أي عضو مسجّل يضيف أو يعدّل، ويظهر الموعد لكل
-          الأعضاء هنا. لا يُكتب تلقائياً في تقويم Google الشخصي لأحد.
+          تقويم الفريق للجميع — أي عضو مسجّل يضيف موعداً هنا فيراه الجميع فوراً.
+          مواعيد Google الشخصية لا تُنشر للفريق إلا إذا فعّلت الخيار أدناه بنفسك.
         </p>
       </div>
+
+      {signedIn === true && googleConnected && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
+          <p className="text-sm font-semibold text-sky-950">
+            انشر مواعيدي من Google في تقويم الفريق
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-sky-900/80">
+            اختياري ومتوقف افتراضياً. عند التفعيل تُنسَخ مواعيدك القادمة (حوالي
+            ٣ أسابيع من التقويم الرئيسي) إلى تقويم الغرفة ويراها الأعضاء — مع
+            وسم «من Google · اسمك». التعديل أو الإلغاء في Google يُحدَّث هنا في
+            المزامنة التالية.
+          </p>
+          {!publishGoogle && (
+            <label className="mt-2 flex items-start gap-2 text-[11px] text-sky-950">
+              <input
+                type="checkbox"
+                checked={publishAck}
+                onChange={(e) => setPublishAck(e.target.checked)}
+                className="mt-0.5 rounded border-sky-300"
+              />
+              <span>
+                أوافق على مشاركة مواعيدي القادمة من Google مع فريق هذه الغرفة.
+              </span>
+            </label>
+          )}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={syncBusy || (!publishGoogle && !publishAck)}
+              onClick={() => void setPublishPreference(!publishGoogle)}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40',
+                publishGoogle
+                  ? 'border border-sky-300 bg-white text-sky-900'
+                  : 'bg-sky-800 text-white'
+              )}
+            >
+              {publishGoogle ? 'إيقاف النشر من Google' : 'تفعيل النشر من Google'}
+            </button>
+            {publishGoogle && (
+              <button
+                type="button"
+                disabled={syncBusy}
+                onClick={() => void runGoogleSync()}
+                className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] text-sky-900 disabled:opacity-40"
+              >
+                <RefreshCw
+                  className={cn('h-3 w-3', syncBusy && 'animate-spin')}
+                />
+                مزامنة الآن
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {signedIn === true && !googleConnected && (
+        <p className="rounded-xl border border-dashed border-ab-border bg-white px-4 py-3 text-[11px] text-stone-500">
+          لربط Google ونشر مواعيدك اختيارياً في تقويم الفريق، افتح تبويب «خارجي
+          (Google)» واربط حسابك أولاً.
+        </p>
+      )}
 
       {sessionPending ? (
         <p className="rounded-xl border border-ab-border bg-white px-4 py-3 text-sm text-stone-500">

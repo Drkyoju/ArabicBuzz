@@ -424,7 +424,9 @@ export function GoogleCalendarPanel({
             <p className="mt-1 text-xs leading-relaxed text-stone-600">
               <strong>أنت</strong> تربط Google مرة واحدة. أضف بريد
               الأصدقاء/الموظفين أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ
-              AI يقترح الوقت ثم تُرسل دعوة (+ رابط Zoom إن لصقته).
+              AI يقترح الوقت ثم تُرسل دعوة (+ رابط Zoom إن لصقته). لنشر مواعيدك
+              في «تقويم الفريق» فعّل الخيار من تبويب تقويم الغرفة (متوقف
+              افتراضياً للخصوصية).
             </p>
           </div>
           {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}

@@ -243,6 +243,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let googleRoomCalendarSync: unknown = null
+  try {
+    const { syncAllOptedInGoogleToRooms } = await import(
+      '@/lib/rooms/room-calendar-google-sync'
+    )
+    googleRoomCalendarSync = await syncAllOptedInGoogleToRooms()
+  } catch (e) {
+    googleRoomCalendarSync = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'google room calendar sync error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -250,5 +263,6 @@ export async function POST(req: NextRequest) {
     directorDigest,
     driveBrainSync,
     morningDigest,
+    googleRoomCalendarSync,
   })
 }
