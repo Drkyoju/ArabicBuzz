@@ -265,7 +265,7 @@ function SidebarBody({
                 </div>
               ) : (
                 <p className="rounded-md bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-600">
-                  واجهة موظف — غرف وملفات وتقويم وموافقات.
+                  واجهة عضو / متطوع — غرف وملفات وتقويم وموافقات.
                 </p>
               )}
               {canAccessOpsUi && (

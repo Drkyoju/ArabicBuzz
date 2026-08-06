@@ -323,6 +323,13 @@ export function ApprovalCard({
           {localStatus === 'APPROVED' ? 'مُعتمد' : 'مرفوض'}
         </p>
       )}
+      {localStatus === 'PENDING_APPROVAL' && (
+        <p className="mt-3 border-t border-ab-border/70 pt-2 text-[10px] leading-relaxed text-stone-500">
+          الموافقة هنا تنفّذ الإجراء فوراً. نفس الطلب يصل على تيليجرام (أزرار أو{' '}
+          <code dir="ltr">/approve</code>
+          ). النتيجة تُسجَّل في سجل التدقيق.
+        </p>
+      )}
     </div>
   )
 }

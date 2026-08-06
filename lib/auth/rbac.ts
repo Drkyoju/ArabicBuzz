@@ -60,13 +60,30 @@ export function canAccessOpsUi(role: Role): boolean {
   return ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER
 }
 
-/** Map invite/settings persona pickers → org Role (defaults to employee). */
+/** Map invite/settings persona pickers → org Role (defaults to volunteer/member). */
 export function personaToRole(persona: string): Role {
   const p = persona.trim().toLowerCase()
-  if (p === 'admin' || p === 'مسؤول' || p === 'owner') return 'ADMIN'
-  if (p === 'director' || p === 'مدير' || p === 'manager') {
+  if (
+    p === 'admin' ||
+    p === 'مسؤول' ||
+    p === 'owner' ||
+    p === 'مجلس' ||
+    p.includes('مجلس')
+  ) {
+    return 'OWNER'
+  }
+  if (
+    p === 'director' ||
+    p === 'مدير' ||
+    p === 'manager' ||
+    p.includes('تنفيذي')
+  ) {
+    return 'ADMIN'
+  }
+  if (p.includes('لجنة') || p === 'department_manager') {
     return 'DEPARTMENT_MANAGER'
   }
+  if (p.includes('مدقق') || p === 'auditor') return 'AUDITOR'
   return 'MEMBER'
 }
 

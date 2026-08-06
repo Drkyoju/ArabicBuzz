@@ -23,6 +23,11 @@ type Snapshot = {
   crawlDetailAr?: string
   langfuseDetailAr?: string
   toolsReady?: boolean
+  whatsappStatusAr?: string
+  whatsappBridge?: boolean
+  hitlDisabled?: boolean
+  arabicBadgeAr?: string
+  arabicDetailAr?: string
 }
 
 async function fetchJson(
@@ -92,6 +97,10 @@ export function OpsHealthPanel() {
           ? integ.tokenrouterStatusAr
           : null
 
+      const aq = integ?.arabicQuality as
+        | { badgeAr?: string; detailAr?: string }
+        | undefined
+
       setSnap({
         googleConnected: Boolean(cal?.connected),
         driveReady: Number(drive?.count || 0) > 0,
@@ -128,6 +137,14 @@ export function OpsHealthPanel() {
             ? integ.langfuseStatusAr
             : 'يحتاج مفتاح مجاني من cloud.langfuse.com',
         toolsReady: Number(integ?.mcpConnectedServers || 0) > 0,
+        whatsappStatusAr:
+          typeof integ?.whatsappStatusAr === 'string'
+            ? integ.whatsappStatusAr
+            : undefined,
+        whatsappBridge: Boolean(integ?.whatsappBridgeConfigured),
+        hitlDisabled: Boolean(integ?.hitlDisabled),
+        arabicBadgeAr: aq?.badgeAr,
+        arabicDetailAr: aq?.detailAr,
       })
     } catch (e) {
       setSnap(null)
@@ -221,6 +238,28 @@ export function OpsHealthPanel() {
           ok: Boolean(snap.telegramOutboundReady || snap.telegramConfigured),
           detail: snap.telegramDetailAr || 'اختياري',
           soft: !snap.telegramConfigured,
+        },
+        {
+          label: 'واتساب (مجاني)',
+          ok: Boolean(snap.whatsappBridge),
+          detail: snap.whatsappStatusAr || 'يحتاج جسر Evolution/Baileys',
+          soft: true,
+        },
+        {
+          label: 'جودة العربية',
+          ok: Boolean(snap.arabicBadgeAr?.includes('جاهز')),
+          detail: snap.arabicBadgeAr
+            ? `${snap.arabicBadgeAr}${snap.arabicDetailAr ? ` · ${snap.arabicDetailAr}` : ''}`
+            : '—',
+          soft: !snap.arabicBadgeAr?.includes('جاهز'),
+        },
+        {
+          label: 'حوكمة الموافقات',
+          ok: snap.hitlDisabled === false,
+          detail: snap.hitlDisabled
+            ? 'معطّلة — HITL_DISABLED=0'
+            : 'مفعّلة (AUTO للخطر العالي)',
+          soft: snap.hitlDisabled === true,
         },
         {
           label: 'اجتماعات Zoom',

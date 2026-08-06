@@ -39,7 +39,7 @@ export async function runAgentPipeline(input: {
   const modelSlug =
     input.modelSlug || process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
   const baseSystem =
-    'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية مع الحفاظ على المصطلحات التقنية المحلية عند الحاجة.'
+    'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية (MSA) مع مصطلحات الجمعيات السعودية. في الإجابات الحساسة (لوائح، تراخيص، قرارات) استشهد بالمصادر من قاعدة المعرفة بصيغة [مصدر N: …] ولا تختلق.'
 
   const system = await buildScopedSystemPrompt(baseSystem, input.scopeCtx)
 

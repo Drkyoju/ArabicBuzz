@@ -162,6 +162,14 @@ export function RoomCalendarBoard({
   const [publishGoogle, setPublishGoogle] = useState(false)
   const [publishAck, setPublishAck] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
+  const [slotBusy, setSlotBusy] = useState(false)
+  const [freeSlots, setFreeSlots] = useState<
+    Array<{ start: string; end: string; labelAr?: string }>
+  >([])
+  const [slotMsg, setSlotMsg] = useState('')
+  const [deadlinesPreview, setDeadlinesPreview] = useState<
+    Array<{ id: string; labelAr: string; daysLeft: number; startsAtAr?: string }>
+  >([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -240,6 +248,84 @@ export function RoomCalendarBoard({
     }
   }, [scopeId, signedIn, load])
 
+  const suggestFreeSlots = useCallback(async () => {
+    if (signedIn !== true || !googleConnected) return
+    setSlotBusy(true)
+    setSlotMsg('')
+    setFreeSlots([])
+    try {
+      const res = await fetch(
+        '/api/google/calendar?action=freebusy&duration=60&max=6',
+        { headers: await authHeaders() }
+      )
+      const data = (await res.json()) as {
+        slots?: Array<{
+          startIso?: string
+          endIso?: string
+          start?: string
+          end?: string
+        }>
+        error?: string
+        messageAr?: string
+        connected?: boolean
+      }
+      if (!res.ok) throw new Error(data.error || 'تعذّر اقتراح الأوقات')
+      const slots = (data.slots || []).map((s) => {
+        const start = s.startIso || s.start || ''
+        const end = s.endIso || s.end || ''
+        return {
+          start,
+          end,
+          labelAr: start && end ? `${fmt(start)} → ${fmtTimeOnly(end)}` : start,
+        }
+      })
+      setFreeSlots(slots)
+      setSlotMsg(
+        slots.length
+          ? `وُجد ${slots.length} فراغ مشترك (FreeBusy) — اضغط لتعبئة نموذج الموعد.`
+          : data.messageAr ||
+              'لا فراغات مشتركة ظاهرة — تأكد من ربط حسابات الأعضاء أو مشاركة FreeBusy.'
+      )
+    } catch (e) {
+      setSlotMsg(e instanceof Error ? e.message : 'فشل اقتراح المواعيد')
+    } finally {
+      setSlotBusy(false)
+    }
+  }, [signedIn, googleConnected])
+
+  const loadDeadlinesPreview = useCallback(async () => {
+    if (signedIn !== true) {
+      setDeadlinesPreview([])
+      return
+    }
+    try {
+      const res = await fetch(
+        `/api/rooms/deadlines?scopeId=${encodeURIComponent(scopeId)}`,
+        { headers: await authHeaders() }
+      )
+      const data = (await res.json()) as {
+        upcoming?: Array<{
+          id: string
+          labelAr: string
+          daysLeft: number
+          startsAt?: string
+          startsAtAr?: string
+        }>
+      }
+      const list = (data.upcoming || [])
+        .filter((d) => d.daysLeft != null && d.daysLeft <= 30)
+        .map((d) => ({
+          id: d.id,
+          labelAr: d.labelAr,
+          daysLeft: d.daysLeft,
+          startsAtAr: d.startsAtAr || (d.startsAt ? fmt(d.startsAt) : undefined),
+        }))
+      setDeadlinesPreview(list.slice(0, 4))
+    } catch {
+      setDeadlinesPreview([])
+    }
+  }, [scopeId, signedIn])
+
   async function setPublishPreference(enabled: boolean) {
     if (signedIn !== true || syncBusy) return
     if (enabled && !publishAck) {
@@ -286,13 +372,14 @@ export function RoomCalendarBoard({
       return
     }
     void load()
+    void loadDeadlinesPreview()
     try {
       localStorage.setItem('ab-room-collab-seen', '1')
       window.dispatchEvent(new Event('ab-room-collab-seen'))
     } catch {
       /* ignore */
     }
-  }, [load, signedIn])
+  }, [load, loadDeadlinesPreview, signedIn])
 
   useEffect(() => {
     if (signedIn !== true) {
@@ -765,6 +852,75 @@ export function RoomCalendarBoard({
           لربط Google ونشر مواعيدك اختيارياً في تقويم الفريق، افتح تبويب «خارجي
           (Google)» واربط حسابك أولاً.
         </p>
+      )}
+
+      {signedIn === true && googleConnected && (
+        <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
+          <p className="text-sm font-semibold text-ab-ink">
+            اقتراح أوقات اجتماع (FreeBusy)
+          </p>
+          <p className="mt-1 text-[11px] text-stone-500">
+            يبحث في فراغ حسابات Google المربوطة ويقترح فترات مناسبة لتعبئة موعد
+            الفريق — مجاني عبر Google OAuth.
+          </p>
+          <button
+            type="button"
+            disabled={slotBusy}
+            onClick={() => void suggestFreeSlots()}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            <Sparkles className={cn('h-3.5 w-3.5', slotBusy && 'animate-pulse')} />
+            {slotBusy ? 'جاري البحث…' : 'اقترح أوقاتاً متاحة'}
+          </button>
+          {slotMsg && (
+            <p className="mt-2 text-[11px] text-stone-600">{slotMsg}</p>
+          )}
+          {freeSlots.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {freeSlots.map((s) => (
+                <li key={`${s.start}-${s.end}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (s.start) setStartsAt(toLocalInput(new Date(s.start)))
+                      if (s.end) setEndsAt(toLocalInput(new Date(s.end)))
+                      setFormOpen(true)
+                      setMsg('تم تعبئة وقت مقترح — أكمل العنوان واحفظ.')
+                    }}
+                    className="w-full rounded-md border border-ab-border bg-stone-50 px-2.5 py-1.5 text-right text-[11px] font-medium text-ab-ink hover:border-ab-accent/40"
+                  >
+                    {s.labelAr || s.start}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {signedIn === true && deadlinesPreview.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-950">
+            <AlertTriangle className="h-4 w-4" />
+            مواعيد نظامية قريبة
+          </p>
+          <ul className="mt-2 space-y-1">
+            {deadlinesPreview.map((d) => (
+              <li
+                key={d.id}
+                className="text-[11px] text-amber-950/90"
+              >
+                {d.labelAr}
+                {d.daysLeft != null ? ` · متبقّي ${d.daysLeft} يوم` : ''}
+                {d.startsAtAr ? ` · ${d.startsAtAr}` : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[10px] text-amber-900/70">
+            تذكيرات تيليجرام تعمل عبر Cron عند ضبط البوت — عدّل التواريخ من لوحة
+            المواعيد النظامية.
+          </p>
+        </div>
       )}
 
       {sessionPending ? (

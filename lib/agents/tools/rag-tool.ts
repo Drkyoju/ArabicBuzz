@@ -63,12 +63,13 @@ export function formatArabicCitations(
   if (documents.length === 0) {
     return {
       documents,
-      block: `لم يُعثر على مستندات من Google Drive مطابقة لـ «${queryAr}». زامن مجلد Drive أولاً (drive_sync_brain) ثم أعد البحث.`,
+      block: `لم يُعثر على مستندات من Google Drive مطابقة لـ «${queryAr}». زامن مجلد Drive أولاً (drive_sync_brain) ثم أعد البحث. لا تختلق لوائح أو قرارات — أخبر المستخدم صراحة بعدم وجود مصدر.`,
     }
   }
 
   const block = [
     `نتائج البحث في ملفات Google Drive عن: «${queryAr}»`,
+    'إلزامي: عند الإجابة استشهد بكل مصدر مستخدم بصيغة [مصدر N: العنوان]. لا تذكر حكماً تنظيمياً بلا استشهاد.',
     ...documents.map((d, i) => {
       const src = docs[i]
       return `${d.citation}\n${d.excerpt}\n(درجة RRF: ${d.rrfScore.toFixed(4)} | BM25#${src.rankBm25 ?? '—'} | متجه#${src.rankVector ?? '—'} | Drive)`

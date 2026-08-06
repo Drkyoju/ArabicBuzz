@@ -1,6 +1,12 @@
 import { ensurePooledDatabaseUrl } from '@/lib/db-url'
+import { buildArabicQualitySignal } from '@/lib/evals/arabic-quality-signal'
 import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
+import { isHitlDisabled } from '@/lib/security/posture'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import {
+  resolveWhatsAppTransport,
+  whatsappTransportStatusAr,
+} from '@/lib/whatsapp/bridge'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,10 +108,12 @@ export async function GET() {
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
     webSearchFreePath: true,
     webCrawlFreePath: true,
-    hitlDisabled:
-      process.env.HITL_DISABLED === undefined ||
-      process.env.HITL_DISABLED === '' ||
-      process.env.HITL_DISABLED === '1' ||
-      process.env.HITL_DISABLED?.toLowerCase() === 'true',
+    hitlDisabled: isHitlDisabled(),
+    hitlPostureAr: isHitlDisabled()
+      ? 'الموافقات معطّلة — عيّن HITL_DISABLED=0 وDEFAULT_SECURITY_POSTURE=AUTO'
+      : 'الموافقات مفعّلة — وضع AUTO يعتمد الخطر العالي فقط',
+    whatsappTransport: resolveWhatsAppTransport(),
+    whatsappStatusAr: whatsappTransportStatusAr().detailAr,
+    arabicQuality: buildArabicQualitySignal(),
   })
 }

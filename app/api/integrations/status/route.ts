@@ -10,7 +10,12 @@ import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
 import { ensurePooledDatabaseUrl } from '@/lib/db-url'
 import { getProvidersSnapshot } from '@/lib/ai/provider-availability'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
-
+import {
+  resolveWhatsAppTransport,
+  whatsappTransportStatusAr,
+} from '@/lib/whatsapp/bridge'
+import { buildArabicQualitySignal } from '@/lib/evals/arabic-quality-signal'
+import { isHitlDisabled } from '@/lib/security/posture'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,22 +90,34 @@ export async function GET() {
       process.env.CHANNEL_OWNER_USER_ID?.trim() ||
         process.env.TELEGRAM_OWNER_USER_ID?.trim()
     ),
-    whatsappConfigured: Boolean(
-      process.env.WHATSAPP_TOKEN?.trim() &&
-        process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
+    whatsappConfigured: resolveWhatsAppTransport() !== 'none',
+    whatsappTransport: resolveWhatsAppTransport(),
+    whatsappStatusAr: whatsappTransportStatusAr().detailAr,
+    whatsappBridgeConfigured: resolveWhatsAppTransport() === 'bridge',
+    whatsappOwnerConfigured: Boolean(
+      process.env.WHATSAPP_OWNER_TO?.trim() ||
+        process.env.WHATSAPP_BRIDGE_OWNER_TO?.trim()
     ),
-    whatsappOwnerConfigured: Boolean(process.env.WHATSAPP_OWNER_TO?.trim()),
     telegramOutboundReady: Boolean(
       process.env.TELEGRAM_BOT_TOKEN?.trim() &&
         (telegramOwnerConfigured ||
           Boolean(process.env.TELEGRAM_TEST_CHAT_ID?.trim()))
     ),
-    whatsappOutboundReady: Boolean(
-      process.env.WHATSAPP_TOKEN?.trim() &&
-        process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() &&
-        (process.env.WHATSAPP_OWNER_TO?.trim() ||
-          process.env.WHATSAPP_TEST_TO?.trim())
-    ),
+    whatsappOutboundReady:
+      resolveWhatsAppTransport() === 'bridge'
+        ? Boolean(
+            process.env.WHATSAPP_OWNER_TO?.trim() ||
+              process.env.WHATSAPP_BRIDGE_OWNER_TO?.trim() ||
+              process.env.WHATSAPP_TEST_TO?.trim()
+          )
+        : Boolean(
+            process.env.WHATSAPP_TOKEN?.trim() &&
+              process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() &&
+              (process.env.WHATSAPP_OWNER_TO?.trim() ||
+                process.env.WHATSAPP_TEST_TO?.trim())
+          ),
+    hitlDisabled: isHitlDisabled(),
+    arabicQuality: buildArabicQualitySignal(),
     macSyncConfigured: Boolean(process.env.MAC_SYNC_URL?.trim()),
     brainPrimaryMac:
       (process.env.BRAIN_PRIMARY || '').toLowerCase() === 'mac',

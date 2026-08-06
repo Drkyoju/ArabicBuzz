@@ -469,13 +469,57 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   الموافقات معطّلة — التنفيذ فوري
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                  حوكمة الاعتماد البشري (HITL) متوقفة حالياً: الوكيل ينفّذ
-                  الإجراءات دون انتظار موافقة هنا. لإعادة التفعيل اضبط{' '}
+                  حوكمة الاعتماد البشري متوقفة: الوكيل ينفّذ دون انتظار موافقة
+                  هنا أو على تيليجرام. لإعادة الحوكمة الآمنة للجمعيات اضبط على
+                  Netlify:{' '}
                   <code dir="ltr" className="rounded bg-white/80 px-1">
                     HITL_DISABLED=0
                   </code>{' '}
-                  في الاستضافة — مسار موافقات تيليجرام يعود معها.
+                  ويفضّل{' '}
+                  <code dir="ltr" className="rounded bg-white/80 px-1">
+                    DEFAULT_SECURITY_POSTURE=AUTO
+                  </code>{' '}
+                  (موافقة للخطر العالي فقط — مجاني، بدون خدمات مدفوعة). بعدها
+                  تظهر أزرار ✅/❌ هنا وفي تيليجرام.
                 </p>
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setSection('audit')}
+                    className="rounded-md border border-amber-400/60 bg-white px-2.5 py-1 font-medium text-amber-950"
+                  >
+                    فتح سجل التدقيق
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSection('settings')}
+                    className="rounded-md border border-amber-400/60 bg-white px-2.5 py-1 font-medium text-amber-950"
+                  >
+                    إعدادات الربط
+                  </button>
+                </div>
+              </div>
+            )}
+            {hitlDisabled === false && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-950">
+                  الحوكمة مفعّلة — الموافقة تنفّذ الإجراء
+                </p>
+                <p className="mt-1 text-xs text-emerald-900/90">
+                  كل بطاقة أدناه قابلة للتنفيذ: موافقة / رفض / تعديل المعاملات.
+                  نفس القرار يصل عبر تيليجرام (أزرار أو{' '}
+                  <code dir="ltr" className="rounded bg-white/70 px-1">
+                    /approve
+                  </code>
+                  ). السجل الكامل في «سجل التدقيق».
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSection('audit')}
+                  className="mt-2 text-[11px] font-semibold text-emerald-800 underline"
+                >
+                  عرض سجل التدقيق
+                </button>
               </div>
             )}
             {hitlDisabled === true ? (

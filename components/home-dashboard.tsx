@@ -55,7 +55,7 @@ type Person = {
 
 type TeamInboxItem = {
   id: string
-  kind: 'task' | 'invite' | 'event' | 'hitl'
+  kind: 'task' | 'invite' | 'event' | 'hitl' | 'deadline' | 'channel'
   titleAr: string
   detailAr?: string | null
   whenAtAr?: string | null
@@ -121,6 +121,8 @@ const INBOX_KIND_AR: Record<TeamInboxItem['kind'], string> = {
   invite: 'دعوة',
   event: 'موعد',
   hitl: 'موافقة',
+  deadline: 'امتثال',
+  channel: 'قناة',
 }
 
 const TASK_STATUS_AR: Record<string, string> = {
@@ -529,6 +531,10 @@ export function HomeDashboard({
                     }
                     if (hint === 'approvals') {
                       onNavigate?.('approvals')
+                      return
+                    }
+                    if (hint === 'settings') {
+                      onNavigate?.('settings')
                       return
                     }
                     if (hint === 'team') {

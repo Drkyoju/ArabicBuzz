@@ -8,13 +8,15 @@ import { authHeaders } from '@/lib/supabase/browser'
 type ZoomHint = { configured: boolean }
 
 /**
- * Compact checklist: Telegram / Zoom / Mac — what Netlify needs.
+ * Compact checklist: Telegram / Zoom / Mac / free WhatsApp bridge.
  */
 export function IntegrationsSetupPanel() {
   const [zoom, setZoom] = useState<ZoomHint | null>(null)
   const [macOnline, setMacOnline] = useState<boolean | null>(null)
   const [macConfigured, setMacConfigured] = useState<boolean | null>(null)
   const [tg, setTg] = useState<boolean | null>(null)
+  const [waStatusAr, setWaStatusAr] = useState<string | null>(null)
+  const [waBridge, setWaBridge] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -27,6 +29,10 @@ export function IntegrationsSetupPanel() {
         if (z) {
           setZoom({ configured: Boolean(z.zoomConfigured) })
           setTg(Boolean(z.telegramConfigured))
+          setWaStatusAr(
+            typeof z.whatsappStatusAr === 'string' ? z.whatsappStatusAr : null
+          )
+          setWaBridge(Boolean(z.whatsappBridgeConfigured))
         } else {
           setZoom({ configured: false })
         }
@@ -42,7 +48,7 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات اختيارية (Telegram · Zoom · الماك)
+        تكاملات اختيارية (Telegram · واتساب مجاني · Zoom · الماك)
       </h3>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
@@ -131,6 +137,56 @@ export function IntegrationsSetupPanel() {
             <code dir="ltr">/approve</code>
           </li>
         </ol>
+      </div>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3">
+        <p className="mb-1 flex items-center gap-1.5 font-semibold text-ab-ink">
+          <MessageCircle className="h-3.5 w-3.5" />
+          واتساب (مجاني فقط){' '}
+          <span className="font-normal text-stone-400">
+            {waBridge ? '· جسر مضبوط' : '· يحتاج جسراً محلياً'}
+          </span>
+        </p>
+        <p className="mb-2 text-[11px] text-amber-900/90">
+          {waStatusAr ||
+            'لا يعمل على Netlify وحده — جلسة واتساب ويب تحتاج عملية دائمة (VPS أو جهازك).'}
+        </p>
+        <p className="mb-1 text-[11px]">
+          المسار المجاني الموصى به: Evolution API (مفتوح المصدر / Baileys) على
+          جهازك أو VPS → يرسل الأحداث إلى Arabic Buzz. بدون فوترة Meta Cloud أو
+          Twilio.
+        </p>
+        <DevDisclosure summaryAr="خطوات الجسر المجاني (مسؤول تقني)">
+          <ol className="list-decimal space-y-1 pe-4">
+            <li>
+              شغّل Evolution API (Docker) أو عامل Baileys على جهاز دائم التشغيل
+            </li>
+            <li>اربط الرقم بمسح QR مرة واحدة — احفظ الجلسة على قرص/قاعدة</li>
+            <li>
+              وجّه Webhook الجسر إلى{' '}
+              <code dir="ltr" className="break-all text-[10px]">
+                https://arabicbuzz.netlify.app/api/webhooks/whatsapp
+              </code>
+            </li>
+            <li>
+              Netlify:{' '}
+              <code dir="ltr">WHATSAPP_BRIDGE_URL</code> = عنوان REST للجسر ·{' '}
+              <code dir="ltr">WHATSAPP_BRIDGE_SECRET</code> · اختياري{' '}
+              <code dir="ltr">WHATSAPP_BRIDGE_INSTANCE</code> ·{' '}
+              <code dir="ltr">WHATSAPP_OWNER_TO</code> لرقم المالك
+            </li>
+            <li>
+              فحص:{' '}
+              <code dir="ltr" className="break-all text-[10px]">
+                GET …/api/webhooks/whatsapp?bridge=1
+              </code>
+            </li>
+            <li>
+              تيليجرام يبقى القناة المجانية بلا بنية تحتية — واتساب اختياري عبر
+              الجسر فقط
+            </li>
+          </ol>
+        </DevDisclosure>
       </div>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">

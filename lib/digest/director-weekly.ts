@@ -53,18 +53,26 @@ export async function buildDirectorDigestAr(opts?: {
     (t) => t && (t.status === 'open' || t.status === 'in_progress')
   )
 
+  const { isHitlDisabled } = await import('@/lib/security/posture')
+  const hitlOff = isHitlDisabled()
+
   const lines = [
     `السلام عليكم ${nameAr}،`,
     '',
-    '📋 ملخص أسبوعي — ما ينتظر قرارك (Arabic Buzz)',
-    `النطاق: ${scopeId}`,
+    '📋 ملخص أسبوعي للمدير — ما ينتظر قرارك (Arabic Buzz)',
+    `يوم الخميس · توقيت الرياض · النطاق: ${scopeId}`,
     '',
   ]
 
-  lines.push('── موافقات بشرية معلّقة ──')
-  if (scopedPending.length === 0) {
-    lines.push('لا موافقات معلّقة حالياً.')
+  lines.push('── حوكمة الموافقات ──')
+  if (hitlOff) {
+    lines.push(
+      '⚠️ الموافقات البشرية معطّلة حالياً (HITL_DISABLED) — التنفيذ فوري. للحوكمة: HITL_DISABLED=0 وDEFAULT_SECURITY_POSTURE=AUTO.'
+    )
+  } else if (scopedPending.length === 0) {
+    lines.push('لا موافقات معلّقة — الحوكمة مفعّلة.')
   } else {
+    lines.push(`${scopedPending.length} موافقة بانتظار قرارك:`)
     for (const p of scopedPending.slice(0, 12)) {
       const risk = p.riskLevel === 'HIGH' ? 'عالي' : 'منخفض'
       lines.push(`• ${p.actionName} · خطر ${risk}`)
@@ -75,30 +83,41 @@ export async function buildDirectorDigestAr(opts?: {
   }
 
   lines.push('')
-  lines.push('── مواعيد نظامية قادمة ──')
+  lines.push('── مواعيد نظامية قادمة (امتثال) ──')
   if (!deadlines.length) {
     lines.push('لا مواعيد نظامية مسجّلة في الأسابيع القادمة.')
   } else {
     for (const d of deadlines.slice(0, 8)) {
-      lines.push(`• ${d.labelAr} · ${d.startsAt}${d.daysLeft != null ? ` · متبقّي ${d.daysLeft} يوم` : ''}`)
+      lines.push(
+        `• ${d.labelAr} · ${d.startsAt}${d.daysLeft != null ? ` · متبقّي ${d.daysLeft} يوم` : ''}`
+      )
     }
   }
 
   lines.push('')
-  lines.push('── مهام مفتوحة ──')
+  lines.push('── مهام الفريق المفتوحة ──')
   if (!openTasks.length) {
     lines.push('لا مهام مفتوحة بارزة.')
   } else {
+    const inProgress = openTasks.filter((t) => t.status === 'in_progress')
+    if (inProgress.length) {
+      lines.push(`${inProgress.length} مهمة قيد التنفيذ.`)
+    }
     for (const t of openTasks.slice(0, 8)) {
-      lines.push(`• ${t.titleAr}${t.assigneeAr ? ` · ${t.assigneeAr}` : ''}`)
+      const st = t.status === 'in_progress' ? 'قيد التنفيذ' : 'مفتوحة'
+      lines.push(
+        `• ${t.titleAr}${t.assigneeAr ? ` · ${t.assigneeAr}` : ''} · ${st}`
+      )
     }
   }
 
   lines.push('')
-  lines.push(`👉 راجع الموافقات: ${base}/?section=approvals`)
+  lines.push('── روابط سريعة ──')
+  lines.push(`👉 الموافقات: ${base}/?section=approvals`)
   lines.push(`👉 لوحة اليوم: ${base}/`)
+  lines.push(`👉 سجل التدقيق: ${base}/?section=audit`)
   lines.push('')
-  lines.push('— Arabic Buzz')
+  lines.push('— Arabic Buzz · ملخص يُرسل أيضاً عبر تيليجرام عند ضبط البوت')
 
   return lines.join('\n')
 }

@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 
-/** Compact Arabic role chip: مدير / موظف / مسؤول */
+/** Compact Arabic association-domain role chip */
 export function RoleBadge({
   labelAr,
   className,
@@ -11,11 +11,13 @@ export function RoleBadge({
   className?: string
 }) {
   const tone =
-    labelAr === 'مسؤول'
+    labelAr.includes('مجلس') || labelAr.includes('إدارة')
       ? 'border-stone-700 bg-stone-800 text-white'
-      : labelAr === 'مدير'
+      : labelAr.includes('مدير') || labelAr.includes('لجنة')
         ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-        : 'border-stone-200 bg-stone-50 text-stone-700'
+        : labelAr.includes('مدقق')
+          ? 'border-amber-200 bg-amber-50 text-amber-950'
+          : 'border-stone-200 bg-stone-50 text-stone-700'
 
   return (
     <span

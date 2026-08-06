@@ -549,7 +549,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                     )}
                     {m.role !== 'owner' && canManage && (
                       <p className="mt-1 text-[10px] text-stone-500">
-                        موظف — ترقية المدير محصورة على البريد المعتمد.
+                        متطوع — ترقية المجلس محصورة على البريد المعتمد.
                       </p>
                     )}
                   </div>

@@ -29,8 +29,8 @@ export function isDirectorEmail(email: string | null | undefined): boolean {
 }
 
 /**
- * Strict org role from email: only listed directors → OWNER (full ops).
- * Everyone else → MEMBER (موظف). Ignores any prior DB elevation.
+ * Strict org role from email: only listed directors → OWNER (مجلس).
+ * Everyone else → MEMBER (متطوع). Ignores any prior DB elevation.
  */
 export function orgRoleForEmail(
   email: string | null | undefined,
@@ -60,11 +60,14 @@ export function personaForEmail(
   return 'employee'
 }
 
+/** Association-domain badge for the signed-in email. */
 export function labelArForEmail(
   email: string | null | undefined,
   opts?: { userId?: string; allowSyntheticOwner?: boolean }
 ): string {
-  return personaForEmail(email, opts) === 'director' ? 'مدير' : 'موظف'
+  return personaForEmail(email, opts) === 'director'
+    ? 'مجلس'
+    : 'متطوع'
 }
 
 /** Room membership mirroring the same strict email rule. */

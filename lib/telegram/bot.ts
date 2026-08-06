@@ -388,7 +388,7 @@ export function getTelegramBot() {
         process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
       const requesterId = await resolveChannelOwnerUserIdAsync(userId)
       const system = await buildScopedSystemPrompt(
-        'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية بإيجاز. عند استخدام قاعدة المعرفة اذكر المصادر. اطلب الموافقة عند الإجراءات عالية المخاطر.',
+        'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية (MSA) بإيجاز. عند استخدام قاعدة المعرفة اذكر المصادر بصيغة [مصدر N: …]. للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.',
         scope
       )
 

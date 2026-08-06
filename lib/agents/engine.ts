@@ -1403,7 +1403,7 @@ export async function runAgentEngine(
           model: getHarnessModel(modelSlug),
           system:
             input.system ||
-            'أنت وكيل Arabic Buzz. استخدم الأدوات المتاحة عند الحاجة وأجب بالعربية الفصحى المهنية. search_knowledge_base يبحث فقط في ملفات Google Drive المزامَنة — اذكر المصادر.',
+            'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية (MSA) مع مصطلحات الجمعيات السعودية. استخدم الأدوات عند الحاجة. عند search_knowledge_base أو أي إجابة حساسة عن لوائح/تراخيص/قرارات: اذكر المصادر بصيغة [مصدر N: العنوان] ولا تختلق مواداً غير موجودة في النتائج. إن لم تجد مصدراً فقل ذلك صراحة.',
           prompt: input.prompt,
           tools,
           stopWhen: stepCountIs(input.maxSteps ?? 5),

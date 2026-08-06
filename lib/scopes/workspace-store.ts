@@ -32,6 +32,8 @@ type WorkspaceState = {
   mergePost: (post: RoomPost) => void
   /** Create a fresh personal desk and activate it. Returns the new scope id. */
   createPersonalDesk: (opts?: { nameAr?: string }) => string
+  /** One-click association room (مجلس / لجان / موظفين) from template. */
+  createAssociationRoom: (opts?: { nameAr?: string }) => string
   renameScope: (id: string, nameAr: string) => void
   archiveScope: (id: string, archived?: boolean) => void
   addMemory: (scopeId: string, text: string) => boolean
@@ -148,6 +150,71 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             authorNameAr: 'الوكيل الشخصي',
             content:
               'جلسة جديدة جاهزة. اكتب مهمتك أو تكلم بالميكروفون — هذه المساحة خاصة بك.',
+            createdAt: Date.now(),
+          },
+        ],
+      },
+    }))
+    try {
+      localStorage.setItem('ab-active-scope', id)
+    } catch {
+      /* ignore */
+    }
+    return id
+  },
+
+  createAssociationRoom: (opts) => {
+    // Lazy import avoided — keep client bundle light by inlining template shape
+    const id = `assoc-${Date.now().toString(36)}`
+    const nameAr = opts?.nameAr?.trim() || 'غرفة الجمعية'
+    const roleLabelsAr = [
+      'مجلس الإدارة',
+      'المدير التنفيذي',
+      'عضو لجنة',
+      'موظف',
+      'متطوع',
+      'مدقق',
+    ]
+    const scope: Scope = {
+      id,
+      nameAr,
+      descriptionAr:
+        'قالب جمعية: مجلس ولجان وموظفون ومتطوعون — تقويم مشترك وموافقات عربية.',
+      members: ['user-1'],
+      memberLabelsAr: roleLabelsAr,
+      agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال', 'وكيل الجدولة'],
+      sharedMemory: [
+        'اللغة الرسمية: العربية الفصحى المهنية.',
+        'الأدوار: مجلس الإدارة · المدير التنفيذي · أعضاء اللجان · موظفون · متطوعون · مدقق.',
+        'المواعيد النظامية (ترخيص / عمومية / تقرير سنوي) تُتابع في تقويم الفريق.',
+        'الموافقات البشرية للإجراءات عالية المخاطر عند تفعيل HITL.',
+        'عند الإجابة من قاعدة المعرفة: اذكر المصادر بصيغة [مصدر N: …].',
+      ],
+      skills: [
+        'arabic_report_generator',
+        'zatca_e_invoicing_checker',
+        'cron_digest',
+        'channel_notify',
+      ],
+    }
+    const welcome = [
+      `مرحباً بكم في «${nameAr}».`,
+      'غرفة جمعية جاهزة: أدوار المجلس واللجان والموظفين في الذاكرة.',
+      'ادعُ الأعضاء، اضبط المواعيد النظامية، واربط تيليجرام للتنبيهات.',
+    ].join('\n')
+    set((state) => ({
+      scopes: [scope, ...state.scopes],
+      activeScopeId: id,
+      postsByScope: {
+        ...state.postsByScope,
+        [id]: [
+          {
+            id: `welcome-${id}`,
+            scopeId: id,
+            authorKind: 'system',
+            authorId: 'system-assoc-template',
+            authorNameAr: 'قالب الجمعية',
+            content: welcome,
             createdAt: Date.now(),
           },
         ],

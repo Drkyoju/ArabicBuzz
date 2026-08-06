@@ -5,6 +5,7 @@ import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
 import { listRoomInvites, listRoomMembers } from '@/lib/rooms/persist'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
+import { upcomingSystemDeadlines } from '@/lib/rooms/system-deadlines'
 import { isHitlDisabled } from '@/lib/security/posture'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 
@@ -12,7 +13,7 @@ const TZ = 'Asia/Riyadh'
 
 export type TeamInboxItem = {
   id: string
-  kind: 'task' | 'invite' | 'event' | 'hitl'
+  kind: 'task' | 'invite' | 'event' | 'hitl' | 'deadline' | 'channel'
   titleAr: string
   detailAr?: string | null
   whenAt?: string | null
@@ -64,23 +65,27 @@ export async function buildTeamInbox(opts: {
   const email = opts.email?.trim().toLowerCase() || ''
   const nameAr = opts.displayNameAr?.trim() || ''
 
-  const [tasks, events, membersRes, invitesMine, pending] = await Promise.all([
-    listRoomTasks(opts.scopeId).catch(() => []),
-    listRoomCalendarEvents({
-      scopeId: opts.scopeId,
-      from: new Date(now - 60_000).toISOString(),
-      to: new Date(in24h).toISOString(),
-    }).catch(() => []),
-    listRoomMembers(opts.scopeId).catch(() => ({
-      ok: false,
-      members: [],
-      source: 'memory' as const,
-    })),
-    email ? listPendingInvitesForEmail(email).catch(() => []) : Promise.resolve([]),
-    isHitlDisabled()
-      ? Promise.resolve([])
-      : listPendingApprovals().catch(() => []),
-  ])
+  const [tasks, events, membersRes, invitesMine, pending, deadlines] =
+    await Promise.all([
+      listRoomTasks(opts.scopeId).catch(() => []),
+      listRoomCalendarEvents({
+        scopeId: opts.scopeId,
+        from: new Date(now - 60_000).toISOString(),
+        to: new Date(in24h).toISOString(),
+      }).catch(() => []),
+      listRoomMembers(opts.scopeId).catch(() => ({
+        ok: false,
+        members: [],
+        source: 'memory' as const,
+      })),
+      email
+        ? listPendingInvitesForEmail(email).catch(() => [])
+        : Promise.resolve([]),
+      isHitlDisabled()
+        ? Promise.resolve([])
+        : listPendingApprovals().catch(() => []),
+      upcomingSystemDeadlines(opts.scopeId, 14).catch(() => []),
+    ])
 
   const items: TeamInboxItem[] = []
 
@@ -176,7 +181,55 @@ export async function buildTeamInbox(opts: {
     }
   }
 
+  // Regulatory deadlines within 14 days
+  for (const d of deadlines.slice(0, 4)) {
+    if (d.daysLeft != null && d.daysLeft > 14) continue
+    items.push({
+      id: `deadline-${d.id}`,
+      kind: 'deadline',
+      titleAr: d.labelAr,
+      detailAr:
+        d.daysLeft != null ? `متبقّي ${d.daysLeft} يوم` : 'موعد نظامي',
+      whenAt: d.startsAt,
+      whenAtAr: d.startsAt ? fmtTime(d.startsAt) : null,
+      hrefHint: 'calendar',
+    })
+  }
+
+  // Soft channel/governance hints only when inbox is otherwise quiet
+  if (items.length === 0) {
+    if (isHitlDisabled()) {
+      items.push({
+        id: 'channel-hitl-off',
+        kind: 'channel',
+        titleAr: 'الموافقات البشرية معطّلة',
+        detailAr: 'التنفيذ فوري — عيّن HITL_DISABLED=0 للحوكمة',
+        hrefHint: 'approvals',
+      })
+    }
+    if (process.env.TELEGRAM_BOT_TOKEN?.trim()) {
+      items.push({
+        id: 'channel-telegram',
+        kind: 'channel',
+        titleAr: 'تيليجرام جاهز للتنبيهات',
+        detailAr: 'موافقات وملخص أسبوعي — أرسل /start للبوت',
+        hrefHint: 'settings',
+      })
+    }
+  }
+
   void membersRes // reserved for future personalization
+
+  // Prefer actionable items first: hitl → invite → deadline → task → event → channel
+  const rank: Record<TeamInboxItem['kind'], number> = {
+    hitl: 0,
+    invite: 1,
+    deadline: 2,
+    task: 3,
+    event: 4,
+    channel: 5,
+  }
+  items.sort((a, b) => rank[a.kind] - rank[b.kind])
 
   return { items: items.slice(0, 24), count: items.length }
 }
