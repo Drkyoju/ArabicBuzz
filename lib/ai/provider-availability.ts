@@ -400,7 +400,7 @@ export async function getProvidersSnapshot(
       if (m.unavailable || def?.degraded) {
         blockedReasonAr =
           def?.hintAr ||
-          'المزوّد متوقف — /v1/chat/completions غير متاح على TokenRouter'
+          'حدّث المفتاح أو الرصيد لدى TokenRouter ثم أعد التحقق'
       } else if (!hasKey) blockedReasonAr = `أضف ${m.requiresKey} من صفحة مفاتيح API`
       else if (live === false)
         blockedReasonAr = `مفتاح ${m.requiresKey} مرفوض أو لا يستجيب`
