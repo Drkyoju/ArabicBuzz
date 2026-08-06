@@ -128,6 +128,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - لسؤال «كم موعد» أو مواعيد اليوم: رد واحد قصير (العدد + عنوان كل موعد ووقته) بدون سؤال متابعة مثل «هل تود إضافة…».
 - الملفات: list_workspace_files → read_document / read_excel → edit_document / edit_excel → return_file.
   أي ملف تُنشئه أو تعدّله يُرسل تلقائياً كمرفق في هذه المحادثة — لا تكتفِ بوصف الرابط.
+- صور / PDF ممسوح (نص غير قابل للنسخ) أو طلب «اقرأ» / «ابحث عن…»: استخدم arabic_ocr مع fileId (يحفظ النص في ذاكرة الغرفة وملف .txt). للبحث داخل الصورة مرّر searchQuery. لاحقاً: memory_search.
+  لقرارات طويلة ممسوحة: read_decision_document. للمستندات النصية العادية: read_document كافٍ.
 - عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.
   لا تستدعِ مزامنة Drive كاملة من تيليجرام (تبطئ الرد) — ابحث فقط.
 - للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.`
@@ -858,6 +860,7 @@ export function getTelegramBot() {
           '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله',
           '• أرسل رسالة صوتية → يفرّغها ويرد',
           '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل ويرجع الملف',
+          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → يستخرج النص (OCR) ويحفظه للغرفة',
           '',
           'لا حاجة لـ /ask. من ينادي البوت أو يكتب طلباً يعمل.',
           '',
@@ -1148,17 +1151,45 @@ export function getTelegramBot() {
         caption,
         botUsername
       )
+      const isImage =
+        ingested.mimeType.startsWith('image/') ||
+        /\.(png|jpe?g|webp|gif|tif{1,2}|bmp)$/i.test(ingested.name)
+      const isPdf =
+        ingested.mimeType.includes('pdf') ||
+        ingested.name.toLowerCase().endsWith('.pdf')
+      const captionLower = captionStripped.toLowerCase()
+      const wantsOcr =
+        isImage ||
+        /اقرأ|اقرا|استخرج|ممسوح|مسح|ocr|ابحث عن|هل يوجد|هل فيه/.test(
+          captionLower
+        ) ||
+        (isPdf && /ممسوح|مسح|صورة|scan/.test(captionLower))
+
       const userAsk =
         captionStripped ||
         (mentioned
-          ? 'اقرأ هذا الملف ونفّذ المطلوب إن وُجد، وإلا لخّص المحتوى واقترح الخطوة التالية.'
-          : 'اقرأ هذا الملف المرفق. إن طلب المستخدم تعديلاً في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار.')
+          ? wantsOcr
+            ? 'اقرأ النص المكتوب في هذا المرفق (OCR) ولخّص المحتوى.'
+            : 'اقرأ هذا الملف ونفّذ المطلوب إن وُجد، وإلا لخّص المحتوى واقترح الخطوة التالية.'
+          : wantsOcr
+            ? 'اقرأ النص الظاهر في الصورة/المستند الممسوح واستخرجه.'
+            : 'اقرأ هذا الملف المرفق. إن طلب المستخدم تعديلاً في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار.')
+
+      const ocrHint = wantsOcr
+        ? [
+            isImage || isPdf
+              ? 'هذا مرفق صورة أو PDF — استخدم arabic_ocr مع fileId أعلاه (saveToMemory=true).'
+              : 'إن بدا المستند ممسوحاً استخدم arabic_ocr مع fileId.',
+            'إن طلب المستخدم البحث عن عبارة، مرّر searchQuery بنفس العبارة.',
+            'بعد الاستخراج أعد النص أو مواضع البحث للمستخدم. النص يُحفظ تلقائياً في ذاكرة الغرفة وملف .txt.',
+          ].join(' ')
+        : 'استخدم read_document أو read_excel أو أدوات الصور حسب النوع، ثم عدّل عند الحاجة بـ edit_document/edit_excel وأعد الملف عبر return_file. للصور/PDF الممسوح فضّل arabic_ocr.'
 
       const promptSource = [
         userAsk,
         '',
         `ملف مرفوع من تيليجرام: «${ingested.name}» (fileId=${ingested.fileId}, mime=${ingested.mimeType}).`,
-        'استخدم read_document أو read_excel أو أدوات الصور حسب النوع، ثم عدّل عند الحاجة بـ edit_document/edit_excel وأعد الملف عبر return_file.',
+        ocrHint,
       ].join('\n')
 
       await runTelegramAgentTurn({

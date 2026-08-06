@@ -109,7 +109,7 @@ export function getNativeAiTools(opts?: {
     }),
     read_document: tool({
       description:
-        'استخراج نص مستند مكتبي مرفوع (Word، Excel، PowerPoint، PDF) قبل تعديله.',
+        'استخراج نص مستند مكتبي مرفوع (Word، Excel، PowerPoint، PDF) مع OCR تلقائي للصفحات الممسوحة. للصور أو طلب بحث داخل صورة/PDF ممسوح فضّل arabic_ocr.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف أو اسمه كما في list_workspace_files'),
       }),
@@ -1281,8 +1281,12 @@ export function getNativeAiTools(opts?: {
     }),
     arabic_ocr: tool({
       description:
-        'تحليل OCR/تخطيط لمستندات عربية ممسوحة (هوية، سند، PDF) عبر Marker/Surya أو Qari/Gemini. يعيد Markdown منظماً. للقرارات الطويلة فضّل read_decision_document.',
+        'قراءة نص عربي من صورة أو PDF ممسوح (OCR عبر Gemini/Qari). مرّر fileId من مساحة الغرفة. يحفظ النص تلقائياً في ذاكرة الغرفة وملف .txt. للبحث عن عبارة: مرّر searchQuery. للقرارات الطويلة فضّل read_decision_document.',
       inputSchema: z.object({
+        fileId: z
+          .string()
+          .optional()
+          .describe('معرّف الملف أو اسمه من list_workspace_files / تيليجرام'),
         fileUrl: z
           .string()
           .optional()
@@ -1290,12 +1294,28 @@ export function getNativeAiTools(opts?: {
         contentBase64: z
           .string()
           .optional()
-          .describe('محتوى الملف بصيغة base64 إن لم يتوفر رابط'),
+          .describe('محتوى الملف بصيغة base64 إن لم يتوفر fileId'),
+        searchQuery: z
+          .string()
+          .optional()
+          .describe('عبارة للبحث داخل النص المستخرج (مثل اسم أو رقم)'),
+        saveToMemory: z
+          .boolean()
+          .optional()
+          .describe('حفظ النص في ذاكرة الغرفة — افتراضي true'),
+        saveAsFile: z
+          .boolean()
+          .optional()
+          .describe('حفظ النص كملف .txt في الغرفة — افتراضي true'),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'arabic_ocr',
-          params,
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
           mode,
           requesterId,
           scopeId,

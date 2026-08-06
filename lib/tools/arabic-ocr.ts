@@ -22,13 +22,14 @@ export type ParsedDocumentMarkdown = {
 }
 
 async function fetchBuffer(
-  fileUrlOrBuffer: string | Buffer
+  fileUrlOrBuffer: string | Buffer,
+  opts?: { mimeType?: string; filename?: string }
 ): Promise<{ buffer: Buffer; mime: string; filename: string }> {
   if (Buffer.isBuffer(fileUrlOrBuffer)) {
     return {
       buffer: fileUrlOrBuffer,
-      mime: 'application/octet-stream',
-      filename: 'document.bin',
+      mime: opts?.mimeType || 'application/octet-stream',
+      filename: opts?.filename || 'document.bin',
     }
   }
   const src = fileUrlOrBuffer.trim()
@@ -171,13 +172,14 @@ function textToMarkdown(text: string): string {
  * Parse a scanned Arabic PDF / ID / voucher into structured Markdown.
  */
 export async function parseArabicDocument(
-  fileUrlOrBuffer: string | Buffer
+  fileUrlOrBuffer: string | Buffer,
+  opts?: { mimeType?: string; filename?: string }
 ): Promise<ParsedDocumentMarkdown> {
   let buffer: Buffer
   let mime: string
   let filename: string
   try {
-    ;({ buffer, mime, filename } = await fetchBuffer(fileUrlOrBuffer))
+    ;({ buffer, mime, filename } = await fetchBuffer(fileUrlOrBuffer, opts))
   } catch (e) {
     return {
       ok: false,

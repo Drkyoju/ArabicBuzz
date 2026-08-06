@@ -73,7 +73,7 @@ import {
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
 import { executeBrowserTask } from '@/lib/tools/browser-rpa'
-import { parseArabicDocument } from '@/lib/tools/arabic-ocr'
+import { executeArabicOcr } from '@/lib/agents/tools/arabic-ocr-tool'
 import { triggerExternalWorkflow } from '@/lib/tools/workflow-bridge'
 import {
   executeWebFetch,
@@ -457,19 +457,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       days: params.days ? Number(params.days) : 14,
     })
   },
-  arabic_ocr: async (_n, params) => {
-    const src =
-      params.fileUrl ||
-      params.url ||
-      params.contentBase64 ||
-      params.buffer
-    if (src == null || src === '') {
-      throw new Error('يلزم fileUrl أو contentBase64 لمستند OCR.')
-    }
-    return parseArabicDocument(
-      typeof src === 'string' ? src : Buffer.from(src as ArrayBuffer)
-    )
-  },
+  arabic_ocr: executeArabicOcr,
   trigger_workflow: async (_n, params) => {
     const workflowId = String(params.workflowId || params.id || '').trim()
     const payload =
