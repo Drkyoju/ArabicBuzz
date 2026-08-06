@@ -24,7 +24,7 @@ export async function distillThreadToSkill(
   }
 ): Promise<OpenClawSkill> {
   const modelSlug =
-    opts?.modelSlug || process.env.HERMES_MODEL || 'hermes-3-405b'
+    opts?.modelSlug || process.env.HERMES_MODEL || 'gemini-3.1-pro'
   const transcript = threadMessages
     .map((m) => `[${m.role}] ${m.content}`)
     .join('\n\n')

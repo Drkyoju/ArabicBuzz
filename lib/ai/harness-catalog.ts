@@ -1,25 +1,16 @@
 export type HarnessModelSlug =
-  | 'openai-gpt-4o'
-  | 'openai-gpt-4o-mini'
-  | 'claude-3.5-sonnet'
-  | 'claude-sonnet-4'
   | 'claude-opus-4-8'
   | 'claude-opus-5'
   | 'gpt-5.6-sol'
-  | 'deepseek-v3'
-  | 'deepseek-r1'
-  | 'qwen-2.5-72b'
   | 'gemini-3.1-pro'
   | 'gemini-2.5-pro'
   | 'gemini-2.5-flash'
-  | 'kimi-k2'
   | 'moonshotai/kimi-k3-free'
   | 'glm-4.5'
   | 'glm-5'
   | 'ollama-local'
   | 'perplexity-sonar'
-  | 'hermes-3-405b'
-  | 'hermes-2-pro-8b'
+  | 'deepseek-r1'
 
 /** Three user-facing tiers — engineer model names stay in labelEn. */
 export type HarnessTier = 'fast' | 'balanced' | 'max'
@@ -44,9 +35,7 @@ export type HarnessModelMeta = {
   labelEn: string
   tier: HarnessTier
   provider:
-    | 'openai'
     | 'google'
-    | 'openrouter'
     | 'agentrouter'
     | 'ollama'
     | 'perplexity'
@@ -123,93 +112,12 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     airGapSafe: false,
   },
   {
-    slug: 'openai-gpt-4o',
-    tier: 'balanced',
-    labelAr: 'أعلى دقة · OpenAI',
-    labelEn: 'GPT-4o',
-    provider: 'openai',
-    requiresKey: 'OPENAI_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'openai-gpt-4o-mini',
+    slug: 'moonshotai/kimi-k3-free',
     tier: 'fast',
-    labelAr: 'استجابة سريعة · OpenAI',
-    labelEn: 'GPT-4o Mini',
-    provider: 'openai',
-    requiresKey: 'OPENAI_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'claude-3.5-sonnet',
-    tier: 'balanced',
-    labelAr: 'أعلى دقة · Claude',
-    labelEn: 'Claude 3.5 Sonnet',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'claude-sonnet-4',
-    tier: 'max',
-    labelAr: 'أعلى دقة · Claude 4',
-    labelEn: 'Claude Sonnet 4',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'deepseek-v3',
-    tier: 'balanced',
-    labelAr: 'متوازن · DeepSeek',
-    labelEn: 'DeepSeek V3',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'deepseek-r1',
-    tier: 'max',
-    labelAr: 'تفكير عميق · DeepSeek',
-    labelEn: 'DeepSeek R1',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: true,
-  },
-  {
-    slug: 'kimi-k2',
-    tier: 'balanced',
-    labelAr: 'طويل السياق · Kimi',
-    labelEn: 'Moonshot Kimi K2',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'qwen-2.5-72b',
-    tier: 'balanced',
-    labelAr: 'عربي قوي · Qwen',
-    labelEn: 'Qwen 2.5 72B',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'hermes-3-405b',
-    tier: 'max',
-    labelAr: 'تحليل معمق · Hermes',
-    labelEn: 'Nous Hermes 3',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'hermes-2-pro-8b',
-    tier: 'fast',
-    labelAr: 'سريع · Hermes',
-    labelEn: 'Nous Hermes 2 Pro',
-    provider: 'openrouter',
-    requiresKey: 'OPENROUTER_API_KEY',
+    labelAr: 'Kimi K3 Free · سريع',
+    labelEn: 'Kimi K3 Free',
+    provider: 'tokenrouter',
+    requiresKey: 'TOKENROUTER_API_KEY',
     airGapSafe: false,
   },
   {
@@ -231,15 +139,16 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     airGapSafe: true,
   },
   {
-    slug: 'moonshotai/kimi-k3-free',
-    tier: 'fast',
-    labelAr: 'Kimi K3 Free · سريع',
-    labelEn: 'Kimi K3 Free',
-    provider: 'tokenrouter',
-    requiresKey: 'TOKENROUTER_API_KEY',
-    airGapSafe: false,
+    slug: 'deepseek-r1',
+    tier: 'max',
+    labelAr: 'تفكير عميق · محلي',
+    labelEn: 'DeepSeek R1 (Ollama)',
+    provider: 'ollama',
+    requiresKey: 'OLLAMA_BASE_URL',
+    airGapSafe: true,
   },
 ]
+
 export const HARNESS_MODEL_SLUGS: HarnessModelSlug[] =
   HARNESS_MODEL_CATALOG.map((m) => m.slug)
 

@@ -20,8 +20,8 @@ export const AGENT_MODEL_PRESETS = [
   { slug: 'gemini-3.1-pro', labelAr: 'أعلى دقة', provider: 'google' },
   { slug: 'claude-opus-4-8', labelAr: 'أعلى دقة · تحليل', provider: 'agentrouter' },
   { slug: 'gpt-5.6-sol', labelAr: 'متوازن · عام', provider: 'agentrouter' },
-  { slug: 'claude-sonnet-4', labelAr: 'أعلى دقة · Claude 4', provider: 'openrouter' },
   { slug: 'glm-4.5', labelAr: 'متوازن · تكلفة', provider: 'glm' },
+  { slug: 'gemini-2.5-flash', labelAr: 'استجابة سريعة', provider: 'google' },
 ] as const
 
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [

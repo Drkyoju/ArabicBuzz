@@ -6,24 +6,11 @@ type Check = { name: string; ok: boolean; detail: string }
 
 const offline = process.argv.includes('--offline')
 
-async function checkOpenRouter(key?: string): Promise<Check> {
-  if (!key) return { name: 'OPENROUTER_API_KEY', ok: false, detail: 'missing' }
-  if (offline) return { name: 'OPENROUTER_API_KEY', ok: true, detail: 'present (offline)' }
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/models', {
-      headers: { Authorization: `Bearer ${key}` },
-    })
-    return {
-      name: 'OPENROUTER_API_KEY',
-      ok: res.ok,
-      detail: res.ok ? 'valid' : `http ${res.status}`,
-    }
-  } catch (e) {
-    return {
-      name: 'OPENROUTER_API_KEY',
-      ok: false,
-      detail: e instanceof Error ? e.message : 'error',
-    }
+async function checkOpenRouter(_key?: string): Promise<Check> {
+  return {
+    name: 'OPENROUTER_API_KEY',
+    ok: true,
+    detail: 'retired — removed from product',
   }
 }
 
@@ -126,19 +113,40 @@ async function checkSupabase(): Promise<Check> {
   }
 }
 
+async function checkAgentRouter(key?: string): Promise<Check> {
+  if (!key) return { name: 'AGENTROUTER_API_KEY', ok: false, detail: 'missing' }
+  if (offline)
+    return { name: 'AGENTROUTER_API_KEY', ok: true, detail: 'present (offline)' }
+  try {
+    const res = await fetch('https://agentrouter.org/v1/models', {
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'x-api-key': key,
+        'User-Agent': 'claude-cli/2.1.158 (external, sdk-cli)',
+        'x-app': 'cli',
+      },
+    })
+    return {
+      name: 'AGENTROUTER_API_KEY',
+      ok: res.ok,
+      detail: res.ok ? 'valid' : `http ${res.status}`,
+    }
+  } catch (e) {
+    return {
+      name: 'AGENTROUTER_API_KEY',
+      ok: false,
+      detail: e instanceof Error ? e.message : 'error',
+    }
+  }
+}
+
 async function main() {
-  const openai = process.env.OPENAI_API_KEY
   const checks = await Promise.all([
-    checkOpenRouter(process.env.OPENROUTER_API_KEY),
     checkGemini(process.env.GEMINI_API_KEY),
+    checkAgentRouter(process.env.AGENTROUTER_API_KEY),
     checkTelegram(process.env.TELEGRAM_BOT_TOKEN),
     checkWhatsApp(process.env.WHATSAPP_TOKEN),
     checkSupabase(),
-    Promise.resolve({
-      name: 'OPENAI_API_KEY',
-      ok: Boolean(openai),
-      detail: openai ? (offline ? 'present (offline)' : 'present') : 'missing',
-    } satisfies Check),
   ])
 
   console.log('\nArabic Buzz env verification / التحقق من البيئة\n')

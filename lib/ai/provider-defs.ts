@@ -36,14 +36,6 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     docsUrl: 'https://z.ai/',
   },
   {
-    envName: 'OPENROUTER_API_KEY',
-    labelAr: 'OpenRouter',
-    labelEn: 'OpenRouter',
-    kind: 'llm',
-    hintAr: 'يفتح Claude · DeepSeek · Qwen · Kimi · Hermes بعد التحقق',
-    docsUrl: 'https://openrouter.ai/keys',
-  },
-  {
     envName: 'AGENTROUTER_API_KEY',
     aliases: ['AGENT_ROUTER_TOKEN'],
     labelAr: 'بوابة وكلاء',
@@ -61,14 +53,6 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     hintAr:
       'يفتح moonshotai/kimi-k3-free عند وجود رصيد في المفتاح. إن ظهر «الرصيد منتهٍ» أنشئ مفتاحاً جديداً من لوحة TokenRouter.',
     docsUrl: 'https://docs.tokenrouter.io/',
-  },
-  {
-    envName: 'OPENAI_API_KEY',
-    labelAr: 'OpenAI',
-    labelEn: 'OpenAI',
-    kind: 'llm',
-    hintAr: 'يفتح GPT-4o بعد التحقق',
-    docsUrl: 'https://platform.openai.com/api-keys',
   },
   {
     envName: 'PERPLEXITY_API_KEY',
@@ -104,6 +88,12 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     docsUrl: 'https://ollama.com',
   },
 ]
+
+/** Removed from the product UI — purge leftover vault/env noise. */
+export const RETIRED_PROVIDER_ENV_NAMES = [
+  'OPENAI_API_KEY',
+  'OPENROUTER_API_KEY',
+] as const
 
 export function findProviderDef(envName: string): ProviderDef | undefined {
   return PROVIDER_DEFS.find(

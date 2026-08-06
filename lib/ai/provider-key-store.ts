@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { prisma, withPrismaFallback } from '@/lib/db'
-import { PROVIDER_DEFS, type ProviderDef } from '@/lib/ai/provider-defs'
+import { PROVIDER_DEFS, RETIRED_PROVIDER_ENV_NAMES, type ProviderDef } from '@/lib/ai/provider-defs'
+
 
 /** In-process overlay (warm Lambda / local). DB is durable. */
 const memoryOverrides = new Map<string, string>()
@@ -191,7 +192,25 @@ export async function deleteProviderKey(envName: string): Promise<void> {
   )
 }
 
+/** Drop OpenAI / OpenRouter leftovers from vault + process env (not in product UI). */
+export async function purgeRetiredProviderKeys(): Promise<void> {
+  await ensureTable()
+  for (const envName of RETIRED_PROVIDER_ENV_NAMES) {
+    memoryOverrides.delete(envName)
+    delete process.env[envName]
+    await withPrismaFallback(
+      () =>
+        prisma.$executeRawUnsafe(
+          `DELETE FROM provider_api_keys WHERE env_name = $1`,
+          envName
+        ),
+      0
+    )
+  }
+}
+
 export async function listProviderKeyStatuses(): Promise<ProviderKeyStatus[]> {
+  await purgeRetiredProviderKeys()
   await ensureTable()
   const rows = await withPrismaFallback(
     () =>

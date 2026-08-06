@@ -120,7 +120,7 @@ export async function runArabicFcSuite(opts?: {
     return {
       status: 'skipped',
       reason:
-        'لا يوجد مفتاح مزوّد (GEMINI_API_KEY / OPENROUTER_API_KEY …) — تقييم استدعاء الأدوات يحتاج نموذجاً حياً',
+        'لا يوجد مفتاح مزوّد (GEMINI_API_KEY / AGENTROUTER_API_KEY / GLM_API_KEY …) — تقييم استدعاء الأدوات يحتاج نموذجاً حياً',
     }
   }
 
