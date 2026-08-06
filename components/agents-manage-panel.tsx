@@ -134,7 +134,7 @@ export function AgentsManagePanel({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center"
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-3 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-label="إدارة الوكلاء"
@@ -142,7 +142,7 @@ export function AgentsManagePanel({
             if (e.target === e.currentTarget) setOpen(false)
           }}
         >
-          <div className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-ab-border bg-ab-surface shadow-xl">
+          <div className="relative z-[71] flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-ab-border bg-ab-surface shadow-xl sm:max-h-[90dvh]">
             <div className="flex items-center justify-between border-b border-ab-border px-4 py-3">
               <div>
                 <h3 className="text-sm font-bold text-ab-ink">إدارة الوكلاء</h3>
@@ -167,10 +167,8 @@ export function AgentsManagePanel({
 
             <div className="space-y-3 overflow-y-auto p-4">
               <p className="text-[11px] text-stone-500">
-                أضف حتى 10 وكلاء على مفتاح Gemini و10 على GLM — غيّر الاسم
-                والمهمة لكل واحد (بما فيها الافتراضيون). في وضع{' '}
-                <strong>تعاون</strong> يعملون معًا (حتى 8 لكل إرسال)؛ في{' '}
-                <strong>منفصل</strong> يرد وكيل واحد. @الجميع أو @all للفريق.
+                حتى 10 Gemini و10 GLM · تعاون = عدة وكلاء · منفصل = واحد ·
+                @الجميع للفريق.
               </p>
 
               <div className="flex flex-wrap gap-1.5">

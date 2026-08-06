@@ -25,6 +25,7 @@ import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
+import { AgentsManagePanel } from '@/components/agents-manage-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
@@ -221,7 +222,24 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setShowMore(false)
     setMembersPanePx(readMembersPanePx(activeScopeId))
     setSeatsMaxPx(readSeatsPx(activeScopeId))
+    // Mobile: seats always start collapsed so they don't eat the chat.
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 767px)').matches
+    ) {
+      setSeatsCollapsed(true)
+    }
   }, [activeScopeId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = () => {
+      if (mq.matches) setSeatsCollapsed(true)
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1294,32 +1312,58 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </>
           )}
 
-          <div
-            className="relative z-0 shrink-0 border-b border-ab-border/70 px-3 py-1.5"
-            style={
-              seatsCollapsed
-                ? { maxHeight: 40, overflow: 'hidden' }
-                : { maxHeight: seatsMaxPx, overflow: 'auto' }
-            }
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] text-stone-500">مقاعد الوكلاء</span>
-              <button
-                type="button"
-                className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
-                onClick={() => setSeatsCollapsed((v) => !v)}
-              >
-                {seatsCollapsed ? 'توسيع' : 'طي'}
-              </button>
-            </div>
-            <AgentSeatsPanel
-              scopeId={activeScopeId}
-              activeAgentId={mentionPreview?.id}
-              answeringAgentId={answeringAgentId}
-              onSeatClick={(a) =>
-                setInput((v) => (v.startsWith('@') ? v : `@${a.slug} ${v}`))
-              }
-            />
+          <div className="relative z-[1] shrink-0 border-b border-ab-border/70 px-3 py-1.5">
+            {seatsCollapsed ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[11px] text-stone-600">
+                  مقاعد الوكلاء
+                  {roomAgents.length > 0 ? (
+                    <span className="text-stone-400">
+                      {' '}
+                      · {roomAgents.length}
+                    </span>
+                  ) : null}
+                  {answeringAgentId ? (
+                    <span className="ms-1 text-ab-accent">· يجيب…</span>
+                  ) : null}
+                </span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <AgentsManagePanel scopeId={activeScopeId} compact />
+                  <button
+                    type="button"
+                    className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
+                    onClick={() => setSeatsCollapsed(false)}
+                  >
+                    توسيع
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ maxHeight: seatsMaxPx, overflow: 'auto' }}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-stone-500">
+                    مقاعد الوكلاء
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
+                    onClick={() => setSeatsCollapsed(true)}
+                  >
+                    طي
+                  </button>
+                </div>
+                <AgentSeatsPanel
+                  scopeId={activeScopeId}
+                  activeAgentId={mentionPreview?.id}
+                  answeringAgentId={answeringAgentId}
+                  onSeatClick={(a) =>
+                    setInput((v) =>
+                      v.startsWith('@') ? v : `@${a.slug} ${v}`
+                    )
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {!seatsCollapsed && (

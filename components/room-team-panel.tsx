@@ -331,17 +331,9 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           <div className="relative z-20 rounded-md border border-ab-border bg-white p-2 space-y-2 shadow-sm">
             <p className="font-semibold text-ab-ink">دعوة زميل للغرفة</p>
             {canManage && (
-              <ol className="list-decimal space-y-1 pe-4 text-[10px] leading-relaxed text-stone-600">
-                <li>
-                  أنشئ <strong>رابط دعوة</strong> (أو دعوة بريد) وانسخه.
-                </li>
-                <li>
-                  زميلُك: <strong>يسجّل الدخول أولاً</strong> بحسابه.
-                </li>
-                <li>
-                  ثم يفتح <strong>رابط الدعوة</strong> ويكتب اسمه وينضم.
-                </li>
-              </ol>
+              <p className="text-[10px] leading-relaxed text-stone-500">
+                أنشئ رابط دعوة → الزميل يسجّل الدخول ثم يفتح الرابط وينضم.
+              </p>
             )}
             {!canManage && (
               <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">

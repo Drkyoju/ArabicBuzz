@@ -6,7 +6,6 @@ import {
   Clock,
   History,
   Inbox,
-  Pencil,
   Radio,
   RefreshCw,
   ShieldCheck,
@@ -162,31 +161,27 @@ function DayBlock({
           {subtitle}
         </p>
       )}
-      {events.length === 0 ? (
-        <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
-      ) : (
-        <ul className="mt-2 space-y-2">
-          {events.map((e) => (
-            <li
-              key={e.id}
-              className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
-            >
-              <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
-              <p className="mt-0.5 text-[10px] text-stone-500">
-                {e.startsAtAr}
-                {e.hasZoom ? ' · Zoom' : ''}
-                {e.locationAr ? ` · ${e.locationAr}` : ''}
+      <ul className="mt-2 space-y-2">
+        {events.map((e) => (
+          <li
+            key={e.id}
+            className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
+          >
+            <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
+            <p className="mt-0.5 text-[10px] text-stone-500">
+              {e.startsAtAr}
+              {e.hasZoom ? ' · Zoom' : ''}
+              {e.locationAr ? ` · ${e.locationAr}` : ''}
+            </p>
+            {e.source === 'google_sync' && (
+              <p className="mt-0.5 text-[10px] text-sky-800">
+                من Google
+                {e.createdByAr ? ` · ${e.createdByAr}` : ''}
               </p>
-              {e.source === 'google_sync' && (
-                <p className="mt-0.5 text-[10px] text-sky-800">
-                  من Google
-                  {e.createdByAr ? ` · ${e.createdByAr}` : ''}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -389,16 +384,19 @@ export function HomeDashboard({
         ]
   const hasCommitments =
     !authPending && (viewData.commitments?.items || []).length > 0
-  const hasWeek = !authPending && (cal?.week || []).length > 0
+  // Week list overlaps commitments (same events) — only show when no commitments block.
+  const hasWeek =
+    !authPending && !hasCommitments && (cal?.week || []).length > 0
   const hasPeople = !authPending && (viewData.people || []).length > 0
   const hasActivity = !authPending && (viewData.activity || []).length > 0
   const hasPosts = !authPending && (viewData.recentPosts || []).length > 0
+  const hasMergedPulse =
+    !authPending && (acts.length > 0 || hasActivity || hasPosts)
   const hasTasks = !authPending && (viewData.tasks?.items || []).length > 0
   const showZoomStrip = !authPending && Boolean(zoom?.liveNow)
   const showCockpit =
-    !isGuest &&
-    !authPending &&
-    (livePending > 0 || deadlines.length > 0 || acts.length > 0)
+    !isGuest && !authPending && (livePending > 0 || deadlines.length > 0)
+  const filledAgendaDays = agendaDays.filter((d) => d.events.length > 0)
 
   // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
   if (authPending) {
@@ -468,20 +466,6 @@ export function HomeDashboard({
           >
             أضف موعد
           </button>
-          {!isEmptyWorkspace && (
-            <button
-              type="button"
-              onClick={() =>
-                document.getElementById('ab-recipes')?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'start',
-                })
-              }
-              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
-            >
-              تشغيل وصفة
-            </button>
-          )}
           <button
             type="button"
             disabled={busy}
@@ -596,17 +580,32 @@ export function HomeDashboard({
               فتح تقويم الفريق
             </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {agendaDays.map((d) => (
-              <DayBlock
-                key={`${d.offset}-${d.ymd}`}
-                title={d.labelAr}
-                subtitle={d.weekdayAr || d.ymd}
-                events={d.events}
-                accent={d.offset === 0 ? 'ring-1 ring-ab-accent/30' : undefined}
-              />
-            ))}
-          </div>
+          {filledAgendaDays.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filledAgendaDays.map((d) => (
+                <DayBlock
+                  key={`${d.offset}-${d.ymd}`}
+                  title={d.labelAr}
+                  subtitle={d.weekdayAr || d.ymd}
+                  events={d.events}
+                  accent={
+                    d.offset === 0 ? 'ring-1 ring-ab-accent/30' : undefined
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-2.5 text-[12px] text-stone-500">
+              لا مواعيد في الأيام القادمة —{' '}
+              <button
+                type="button"
+                onClick={() => onNavigate?.('calendar')}
+                className="font-semibold text-ab-accent underline"
+              >
+                أضف موعداً
+              </button>
+            </p>
+          )}
         </div>
       )}
 
@@ -642,7 +641,7 @@ export function HomeDashboard({
           )}
 
           {deadlines.length > 0 && (
-            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-4">
+            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-7">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
                   <CalendarDays className="h-4 w-4 text-ab-accent" />
@@ -680,31 +679,6 @@ export function HomeDashboard({
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {acts.length > 0 && (
-            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-3">
-              <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                <Radio className="h-4 w-4 text-ab-accent" />
-                يعمل الآن
-              </h2>
-              <ul className="mt-2.5 space-y-2">
-                {acts.slice(0, 3).map((a, i) => (
-                  <li key={`${a.agentAr}-${i}`} className="text-[12px]">
-                    <p className="font-semibold text-ab-ink">{a.agentAr}</p>
-                    <p className="text-[11px] text-ab-accent">{a.statusAr}</p>
-                    <p className="text-[10px] text-stone-500">{a.detailAr}</p>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('chats')}
-                className="mt-3 text-[11px] font-medium text-ab-accent underline"
-              >
-                الغرف
-              </button>
             </div>
           )}
         </div>
@@ -829,11 +803,10 @@ export function HomeDashboard({
             <div className="rounded-xl border border-ab-border bg-white p-4">
               <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
                 <ListTodo className="h-4 w-4 text-ab-accent" />
-                التزامات هذا الأسبوع
+                أسبوع الفريق
               </h2>
               <p className="mb-3 text-[11px] text-stone-500">
-                من المهام + المواعيد + مواعيد النظام (
-                {viewData.commitments?.count || 0})
+                مهام ومواعيد ومواعيد نظام ({viewData.commitments?.count || 0})
               </p>
               <ul className="divide-y divide-ab-border">
                 {(viewData.commitments?.items || []).map((c) => (
@@ -903,13 +876,89 @@ export function HomeDashboard({
             </div>
           )}
 
-          {(hasPeople || hasActivity) && (
+          {(hasPeople || hasMergedPulse || hasTasks) && (
             <div className="grid gap-4 lg:grid-cols-2">
+              {hasMergedPulse && (
+                <div
+                  className={cn(
+                    'rounded-xl border border-ab-border bg-white p-4',
+                    !hasPeople && !hasTasks && 'lg:col-span-2'
+                  )}
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+                      <History className="h-4 w-4 text-ab-accent" />
+                      نشاط حديث
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('chats')}
+                      className="text-[11px] font-medium text-ab-accent underline"
+                    >
+                      الغرف
+                    </button>
+                  </div>
+                  <ul className="max-h-80 space-y-2 overflow-auto">
+                    {acts.slice(0, 3).map((a, i) => (
+                      <li
+                        key={`live-${a.agentAr}-${i}`}
+                        className="text-[12px] leading-snug text-stone-600"
+                      >
+                        <span className="me-1.5 rounded bg-ab-accent/10 px-1 py-px text-[10px] font-semibold text-ab-accent">
+                          الآن
+                        </span>
+                        <span className="font-semibold text-ab-ink">
+                          {a.agentAr}
+                        </span>
+                        {' · '}
+                        {a.statusAr}
+                        {a.detailAr ? (
+                          <span className="text-stone-400">
+                            {' '}
+                            — {a.detailAr}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                    {(viewData.activity || []).slice(0, 10).map((a) => (
+                      <li
+                        key={a.id}
+                        className="text-[12px] leading-snug text-stone-600"
+                      >
+                        <span className="font-semibold text-ab-ink">
+                          {a.actorAr}
+                        </span>
+                        {' · '}
+                        {a.actionAr}
+                        {a.detailAr ? ` — ${a.detailAr}` : ''}
+                        <span className="text-stone-400"> · {a.atAr}</span>
+                      </li>
+                    ))}
+                    {(viewData.recentPosts || []).slice(0, 6).map((p, i) => (
+                      <li
+                        key={`post-${p.atAr}-${i}`}
+                        className="text-[12px] leading-snug text-stone-600"
+                      >
+                        <span className="me-1.5 rounded bg-stone-100 px-1 py-px text-[10px] font-medium text-stone-500">
+                          رسالة
+                        </span>
+                        <span className="font-semibold text-ab-ink">
+                          {p.authorAr}
+                        </span>
+                        {' · '}
+                        {p.content}
+                        <span className="text-stone-400"> · {p.atAr}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {hasPeople && (
                 <div className="rounded-xl border border-ab-border bg-white p-4">
                   <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
                     <Users className="h-4 w-4 text-ab-accent" />
-                    من كانوا هنا وماذا عملوا
+                    من كانوا هنا
                   </h2>
                   <ul className="space-y-2">
                     {(viewData.people || []).map((p) => (
@@ -937,59 +986,6 @@ export function HomeDashboard({
                             .filter(Boolean)
                             .join(' · ')}
                         </p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {hasActivity && (
-                <div className="rounded-xl border border-ab-border bg-white p-4">
-                  <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                    <Pencil className="h-4 w-4 text-ab-accent" />
-                    آخر التعديلات
-                  </h2>
-                  <ul className="max-h-72 space-y-2 overflow-auto">
-                    {(viewData.activity || []).slice(0, 15).map((a) => (
-                      <li
-                        key={a.id}
-                        className="text-[12px] leading-snug text-stone-600"
-                      >
-                        <span className="font-semibold text-ab-ink">
-                          {a.actorAr}
-                        </span>
-                        {' · '}
-                        {a.actionAr}
-                        {a.detailAr ? ` — ${a.detailAr}` : ''}
-                        <span className="text-stone-400"> · {a.atAr}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {(hasPosts || hasTasks) && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {hasPosts && (
-                <div className="rounded-xl border border-ab-border bg-white p-4">
-                  <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                    <History className="h-4 w-4 text-ab-accent" />
-                    آخر الرسائل
-                  </h2>
-                  <ul className="space-y-2">
-                    {(viewData.recentPosts || []).map((p, i) => (
-                      <li
-                        key={`${p.atAr}-${i}`}
-                        className="text-[12px] text-stone-600"
-                      >
-                        <span className="font-semibold text-ab-ink">
-                          {p.authorAr}
-                        </span>
-                        {' · '}
-                        {p.content}
-                        <span className="text-stone-400"> · {p.atAr}</span>
                       </li>
                     ))}
                   </ul>

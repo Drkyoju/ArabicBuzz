@@ -47,7 +47,6 @@ type AgendaDay = {
 }
 
 const TZ = 'Asia/Riyadh'
-const AGENDA_DAYS = 7
 
 function fmt(iso: string) {
   try {
@@ -425,7 +424,8 @@ export function RoomCalendarBoard({
     [events]
   )
 
-  const agenda = useMemo((): AgendaDay[] => {
+  /** اليوم + غداً فقط — لوحات كبيرة دائماً */
+  const focusDays = useMemo((): AgendaDay[] => {
     const byYmd = new Map<string, RoomEvent[]>()
     for (const e of upcoming) {
       const ymd = riyadhYmd(e.startsAt)
@@ -433,7 +433,7 @@ export function RoomCalendarBoard({
       list.push(e)
       byYmd.set(ymd, list)
     }
-    return Array.from({ length: AGENDA_DAYS }, (_, offset) => {
+    return [0, 1].map((offset) => {
       const ymd = dayBoundsYmd(offset)
       return {
         offset,
@@ -445,10 +445,27 @@ export function RoomCalendarBoard({
     })
   }, [upcoming])
 
-  const laterEvents = useMemo(() => {
-    const agendaYmds = new Set(agenda.map((d) => d.ymd))
-    return upcoming.filter((e) => !agendaYmds.has(riyadhYmd(e.startsAt)))
-  }, [agenda, upcoming])
+  /** أيام لاحقة فيها مواعيد فقط — صفوف/شرائح مضغوطة بالتاريخ */
+  const futureGroups = useMemo((): AgendaDay[] => {
+    const tomorrowYmd = dayBoundsYmd(1)
+    const byYmd = new Map<string, RoomEvent[]>()
+    for (const e of upcoming) {
+      const ymd = riyadhYmd(e.startsAt)
+      if (ymd <= tomorrowYmd) continue
+      const list = byYmd.get(ymd) || []
+      list.push(e)
+      byYmd.set(ymd, list)
+    }
+    return Array.from(byYmd.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ymd, events], i) => ({
+        offset: 2 + i,
+        ymd,
+        labelAr: weekdayAr(ymd),
+        weekdayAr: weekdayAr(ymd),
+        events,
+      }))
+  }, [upcoming])
 
   const conflictIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1159,8 +1176,9 @@ export function RoomCalendarBoard({
           </p>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {agenda.map((day) => (
+            {/* اليوم + غداً — لوحات كبيرة فقط */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {focusDays.map((day) => (
                 <div
                   key={day.ymd}
                   className={cn(
@@ -1181,48 +1199,67 @@ export function RoomCalendarBoard({
               ))}
             </div>
 
-            {laterEvents.length > 0 && (
-              <div className="rounded-xl border border-ab-border bg-white">
-                <h4 className="border-b border-ab-border px-4 py-2 text-sm font-semibold text-ab-ink">
-                  لاحقاً · بعد أسبوع
+            {/* أيام لاحقة — شرائح مضغوطة بالتاريخ فقط عند وجود مواعيد */}
+            {futureGroups.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-semibold text-stone-500">
+                  لاحقاً
                 </h4>
-                <ul className="divide-y divide-ab-border">
-                  {laterEvents.map((e) => (
-                    <li
-                      key={e.id}
-                      className="flex flex-wrap items-start justify-between gap-2 px-4 py-3"
+                <div className="flex flex-wrap gap-2">
+                  {futureGroups.map((day) => (
+                    <div
+                      key={day.ymd}
+                      className="min-w-[9.5rem] max-w-full flex-1 basis-[9.5rem] rounded-lg border border-ab-border/80 bg-white px-2.5 py-2 sm:flex-none"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-ab-ink">{e.titleAr}</p>
-                        <p className="text-[11px] text-stone-500" dir="ltr">
-                          {fmt(e.startsAt)} → {fmt(e.endsAt)}
-                        </p>
-                      </div>
-                      {signedIn === true && (
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => startEdit(e)}
-                            className="rounded p-1.5 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
-                            aria-label="تعديل"
+                      <p className="text-[11px] font-semibold text-stone-600">
+                        {day.weekdayAr}
+                      </p>
+                      <ul className="mt-1 space-y-1">
+                        {day.events.map((e) => (
+                          <li
+                            key={e.id}
+                            className={cn(
+                              'flex items-start justify-between gap-1',
+                              conflictIds.has(e.id) && 'text-amber-900'
+                            )}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void cancel(e.id)}
-                            className="rounded p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-700"
-                            aria-label="إلغاء"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </li>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[12px] font-medium text-ab-ink">
+                                {e.titleAr}
+                              </p>
+                              <p className="text-[10px] text-stone-400">
+                                {fmtTimeOnly(e.startsAt)}
+                                {conflictIds.has(e.id) ? ' · تعارض' : ''}
+                              </p>
+                            </div>
+                            {signedIn === true && (
+                              <div className="flex shrink-0 items-center">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => startEdit(e)}
+                                  className="rounded p-1 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
+                                  aria-label="تعديل"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void cancel(e.id)}
+                                  className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-700"
+                                  aria-label="إلغاء"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 

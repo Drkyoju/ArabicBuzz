@@ -448,54 +448,53 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div>
                 <h2 className="flex items-center gap-1.5 text-xl font-bold">
                   صندوق الموافقات
-                  <HelpTip textAr="راجع كل إجراء حساس قبل التنفيذ: اعتماد، رفض، أو تعديل المعاملات." />
+                  {hitlDisabled !== true && (
+                    <HelpTip textAr="راجع كل إجراء حساس قبل التنفيذ: اعتماد، رفض، أو تعديل المعاملات." />
+                  )}
                 </h2>
-                <p className="mt-1 text-sm text-stone-500">
-                  اعتمد · ارفض · أو عدّل — ثم يُنفَّذ الإجراء بأمان.
-                </p>
+                {hitlDisabled !== true && (
+                  <p className="mt-1 text-sm text-stone-500">
+                    اعتمد · ارفض · أو عدّل — ثم يُنفَّذ الإجراء بأمان.
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => void loadApprovals()}
-                className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
-                disabled={hitlDisabled === true}
-              >
-                تحديث
-              </button>
+              {hitlDisabled !== true && (
+                <button
+                  type="button"
+                  onClick={() => void loadApprovals()}
+                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                >
+                  تحديث
+                </button>
+              )}
             </div>
             {hitlDisabled === true && (
-              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4">
+              <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
                 <p className="text-sm font-semibold text-amber-950">
                   الموافقات معطّلة — التنفيذ فوري
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                  حوكمة الاعتماد البشري متوقفة: الوكيل ينفّذ دون انتظار موافقة
-                  هنا أو على تيليجرام. لإعادة الحوكمة الآمنة للجمعيات اضبط على
-                  Netlify:{' '}
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                  لا طلبات معلّقة هنا لأن الحوكمة متوقفة. لإعادة الاعتماد البشري
+                  على Netlify:{' '}
                   <code dir="ltr" className="rounded bg-white/80 px-1">
                     HITL_DISABLED=0
-                  </code>{' '}
-                  ويفضّل{' '}
-                  <code dir="ltr" className="rounded bg-white/80 px-1">
-                    DEFAULT_SECURITY_POSTURE=AUTO
-                  </code>{' '}
-                  (موافقة للخطر العالي فقط — مجاني، بدون خدمات مدفوعة). بعدها
-                  تظهر أزرار ✅/❌ هنا وفي تيليجرام.
+                  </code>
+                  .
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px]">
                   <button
                     type="button"
                     onClick={() => setSection('audit')}
-                    className="rounded-md border border-amber-400/60 bg-white px-2.5 py-1 font-medium text-amber-950"
+                    className="font-medium text-amber-900/80 underline"
                   >
-                    فتح سجل التدقيق
+                    سجل التدقيق
                   </button>
                   <button
                     type="button"
                     onClick={() => setSection('settings')}
-                    className="rounded-md border border-amber-400/60 bg-white px-2.5 py-1 font-medium text-amber-950"
+                    className="font-medium text-amber-900/80 underline"
                   >
-                    إعدادات الربط
+                    الإعدادات
                   </button>
                 </div>
               </div>
@@ -522,12 +521,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 </button>
               </div>
             )}
-            {hitlDisabled === true ? (
-              <p className="text-sm text-stone-500">
-                لا طلبات معلّقة لأن الحوكمة معطّلة (ليست قائمة فارغة بمعنى
-                «كل شيء معتمد»).
-              </p>
-            ) : approvalsLoading && pendingCount === 0 && signedIn !== false ? (
+            {hitlDisabled === true ? null : approvalsLoading &&
+              pendingCount === 0 &&
+              signedIn !== false ? (
               <p className="text-sm text-stone-500">جاري التحميل…</p>
             ) : null}
             {hitlDisabled !== true && approvalsError && approvalsError !== 'GUEST' && (

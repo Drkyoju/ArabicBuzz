@@ -12,21 +12,11 @@ import type {
 } from '@/lib/rooms/telegram-feed'
 
 const POLL_MS = 8_000
-const STORAGE_KEY = 'arabicbuzz-telegram-panel-open'
 
 const SOURCE_TONE: Record<TelegramFeedItem['source'], string> = {
   site: 'bg-sky-50 text-sky-900 border-sky-200',
   telegram: 'bg-violet-50 text-violet-900 border-violet-200',
   bot: 'bg-emerald-50 text-emerald-900 border-emerald-200',
-}
-
-function readStoredOpen(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -48,17 +38,13 @@ export function TelegramHomePanel() {
   const stickBottom = useRef(true)
 
   useEffect(() => {
-    setOpen(readStoredOpen())
+    // Always mount as a bubble so the empty/unlinked window never dominates home.
+    setOpen(false)
     setHydrated(true)
   }, [])
 
   const setOpenPersist = useCallback((next: boolean) => {
     setOpen(next)
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0')
-    } catch {
-      /* ignore quota / private mode */
-    }
   }, [])
 
   const load = useCallback(async () => {
