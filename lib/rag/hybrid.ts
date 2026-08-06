@@ -4,6 +4,7 @@ import {
   toPgVectorLiteral,
 } from '@/lib/rag/embeddings'
 import { COMPANY_BRAIN_SCOPE_ID } from '@/lib/google/drive'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export type RAGDocument = {
   id: string
@@ -158,6 +159,77 @@ async function vectorSimilaritySearch(
  * Default source filter is Drive-only so Gemini trains/answers only from
  * files synced from the user's Google Drive folder.
  */
+/** Lexical fallback when Prisma/pgvector is unreachable from Netlify. */
+async function supabaseLexicalFallback(
+  queryText: string,
+  scopeId: string,
+  limit: number,
+  source: KnowledgeSourceFilter
+): Promise<RAGDocument[]> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return []
+  const tokens = queryText
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2)
+    .slice(0, 6)
+  if (tokens.length === 0) return []
+
+  let q = sb
+    .from('knowledge_documents')
+    .select('id, scope_id, title_ar, content, source_file_id, source_path')
+    .eq('scope_id', scopeId)
+    .limit(Math.max(limit * 8, 40))
+
+  if (source === 'drive') {
+    q = q.like('source_file_id', `${DRIVE_SOURCE_PREFIX}%`)
+  }
+
+  // Prefer title hits: or(ilike title, ilike content) for each strong token
+  const orParts = tokens.flatMap((t) => [
+    `title_ar.ilike.%${t}%`,
+    `content.ilike.%${t}%`,
+  ])
+  q = q.or(orParts.join(','))
+
+  const { data, error } = await q
+  if (error || !data?.length) return []
+
+  const scored = data
+    .map((row, i) => {
+      const title = String(row.title_ar || '')
+      const content = String(row.content || '')
+      let score = 0
+      for (const t of tokens) {
+        if (title.includes(t)) score += 3
+        if (content.includes(t)) score += 1
+      }
+      return {
+        id: String(row.id),
+        scopeId: String(row.scope_id),
+        titleAr: title,
+        content,
+        rrfScore: score || 1 / (60 + i + 1),
+        rankBm25: i + 1,
+        rankVector: null as number | null,
+        metadata: {
+          bm25Rank: i + 1,
+          vectorRank: null as number | null,
+          source: 'supabase_lexical' as const,
+          sourceFileId: (row.source_file_id as string | null) ?? null,
+          sourcePath: (row.source_path as string | null) ?? null,
+        },
+      }
+    })
+    .filter((d) => d.rrfScore > 0)
+    .sort((a, b) => b.rrfScore - a.rrfScore)
+    .slice(0, limit)
+
+  return scored
+}
+
 export async function hybridArabicSearch(
   queryText: string,
   scopeId: string,
@@ -169,7 +241,7 @@ export async function hybridArabicSearch(
   const source: KnowledgeSourceFilter = opts?.source ?? 'drive'
   const searchScopeId = resolveSearchScopeId(scopeId, source)
 
-  return withPrismaFallback(async () => {
+  const viaPrisma = await withPrismaFallback(async () => {
     const tsQuery = buildArabicTsQuery(trimmed)
     const fetchLimit = Math.max(limit * 4, 20)
 
@@ -268,7 +340,10 @@ export async function hybridArabicSearch(
       })
       .sort((a, b) => b.rrfScore - a.rrfScore)
       .slice(0, limit)
-  }, [])
+  }, [] as RAGDocument[])
+
+  if (viaPrisma.length > 0) return viaPrisma
+  return supabaseLexicalFallback(trimmed, searchScopeId, limit, source)
 }
 
 /** Insert / update a knowledge chunk (embeds content with the active provider). */

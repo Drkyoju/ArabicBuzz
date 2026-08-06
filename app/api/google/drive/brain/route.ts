@@ -117,16 +117,19 @@ export async function POST(req: Request) {
       force: Boolean(body.force),
     })
 
-    try {
-      await insertRoomPost({
-        scopeId,
-        authorKind: 'system',
-        authorId: 'company-brain',
-        authorNameAr: 'عقل الشركة',
-        content: `📁 ${result.messageAr}\n${result.folderUrl}`,
-      })
-    } catch {
-      /* optional */
+    // Announce only when new files were indexed — avoid “اكتملت 20/20” spam.
+    if (result.ingested > 0) {
+      try {
+        await insertRoomPost({
+          scopeId,
+          authorKind: 'system',
+          authorId: 'company-brain',
+          authorNameAr: 'عقل الشركة',
+          content: `📁 ${result.messageAr}\n${result.folderUrl}`,
+        })
+      } catch {
+        /* optional */
+      }
     }
 
     return Response.json({ ...result, brainScopeId: scopeId })

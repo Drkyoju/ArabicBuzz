@@ -6,5 +6,8 @@ export function isNoiseRoomPost(content: string): boolean {
   if (c.includes('guest-probe')) return true
   if (c.includes('واحدةحدة')) return true
   if (c.includes('المجلد فارغ أو لا يمكن قراءته')) return true
+  // Drive sync progress pings — keep the feed readable
+  if (c.startsWith('📁 جُلسة مزامنة سحابية:')) return true
+  if (c.startsWith('📁 اكتملت مزامنة عقل الشركة')) return true
   return false
 }
