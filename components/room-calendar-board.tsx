@@ -7,6 +7,8 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Pencil,
+  X,
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react'
@@ -35,10 +37,21 @@ type ConflictInfo = {
   overlapMinutes: number
 }
 
+type AgendaDay = {
+  offset: number
+  ymd: string
+  labelAr: string
+  weekdayAr: string
+  events: RoomEvent[]
+}
+
+const TZ = 'Asia/Riyadh'
+const AGENDA_DAYS = 7
+
 function fmt(iso: string) {
   try {
     return new Date(iso).toLocaleString('ar-SA', {
-      timeZone: 'Asia/Riyadh',
+      timeZone: TZ,
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -50,9 +63,61 @@ function fmt(iso: string) {
   }
 }
 
+function fmtTimeOnly(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString('ar-SA', {
+      timeZone: TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
 function toLocalInput(d = new Date()) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function riyadhYmd(iso: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso))
+}
+
+function dayBoundsYmd(offsetDays: number) {
+  const fmtYmd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const base = new Date(Date.now() + offsetDays * 86400_000)
+  return fmtYmd.format(base)
+}
+
+function dayLabelAr(offset: number) {
+  if (offset === 0) return 'اليوم'
+  if (offset === 1) return 'غداً'
+  if (offset === 2) return 'بعد غد'
+  return `بعد ${offset} أيام`
+}
+
+function weekdayAr(ymd: string) {
+  try {
+    return new Intl.DateTimeFormat('ar-SA', {
+      timeZone: TZ,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date(`${ymd}T12:00:00+03:00`))
+  } catch {
+    return ymd
+  }
 }
 
 function overlapMins(aStart: string, aEnd: string, bStart: string, bEnd: string) {
@@ -90,6 +155,9 @@ export function RoomCalendarBoard({
   const [attendees, setAttendees] = useState('')
   const [bulk, setBulk] = useState('')
   const [formOpen, setFormOpen] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [copyToGoogle, setCopyToGoogle] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -131,6 +199,29 @@ export function RoomCalendarBoard({
     }
   }, [load])
 
+  useEffect(() => {
+    if (signedIn !== true) {
+      setGoogleConnected(false)
+      setCopyToGoogle(false)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/google/calendar?action=status', {
+          headers: await authHeaders(),
+        })
+        const data = (await res.json()) as { connected?: boolean }
+        if (!cancelled) setGoogleConnected(Boolean(data.connected))
+      } catch {
+        if (!cancelled) setGoogleConnected(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [signedIn])
+
   const upcoming = useMemo(
     () =>
       events
@@ -142,6 +233,31 @@ export function RoomCalendarBoard({
         }),
     [events]
   )
+
+  const agenda = useMemo((): AgendaDay[] => {
+    const byYmd = new Map<string, RoomEvent[]>()
+    for (const e of upcoming) {
+      const ymd = riyadhYmd(e.startsAt)
+      const list = byYmd.get(ymd) || []
+      list.push(e)
+      byYmd.set(ymd, list)
+    }
+    return Array.from({ length: AGENDA_DAYS }, (_, offset) => {
+      const ymd = dayBoundsYmd(offset)
+      return {
+        offset,
+        ymd,
+        labelAr: dayLabelAr(offset),
+        weekdayAr: weekdayAr(ymd),
+        events: byYmd.get(ymd) || [],
+      }
+    })
+  }, [upcoming])
+
+  const laterEvents = useMemo(() => {
+    const agendaYmds = new Set(agenda.map((d) => d.ymd))
+    return upcoming.filter((e) => !agendaYmds.has(riyadhYmd(e.startsAt)))
+  }, [agenda, upcoming])
 
   const conflictIds = useMemo(() => {
     const ids = new Set<string>()
@@ -159,7 +275,29 @@ export function RoomCalendarBoard({
     return ids
   }, [upcoming])
 
-  async function addManual() {
+  function resetForm() {
+    setEditingId(null)
+    setTitleAr('')
+    setAttendees('')
+    const now = new Date()
+    setStartsAt(toLocalInput(now))
+    const end = new Date(now)
+    end.setHours(end.getHours() + 1)
+    setEndsAt(toLocalInput(end))
+  }
+
+  function startEdit(e: RoomEvent) {
+    setEditingId(e.id)
+    setTitleAr(e.titleAr)
+    setStartsAt(toLocalInput(new Date(e.startsAt)))
+    setEndsAt(toLocalInput(new Date(e.endsAt)))
+    setAttendees((e.attendees || []).join(', '))
+    setFormOpen(true)
+    setMsg('')
+    setErr('')
+  }
+
+  async function saveEvent() {
     if (!titleAr.trim() || busy || signedIn !== true) return
     setBusy(true)
     setMsg('')
@@ -167,34 +305,64 @@ export function RoomCalendarBoard({
     setConflicts([])
     setSuggestionAr('')
     try {
-      const res = await fetch('/api/rooms/calendar', {
-        method: 'POST',
-        headers: await authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          action: 'create',
-          scopeId,
-          titleAr: titleAr.trim(),
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
-          attendees: attendees
-            .split(/[,;\\s]+/)
-            .map((e) => e.trim())
-            .filter((e) => e.includes('@')),
-          source: 'manual',
-        }),
-      })
-      const data = (await res.json()) as {
-        error?: string
-        messageAr?: string
-        conflicts?: ConflictInfo[]
-        suggestion?: { messageAr?: string } | null
+      if (editingId) {
+        const res = await fetch('/api/rooms/calendar', {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            action: 'update',
+            scopeId,
+            eventId: editingId,
+            patch: {
+              titleAr: titleAr.trim(),
+              startsAt: new Date(startsAt).toISOString(),
+              endsAt: new Date(endsAt).toISOString(),
+              attendees: attendees
+                .split(/[,;\s]+/)
+                .map((e) => e.trim())
+                .filter((e) => e.includes('@')),
+            },
+          }),
+        })
+        const data = (await res.json()) as {
+          error?: string
+          messageAr?: string
+          conflicts?: ConflictInfo[]
+        }
+        if (!res.ok) throw new Error(data.error || 'فشل التحديث')
+        setMsg(data.messageAr || 'تم التحديث')
+        setConflicts(Array.isArray(data.conflicts) ? data.conflicts : [])
+        resetForm()
+      } else {
+        const res = await fetch('/api/rooms/calendar', {
+          method: 'POST',
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            action: 'create',
+            scopeId,
+            titleAr: titleAr.trim(),
+            startsAt: new Date(startsAt).toISOString(),
+            endsAt: new Date(endsAt).toISOString(),
+            attendees: attendees
+              .split(/[,;\s]+/)
+              .map((e) => e.trim())
+              .filter((e) => e.includes('@')),
+            source: 'manual',
+            copyToGoogle: copyToGoogle && googleConnected,
+          }),
+        })
+        const data = (await res.json()) as {
+          error?: string
+          messageAr?: string
+          conflicts?: ConflictInfo[]
+          suggestion?: { messageAr?: string } | null
+        }
+        if (!res.ok) throw new Error(data.error || 'فشل الإضافة')
+        setMsg(data.messageAr || 'تمت الإضافة')
+        setConflicts(Array.isArray(data.conflicts) ? data.conflicts : [])
+        setSuggestionAr(data.suggestion?.messageAr || '')
+        resetForm()
       }
-      if (!res.ok) throw new Error(data.error || 'فشل الإضافة')
-      setMsg(data.messageAr || 'تمت الإضافة')
-      setConflicts(Array.isArray(data.conflicts) ? data.conflicts : [])
-      setSuggestionAr(data.suggestion?.messageAr || '')
-      setTitleAr('')
-      setAttendees('')
       await load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'فشل')
@@ -205,7 +373,7 @@ export function RoomCalendarBoard({
 
   async function ingestBulk() {
     const lines = bulk
-      .split('\\n')
+      .split('\n')
       .map((l) => l.trim())
       .filter(Boolean)
     if (!lines.length || busy || signedIn !== true) return
@@ -297,6 +465,7 @@ export function RoomCalendarBoard({
         headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ action: 'cancel', scopeId, eventId: id }),
       })
+      if (editingId === id) resetForm()
       await load()
     } finally {
       setBusy(false)
@@ -310,22 +479,93 @@ export function RoomCalendarBoard({
         ? 'بريد'
         : s === 'import'
           ? 'استيراد'
-          : 'يدوي'
+          : s === 'google_sync'
+            ? 'Google'
+            : 'يدوي'
 
   /** Only treat as signed-in when session is confirmed — never show add form while null. */
   const isGuest = signedIn !== true || err === 'GUEST'
   const sessionPending = signedIn === null && err !== 'GUEST'
+
+  function renderEventRow(e: RoomEvent) {
+    return (
+      <li
+        key={e.id}
+        className={cn(
+          'flex flex-wrap items-start justify-between gap-2 rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2',
+          conflictIds.has(e.id) && 'border-amber-300 bg-amber-50/70',
+          editingId === e.id && 'ring-1 ring-ab-accent/40'
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-ab-ink">
+            {e.titleAr}
+            {conflictIds.has(e.id) && (
+              <span className="ms-2 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                <AlertTriangle className="h-3 w-3" />
+                تعارض
+              </span>
+            )}
+          </p>
+          <p className="mt-0.5 text-[10px] text-stone-500">
+            {fmtTimeOnly(e.startsAt)} → {fmtTimeOnly(e.endsAt)}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
+            <span
+              className={cn(
+                'rounded px-1.5 py-0.5',
+                e.source === 'ai'
+                  ? 'bg-emerald-50 text-emerald-900'
+                  : e.source === 'email'
+                    ? 'bg-amber-50 text-amber-900'
+                    : 'bg-stone-100 text-stone-600'
+              )}
+            >
+              {sourceLabel(e.source)}
+            </span>
+            {e.createdByAr && (
+              <span className="text-stone-400">بواسطة {e.createdByAr}</span>
+            )}
+          </div>
+        </div>
+        {signedIn === true && (
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => startEdit(e)}
+              className="rounded p-1.5 text-stone-400 hover:bg-white hover:text-ab-ink"
+              aria-label="تعديل"
+              title="تعديل الموعد"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void cancel(e.id)}
+              className="rounded p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-700"
+              aria-label="إلغاء"
+              title="إلغاء من اللوحة"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </li>
+    )
+  }
 
   return (
     <section className="space-y-4" dir="rtl">
       <div>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold text-ab-ink">
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-          تقويم الغرفة المشترك
+          أجندة الغرفة
         </h2>
         <p className="text-sm text-stone-500">
-          لوحة بيضاء للفريق — أي عضو مسجّل يضيف موعداً، والكل يرى من أضاف ومتى.
-          عند تداخل نفس الوقت يظهر تنبيه ويُبلَّغ تيليجرام إن رُبط.
+          اليوم ثم غداً والأيام التالية — أي عضو مسجّل يضيف أو يعدّل. Google
+          اختياري لنسخ الموعد إلى تقويمك الشخصي إن كان مربوطاً.
         </p>
       </div>
 
@@ -352,14 +592,28 @@ export function RoomCalendarBoard({
       ) : (
         <div className="rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-ab-ink">أضف موعد</h3>
-            <button
-              type="button"
-              onClick={() => setFormOpen((v) => !v)}
-              className="text-[11px] text-ab-accent"
-            >
-              {formOpen ? 'إخفاء النموذج' : 'إظهار النموذج'}
-            </button>
+            <h3 className="text-sm font-semibold text-ab-ink">
+              {editingId ? 'تعديل موعد' : 'أضف موعد'}
+            </h3>
+            <div className="flex items-center gap-2">
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={() => resetForm()}
+                  className="inline-flex items-center gap-1 text-[11px] text-stone-500"
+                >
+                  <X className="h-3 w-3" />
+                  إلغاء التعديل
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setFormOpen((v) => !v)}
+                className="text-[11px] text-ab-accent"
+              >
+                {formOpen ? 'إخفاء النموذج' : 'إظهار النموذج'}
+              </button>
+            </div>
           </div>
           {formOpen && (
             <>
@@ -404,17 +658,37 @@ export function RoomCalendarBoard({
                   />
                 </label>
               </div>
+              {!editingId && googleConnected && (
+                <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
+                  <input
+                    type="checkbox"
+                    checked={copyToGoogle}
+                    onChange={(e) => setCopyToGoogle(e.target.checked)}
+                    className="rounded border-ab-border"
+                  />
+                  انسخ أيضاً إلى Google Calendar (اختياري)
+                </label>
+              )}
               <button
                 type="button"
                 disabled={busy || !titleAr.trim() || signedIn !== true}
                 title={
                   !titleAr.trim() ? 'اكتب عنوان الموعد أولاً' : undefined
                 }
-                onClick={() => void addManual()}
+                onClick={() => void saveEvent()}
                 className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-ab-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                <Plus className="h-4 w-4" />
-                أضف موعد
+                {editingId ? (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    حفظ التعديل
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    أضف موعد
+                  </>
+                )}
               </button>
             </>
           )}
@@ -464,10 +738,10 @@ export function RoomCalendarBoard({
         </p>
       )}
 
-      <div className="rounded-xl border border-ab-border bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ab-border px-4 py-2">
-          <h3 className="text-sm font-semibold">
-            اللوحة المشتركة · {upcoming.length}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-ab-ink">
+            أجندة الأيام · {upcoming.length} موعد
           </h3>
           <div className="flex flex-wrap items-center gap-2">
             {signedIn === true && (
@@ -491,10 +765,13 @@ export function RoomCalendarBoard({
             </button>
           </div>
         </div>
+
         {loading && signedIn === true ? (
-          <p className="p-4 text-sm text-stone-500">جاري تحميل المواعيد…</p>
+          <p className="rounded-xl border border-ab-border bg-white p-4 text-sm text-stone-500">
+            جاري تحميل المواعيد…
+          </p>
         ) : isGuest || sessionPending ? (
-          <p className="p-6 text-center text-sm text-stone-500">
+          <p className="rounded-xl border border-ab-border bg-white p-6 text-center text-sm text-stone-500">
             مواعيد الغرفة المحفوظة تحتاج حساباً.{' '}
             <Link
               href="/auth/login"
@@ -504,79 +781,82 @@ export function RoomCalendarBoard({
             </Link>{' '}
             لرؤيتها.
           </p>
-        ) : upcoming.length === 0 ? (
-          <p className="p-6 text-center text-sm text-stone-400">
-            لا مواعيد بعد — اضغط «أضف موعد» أعلاه، أو اطلب من الوكيل: «أضف
-            اجتماع غداً ١٠ ص إلى تقويم الغرفة».
-          </p>
         ) : (
-          <ul className="divide-y divide-ab-border">
-            {upcoming.map((e) => (
-              <li
-                key={e.id}
-                className={cn(
-                  'flex flex-wrap items-start justify-between gap-2 px-4 py-3',
-                  conflictIds.has(e.id) && 'bg-amber-50/60'
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-ab-ink">
-                    {e.titleAr}
-                    {conflictIds.has(e.id) && (
-                      <span className="ms-2 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                        <AlertTriangle className="h-3 w-3" />
-                        تعارض
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-[11px] text-stone-500" dir="ltr">
-                    {fmt(e.startsAt)} → {fmt(e.endsAt)}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
-                    <span
-                      className={cn(
-                        'rounded px-1.5 py-0.5',
-                        e.source === 'ai'
-                          ? 'bg-violet-50 text-violet-800'
-                          : e.source === 'email'
-                            ? 'bg-amber-50 text-amber-900'
-                            : 'bg-stone-100 text-stone-600'
-                      )}
-                    >
-                      {sourceLabel(e.source)}
-                    </span>
-                    {e.createdByAr && (
-                      <span className="text-stone-400">
-                        بواسطة {e.createdByAr}
-                      </span>
-                    )}
-                    {e.attendees?.length > 0 && (
-                      <span className="text-stone-400" dir="ltr">
-                        {e.attendees.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  {e.descriptionAr && (
-                    <p className="mt-1 text-xs text-stone-600">
-                      {e.descriptionAr}
-                    </p>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {agenda.map((day) => (
+                <div
+                  key={day.ymd}
+                  className={cn(
+                    'rounded-xl border border-ab-border bg-white p-3',
+                    day.offset === 0 && 'ring-1 ring-ab-accent/30'
+                  )}
+                >
+                  <p className="text-sm font-bold text-ab-ink">{day.labelAr}</p>
+                  <p className="text-[10px] text-stone-400">{day.weekdayAr}</p>
+                  {day.events.length === 0 ? (
+                    <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
+                  ) : (
+                    <ul className="mt-2 space-y-2">
+                      {day.events.map((e) => renderEventRow(e))}
+                    </ul>
                   )}
                 </div>
-                {signedIn === true && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void cancel(e.id)}
-                    className="rounded p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-700"
-                    aria-label="إلغاء"
-                    title="إلغاء من اللوحة"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+
+            {laterEvents.length > 0 && (
+              <div className="rounded-xl border border-ab-border bg-white">
+                <h4 className="border-b border-ab-border px-4 py-2 text-sm font-semibold text-ab-ink">
+                  لاحقاً · بعد أسبوع
+                </h4>
+                <ul className="divide-y divide-ab-border">
+                  {laterEvents.map((e) => (
+                    <li
+                      key={e.id}
+                      className="flex flex-wrap items-start justify-between gap-2 px-4 py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-ab-ink">{e.titleAr}</p>
+                        <p className="text-[11px] text-stone-500" dir="ltr">
+                          {fmt(e.startsAt)} → {fmt(e.endsAt)}
+                        </p>
+                      </div>
+                      {signedIn === true && (
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => startEdit(e)}
+                            className="rounded p-1.5 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
+                            aria-label="تعديل"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void cancel(e.id)}
+                            className="rounded p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-700"
+                            aria-label="إلغاء"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {upcoming.length === 0 && (
+              <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-6 text-center text-sm text-stone-400">
+                لا مواعيد بعد — اضغط «أضف موعد» أعلاه، أو اطلب من الوكيل: «أضف
+                اجتماع غداً ١٠ ص إلى تقويم الغرفة».
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -599,7 +879,7 @@ export function RoomCalendarBoard({
             value={bulk}
             onChange={(e) => setBulk(e.target.value)}
             placeholder={
-              'اجتماع مبيعات | 2026-08-06T09:00 | 2026-08-06T10:00 | a@co.sa\\nمراجعة عقد | 2026-08-06T09:30 | 2026-08-06T10:30 | b@co.sa'
+              'اجتماع مبيعات | 2026-08-06T09:00 | 2026-08-06T10:00 | a@co.sa\nمراجعة عقد | 2026-08-06T09:30 | 2026-08-06T10:30 | b@co.sa'
             }
           />
           <button
@@ -615,8 +895,8 @@ export function RoomCalendarBoard({
 
       <p className="flex items-start gap-1.5 text-[11px] text-stone-400">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        تقويم Google (إن ظهر في تبويب آخر) اختياري لدعوات خارجية فقط — مصدر
-        الفريق هو هذه اللوحة.
+        مصدر الفريق هو هذه الأجندة. Google اختياري لدعوات خارجية أو نسخ الموعد
+        إلى تقويمك الشخصي إن كان مربوطاً.
       </p>
     </section>
   )

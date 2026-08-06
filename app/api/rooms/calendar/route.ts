@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     eventId?: string
     autoAdjust?: boolean
     notify?: boolean
+    copyToGoogle?: boolean
     proposals?: Array<{
       titleAr: string
       startsAt: string
@@ -188,12 +189,47 @@ export async function POST(req: NextRequest) {
       createdBy,
       createdByAr,
     })
+
+    let googleNote = ''
+    if (body.copyToGoogle) {
+      try {
+        const { listGoogleAccounts } = await import('@/lib/google/tokens')
+        const { createCalendarEvent } = await import('@/lib/google/calendar')
+        const { getSupabaseAdmin } = await import('@/lib/supabase/server')
+        const accounts = await listGoogleAccounts(user.id)
+        if (accounts.length > 0) {
+          const g = await createCalendarEvent(user.id, {
+            summary: result.event.titleAr,
+            description: result.event.descriptionAr || undefined,
+            location: result.event.locationAr || undefined,
+            startIso: result.event.startsAt,
+            endIso: result.event.endsAt,
+            timeZone: 'Asia/Riyadh',
+            attendeeEmails: result.event.attendees,
+          })
+          const sb = getSupabaseAdmin()
+          if (sb && g.id) {
+            await sb
+              .from('room_calendar_events')
+              .update({ google_event_id: g.id })
+              .eq('id', result.event.id)
+              .eq('scope_id', scopeId)
+          }
+          googleNote = ' · نُسخ إلى Google'
+        } else {
+          googleNote = ' · Google غير مربوط'
+        }
+      } catch {
+        googleNote = ' · تعذّرت النسخة إلى Google'
+      }
+    }
+
     return NextResponse.json({
       ...result,
       messageAr:
         result.conflicts.length > 0
-          ? `أُضيف الموعد — تنبيه: ${result.conflicts.length} تعارض. ${result.suggestion?.messageAr || ''}`
-          : 'أُضيف الموعد إلى تقويم الغرفة المشترك',
+          ? `أُضيف الموعد — تنبيه: ${result.conflicts.length} تعارض. ${result.suggestion?.messageAr || ''}${googleNote}`
+          : `أُضيف الموعد إلى تقويم الغرفة المشترك${googleNote}`,
     })
   } catch (e) {
     return NextResponse.json(

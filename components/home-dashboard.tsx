@@ -305,13 +305,19 @@ export function HomeDashboard({
 
   const hasDayEvents =
     !authPending &&
-    ((viewData.agenda || []).some((d) => d.events.length > 0) ||
+    ((viewData.agenda || []).some((d: { events: CalEvent[] }) => d.events.length > 0) ||
       (cal?.yesterday || []).length +
         (cal?.today || []).length +
         (cal?.tomorrow || []).length +
         (cal?.dayAfter || []).length >
         0)
-  const agendaDays =
+  const agendaDays: Array<{
+    offset: number
+    ymd: string
+    labelAr: string
+    weekdayAr?: string
+    events: CalEvent[]
+  }> =
     viewData.agenda && viewData.agenda.length > 0
       ? viewData.agenda
       : [
@@ -319,7 +325,7 @@ export function HomeDashboard({
             offset: 0,
             ymd: viewData.days?.today || '',
             labelAr: 'اليوم',
-            weekdayAr: undefined as string | undefined,
+            weekdayAr: undefined,
             events: cal?.today || [],
           },
           {

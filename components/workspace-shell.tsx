@@ -340,12 +340,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'files' && <FilesPanel />}
 
         {section === 'calendar' && (
-          <section className="mx-auto max-w-3xl space-y-5 px-6 py-8" dir="rtl">
+          <section className="mx-auto max-w-5xl space-y-5 px-6 py-8" dir="rtl">
             <div>
               <h2 className="text-xl font-bold text-ab-ink">تقويم الفريق</h2>
               <p className="mt-1 text-sm text-stone-500">
-                اللوحة المشتركة أولاً — أضف موعداً يراه كل أعضاء الغرفة. باقي
-                التبويبات اختيارية.
+                أجندة الأيام أولاً — أي عضو مسجّل يضيف أو يعدّل. باقي التبويبات
+                اختيارية.
               </p>
             </div>
 

@@ -8,6 +8,20 @@ export type DemoDigest = {
   demo: true
   associationAr: string
   days: { yesterday: string; today: string; tomorrow: string; dayAfter: string }
+  agenda?: Array<{
+    offset: number
+    ymd: string
+    labelAr: string
+    weekdayAr?: string
+    events: Array<{
+      id: string
+      titleAr: string
+      startsAtAr: string
+      endsAtAr: string
+      hasZoom?: boolean
+      locationAr?: string | null
+    }>
+  }>
   calendar: {
     yesterday: Array<{
       id: string
