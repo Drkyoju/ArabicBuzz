@@ -16,6 +16,8 @@ export type DbRoomPost = {
   channel: string | null
   external_id: string | null
   created_at: string
+  post_kind?: string | null
+  mention_user_ids?: string | null
 }
 
 export function rowToRoomPost(row: DbRoomPost): RoomPost {
@@ -27,6 +29,24 @@ export function rowToRoomPost(row: DbRoomPost): RoomPost {
         : row.author_kind === 'channel'
           ? 'channel'
           : 'human'
+  const postKind =
+    row.post_kind === 'decision' || row.post_kind === 'minutes'
+      ? row.post_kind
+      : 'chat'
+  let mentionUserIds: string[] | undefined
+  if (row.mention_user_ids) {
+    try {
+      const parsed = JSON.parse(String(row.mention_user_ids)) as unknown
+      if (Array.isArray(parsed)) {
+        mentionUserIds = parsed.map(String).filter(Boolean)
+      }
+    } catch {
+      mentionUserIds = String(row.mention_user_ids)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+  }
   return {
     id: row.id,
     scopeId: row.scope_id,
@@ -35,6 +55,8 @@ export function rowToRoomPost(row: DbRoomPost): RoomPost {
     authorNameAr: row.author_name_ar,
     content: row.content,
     createdAt: new Date(row.created_at).getTime(),
+    postKind,
+    mentionUserIds,
   }
 }
 
@@ -64,25 +86,64 @@ export async function insertRoomPost(opts: {
   authorNameAr: string
   content: string
   mentionAgentId?: string
+  mentionUserIds?: string[]
+  postKind?: 'chat' | 'decision' | 'minutes'
   channel?: string
   externalId?: string
 }): Promise<{ ok: boolean; post?: RoomPost; error?: string }> {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false, error: 'no supabase' }
   const id = opts.id || crypto.randomUUID()
+  const postKind =
+    opts.postKind === 'decision' || opts.postKind === 'minutes'
+      ? opts.postKind
+      : 'chat'
+  const row: Record<string, unknown> = {
+    id,
+    scope_id: opts.scopeId,
+    author_kind: opts.authorKind,
+    author_id: opts.authorId,
+    author_name_ar: opts.authorNameAr,
+    content: opts.content,
+    mention_agent_id: opts.mentionAgentId ?? null,
+    channel: opts.channel ?? null,
+    external_id: opts.externalId ?? null,
+  }
+  // Columns from migration 026 — omit if DB not migrated yet (insert still works)
+  row.post_kind = postKind
+  if (opts.mentionUserIds?.length) {
+    row.mention_user_ids = JSON.stringify(opts.mentionUserIds)
+  }
+  let { data, error } = await sb
+    .from('room_posts')
+    .insert(row)
+    .select('*')
+    .single()
+  // Fallback if post_kind / mention_user_ids columns missing
+  if (error && /post_kind|mention_user_ids/i.test(error.message)) {
+    const legacy = { ...row }
+    delete legacy.post_kind
+    delete legacy.mention_user_ids
+    const retry = await sb.from('room_posts').insert(legacy).select('*').single()
+    data = retry.data
+    error = retry.error
+  }
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, post: rowToRoomPost(data as DbRoomPost) }
+}
+
+export async function updateRoomPostKind(opts: {
+  scopeId: string
+  postId: string
+  postKind: 'chat' | 'decision' | 'minutes'
+}): Promise<{ ok: boolean; post?: RoomPost; error?: string }> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return { ok: false, error: 'no supabase' }
   const { data, error } = await sb
     .from('room_posts')
-    .insert({
-      id,
-      scope_id: opts.scopeId,
-      author_kind: opts.authorKind,
-      author_id: opts.authorId,
-      author_name_ar: opts.authorNameAr,
-      content: opts.content,
-      mention_agent_id: opts.mentionAgentId ?? null,
-      channel: opts.channel ?? null,
-      external_id: opts.externalId ?? null,
-    })
+    .update({ post_kind: opts.postKind })
+    .eq('id', opts.postId)
+    .eq('scope_id', opts.scopeId)
     .select('*')
     .single()
   if (error) return { ok: false, error: error.message }

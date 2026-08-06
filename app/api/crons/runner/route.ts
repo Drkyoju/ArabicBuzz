@@ -230,11 +230,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let morningDigest: unknown = null
+  try {
+    const { sendMorningRoomDigests } = await import(
+      '@/lib/digest/morning-room'
+    )
+    morningDigest = await sendMorningRoomDigests({ now })
+  } catch (e) {
+    morningDigest = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'morning digest error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
     deadlineReminders,
     directorDigest,
     driveBrainSync,
+    morningDigest,
   })
 }

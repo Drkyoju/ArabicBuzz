@@ -3,7 +3,18 @@ import {
   requireRealUser,
   isSyntheticUser,
 } from '@/lib/auth/session'
-import { insertRoomPost, listRoomPosts, assertRoomCanPost } from '@/lib/rooms/persist'
+import {
+  insertRoomPost,
+  listRoomPosts,
+  assertRoomCanPost,
+  updateRoomPostKind,
+  listRoomMembers,
+} from '@/lib/rooms/persist'
+import {
+  extractMemberMentions,
+  toMentionableMembers,
+} from '@/lib/rooms/member-mentions'
+import { findAgentByMention } from '@/lib/rooms/agents'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,12 +51,16 @@ export async function POST(req: Request) {
     )
   }
   const body = (await req.json()) as {
+    action?: string
     scopeId?: string
     content?: string
     authorKind?: 'human' | 'agent' | 'system' | 'channel'
     authorId?: string
     authorNameAr?: string
     mentionAgentId?: string
+    mentionUserIds?: string[]
+    postKind?: 'chat' | 'decision' | 'minutes'
+    postId?: string
     id?: string
   }
   const scopeId = body.scopeId || 'shared-demo'
@@ -53,6 +68,31 @@ export async function POST(req: Request) {
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: 403 })
   }
+
+  if (body.action === 'set_kind') {
+    const postKind =
+      body.postKind === 'decision' || body.postKind === 'minutes'
+        ? body.postKind
+        : 'chat'
+    const updated = await updateRoomPostKind({
+      scopeId,
+      postId: String(body.postId || ''),
+      postKind,
+    })
+    if (!updated.ok) {
+      return Response.json({ error: updated.error }, { status: 400 })
+    }
+    return Response.json({
+      post: updated.post,
+      messageAr:
+        postKind === 'decision'
+          ? 'وُسِم كقرار'
+          : postKind === 'minutes'
+            ? 'وُسِم كمحضر'
+            : 'أُعيد كرسالة عادية',
+    })
+  }
+
   const content = String(body.content || '').trim()
   if (!content) {
     return Response.json({ error: 'المحتوى مطلوب' }, { status: 400 })
@@ -68,6 +108,46 @@ export async function POST(req: Request) {
     auth.user.user_metadata?.full_name ||
     auth.user.email ||
     'مستخدم'
+
+  // Resolve @member mentions (skip tokens that match agents)
+  let mentionUserIds = Array.isArray(body.mentionUserIds)
+    ? body.mentionUserIds.map(String)
+    : []
+  try {
+    const { members } = await listRoomMembers(scopeId)
+    const mentionables = toMentionableMembers(members)
+    const mentioned = extractMemberMentions(content, mentionables).filter(
+      (m) => !findAgentByMention(`@${m.mentionToken}`)
+    )
+    if (mentioned.length) {
+      const ids = mentioned
+        .map((m) => m.userId)
+        .filter((id): id is string => Boolean(id))
+      mentionUserIds = [...new Set([...mentionUserIds, ...ids])]
+      const { notifyMemberMentioned } = await import(
+        '@/lib/notifications/team-notify'
+      )
+      for (const m of mentioned) {
+        if (m.userId === auth.user.id) continue
+        await notifyMemberMentioned({
+          scopeId,
+          mentionNameAr: m.displayNameAr,
+          mentionUserId: m.userId,
+          mentionEmail: m.email,
+          fromAr: String(name),
+          excerpt: content,
+        })
+      }
+    }
+  } catch {
+    /* degrade — post still saves */
+  }
+
+  const postKind =
+    body.postKind === 'decision' || body.postKind === 'minutes'
+      ? body.postKind
+      : 'chat'
+
   const result = await insertRoomPost({
     id: body.id,
     scopeId,
@@ -76,6 +156,8 @@ export async function POST(req: Request) {
     authorNameAr: String(name),
     content,
     mentionAgentId: body.mentionAgentId,
+    mentionUserIds,
+    postKind,
   })
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 500 })
@@ -87,7 +169,12 @@ export async function POST(req: Request) {
       kind: 'message',
       actorAr: String(name),
       actorEmail: auth.user.email || null,
-      actionAr: 'أرسل رسالة',
+      actionAr:
+        postKind === 'decision'
+          ? 'سجّل قراراً'
+          : postKind === 'minutes'
+            ? 'سجّل محضراً'
+            : 'أرسل رسالة',
       detailAr: content.slice(0, 120),
     })
   } catch {

@@ -3,13 +3,25 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Bot, BookmarkPlus, Download, Eye, Send, Sparkles, User } from 'lucide-react'
+import {
+  Bot,
+  BookmarkPlus,
+  CheckCheck,
+  Download,
+  Eye,
+  FileText,
+  Gavel,
+  Send,
+  Sparkles,
+  User,
+} from 'lucide-react'
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useFilePreviewStore } from '@/lib/files/preview-store'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
+import { looksLikeDecisionOrMinutes } from '@/lib/rooms/item-acks'
 
 function parseFileMarkers(content: string, scopeId: string): RoomFileAttachment[] {
   const out: RoomFileAttachment[] = []
@@ -110,6 +122,97 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const [memNote, setMemNote] = useState('')
   const [skillNote, setSkillNote] = useState('')
   const [skillBusy, setSkillBusy] = useState(false)
+  const [postKind, setPostKind] = useState(post.postKind || 'chat')
+  const [acks, setAcks] = useState<Array<{ userAr: string; userId: string }>>(
+    []
+  )
+  const [seenByMe, setSeenByMe] = useState(false)
+  const [ackBusy, setAckBusy] = useState(false)
+
+  const isDecisionOrMinutes =
+    postKind === 'decision' ||
+    postKind === 'minutes' ||
+    looksLikeDecisionOrMinutes(post.content || '')
+
+  useEffect(() => {
+    setPostKind(post.postKind || 'chat')
+  }, [post.postKind, post.id])
+
+  useEffect(() => {
+    if (!isDecisionOrMinutes || post.streaming) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/rooms/acks?itemKind=post&itemId=${encodeURIComponent(post.id)}`,
+          { headers: await authHeaders() }
+        )
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          acks?: Array<{ userAr: string; userId: string }>
+          seenByMe?: boolean
+        }
+        setAcks(data.acks || [])
+        setSeenByMe(Boolean(data.seenByMe))
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isDecisionOrMinutes, post.id, post.streaming])
+
+  async function setKind(kind: 'chat' | 'decision' | 'minutes') {
+    setAckBusy(true)
+    try {
+      const res = await fetch('/api/rooms/posts', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'set_kind',
+          scopeId: post.scopeId,
+          postId: post.id,
+          postKind: kind,
+        }),
+      })
+      const data = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل')
+      setPostKind(kind)
+    } catch (e) {
+      setDlError(e instanceof Error ? e.message : 'فشل الوسم')
+    } finally {
+      setAckBusy(false)
+    }
+  }
+
+  async function toggleSeen() {
+    setAckBusy(true)
+    try {
+      const res = await fetch('/api/rooms/acks', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId: post.scopeId,
+          itemKind: 'post',
+          itemId: post.id,
+          seen: !seenByMe,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        acks?: Array<{ userAr: string; userId: string }>
+        seen?: boolean
+      }
+      if (!res.ok) throw new Error(data.error || 'فشل')
+      setAcks(data.acks || [])
+      setSeenByMe(Boolean(data.seen))
+    } catch (e) {
+      setDlError(e instanceof Error ? e.message : 'فشل الاطّلاع')
+    } finally {
+      setAckBusy(false)
+    }
+  }
 
   const attachments = (() => {
     const fromPost = post.attachments || []
@@ -163,6 +266,18 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                   ? 'قناة / نظام'
                   : 'بشري'}
             </span>
+            {postKind === 'decision' && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                <Gavel className="h-2.5 w-2.5" />
+                قرار
+              </span>
+            )}
+            {postKind === 'minutes' && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-900">
+                <FileText className="h-2.5 w-2.5" />
+                محضر
+              </span>
+            )}
             <PostTime createdAt={post.createdAt} />
           </div>
         </div>
@@ -231,6 +346,59 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       )}
       {post.authorKind === 'human' || post.authorKind === 'agent' ? (
         <div className="mt-2 flex flex-wrap items-center gap-3">
+          {post.authorKind === 'human' && !post.streaming && (
+            <>
+              <button
+                type="button"
+                disabled={ackBusy}
+                onClick={() =>
+                  void setKind(postKind === 'decision' ? 'chat' : 'decision')
+                }
+                className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-amber-800"
+              >
+                <Gavel className="h-3 w-3" />
+                {postKind === 'decision' ? 'إلغاء وسم القرار' : 'وسم كقرار'}
+              </button>
+              <button
+                type="button"
+                disabled={ackBusy}
+                onClick={() =>
+                  void setKind(postKind === 'minutes' ? 'chat' : 'minutes')
+                }
+                className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-sky-800"
+              >
+                <FileText className="h-3 w-3" />
+                {postKind === 'minutes' ? 'إلغاء وسم المحضر' : 'وسم كمحضر'}
+              </button>
+            </>
+          )}
+          {isDecisionOrMinutes && !post.streaming && (
+            <button
+              type="button"
+              disabled={ackBusy}
+              onClick={() => void toggleSeen()}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px]',
+                seenByMe
+                  ? 'font-semibold text-emerald-700'
+                  : 'text-stone-400 hover:text-ab-accent'
+              )}
+            >
+              <CheckCheck className="h-3 w-3" />
+              {seenByMe ? 'اطّلعت ✓' : 'اطّلعت'}
+              {acks.length > 0 ? ` · ${acks.length}` : ''}
+            </button>
+          )}
+          {isDecisionOrMinutes && acks.length > 0 && (
+            <p className="w-full text-[10px] text-stone-500">
+              اطّلع:{' '}
+              {acks
+                .map((a) => a.userAr)
+                .slice(0, 8)
+                .join(' · ')}
+              {acks.length > 8 ? ` و${acks.length - 8}` : ''}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => {

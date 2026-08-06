@@ -43,6 +43,12 @@ const MIGRATIONS = [
   'supabase/migrations/018_room_memory_tasks.sql',
   'supabase/migrations/019_room_home_history.sql',
   'supabase/migrations/020_mcp_connections.sql',
+  'supabase/migrations/021_association_registry.sql',
+  'supabase/migrations/022_knowledge_rls_versions.sql',
+  'supabase/migrations/023_harden_open_rls.sql',
+  'supabase/migrations/024_opus5_invites_audit_rls.sql',
+  'supabase/migrations/025_deny_oauth_rosters_rls.sql',
+  'supabase/migrations/026_team_collab.sql',
 ]
 
 function present(v?: string): boolean {

@@ -50,6 +50,8 @@ export type RoomFileAttachment = {
   downloadPath?: string
 }
 
+export type RoomPostKind = 'chat' | 'decision' | 'minutes'
+
 export type RoomPost = {
   id: string
   scopeId: string
@@ -66,4 +68,8 @@ export type RoomPost = {
   attachments?: RoomFileAttachment[]
   /** When a tool paused for HITL during this reply. */
   pendingApprovalId?: string
+  /** chat | decision | minutes — ack UI only on decision/minutes */
+  postKind?: RoomPostKind
+  /** App user ids mentioned via @member */
+  mentionUserIds?: string[]
 }

@@ -33,6 +33,10 @@ import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
+import {
+  memberMentionToken,
+  type MentionableMember,
+} from '@/lib/rooms/member-mentions'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { useRosterCloudSync } from '@/lib/rooms/use-roster-cloud-sync'
 import type {
@@ -165,6 +169,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
+  const [mentionMembers, setMentionMembers] = useState<MentionableMember[]>([])
+  const [mentionMenu, setMentionMenu] = useState<
+    Array<{ kind: 'agent' | 'member'; labelAr: string; insert: string }>
+  >([])
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -369,6 +377,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
             authorNameAr: row.author_name_ar,
             content: row.content,
             createdAt: new Date(row.created_at).getTime(),
+            postKind:
+              row.post_kind === 'decision' || row.post_kind === 'minutes'
+                ? row.post_kind
+                : 'chat',
           })
         }
       )
@@ -407,6 +419,91 @@ export function RoomWorkspace({ className }: { className?: string }) {
     signedIn,
   ])
 
+  const shared = activeScope ? isSharedScope(activeScope) : false
+  const { agent: mentionPreview } = resolveMentionHandoff(input, agentCatalog)
+
+  useEffect(() => {
+    if (signedIn !== true || !shared) {
+      setMentionMembers([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/rooms/members?scopeId=${encodeURIComponent(activeScopeId)}`,
+          { headers: await authHeaders() }
+        )
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          members?: Array<{
+            userId: string | null
+            email: string | null
+            displayNameAr: string
+          }>
+        }
+        setMentionMembers(
+          (data.members || []).map((m) => ({
+            userId: m.userId,
+            email: m.email,
+            displayNameAr: m.displayNameAr,
+            mentionToken: memberMentionToken(m.displayNameAr),
+          }))
+        )
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [activeScopeId, signedIn, shared])
+
+  function refreshMentionMenu(value: string) {
+    const m = value.match(/@([\u0600-\u06FFa-zA-Z0-9_\-]*)$/)
+    if (!m) {
+      setMentionMenu([])
+      return
+    }
+    const q = m[1].toLowerCase()
+    const agentItems = agentCatalog
+      .filter(
+        (a) =>
+          !q ||
+          a.slug.toLowerCase().includes(q) ||
+          a.nameAr.includes(m[1]) ||
+          a.nameAr.replace(/\s+/g, '').includes(m[1])
+      )
+      .slice(0, 5)
+      .map((a) => ({
+        kind: 'agent' as const,
+        labelAr: `${a.nameAr} · وكيل`,
+        insert: a.slug,
+      }))
+    const memberItems = mentionMembers
+      .filter(
+        (mem) =>
+          !q ||
+          mem.mentionToken.toLowerCase().includes(q) ||
+          mem.displayNameAr.includes(m[1])
+      )
+      .slice(0, 5)
+      .map((mem) => ({
+        kind: 'member' as const,
+        labelAr: `${mem.displayNameAr} · عضو`,
+        insert: mem.mentionToken,
+      }))
+    setMentionMenu([...agentItems, ...memberItems].slice(0, 8))
+  }
+
+  function applyMentionInsert(token: string) {
+    setInput((prev) =>
+      prev.replace(/@([\u0600-\u06FFa-zA-Z0-9_\-]*)$/, `@${token} `)
+    )
+    setMentionMenu([])
+    composerRef.current?.focus()
+  }
+
   if (!activeScope) {
     return (
       <div className="p-8 text-sm text-stone-500" dir="rtl">
@@ -414,9 +511,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
       </div>
     )
   }
-
-  const shared = isSharedScope(activeScope)
-  const { agent: mentionPreview } = resolveMentionHandoff(input, agentCatalog)
 
   function stopAgentRun() {
     runAbortRef.current?.abort()
@@ -1333,8 +1427,30 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <p className="mb-1.5 text-[11px] text-stone-500">
                 وضع تعاون: سيرد حتى{' '}
                 {Math.min(8, roomAgents.length)} وكلاء بالتتابع ويتبادلون
-                الملاحظات — أو @الجميع / @اسم لوكيل واحد
+                الملاحظات — أو @الجميع / @اسم لوكيل أو عضو
               </p>
+            )}
+            {mentionMenu.length > 0 && (
+              <ul
+                className="mb-1.5 max-h-40 overflow-y-auto rounded-lg border border-ab-border bg-white py-1 shadow-sm"
+                role="listbox"
+                aria-label="اقتراحات الإشارة"
+              >
+                {mentionMenu.map((item) => (
+                  <li key={`${item.kind}-${item.insert}`}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-start text-[11px] hover:bg-stone-50"
+                      onClick={() => applyMentionInsert(item.insert)}
+                    >
+                      <span className="font-medium text-ab-ink">
+                        @{item.insert}
+                      </span>
+                      <span className="text-stone-500">{item.labelAr}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
             {micNote && (
               <p
@@ -1426,12 +1542,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 value={input}
                 rows={Math.min(4, Math.max(1, input.split('\n').length))}
                 onChange={(e) => {
-                  setInput(e.target.value)
+                  const v = e.target.value
+                  setInput(v)
+                  refreshMentionMenu(v)
                   setTyping(true)
                   if (typingTimer.current) clearTimeout(typingTimer.current)
                   typingTimer.current = setTimeout(() => setTyping(false), 1200)
                 }}
                 onKeyDown={(e) => {
+                  if (e.key === 'Escape' && mentionMenu.length) {
+                    e.preventDefault()
+                    setMentionMenu([])
+                    return
+                  }
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
                     void sendPrompt()
@@ -1442,9 +1565,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   isGuest
                     ? 'سجّل الدخول للإرسال…'
                     : collabMode === 'team'
-                      ? 'مهمة للفريق… أو @اسم لوكيل واحد · @all للجميع'
+                      ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
                       : shared
-                        ? 'اكتب أو تكلم بالميك… وجّه بـ @اسم الوكيل'
+                        ? 'اكتب أو تكلم بالميك… @وكيل أو @عضو'
                         : activeScopeId === 'personal-research'
                           ? 'اكتب أو تكلم بالميك… جرّب @research'
                           : 'اكتب أو تكلم بالميك…'

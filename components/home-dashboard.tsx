@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Clock,
   History,
+  Inbox,
   Pencil,
   Radio,
   RefreshCw,
@@ -47,6 +48,15 @@ type Person = {
   actions: number
   lastAction: string
   lastAtAr: string
+}
+
+type TeamInboxItem = {
+  id: string
+  kind: 'task' | 'invite' | 'event' | 'hitl'
+  titleAr: string
+  detailAr?: string | null
+  whenAtAr?: string | null
+  hrefHint?: string
 }
 
 type Digest = {
@@ -101,6 +111,13 @@ type Digest = {
   tasks?: { openCount: number; items: Array<{ id: string; titleAr: string; status: string }> }
   recentPosts?: Array<{ authorAr: string; content: string; atAr: string; kind: string }>
   messageAr?: string
+}
+
+const INBOX_KIND_AR: Record<TeamInboxItem['kind'], string> = {
+  task: 'مهمة',
+  invite: 'دعوة',
+  event: 'موعد',
+  hitl: 'موافقة',
 }
 
 const TASK_STATUS_AR: Record<string, string> = {
@@ -178,6 +195,7 @@ export function HomeDashboard({
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
   const [liveData, setLiveData] = useState<Digest | null>(null)
+  const [teamInbox, setTeamInbox] = useState<TeamInboxItem[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const demo = useMemo(() => buildGuestDemoDigest(), [])
@@ -186,16 +204,22 @@ export function HomeDashboard({
     if (signedIn !== true) {
       setBusy(false)
       setLiveData(null)
+      setTeamInbox([])
       setErr('')
       return
     }
     setBusy(true)
     setErr('')
     try {
-      const res = await fetch(
-        `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
-        { headers: await authHeaders() }
-      )
+      const headers = await authHeaders()
+      const [res, inboxRes] = await Promise.all([
+        fetch(`/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`, {
+          headers,
+        }),
+        fetch(`/api/rooms/inbox?scopeId=${encodeURIComponent(scopeId)}`, {
+          headers,
+        }).catch(() => null),
+      ])
       const json = (await res.json()) as Digest & {
         error?: string
         code?: string
@@ -203,12 +227,21 @@ export function HomeDashboard({
       if (!res.ok) {
         if (res.status === 401 || json.code === 'AUTH_REQUIRED') {
           setLiveData(null)
+          setTeamInbox([])
           setErr('')
           return
         }
         throw new Error(json.error || 'فشل التحميل')
       }
       setLiveData(json)
+      if (inboxRes?.ok) {
+        const inboxJson = (await inboxRes.json()) as {
+          items?: TeamInboxItem[]
+        }
+        setTeamInbox(inboxJson.items || [])
+      } else {
+        setTeamInbox([])
+      }
       // Presence page-opens are no longer logged — they flooded «من كانوا هنا».
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
@@ -428,6 +461,64 @@ export function HomeDashboard({
           </button>
         </div>
       </header>
+
+      {!authPending && teamInbox.length > 0 && (
+        <div className="rounded-xl border border-ab-border bg-white p-3.5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <Inbox className="h-4 w-4 text-ab-accent" />
+              وارد الفريق
+              <span className="text-[11px] font-normal text-stone-500">
+                ({teamInbox.length})
+              </span>
+            </h2>
+          </div>
+          <ul className="space-y-2">
+            {teamInbox.slice(0, 10).map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hint = item.hrefHint || ''
+                    if (hint.startsWith('invite/')) {
+                      window.location.href = `/${hint}`
+                      return
+                    }
+                    if (hint.includes('tasks')) {
+                      onNavigate?.('calendar')
+                      return
+                    }
+                    if (hint === 'approvals') {
+                      onNavigate?.('approvals')
+                      return
+                    }
+                    if (hint === 'team') {
+                      onNavigate?.('chats')
+                      return
+                    }
+                    onNavigate?.('calendar')
+                  }}
+                  className="flex w-full items-start justify-between gap-2 rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2 text-right hover:bg-stone-50"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-ab-ink">
+                      <span className="me-1.5 text-[10px] font-medium text-stone-500">
+                        {INBOX_KIND_AR[item.kind]}
+                      </span>
+                      {item.titleAr}
+                    </p>
+                    {(item.detailAr || item.whenAtAr) && (
+                      <p className="mt-0.5 text-[10px] text-stone-500">
+                        {[item.whenAtAr, item.detailAr].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!authPending && (
         <div>

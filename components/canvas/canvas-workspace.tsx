@@ -97,7 +97,11 @@ export function CanvasWorkspace({
       </div>
       <div className="min-h-0 flex-1">
         {tab === 'artifact' && (
-          <CanvasViewer onPersist={onPersist} className="h-full" />
+          <CanvasViewer
+            onPersist={onPersist}
+            scopeId={scopeId}
+            className="h-full"
+          />
         )}
         {tab === 'document' && (
           <DocumentEditor

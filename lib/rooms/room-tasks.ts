@@ -16,6 +16,7 @@ export type RoomTask = {
   dueAt: string | null
   assigneeAr: string | null
   assigneeEmail: string | null
+  assigneeUserId: string | null
   sortOrder: number
   source: 'manual' | 'ai' | 'email' | 'chat'
   createdBy: string | null
@@ -38,6 +39,8 @@ function rowToTask(r: DbRow): RoomTask {
     dueAt: r.due_at != null ? String(r.due_at) : null,
     assigneeAr: r.assignee_ar != null ? String(r.assignee_ar) : null,
     assigneeEmail: r.assignee_email != null ? String(r.assignee_email) : null,
+    assigneeUserId:
+      r.assignee_user_id != null ? String(r.assignee_user_id) : null,
     sortOrder: Number(r.sort_order ?? 0),
     source: (r.source as RoomTask['source']) || 'manual',
     createdBy: r.created_by != null ? String(r.created_by) : null,
@@ -78,6 +81,7 @@ export async function createRoomTask(opts: {
   dueAt?: string
   assigneeAr?: string
   assigneeEmail?: string
+  assigneeUserId?: string
   source?: RoomTask['source']
   createdBy?: string
   createdByAr?: string
@@ -98,6 +102,7 @@ export async function createRoomTask(opts: {
     dueAt: opts.dueAt ? new Date(opts.dueAt).toISOString() : null,
     assigneeAr: opts.assigneeAr?.trim() || null,
     assigneeEmail: opts.assigneeEmail?.trim() || null,
+    assigneeUserId: opts.assigneeUserId?.trim() || null,
     sortOrder,
     source: opts.source || 'manual',
     createdBy: opts.createdBy || null,
@@ -107,23 +112,25 @@ export async function createRoomTask(opts: {
   }
   const sb = getSupabaseAdmin()
   if (sb) {
+    const row: Record<string, unknown> = {
+      id: task.id,
+      scope_id: task.scopeId,
+      title_ar: task.titleAr,
+      notes_ar: task.notesAr,
+      status: task.status,
+      priority: task.priority,
+      due_at: task.dueAt,
+      assignee_ar: task.assigneeAr,
+      assignee_email: task.assigneeEmail,
+      sort_order: task.sortOrder,
+      source: task.source,
+      created_by: task.createdBy,
+      created_by_ar: task.createdByAr,
+    }
+    if (task.assigneeUserId) row.assignee_user_id = task.assigneeUserId
     const { data, error } = await sb
       .from('room_tasks')
-      .insert({
-        id: task.id,
-        scope_id: task.scopeId,
-        title_ar: task.titleAr,
-        notes_ar: task.notesAr,
-        status: task.status,
-        priority: task.priority,
-        due_at: task.dueAt,
-        assignee_ar: task.assigneeAr,
-        assignee_email: task.assigneeEmail,
-        sort_order: task.sortOrder,
-        source: task.source,
-        created_by: task.createdBy,
-        created_by_ar: task.createdByAr,
-      })
+      .insert(row)
       .select('*')
       .single()
     if (!error && data) return rowToTask(data as DbRow)
@@ -143,6 +150,7 @@ export async function updateRoomTask(
     dueAt: string | null
     assigneeAr: string | null
     assigneeEmail: string | null
+    assigneeUserId: string | null
     sortOrder: number
   }>
 ): Promise<RoomTask> {
@@ -167,24 +175,32 @@ export async function updateRoomTask(
       patch.assigneeEmail !== undefined
         ? patch.assigneeEmail
         : cur.assigneeEmail,
+    assigneeUserId:
+      patch.assigneeUserId !== undefined
+        ? patch.assigneeUserId
+        : cur.assigneeUserId,
     sortOrder: patch.sortOrder ?? cur.sortOrder,
     updatedAt: new Date().toISOString(),
   }
   const sb = getSupabaseAdmin()
   if (sb) {
+    const updateRow: Record<string, unknown> = {
+      title_ar: next.titleAr,
+      notes_ar: next.notesAr,
+      status: next.status,
+      priority: next.priority,
+      due_at: next.dueAt,
+      assignee_ar: next.assigneeAr,
+      assignee_email: next.assigneeEmail,
+      sort_order: next.sortOrder,
+      updated_at: next.updatedAt,
+    }
+    if (patch.assigneeUserId !== undefined) {
+      updateRow.assignee_user_id = next.assigneeUserId
+    }
     const { data, error } = await sb
       .from('room_tasks')
-      .update({
-        title_ar: next.titleAr,
-        notes_ar: next.notesAr,
-        status: next.status,
-        priority: next.priority,
-        due_at: next.dueAt,
-        assignee_ar: next.assigneeAr,
-        assignee_email: next.assigneeEmail,
-        sort_order: next.sortOrder,
-        updated_at: next.updatedAt,
-      })
+      .update(updateRow)
       .eq('id', id)
       .eq('scope_id', scopeId)
       .select('*')

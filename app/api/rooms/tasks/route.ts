@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     dueAt?: string
     assigneeAr?: string
     assigneeEmail?: string
+    assigneeUserId?: string
     taskId?: string
     patch?: Record<string, unknown>
     shiftOverdueDays?: number
@@ -63,8 +64,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result)
     }
     if (action === 'update') {
+      const prevList = await listRoomTasks(scopeId, { includeDone: true })
+      const prev = prevList.find((t) => t.id === String(body.taskId || ''))
+      const patchAssigneeAr =
+        body.patch?.assigneeAr !== undefined
+          ? body.patch.assigneeAr == null
+            ? null
+            : String(body.patch.assigneeAr)
+          : undefined
+      const patchAssigneeEmail =
+        body.patch?.assigneeEmail !== undefined
+          ? body.patch.assigneeEmail == null
+            ? null
+            : String(body.patch.assigneeEmail)
+          : undefined
+      const patchAssigneeUserId =
+        body.patch?.assigneeUserId !== undefined
+          ? body.patch.assigneeUserId == null
+            ? null
+            : String(body.patch.assigneeUserId)
+          : undefined
+
       const task = await updateRoomTask(String(body.taskId || ''), scopeId, {
-        titleAr: body.patch?.titleAr != null ? String(body.patch.titleAr) : undefined,
+        titleAr:
+          body.patch?.titleAr != null ? String(body.patch.titleAr) : undefined,
         notesAr:
           body.patch?.notesAr !== undefined
             ? body.patch.notesAr == null
@@ -88,17 +111,41 @@ export async function POST(req: NextRequest) {
               ? null
               : String(body.patch.dueAt)
             : undefined,
-        assigneeAr:
-          body.patch?.assigneeAr !== undefined
-            ? body.patch.assigneeAr == null
-              ? null
-              : String(body.patch.assigneeAr)
-            : undefined,
+        assigneeAr: patchAssigneeAr,
+        assigneeEmail: patchAssigneeEmail,
+        assigneeUserId: patchAssigneeUserId,
         sortOrder:
           typeof body.patch?.sortOrder === 'number'
             ? body.patch.sortOrder
             : undefined,
       })
+
+      const assigneeChanged =
+        (patchAssigneeAr !== undefined &&
+          patchAssigneeAr !== (prev?.assigneeAr ?? null)) ||
+        (patchAssigneeEmail !== undefined &&
+          patchAssigneeEmail !== (prev?.assigneeEmail ?? null)) ||
+        (patchAssigneeUserId !== undefined &&
+          patchAssigneeUserId !== (prev?.assigneeUserId ?? null))
+
+      if (assigneeChanged && task.assigneeAr) {
+        try {
+          const { notifyTaskAssigned } = await import(
+            '@/lib/notifications/team-notify'
+          )
+          await notifyTaskAssigned({
+            scopeId,
+            titleAr: task.titleAr,
+            assigneeAr: task.assigneeAr,
+            assigneeEmail: task.assigneeEmail,
+            assigneeUserId: task.assigneeUserId,
+            assignerAr: createdByAr,
+          })
+        } catch {
+          /* degrade gracefully */
+        }
+      }
+
       return NextResponse.json({ task, messageAr: 'حُدّثت المهمة' })
     }
     const task = await createRoomTask({
@@ -109,10 +156,28 @@ export async function POST(req: NextRequest) {
       dueAt: body.dueAt,
       assigneeAr: body.assigneeAr,
       assigneeEmail: body.assigneeEmail,
+      assigneeUserId: body.assigneeUserId,
       source: 'manual',
       createdBy: user?.id,
       createdByAr,
     })
+    if (task.assigneeAr) {
+      try {
+        const { notifyTaskAssigned } = await import(
+          '@/lib/notifications/team-notify'
+        )
+        await notifyTaskAssigned({
+          scopeId,
+          titleAr: task.titleAr,
+          assigneeAr: task.assigneeAr,
+          assigneeEmail: task.assigneeEmail,
+          assigneeUserId: task.assigneeUserId,
+          assignerAr: createdByAr,
+        })
+      } catch {
+        /* degrade gracefully */
+      }
+    }
     return NextResponse.json({
       task,
       messageAr: 'أُضيفت للوحة مهام الغرفة',

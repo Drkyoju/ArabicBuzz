@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { Maximize2, Minimize2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CheckCheck, Maximize2, Minimize2, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useCanvasStore, type CanvasArtifact } from '@/lib/canvas/store'
 import { authHeaders } from '@/lib/supabase/browser'
+import { looksLikeDecisionOrMinutes } from '@/lib/rooms/item-acks'
 import { cn } from '@/lib/utils'
 import { sdaiaPdfFooterHtml } from '@/components/sdaia-badge'
 
@@ -44,10 +45,12 @@ export function CanvasViewer({
   onPersist,
   onClose,
   className,
+  scopeId,
 }: {
   onPersist?: (artifact: CanvasArtifact) => void | Promise<void>
   onClose?: () => void
   className?: string
+  scopeId?: string
 }) {
   const {
     artifacts,
@@ -63,6 +66,38 @@ export function CanvasViewer({
   const [busy, setBusy] = useState(false)
   const [pdfPreview, setPdfPreview] = useState(false)
   const [driveConfirm, setDriveConfirm] = useState(false)
+  const [acks, setAcks] = useState<Array<{ userAr: string }>>([])
+  const [seenByMe, setSeenByMe] = useState(false)
+  const showAck =
+    Boolean(active) &&
+    looksLikeDecisionOrMinutes(
+      `${active?.titleAr || ''} ${active?.content?.slice(0, 200) || ''}`
+    )
+
+  useEffect(() => {
+    if (!showAck || !active?.id) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/rooms/acks?itemKind=canvas&itemId=${encodeURIComponent(active.id)}`,
+          { headers: await authHeaders() }
+        )
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          acks?: Array<{ userAr: string }>
+          seenByMe?: boolean
+        }
+        setAcks(data.acks || [])
+        setSeenByMe(Boolean(data.seenByMe))
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showAck, active?.id])
 
   if (!active) {
     return (
@@ -219,6 +254,61 @@ export function CanvasViewer({
           </p>
         )}
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {showAck && scopeId && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true)
+                  try {
+                    const res = await fetch('/api/rooms/acks', {
+                      method: 'POST',
+                      headers: await authHeaders({
+                        'Content-Type': 'application/json',
+                      }),
+                      body: JSON.stringify({
+                        scopeId,
+                        itemKind: 'canvas',
+                        itemId: active.id,
+                        seen: !seenByMe,
+                      }),
+                    })
+                    const data = (await res.json()) as {
+                      acks?: Array<{ userAr: string }>
+                      seen?: boolean
+                      error?: string
+                    }
+                    if (!res.ok) throw new Error(data.error || 'فشل')
+                    setAcks(data.acks || [])
+                    setSeenByMe(Boolean(data.seen))
+                    setStatus(
+                      data.seen ? 'سُجّل اطّلاعك' : 'أُلغي الاطّلاع'
+                    )
+                  } catch (e) {
+                    setStatus(e instanceof Error ? e.message : 'فشل')
+                  } finally {
+                    setBusy(false)
+                  }
+                })()
+              }}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] hover:bg-stone-50',
+                seenByMe
+                  ? 'font-semibold text-emerald-700'
+                  : 'text-ab-accent'
+              )}
+              title={
+                acks.length
+                  ? `اطّلع: ${acks.map((a) => a.userAr).join(' · ')}`
+                  : 'سجّل أنك اطّلعت على القرار/المحضر'
+              }
+            >
+              <CheckCheck className="h-3 w-3" />
+              {seenByMe ? 'اطّلعت ✓' : 'اطّلعت'}
+              {acks.length > 0 ? ` · ${acks.length}` : ''}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void copy()}
