@@ -113,17 +113,20 @@ export function IntegrationsSetupPanel() {
             Netlify: <code dir="ltr">TELEGRAM_BOT_TOKEN</code>
           </li>
           <li>
-            مالك القناة: أرسل <code dir="ltr">/start</code> للبوت — سيرد
-            بمعرّف المحادثة. أو اضبط{' '}
-            <code dir="ltr">TELEGRAM_OWNER_CHAT_ID</code> على Netlify
+            خاص: أرسل <code dir="ltr">/start</code> — يرد بمعرّف المحادثة. أو
+            اضبط <code dir="ltr">TELEGRAM_OWNER_CHAT_ID</code>
           </li>
           <li>
-            أدوات المالك (تقويم/Drive):{' '}
-            <code dir="ltr">CHANNEL_OWNER_USER_ID</code> = معرّف مستخدم Supabase
-            بعد ربط Google
+            مجموعة: أضف البوت كمشرف → أرسل{' '}
+            <code dir="ltr">/link</code> أو <code dir="ltr">/start</code> داخل
+            المجموعة لالتقاط المعرّف السالب وربط الغرفة
           </li>
           <li>
-            اختياري للاختبار: <code dir="ltr">TELEGRAM_TEST_CHAT_ID</code>
+            Group Privacy (BotFather): عطّله إن أردت ردّاً على كل الرسائل؛ وإلا
+            استخدم <code dir="ltr">/ask</code> أو منشن البوت
+          </li>
+          <li>
+            أدوات المالك: <code dir="ltr">CHANNEL_OWNER_USER_ID</code>
           </li>
           <li>
             Webhook:{' '}
@@ -132,9 +135,8 @@ export function IntegrationsSetupPanel() {
             </code>
           </li>
           <li>
-            من الهاتف: أرسل نصاً أو صوتاً · أوامر{' '}
-            <code dir="ltr">/help</code> · <code dir="ltr">/rooms</code> ·{' '}
-            <code dir="ltr">/approve</code>
+            أوامر: <code dir="ltr">/help</code> · <code dir="ltr">/link</code> ·{' '}
+            <code dir="ltr">/ask</code> · <code dir="ltr">/status</code>
           </li>
         </ol>
       </div>

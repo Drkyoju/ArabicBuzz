@@ -5,11 +5,10 @@ export async function dispatchChannelWorkflow(opts: {
   kind: ChannelWorkflowKind
   payload: unknown
 }) {
-  const endpoint =
-    process.env.TRIGGER_DEV_WEBHOOK_URL?.trim() ||
-    (process.env.NEXT_PUBLIC_APP_URL?.trim()
-      ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/api/workflows/dispatch`
-      : '')
+  // Only queue when an external worker URL is set (e.g. Trigger.dev).
+  // Do NOT self-POST via NEXT_PUBLIC_APP_URL — nested Netlify calls often
+  // time out and look like a silent Telegram bot (esp. in groups).
+  const endpoint = process.env.TRIGGER_DEV_WEBHOOK_URL?.trim()
   if (!endpoint) return { queued: false as const }
 
   const secret = getDispatchSharedSecret()

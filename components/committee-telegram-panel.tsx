@@ -87,17 +87,18 @@ export function CommitteeTelegramPanel() {
       </h3>
       <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs leading-relaxed text-stone-600">
         <li>
-          أنشئ مجموعة تيليجرام للجنة (مالية / برامج / مجلس) وأضف بوت Arabic Buzz
-          إليها.
+          أنشئ مجموعة للجنة وأضف <span dir="ltr">@alhuda14bot</span> كمشرف
+          (يمكنه إرسال الرسائل).
         </li>
         <li>
-          من داخل المجموعة اضغط «ربط من تيليجرام» — أو انسخ معرّف المحادثة
-          (أرقام سالبة غالباً مثل <span dir="ltr">-100…</span>) والصقه أدناه ثم
-          «حفظ المعرّف».
+          من داخل المجموعة أرسل{' '}
+          <code dir="ltr">/link@alhuda14bot</code> — أو اضغط «ربط من تيليجرام»
+          ثم الصق المعرّف السالب (<span dir="ltr">-100…</span>) أدناه. لا نخترع
+          معرّفات.
         </li>
         <li>
-          لا نخترع معرّفات — المعرّف يظهر من تيليجرام أو من رسالة البوت بعد{' '}
-          <code dir="ltr">/start</code> في المجموعة.
+          اسأل بـ <code dir="ltr">/ask@alhuda14bot …</code>. إن صمت البوت عن
+          الرسائل العادية: عطّل Group Privacy من BotFather.
         </li>
       </ol>
       <ul className="space-y-3">

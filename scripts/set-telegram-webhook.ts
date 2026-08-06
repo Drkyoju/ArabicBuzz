@@ -58,7 +58,8 @@ async function main() {
 
   const body: Record<string, unknown> = {
     url,
-    allowed_updates: ['message', 'callback_query'],
+    // my_chat_member: greet when bot is added to a group and hint /link
+    allowed_updates: ['message', 'callback_query', 'my_chat_member'],
     drop_pending_updates: false,
   }
   if (secret) body.secret_token = secret

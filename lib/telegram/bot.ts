@@ -73,6 +73,77 @@ function resolveTelegramScope(opts: {
   })
 }
 
+function isGroupChat(chat: { type?: string } | undefined): boolean {
+  return chat?.type === 'group' || chat?.type === 'supergroup'
+}
+
+/** Parse /cmd[@bot] optional args — Telegram group form requires @bot often. */
+function matchBotCommand(
+  text: string,
+  names: string
+): { cmd: string; botTag: string; args: string } | null {
+  const re = new RegExp(
+    `^\\/(${names})(?:@(\\w+))?(?:\\s+([\\s\\S]*))?$`,
+    'i'
+  )
+  const m = text.trim().match(re)
+  if (!m) return null
+  return {
+    cmd: (m[1] || '').toLowerCase(),
+    botTag: (m[2] || '').toLowerCase(),
+    args: (m[3] || '').trim(),
+  }
+}
+
+function stripBotMention(
+  text: string,
+  botUsername: string
+): { mentioned: boolean; text: string } {
+  const uname = botUsername.replace(/^@/, '').trim()
+  if (!uname) return { mentioned: false, text }
+  const re = new RegExp(`@${uname}\\b`, 'gi')
+  const mentioned = re.test(text)
+  return { mentioned, text: text.replace(re, '').replace(/\s+/g, ' ').trim() }
+}
+
+/** /cmd@OtherBot must be ignored; /cmd or /cmd@us is for us. */
+function commandForThisBot(
+  botTag: string | undefined,
+  botUsername: string
+): boolean {
+  if (!botTag) return true
+  if (!botUsername) return true
+  return botTag.toLowerCase() === botUsername.replace(/^@/, '').toLowerCase()
+}
+
+/**
+ * Group Privacy Mode (BotFather default): bot only receives commands, @mentions,
+ * and replies to its own messages. Plain chat text never hits the webhook.
+ */
+function shouldHandleGroupText(opts: {
+  rawText: string
+  botUsername: string
+  isReplyToBot: boolean
+  isCommand: boolean
+}): { handle: boolean; promptText: string; viaMention: boolean } {
+  const { mentioned, text: stripped } = stripBotMention(
+    opts.rawText,
+    opts.botUsername
+  )
+  if (opts.isCommand) {
+    return { handle: true, promptText: stripped || opts.rawText, viaMention: false }
+  }
+  if (mentioned || opts.isReplyToBot) {
+    return {
+      handle: true,
+      promptText: stripped || opts.rawText.trim(),
+      viaMention: mentioned,
+    }
+  }
+  // Privacy off → Telegram delivers every message; answer it.
+  return { handle: true, promptText: opts.rawText.trim(), viaMention: false }
+}
+
 /** Inline keyboard: ✅ موافقة / ❌ رفض with approve_/reject_ callback data. */
 export function buildApprovalKeyboard(actionId: string) {
   return new InlineKeyboard()
@@ -222,11 +293,105 @@ export function getTelegramBot() {
 
   bot = new Bot(token)
 
+  bot.on('my_chat_member', async (ctx) => {
+    try {
+      const status = ctx.myChatMember.new_chat_member.status
+      if (status !== 'member' && status !== 'administrator') return
+      if (!isGroupChat(ctx.chat)) return
+      const chatId = String(ctx.chat.id)
+      const botTag = ctx.me.username ? `@${ctx.me.username}` : 'البوت'
+      const defaultScope =
+        process.env.TELEGRAM_DEFAULT_SCOPE_ID?.trim() || 'shared-demo'
+      await ctx.reply(
+        [
+          'مرحباً — بوت Arabic Buzz انضم للمجموعة.',
+          `معرّف المجموعة: ${chatId}`,
+          '',
+          'لربط الغرفة على الموقع، أرسل من هنا:',
+          `/link@${ctx.me.username || 'bot'} scope_${defaultScope}`,
+          'أو فقط: /link',
+          '',
+          'للسؤال مع وضع الخصوصية الافتراضي:',
+          `/ask@${ctx.me.username || 'bot'} سؤالك هنا`,
+          `أو اذكر ${botTag} في الرسالة.`,
+          '',
+          'إن أردت أن يرى البوت كل الرسائل: BotFather → Bot Settings → Group Privacy → Disable.',
+          'اجعل البوت مشرفاً إن مُنِع الأعضاء من الإرسال.',
+        ].join('\n')
+      )
+    } catch (e) {
+      console.error('[telegram] my_chat_member', e)
+    }
+  })
+
   bot.on('message:text', async (ctx) => {
+    if (ctx.from?.is_bot) return
+
     const chatId = String(ctx.chat.id)
     const userId = String(ctx.from?.id || 'user-1')
     const rawText = ctx.message.text || ''
     const cmd = rawText.trim()
+    const inGroup = isGroupChat(ctx.chat)
+    const botUsername = ctx.me.username || ''
+    const isReplyToBot = Boolean(
+      ctx.message.reply_to_message?.from?.id &&
+        ctx.message.reply_to_message.from.id === ctx.me.id
+    )
+
+    const bindRaw = matchBotCommand(cmd, 'start|link|owner|معرف|id')
+    const helpRaw = matchBotCommand(cmd, 'help')
+    const statusRaw = matchBotCommand(cmd, 'status')
+    const roomsRaw = matchBotCommand(cmd, 'rooms')
+    const approveRaw = matchBotCommand(cmd, 'approve')
+    const askRaw = matchBotCommand(cmd, 'ask')
+    const bindCmd =
+      bindRaw && commandForThisBot(bindRaw.botTag, botUsername) ? bindRaw : null
+    const helpCmd =
+      helpRaw && commandForThisBot(helpRaw.botTag, botUsername) ? helpRaw : null
+    const statusCmd =
+      statusRaw && commandForThisBot(statusRaw.botTag, botUsername)
+        ? statusRaw
+        : null
+    const roomsCmd =
+      roomsRaw && commandForThisBot(roomsRaw.botTag, botUsername)
+        ? roomsRaw
+        : null
+    const approveCmd =
+      approveRaw && commandForThisBot(approveRaw.botTag, botUsername)
+        ? approveRaw
+        : null
+    const askCmd =
+      askRaw && commandForThisBot(askRaw.botTag, botUsername) ? askRaw : null
+    const isKnownCommand = Boolean(
+      bindCmd || helpCmd || statusCmd || roomsCmd || approveCmd || askCmd
+    )
+    // /start@OtherBot — not for us
+    if (
+      cmd.startsWith('/') &&
+      (bindRaw || helpRaw || statusRaw || roomsRaw || approveRaw || askRaw) &&
+      !isKnownCommand
+    ) {
+      return
+    }
+
+    if (inGroup && !isKnownCommand) {
+      const gate = shouldHandleGroupText({
+        rawText: cmd,
+        botUsername,
+        isReplyToBot,
+        isCommand: cmd.startsWith('/'),
+      })
+      // Unknown /foo@otherbot — ignore. Bare /unknown with our tag → treat as ask later.
+      if (cmd.startsWith('/') && !isKnownCommand) {
+        const other = matchBotCommand(cmd, '\\w+')
+        if (other?.botTag && botUsername && other.botTag !== botUsername.toLowerCase()) {
+          return
+        }
+        // Unknown command without our handler: ignore in groups (privacy noise).
+        if (!gate.viaMention && !isReplyToBot) return
+      }
+      if (!gate.handle) return
+    }
 
     await ctx.replyWithChatAction('typing')
 
@@ -243,15 +408,12 @@ export function getTelegramBot() {
       userId,
     })
 
-    if (/^\/(start|owner|معرف|id)(?:@\w+)?(?:\s+(\S+))?$/i.test(cmd)) {
-      const startMatch = cmd.match(
-        /^\/(?:start|owner|معرف|id)(?:@\w+)?(?:\s+(\S+))?$/i
-      )
-      const payload = (startMatch?.[1] || '').trim()
+    if (bindCmd) {
+      const payload = bindCmd.args.split(/\s+/)[0] || ''
       let boundScopeId = scope.scope.id
       let boundName = scope.scope.nameAr
       if (payload) {
-        // Deep link: /start scope_<id> or /start scope_<id>__c_<committee>
+        // Deep link: /start scope_<id> or /link scope_<id>__c_<committee>
         const {
           parseCommitteeStartPayload,
           upsertCommitteeChannel,
@@ -284,21 +446,44 @@ export function getTelegramBot() {
                 'مرحباً — بوت Arabic Buzz جاهز.',
                 `رُبطت قناة «${COMMITTEE_LABELS_AR[parsed.committeeKey]}» بالغرفة: ${boundName}`,
                 `معرّف المحادثة: ${chatId}`,
-                'الرسائل هنا تظهر في نفس الغرفة على الموقع.',
-              ].join('\n')
+                inGroup
+                  ? 'هذه مجموعة — الرسائل هنا تُنسَخ لغرفة الموقع.'
+                  : 'الرسائل هنا تظهر في نفس الغرفة على الموقع.',
+                inGroup
+                  ? 'اسأل بـ /ask سؤالك أو اذكر البوت (@…) في الرسالة.'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join('\n')
             )
             return
           }
         }
+      } else {
+        // /link or /start without payload — bind this chat (group or DM) to current/default scope
+        await upsertChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+          scopeId: boundScopeId,
+          userId,
+        })
       }
       await ctx.reply(
         [
-          'مرحباً — بوت Arabic Buzz جاهز.',
+          bindCmd.cmd === 'link'
+            ? 'تم ربط هذه المحادثة بغرفة Arabic Buzz.'
+            : 'مرحباً — بوت Arabic Buzz جاهز.',
           `معرّف هذه المحادثة: ${chatId}`,
-          `المساحة: ${boundName}`,
-          payload ? 'تم ربط هذه المحادثة عبر رابط الدعوة.' : '',
-          'أوامر: /help · /rooms · /approve · /status',
-          'أضفه في Netlify كـ TELEGRAM_OWNER_CHAT_ID إن أردت تثبيت مالك التنبيهات.',
+          `المساحة: ${boundName} (${boundScopeId})`,
+          payload ? 'تم الربط عبر وسيط الدعوة.' : '',
+          inGroup
+            ? [
+                'المجموعة مربوطة — الردود تُنسَخ لنافذة تيليجرام في الموقع.',
+                'مع Group Privacy (الافتراضي): استخدم /ask أو اذكر البوت.',
+                'ليرى كل الرسائل: BotFather → Group Privacy → Disable.',
+              ].join('\n')
+            : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
+          'أوامر: /help · /ask · /rooms · /approve · /status',
         ]
           .filter(Boolean)
           .join('\n')
@@ -306,39 +491,42 @@ export function getTelegramBot() {
       return
     }
 
-    if (/^\/help(?:@\w+)?$/i.test(cmd)) {
+    if (helpCmd) {
+      const tag = botUsername ? `@${botUsername}` : ''
       await ctx.reply(
         [
           'بوت Arabic Buzz — بوت واحد يكفي (لا حاجة لبوت ثانٍ).',
           '',
           'الأوامر:',
           '/help — هذه القائمة',
-          '/start — معرّف المحادثة وربط المساحة',
+          '/start أو /link — ربط المحادثة/المجموعة بالغرفة + إظهار المعرّف',
+          '/ask نص السؤال — اسأل الوكيل (مهم في المجموعات)',
           '/rooms — المساحة المربوطة حالياً',
-          '/approve — عرض الموافقات المعلّقة مع أزرار القرار',
-          '/status — حالة الربط والإعداد',
+          '/approve — الموافقات المعلّقة',
+          '/status — حالة الربط',
           '',
-          'محادثة خاصة: للتنبيهات والأوامر الشخصية.',
-          'مجموعة: أضف البوت ثم افتح رابط الدعوة من الإعدادات → لجان.',
+          'محادثة خاصة: أرسل أي نص أو /start.',
+          'مجموعة:',
+          `1) أضف البوت كمشرف (يمكنه الإرسال)`,
+          `2) أرسل /link${tag} أو /start${tag}`,
+          `3) اسأل: /ask${tag} سؤالك — أو اذكر ${tag || 'البوت'}`,
           '',
-          'ماذا يفعل البوت؟',
-          '• دردشة نصية مع الوكيل (أدوات + معرفة)',
-          '• رسائل صوتية → تفريغ ورد',
-          '• تنبيهات موافقة بشرية مع ✅ موافقة / ❌ رفض',
-          '• عند الموافقة يُنفَّذ الإجراء المعلّق فعلياً',
+          'خصوصية المجموعات (BotFather):',
+          '• مفعّلة (افتراضي): البوت يرى الأوامر والذكر فقط',
+          '• معطّلة: البوت يرى كل الرسائل ويرد عليها',
           '',
-          'أرسل أي نص غير أمر ليُعالَج كطلب للوكيل.',
+          'الرسائل تُنسَخ لغرفة الموقع / نافذة تيليجرام.',
         ].join('\n')
       )
       return
     }
 
-    if (/^\/status(?:@\w+)?$/i.test(cmd)) {
+    if (statusCmd) {
       const pending = await listPendingApprovals().catch(() => [])
       await ctx.reply(
         [
           'حالة Arabic Buzz عبر تيليجرام:',
-          `المحادثة: ${chatId}`,
+          `المحادثة: ${chatId}${inGroup ? ' (مجموعة)' : ' (خاص)'}`,
           `المساحة: ${scope.scope.nameAr} (${scope.scope.id})`,
           `موافقات معلّقة: ${pending.length}`,
           'الوكيل: جاهز لاستقبال النص والصوت',
@@ -348,19 +536,21 @@ export function getTelegramBot() {
       return
     }
 
-    if (/^\/rooms(?:@\w+)?$/i.test(cmd)) {
+    if (roomsCmd) {
       await ctx.reply(
         [
           `المساحة النشطة: ${scope.scope.nameAr}`,
           `المعرّف: ${scope.scope.id}`,
-          'غيّر الربط من الموقع أو بمراسلة البوت من حساب مرتبط.',
-          'أوامر أخرى: /help · /approve · /status',
+          inGroup
+            ? `لربط مجموعة أخرى: /link@${botUsername || 'bot'} scope_<id>`
+            : 'غيّر الربط من الموقع أو برابط الدعوة.',
+          'أوامر: /help · /ask · /approve · /status',
         ].join('\n')
       )
       return
     }
 
-    if (/^\/approve(?:@\w+)?$/i.test(cmd)) {
+    if (approveCmd) {
       try {
         const pending = await listPendingApprovals()
         if (!pending.length) {
@@ -382,8 +572,37 @@ export function getTelegramBot() {
       return
     }
 
+    // Agent turn: /ask …, @mention, reply-to-bot, or plain text (DM / privacy off)
+    let promptSource = rawText
+    if (askCmd) {
+      if (!askCmd.args) {
+        await ctx.reply(
+          [
+            'استخدم: /ask نص السؤال',
+            botUsername ? `في المجموعة يُفضّل: /ask@${botUsername} سؤالك` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+        return
+      }
+      promptSource = askCmd.args
+    } else if (inGroup) {
+      const gate = shouldHandleGroupText({
+        rawText: cmd,
+        botUsername,
+        isReplyToBot,
+        isCommand: false,
+      })
+      promptSource = gate.promptText
+      if (!promptSource.trim()) {
+        await ctx.reply('اذكر سؤالك بعد منشن البوت، أو استخدم /ask …')
+        return
+      }
+    }
+
     try {
-      const normalized = await normalizeArabicPrompt(rawText)
+      const normalized = await normalizeArabicPrompt(promptSource)
       const modelSlug =
         process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
       const requesterId = await resolveChannelOwnerUserIdAsync(userId)
@@ -406,39 +625,46 @@ export function getTelegramBot() {
         channel: 'telegram',
         externalId: chatId,
         userLabelAr: ctx.from?.first_name || 'مستخدم تيليجرام',
-        userMessageAr: rawText,
+        userMessageAr: promptSource,
         agentReplyAr: out.text,
       })
     } catch (e) {
       console.error('[telegram] text handler', e)
-      await ctx.reply(
+      const msg =
         e instanceof Error
           ? `تعذّر معالجة الرسالة: ${e.message}`
           : 'تعذّر معالجة الرسالة حالياً.'
-      )
+      try {
+        await ctx.reply(msg)
+      } catch (sendErr) {
+        console.error('[telegram] reply failed (permissions?)', sendErr)
+      }
     }
   })
 
   bot.on(['message:voice', 'message:audio'], async (ctx) => {
+    if (ctx.from?.is_bot) return
     const tokenLocal = process.env.TELEGRAM_BOT_TOKEN!
     const chatId = String(ctx.chat.id)
     const userId = String(ctx.from?.id || 'user-1')
-    const file = await ctx.getFile()
-    const url = `https://api.telegram.org/file/bot${tokenLocal}/${file.file_path}`
-    const res = await fetch(url)
-    const buffer = Buffer.from(await res.arrayBuffer())
-    const scope = await resolveTelegramScope({ chatId, userId })
-    if (!scope) {
-      await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
-      return
-    }
-    void upsertChannelBinding({
-      channel: 'telegram',
-      externalId: chatId,
-      scopeId: scope.scope.id,
-      userId,
-    })
+    const inGroup = isGroupChat(ctx.chat)
+    // Group Privacy: voice only arrives if privacy is off or it's a reply context.
     try {
+      const file = await ctx.getFile()
+      const url = `https://api.telegram.org/file/bot${tokenLocal}/${file.file_path}`
+      const res = await fetch(url)
+      const buffer = Buffer.from(await res.arrayBuffer())
+      const scope = await resolveTelegramScope({ chatId, userId })
+      if (!scope) {
+        await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+        return
+      }
+      void upsertChannelBinding({
+        channel: 'telegram',
+        externalId: chatId,
+        scopeId: scope.scope.id,
+        userId,
+      })
       await ctx.replyWithChatAction('typing')
       const out = await handleInboundVoiceNote({
         channel: 'telegram',
@@ -460,7 +686,18 @@ export function getTelegramBot() {
         agentReplyAr: out.replyText || out.transcript,
       })
     } catch (e) {
-      await ctx.reply(e instanceof Error ? e.message : 'تعذر معالجة الصوت')
+      console.error('[telegram] voice', e)
+      try {
+        await ctx.reply(
+          e instanceof Error
+            ? e.message
+            : inGroup
+              ? 'تعذر معالجة الصوت. تأكد أن البوت مشرف ويمكنه الإرسال.'
+              : 'تعذر معالجة الصوت'
+        )
+      } catch {
+        /* no send permission in group */
+      }
     }
   })
 

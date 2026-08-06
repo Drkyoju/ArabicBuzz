@@ -85,5 +85,11 @@ export async function GET() {
     configured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
     secretConfigured: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET?.trim()),
     secretMode: 'compat_missing_header_ok',
+    groupSupport: {
+      bindCommands: ['/link', '/start'],
+      askCommands: ['/ask', '@mention'],
+      privacyNoteAr:
+        'مع Group Privacy الافتراضي يرى البوت الأوامر والذكر فقط — عطّله من BotFather ليرى كل الرسائل.',
+    },
   })
 }

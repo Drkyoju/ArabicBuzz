@@ -53,8 +53,8 @@ export function TelegramConnectCard() {
         تيليجرام · أوامر من الجوال
       </h3>
       <p className="mb-3 text-xs text-stone-500">
-        بوت واحد فقط — اربطه بمحادثة خاصة (تنبيهات لك) أو أضفه لمجموعة
-        اللجان أدناه. لا حاجة لبوت ثانٍ.
+        بوت واحد فقط (@alhuda14bot) — محادثة خاصة للتنبيهات أو مجموعة الجمعية.
+        لا حاجة لبوت ثانٍ.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         {ready === null ? (
@@ -78,16 +78,23 @@ export function TelegramConnectCard() {
       </div>
       <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs text-stone-600">
         <li>
-          للمحادثة الخاصة (تنبيهاتك): اضغط «ربط هذه المساحة» ثم أرسل{' '}
-          <code dir="ltr">/start</code> إن لم يُفتح تلقائياً.
+          خاص (تنبيهاتك): «ربط هذه المساحة» ثم{' '}
+          <code dir="ltr">/start</code>.
         </li>
         <li>
-          لمجموعة لجنة: أضف البوت للمجموعة → من داخل المجموعة افتح رابط «ربط من
-          تيليجرام» تحت اللجان، أو الصق معرّف المجموعة يدوياً (لا نولّد معرّفات).
+          مجموعة (مثل «عمل الجمعية»): أضف البوت كمشرف → من داخل المجموعة أرسل{' '}
+          <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code> أو{' '}
+          <code dir="ltr">/start@alhuda14bot</code> — البوت يرد بالمعرّف ويربط
+          الغرفة (لا نخترع معرّفات).
         </li>
         <li>
-          أوامر مفيدة: <code dir="ltr">/help</code> ·{' '}
-          <code dir="ltr">/status</code> · <code dir="ltr">/approve</code>
+          اسأل في المجموعة:{' '}
+          <code dir="ltr">/ask@alhuda14bot سؤالك</code> أو اذكر البوت. إن لم
+          يرد على الرسائل العادية: BotFather → Group Privacy → Disable.
+        </li>
+        <li>
+          أوامر: <code dir="ltr">/help</code> · <code dir="ltr">/link</code> ·{' '}
+          <code dir="ltr">/ask</code> · <code dir="ltr">/status</code>
         </li>
       </ol>
       {botBase.includes('t.me/') && (

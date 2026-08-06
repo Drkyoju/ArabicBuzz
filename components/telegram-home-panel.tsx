@@ -243,11 +243,11 @@ export function TelegramHomePanel() {
             </p>
             <ol className="mt-1 list-decimal space-y-0.5 pe-3 text-[10px] leading-snug text-amber-950/90">
               <li>
-                اضغط «ربط من تيليجرام»
+                خاص: «ربط من تيليجرام» ثم Start
                 {botBase.includes('t.me/') ? (
                   <>
                     {' '}
-                    (يفتح{' '}
+                    (
                     <span dir="ltr">
                       @{botBase.replace(/^https?:\/\/t\.me\//i, '').replace(/\/$/, '')}
                     </span>
@@ -258,10 +258,10 @@ export function TelegramHomePanel() {
                 )}
               </li>
               <li>
-                اضغط <span dir="ltr">Start</span> أو أرسل{' '}
-                <code dir="ltr">/start</code>.
+                مجموعة: أضف البوت ثم أرسل{' '}
+                <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code>
               </li>
-              <li>ارجع هنا — يجب أن تصبح الحالة «مربوطة».</li>
+              <li>اسأل بـ <code dir="ltr">/ask@alhuda14bot …</code> — ثم ارجع هنا.</li>
             </ol>
             {deepLink && link?.botConfigured !== false && (
               <a

@@ -122,8 +122,7 @@ export async function GET() {
     brainPrimaryMac:
       (process.env.BRAIN_PRIMARY || '').toLowerCase() === 'mac',
     triggerDispatchConfigured: Boolean(
-      process.env.TRIGGER_DEV_WEBHOOK_URL?.trim() ||
-        process.env.NEXT_PUBLIC_APP_URL?.trim()
+      process.env.TRIGGER_DEV_WEBHOOK_URL?.trim()
     ),
     otelConfigured: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()),
     langfuseConfigured: isLangfuseConfigured(),
