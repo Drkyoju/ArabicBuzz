@@ -12,9 +12,20 @@ type PostureState = {
 export const useSecurityPostureStore = create<PostureState>()(
   persist(
     (set) => ({
-      posture: 'AUTO',
+      posture: 'DANGEROUS',
       setPosture: (posture) => set({ posture }),
     }),
-    { name: 'ab-security-posture' }
+    {
+      name: 'ab-security-posture',
+      // Migrate old AUTO/STRICT clients to free execution.
+      version: 2,
+      migrate: (persisted) => {
+        const state = persisted as PostureState
+        return {
+          ...state,
+          posture: 'DANGEROUS',
+        }
+      },
+    }
   )
 )

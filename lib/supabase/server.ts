@@ -21,12 +21,89 @@ export function getSupabaseAdmin(): SupabaseClient | null {
 
 export type ApprovalStatusRow = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
 
+export type PendingApprovalRow = {
+  id: string
+  action_name: string
+  params: Record<string, unknown>
+  risk_level: 'LOW' | 'HIGH'
+  status: ApprovalStatusRow
+  requester_id: string
+  thread_id?: string | null
+  scope_id?: string | null
+}
+
+/** Insert pending HITL row so Telegram/webhooks on other Netlify instances can resolve it. */
+export async function insertPendingApprovalInSupabase(opts: {
+  id: string
+  actionName: string
+  params: Record<string, unknown>
+  riskLevel: 'LOW' | 'HIGH'
+  requesterId: string
+  threadId?: string
+  scopeId?: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) {
+    return { ok: false, error: 'SUPABASE_URL / key missing' }
+  }
+  const { error } = await supabase.from('pending_approvals').upsert({
+    id: opts.id,
+    action_name: opts.actionName,
+    params: opts.params,
+    risk_level: opts.riskLevel,
+    status: 'PENDING_APPROVAL',
+    requester_id: opts.requesterId,
+    thread_id: opts.threadId ?? null,
+    scope_id: opts.scopeId ?? null,
+    created_at: new Date().toISOString(),
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export async function getPendingApprovalFromSupabase(
+  approvalId: string
+): Promise<PendingApprovalRow | null> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('pending_approvals')
+    .select(
+      'id, action_name, params, risk_level, status, requester_id, thread_id, scope_id'
+    )
+    .eq('id', approvalId)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as PendingApprovalRow
+}
+
+export async function listPendingApprovalsFromSupabase(
+  limit = 50
+): Promise<PendingApprovalRow[]> {
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('pending_approvals')
+    .select(
+      'id, action_name, params, risk_level, status, requester_id, thread_id, scope_id'
+    )
+    .eq('status', 'PENDING_APPROVAL')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error || !data) return []
+  return data as PendingApprovalRow[]
+}
+
 /** Persist channel HITL resolution into Supabase `pending_approvals`. */
 export async function updateApprovalInSupabase(opts: {
   approvalId: string
   status: ApprovalStatusRow
   resolvedBy?: string
   decisionNoteAr?: string
+  actionName?: string
+  params?: Record<string, unknown>
+  riskLevel?: 'LOW' | 'HIGH'
+  requesterId?: string
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabaseAdmin()
   if (!supabase) {
@@ -47,10 +124,13 @@ export async function updateApprovalInSupabase(opts: {
     const { error: upsertError } = await supabase.from('pending_approvals').upsert({
       id: opts.approvalId,
       status: opts.status,
-      action_name: 'channel_callback',
-      params: {},
-      risk_level: 'HIGH',
-      requester_id: opts.resolvedBy || 'channel',
+      action_name: opts.actionName || 'channel_callback',
+      params: opts.params || {},
+      risk_level: opts.riskLevel || 'HIGH',
+      requester_id: opts.requesterId || opts.resolvedBy || 'channel',
+      approved_by: opts.resolvedBy ?? null,
+      resolution_note_ar: opts.decisionNoteAr ?? null,
+      resolved_at: new Date().toISOString(),
     })
     if (upsertError) {
       return { ok: false, error: upsertError.message }

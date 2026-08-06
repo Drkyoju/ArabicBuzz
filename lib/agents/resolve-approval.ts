@@ -8,6 +8,12 @@ import {
   SENSITIVE_ACTION_ROLES,
   withRlsContext,
 } from '@/lib/auth/rbac'
+import {
+  getPendingApprovalFromSupabase,
+  listPendingApprovalsFromSupabase,
+  updateApprovalInSupabase,
+} from '@/lib/supabase/server'
+import { DEFAULT_DIRECTOR_EMAIL } from '@/lib/auth/roles'
 
 export type ResolveApprovalInput = {
   approvalId: string
@@ -91,9 +97,20 @@ export async function listPendingApprovals(): Promise<
     }))
   }, [] as typeof fromMem)
 
+  const fromSb = (await listPendingApprovalsFromSupabase(50)).map((r) => ({
+    id: r.id,
+    approvalId: r.id,
+    actionName: r.action_name,
+    params: (r.params || {}) as Record<string, unknown>,
+    riskLevel: (r.risk_level === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
+    status: 'PENDING_APPROVAL' as const,
+    messageAr: `إجراء يحتاج موافقة: ${r.action_name}`,
+    scopeId: r.scope_id || undefined,
+  }))
+
   const seen = new Set<string>()
   const merged: typeof fromMem = []
-  for (const row of [...fromDb, ...fromMem]) {
+  for (const row of [...fromSb, ...fromDb, ...fromMem]) {
     if (seen.has(row.id)) continue
     seen.add(row.id)
     merged.push(row)
@@ -106,6 +123,9 @@ export async function resolveApproval(input: ResolveApprovalInput) {
     return prisma.pendingApproval.findUnique({ where: { id: input.approvalId } })
   }, null)
   const memRow = memoryApprovals.get(input.approvalId)
+  const sbRow = !dbRow && !memRow
+    ? await getPendingApprovalFromSupabase(input.approvalId)
+    : null
   const row = dbRow
     ? {
         id: dbRow.id,
@@ -118,6 +138,19 @@ export async function resolveApproval(input: ResolveApprovalInput) {
         scopeId: dbRow.scopeId || undefined,
       }
     : memRow
+      ? memRow
+      : sbRow
+        ? {
+            id: sbRow.id,
+            actionName: sbRow.action_name,
+            params: (sbRow.params || {}) as Record<string, unknown>,
+            status: sbRow.status,
+            riskLevel: sbRow.risk_level,
+            requesterId: sbRow.requester_id,
+            threadId: sbRow.thread_id || undefined,
+            scopeId: sbRow.scope_id || undefined,
+          }
+        : null
 
   if (!row) {
     throw new Error('NOT_FOUND')
@@ -134,11 +167,15 @@ export async function resolveApproval(input: ResolveApprovalInput) {
     if (!userId) {
       throw new Error('MISSING_TENANT_CONTEXT')
     }
+    const email =
+      input.email?.trim() ||
+      process.env.TELEGRAM_APPROVER_EMAIL?.trim() ||
+      DEFAULT_DIRECTOR_EMAIL
     await assertPermission(
       userId,
       orgId,
       SENSITIVE_ACTION_ROLES.approveHighRisk,
-      input.email
+      email
     )
   }
 
@@ -158,6 +195,15 @@ export async function resolveApproval(input: ResolveApprovalInput) {
           }),
         null
       )
+      await updateApprovalInSupabase({
+        approvalId: input.approvalId,
+        status: 'REJECTED',
+        resolvedBy: input.approvedBy,
+        actionName: row.actionName,
+        params: baseParams,
+        riskLevel: row.riskLevel === 'HIGH' ? 'HIGH' : 'LOW',
+        requesterId: row.requesterId,
+      })
       const mem = memoryApprovals.get(input.approvalId)
       if (mem) mem.status = 'REJECTED'
       await recordToolExecution(
@@ -188,6 +234,16 @@ export async function resolveApproval(input: ResolveApprovalInput) {
           }),
         null
       )
+      await updateApprovalInSupabase({
+        approvalId: input.approvalId,
+        status: 'APPROVED',
+        resolvedBy: input.approvedBy,
+        decisionNoteAr: 'تمت الموافقة والتنفيذ',
+        actionName: row.actionName,
+        params: finalParams,
+        riskLevel: row.riskLevel === 'HIGH' ? 'HIGH' : 'LOW',
+        requesterId: row.requesterId,
+      })
       const mem = memoryApprovals.get(input.approvalId)
       if (mem) {
         mem.status = 'APPROVED'

@@ -9,7 +9,7 @@ export type ActionRiskResult = {
 export const POSTURE_LABELS_AR: Record<SecurityPostureMode, string> = {
   STRICT: 'صارم — موافقة على كل أداة',
   AUTO: 'تلقائي — موافقة للخطر العالي فقط',
-  DANGEROUS: 'حر — بدون توقف بين الأدوات (خطير)',
+  DANGEROUS: 'حر — تنفيذ فوري بدون موافقات',
 }
 
 export const TEXT_GENERATION_TOOLS = new Set([
@@ -130,8 +130,19 @@ export function shouldHaltForApproval(result: ActionRiskResult): boolean {
   return result.requiresApproval
 }
 
+/**
+ * When true (default), tools never pause for HITL.
+ * Set HITL_DISABLED=0 on Netlify to re-enable approvals.
+ */
+export function isHitlDisabled(): boolean {
+  const v = (process.env.HITL_DISABLED ?? '1').trim().toLowerCase()
+  return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no'
+}
+
 export function parsePosture(raw?: string | null): SecurityPostureMode {
-  const v = (raw || 'AUTO').toUpperCase()
+  if (isHitlDisabled()) return 'DANGEROUS'
+  const fallback = (process.env.DEFAULT_SECURITY_POSTURE || 'DANGEROUS').toUpperCase()
+  const v = (raw || fallback).toUpperCase()
   if (v === 'STRICT' || v === 'DANGEROUS' || v === 'AUTO') return v
-  return 'AUTO'
+  return 'DANGEROUS'
 }

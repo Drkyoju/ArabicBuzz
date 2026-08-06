@@ -1,5 +1,9 @@
 import { randomUUID } from 'crypto'
-import { evaluateActionRisk, SecurityPostureMode } from '@/lib/security/posture'
+import {
+  evaluateActionRisk,
+  isHitlDisabled,
+  SecurityPostureMode,
+} from '@/lib/security/posture'
 import { resolveToolAutonomy } from '@/lib/agents/trust-evaluator'
 import { recordToolExecution } from '@/lib/security/trust'
 import { prisma } from '@/lib/db'
@@ -9,6 +13,7 @@ import {
   ApprovalNotificationPayload,
 } from '@/lib/notifications/emit'
 import { seedMemoryApproval } from '@/lib/agents/resolve-approval'
+import { insertPendingApprovalInSupabase } from '@/lib/supabase/server'
 import type { ToolExecutor } from '@/lib/agents/tools'
 import { markThreadPaused } from '@/lib/agents/loop'
 
@@ -30,11 +35,12 @@ export async function interceptToolExecution(opts: {
   execute: ToolExecutor
 }): Promise<InterceptResult> {
   const scopeId = opts.scopeId || 'shared-demo'
-  const risk = evaluateActionRisk(opts.toolName, opts.params, opts.mode)
+  const mode = isHitlDisabled() ? 'DANGEROUS' : opts.mode
+  const risk = evaluateActionRisk(opts.toolName, opts.params, mode)
   const autonomy = await resolveToolAutonomy(opts.toolName, scopeId)
 
   const needsHuman = risk.requiresApproval
-  const onLoopAllowed = autonomy === 'ON_LOOP' && opts.mode === 'AUTO'
+  const onLoopAllowed = autonomy === 'ON_LOOP' && mode === 'AUTO'
 
   if (needsHuman && !onLoopAllowed) {
     const approvalId = randomUUID()
@@ -47,9 +53,8 @@ export async function interceptToolExecution(opts: {
       scopeId,
     }
 
-    let persisted: unknown = null
     try {
-      persisted = await prisma.pendingApproval.create({
+      await prisma.pendingApproval.create({
         data: {
           id: approvalId,
           actionName: opts.toolName,
@@ -63,11 +68,23 @@ export async function interceptToolExecution(opts: {
       })
     } catch (e) {
       console.error(
-        '[interceptor] pendingApproval.create failed — Telegram approve may return NOT_FOUND on another instance',
+        '[interceptor] pendingApproval.create failed — using Supabase fallback',
         { approvalId, tool: opts.toolName, error: e instanceof Error ? e.message : e }
       )
     }
-    void persisted
+    // Cross-instance (Netlify ↔ Telegram webhook): always mirror to Supabase REST.
+    const sbPersist = await insertPendingApprovalInSupabase({
+      id: approvalId,
+      actionName: opts.toolName,
+      params: opts.params,
+      riskLevel: risk.riskLevel,
+      requesterId: opts.requesterId,
+      threadId: opts.threadId,
+      scopeId,
+    })
+    if (!sbPersist.ok) {
+      console.error('[interceptor] supabase pending_approvals insert failed', sbPersist.error)
+    }
     seedMemoryApproval({
       id: approvalId,
       actionName: opts.toolName,

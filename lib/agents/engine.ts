@@ -6,7 +6,10 @@ import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getToolExecutor, toolRegistry } from '@/lib/agents/tools'
 import { searchKnowledgeBase } from '@/lib/agents/tools/rag-tool'
 import { interceptToolExecution } from '@/lib/agents/interceptor'
-import type { SecurityPostureMode } from '@/lib/security/posture'
+import {
+  parsePosture,
+  type SecurityPostureMode,
+} from '@/lib/security/posture'
 import { withSpan } from '@/lib/observability/trace'
 import { forceFlushOtel } from '@/lib/observability/langfuse'
 import { extractFromAgentSteps } from '@/lib/agents/citation-events'
@@ -18,7 +21,7 @@ export function getNativeAiTools(opts?: {
   scopeId?: string
   scopeMemory?: string[]
 }): ToolSet {
-  const mode = opts?.mode || 'AUTO'
+  const mode = opts?.mode || parsePosture(process.env.DEFAULT_SECURITY_POSTURE)
   const requesterId = opts?.requesterId || 'engine'
   const scopeId = opts?.scopeId
   const scopeMemory = opts?.scopeMemory
