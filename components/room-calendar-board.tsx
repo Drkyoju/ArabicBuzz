@@ -15,6 +15,7 @@ import {
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { cn } from '@/lib/utils'
 
 type RoomEvent = {
@@ -138,6 +139,7 @@ export function RoomCalendarBoard({
   const storeScope = useWorkspaceStore((s) => s.activeScopeId)
   const scopeId = scopeIdProp || storeScope
   const signedIn = useSignedIn()
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [events, setEvents] = useState<RoomEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
@@ -1155,13 +1157,13 @@ export function RoomCalendarBoard({
                 رتّب وكشّف التعارض
               </button>
             )}
-            {signedIn === true && (
+            {signedIn === true && canAccessOpsUi && (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void cleanupTestEvents()}
                 className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-950 disabled:opacity-40"
-                title="للمدير: إلغاء مواعيد الاختبار من التقويم"
+                title="للمالك فقط: إلغاء مواعيد الاختبار من التقويم"
               >
                 <Trash2 className="h-3 w-3" />
                 تنظيف مواعيد الاختبار

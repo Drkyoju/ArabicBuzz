@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { ASSOCIATION_ROLE_SLOTS } from '@/lib/rooms/association-template-data'
 
 const RECIPES = [
@@ -43,6 +44,7 @@ export function AssociationRecipes({
   onNavigate?: (section: string) => void
 }) {
   const createAssociationRoom = useWorkspaceStore((s) => s.createAssociationRoom)
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [nameAr, setNameAr] = useState('غرفة الجمعية')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
@@ -93,72 +95,76 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        قالب جمعية بضغطة · معرفة الملفات · مواعيد مشتركة.
+        {canAccessOpsUi
+          ? 'قالب جمعية بضغطة · معرفة الملفات · مواعيد مشتركة.'
+          : 'غرف ومحادثة · ملفات · مواعيد ومهام الفريق.'}
       </p>
 
-      <div className="mt-3 rounded-lg border border-ab-accent/30 bg-ab-accent/5 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ab-ink">
-              <Building2 className="h-4 w-4 text-ab-accent" />
-              قالب غرفة جمعية
-            </p>
-            <p className="mt-0.5 text-[11px] text-stone-600">
-              أدوار جاهزة: مجلس · مدير تنفيذي · لجان · موظف · متطوع · مدقق — مع
-              مواعيد نظامية ابتدائية اختيارية.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setWizardOpen((v) => !v)}
-            className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
-          >
-            {wizardOpen ? 'إخفاء' : 'إنشاء بضغطة'}
-          </button>
-        </div>
-
-        {wizardOpen && (
-          <div className="mt-3 space-y-2 border-t border-ab-accent/20 pt-3">
-            <label className="block text-[11px] text-stone-600">
-              اسم الغرفة
-              <input
-                className="mt-1 w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-sm"
-                value={nameAr}
-                onChange={(e) => setNameAr(e.target.value)}
-                placeholder="غرفة جمعية الهدى…"
-              />
-            </label>
-            <ul className="grid gap-1.5 sm:grid-cols-2">
-              {ASSOCIATION_ROLE_SLOTS.map((r) => (
-                <li
-                  key={r.id}
-                  className="rounded-md border border-ab-border/70 bg-white px-2 py-1.5 text-[11px]"
-                >
-                  <span className="font-semibold text-ab-ink">{r.labelAr}</span>
-                  <span className="mt-0.5 block text-stone-500">{r.hintAr}</span>
-                </li>
-              ))}
-            </ul>
+      {canAccessOpsUi ? (
+        <div className="mt-3 rounded-lg border border-ab-accent/30 bg-ab-accent/5 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ab-ink">
+                <Building2 className="h-4 w-4 text-ab-accent" />
+                قالب غرفة جمعية
+              </p>
+              <p className="mt-0.5 text-[11px] text-stone-600">
+                أدوار جاهزة: مجلس · مدير تنفيذي · لجان · موظف · متطوع · مدقق — مع
+                مواعيد نظامية ابتدائية اختيارية.
+              </p>
+            </div>
             <button
               type="button"
-              disabled={busy || !nameAr.trim()}
-              onClick={() => void createRoom()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+              onClick={() => setWizardOpen((v) => !v)}
+              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
             >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Building2 className="h-3.5 w-3.5" />
-              )}
-              إنشاء غرفة الجمعية
+              {wizardOpen ? 'إخفاء' : 'إنشاء بضغطة'}
             </button>
           </div>
-        )}
-        {msg && (
-          <p className="mt-2 text-[11px] text-emerald-800">{msg}</p>
-        )}
-        {err && <p className="mt-2 text-[11px] text-ab-warn">{err}</p>}
-      </div>
+
+          {wizardOpen && (
+            <div className="mt-3 space-y-2 border-t border-ab-accent/20 pt-3">
+              <label className="block text-[11px] text-stone-600">
+                اسم الغرفة
+                <input
+                  className="mt-1 w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-sm"
+                  value={nameAr}
+                  onChange={(e) => setNameAr(e.target.value)}
+                  placeholder="غرفة جمعية الهدى…"
+                />
+              </label>
+              <ul className="grid gap-1.5 sm:grid-cols-2">
+                {ASSOCIATION_ROLE_SLOTS.map((r) => (
+                  <li
+                    key={r.id}
+                    className="rounded-md border border-ab-border/70 bg-white px-2 py-1.5 text-[11px]"
+                  >
+                    <span className="font-semibold text-ab-ink">{r.labelAr}</span>
+                    <span className="mt-0.5 block text-stone-500">{r.hintAr}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                disabled={busy || !nameAr.trim()}
+                onClick={() => void createRoom()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                {busy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Building2 className="h-3.5 w-3.5" />
+                )}
+                إنشاء غرفة الجمعية
+              </button>
+            </div>
+          )}
+          {msg && (
+            <p className="mt-2 text-[11px] text-emerald-800">{msg}</p>
+          )}
+          {err && <p className="mt-2 text-[11px] text-ab-warn">{err}</p>}
+        </div>
+      ) : null}
 
       <ul className="mt-3 grid gap-2 sm:grid-cols-3">
         {RECIPES.map((r) => {

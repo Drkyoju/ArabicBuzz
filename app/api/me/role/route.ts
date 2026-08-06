@@ -7,6 +7,7 @@ import {
 import {
   canAccessOpsUi,
   isDirectorEmail,
+  isWorkspaceOwnerEmail,
   labelArForEmail,
   orgRoleForEmail,
   personaForEmail,
@@ -28,8 +29,8 @@ function defaultOrgId(req: NextRequest) {
 }
 
 /**
- * Current user's org role — driven strictly by director email allow-list.
- * Ryodan71 (and DIRECTOR_EMAILS) → مدير; everyone else → موظف.
+ * Current user's org role — full admin UI only for ryodan71@gmail.com.
+ * Anyone else → موظف (simple member UI). Room-owner role never elevates UI.
  */
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req)
@@ -46,7 +47,10 @@ export async function GET(req: NextRequest) {
     allowSyntheticOwner,
   })
   const labelAr = labelArForEmail(email, { userId, allowSyntheticOwner })
-  const ops = canAccessOpsUi(role) && persona !== 'employee'
+  // Strict: only the sole workspace owner email gets full admin chrome.
+  const ops =
+    isWorkspaceOwnerEmail(email) ||
+    (allowSyntheticOwner && canAccessOpsUi(role) && persona !== 'employee')
 
   return NextResponse.json({
     userId,
@@ -61,10 +65,11 @@ export async function GET(req: NextRequest) {
       null,
     uiMode: ops ? 'admin' : 'employee',
     canAccessOpsUi: ops,
-    isDirector: isDirectorEmail(email),
+    isDirector: isWorkspaceOwnerEmail(email),
+    isWorkspaceOwner: isWorkspaceOwnerEmail(email),
     messageAr: ops
-      ? 'واجهة المدير — موافقات وسجل عمل وتكاملات عالية المستوى.'
-      : 'واجهة الموظف — غرف وملفات وتقويم وموافقات.',
+      ? 'واجهة المالك — موافقات وسجل عمل وتكاملات عالية المستوى.'
+      : 'واجهة العضو — غرف وملفات وتقويم ومهام أساسية.',
   })
 }
 

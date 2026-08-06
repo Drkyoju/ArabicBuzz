@@ -31,6 +31,7 @@ import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { HelpTip } from '@/components/help-tip'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
@@ -179,6 +180,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const runAbortRef = useRef<AbortController | null>(null)
   const signedIn = useSignedIn()
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const isGuest = signedIn === false
   useRosterCloudSync()
   const posture = useSecurityPostureStore((s) => s.posture)
@@ -1328,7 +1330,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   ) : null}
                 </span>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <AgentsManagePanel scopeId={activeScopeId} compact />
+                  {canAccessOpsUi ? (
+                    <AgentsManagePanel scopeId={activeScopeId} compact />
+                  ) : null}
                   <button
                     type="button"
                     className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"

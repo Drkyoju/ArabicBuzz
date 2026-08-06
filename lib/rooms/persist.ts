@@ -302,9 +302,9 @@ export async function getActorRoomRole(
   userId: string,
   email?: string | null
 ): Promise<RoomMemberRole | null> {
-  const { isDirectorEmail } = await import('@/lib/auth/roles')
-  // Org director always has room-owner powers.
-  if (isDirectorEmail(email)) return 'owner'
+  const { isWorkspaceOwnerEmail } = await import('@/lib/auth/roles')
+  // Sole workspace owner always has room-owner powers (not every room member).
+  if (isWorkspaceOwnerEmail(email)) return 'owner'
 
   const { members } = await listRoomMembers(scopeId)
   const byUser = members.find((m) => m.userId && m.userId === userId)
@@ -327,8 +327,9 @@ export async function assertRoomOwner(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { isDirectorEmail } = await import('@/lib/auth/roles')
-  if (isDirectorEmail(email)) return { ok: true }
+  const { isWorkspaceOwnerEmail } = await import('@/lib/auth/roles')
+  // Product owner email bypass — room-membership «owner» alone is separate.
+  if (isWorkspaceOwnerEmail(email)) return { ok: true }
   const role = await getActorRoomRole(scopeId, userId, email)
   if (role === 'owner') return { ok: true }
   return {

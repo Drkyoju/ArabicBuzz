@@ -99,12 +99,14 @@ function SidebarBody({
   onSectionChange,
   onNavigate,
   pendingApprovals = 0,
+  hitlDisabled = false,
 }: {
   airGapped?: boolean
   activeSection: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
   onNavigate?: () => void
   pendingApprovals?: number
+  hitlDisabled?: boolean
 }) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
@@ -121,8 +123,7 @@ function SidebarBody({
     let cancelled = false
     if (signedIn === false) {
       const store = useWorkspaceModeStore.getState()
-      store.setCanAccessOpsUi(false)
-      store.setMode('employee')
+      store.applyRoleAccess(false)
       store.setLabelAr(null)
       store.setDisplayNameAr(null)
       return
@@ -138,18 +139,15 @@ function SidebarBody({
           labelAr?: string
           displayNameAr?: string | null
           canAccessOpsUi?: boolean
+          isWorkspaceOwner?: boolean
         }
         if (cancelled) return
         const store = useWorkspaceModeStore.getState()
         if (d.role) store.setRoleHint(d.role)
         if (d.labelAr) store.setLabelAr(d.labelAr)
         if (d.displayNameAr) store.setDisplayNameAr(d.displayNameAr)
-        store.setCanAccessOpsUi(Boolean(d.canAccessOpsUi))
-        if (d.uiMode === 'employee' || !d.canAccessOpsUi) {
-          store.setMode('employee')
-        } else if (d.uiMode === 'admin') {
-          if (store.mode !== 'employee') store.setMode('admin')
-        }
+        // Server already gates ops to ryodan71@gmail.com only.
+        store.applyRoleAccess(Boolean(d.canAccessOpsUi || d.isWorkspaceOwner))
       } catch {
         /* ignore */
       }
@@ -159,12 +157,25 @@ function SidebarBody({
     }
   }, [setMode, signedIn])
 
-  const primaryNav = PRIMARY_NAV.filter((n) => isEmployeeSection(n.id, mode))
+  const primaryNav = PRIMARY_NAV.filter((n) => {
+    if (!isEmployeeSection(n.id, mode)) return false
+    // Members: hide approvals admin when HITL is off.
+    if (
+      n.id === 'approvals' &&
+      hitlDisabled &&
+      !canAccessOpsUi &&
+      mode !== 'admin'
+    ) {
+      return false
+    }
+    return true
+  })
   const moreNav = MORE_NAV.filter(
     (n) =>
       isEmployeeSection(n.id, mode) &&
       signedIn === true &&
-      (canAccessOpsUi || (n.id !== 'api-keys' && n.id !== 'ops' && n.id !== 'memory'))
+      canAccessOpsUi &&
+      mode === 'admin'
   )
   const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
@@ -265,7 +276,7 @@ function SidebarBody({
                 </div>
               ) : (
                 <p className="rounded-md bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-600">
-                  واجهة عضو / متطوع — غرف وملفات وتقويم وموافقات.
+                  واجهة عضو — غرف ومحادثة وتقويم ومهام وملفات.
                 </p>
               )}
               {canAccessOpsUi && (
@@ -522,11 +533,14 @@ export function Sidebar({
   activeSection = 'chats',
   onSectionChange,
   pendingApprovals = 0,
+  hitlDisabled = false,
 }: {
   airGapped?: boolean
   activeSection?: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
   pendingApprovals?: number
+  /** When HITL is off, hide approvals chrome for non-owners. */
+  hitlDisabled?: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const signedIn = useSignedIn()
@@ -634,6 +648,7 @@ export function Sidebar({
           onSectionChange={onSectionChange}
           onNavigate={() => setMobileOpen(false)}
           pendingApprovals={pendingApprovals}
+          hitlDisabled={hitlDisabled}
         />
       </aside>
     </>

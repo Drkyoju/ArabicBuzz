@@ -208,6 +208,20 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [mode, section])
 
+  // Members: no audit/skills/keys/ops/memory even via deep-link.
+  useEffect(() => {
+    if (canAccessOpsUi && mode === 'admin') return
+    if (
+      section === 'api-keys' ||
+      section === 'ops' ||
+      section === 'memory' ||
+      section === 'audit' ||
+      section === 'skills'
+    ) {
+      setSection('home')
+    }
+  }, [canAccessOpsUi, mode, section])
+
   // Guests cannot open advanced sections via deep-link
   useEffect(() => {
     if (signedIn !== false) return
@@ -215,6 +229,13 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       setSection('settings')
     }
   }, [signedIn, section])
+
+  // Hide approvals for members when HITL is off.
+  useEffect(() => {
+    if (hitlDisabled === true && !canAccessOpsUi && section === 'approvals') {
+      setSection('home')
+    }
+  }, [hitlDisabled, canAccessOpsUi, section])
 
   useEffect(() => {
     try {
@@ -367,6 +388,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         activeSection={section}
         onSectionChange={setSection}
         pendingApprovals={signedIn === false ? 0 : pendingCount}
+        hitlDisabled={hitlDisabled === true}
       />
 
       {/* Offset must be on the inline-start side and match the aside width in
@@ -430,7 +452,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               {calendarTab === 'schedule' && (
                 <>
                   <RoomCalendarBoard />
-                  {signedIn === true && (
+                  {signedIn === true && canAccessOpsUi && mode === 'admin' && (
                     <details className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-stone-600">
                         استحقاقات نظامية (ترخيص · جمعية عمومية · تقرير)
@@ -512,13 +534,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   .
                 </p>
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setSection('audit')}
-                    className="font-medium text-amber-900/80 underline"
-                  >
-                    سجل التدقيق
-                  </button>
+                  {canAccessOpsUi && mode === 'admin' ? (
+                    <button
+                      type="button"
+                      onClick={() => setSection('audit')}
+                      className="font-medium text-amber-900/80 underline"
+                    >
+                      سجل التدقيق
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setSection('settings')}
@@ -542,13 +566,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   </code>
                   ). السجل الكامل في «سجل التدقيق».
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setSection('audit')}
-                  className="mt-2 text-[11px] font-semibold text-emerald-800 underline"
-                >
-                  عرض سجل التدقيق
-                </button>
+                {canAccessOpsUi && mode === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => setSection('audit')}
+                    className="mt-2 text-[11px] font-semibold text-emerald-800 underline"
+                  >
+                    عرض سجل التدقيق
+                  </button>
+                ) : null}
               </div>
             )}
             {hitlDisabled === true ? null : approvalsLoading &&
@@ -604,7 +630,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </section>
         )}
 
-        {section === 'audit' && (
+        {section === 'audit' && canAccessOpsUi && mode === 'admin' && (
           <section className="mx-auto max-w-3xl space-y-6 px-6 py-8" dir="rtl">
             <div>
               <h1 className="flex items-center gap-2 text-xl font-bold text-ab-ink">
@@ -642,7 +668,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           </section>
         )}
 
-        {section === 'skills' && (
+        {section === 'skills' && canAccessOpsUi && mode === 'admin' && (
           <div className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
             <div className="mb-6">
               <h2 className="flex items-center gap-1.5 text-xl font-bold">
@@ -697,7 +723,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>
             <p className="mb-6 text-sm text-stone-500">
               {mode === 'employee' || !canAccessOpsUi
-                ? 'حسابك وتفضيلاتك — بدون تفاصيل تقنية.'
+                ? 'حسابك وتفضيلات التاريخ — العمل اليومي من الغرف والتقويم.'
                 : 'حسابك، الأمان، والربط بالخدمات.'}
             </p>
 

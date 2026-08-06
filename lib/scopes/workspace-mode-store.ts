@@ -12,17 +12,24 @@ type State = {
   /** Arabic badge: مدير / موظف / مسؤول */
   labelAr: string | null
   displayNameAr: string | null
-  /** False for employees — they cannot open ops / MCP / API keys. */
+  /** True only for ryodan71@gmail.com — never trust room-owner alone. */
   canAccessOpsUi: boolean
+  /**
+   * Owner's last toggle choice. null = default full admin.
+   * Members ignore this (always employee).
+   */
+  ownerUiPreference: WorkspaceUiMode | null
   setMode: (mode: WorkspaceUiMode) => void
   setRoleHint: (role: string | null) => void
   setLabelAr: (label: string | null) => void
   setDisplayNameAr: (name: string | null) => void
   setCanAccessOpsUi: (ok: boolean) => void
+  applyRoleAccess: (ops: boolean) => void
 }
 
 /**
- * Admin/director = full shell. Employee = rooms, files, calendar, approvals, settings only.
+ * Workspace owner (ryodan71@gmail.com) = full shell + toggle.
+ * Everyone else = rooms, files, calendar, approvals (if HITL), settings only.
  */
 export const useWorkspaceModeStore = create<State>()(
   persist(
@@ -32,11 +39,14 @@ export const useWorkspaceModeStore = create<State>()(
       labelAr: null,
       displayNameAr: null,
       canAccessOpsUi: false,
+      ownerUiPreference: null,
       setMode: (mode) =>
         set((s) => {
-          // Employees cannot flip into the ops shell.
           if (!s.canAccessOpsUi && mode === 'admin') return s
-          return { mode }
+          return {
+            mode,
+            ownerUiPreference: s.canAccessOpsUi ? mode : s.ownerUiPreference,
+          }
         }),
       setRoleHint: (roleHint) => set({ roleHint }),
       setLabelAr: (labelAr) => set({ labelAr }),
@@ -44,23 +54,38 @@ export const useWorkspaceModeStore = create<State>()(
       setCanAccessOpsUi: (canAccessOpsUi) =>
         set((s) => ({
           canAccessOpsUi,
-          mode: canAccessOpsUi ? s.mode : 'employee',
+          mode: canAccessOpsUi
+            ? s.ownerUiPreference === 'employee'
+              ? 'employee'
+              : 'admin'
+            : 'employee',
+        })),
+      applyRoleAccess: (ops) =>
+        set((s) => ({
+          canAccessOpsUi: ops,
+          mode: ops
+            ? s.ownerUiPreference === 'employee'
+              ? 'employee'
+              : 'admin'
+            : 'employee',
         })),
     }),
     {
       name: 'ab-workspace-ui-mode',
       partialize: (s) => ({
-        mode: s.mode,
+        ownerUiPreference: s.ownerUiPreference,
         roleHint: s.roleHint,
         labelAr: s.labelAr,
         displayNameAr: s.displayNameAr,
-        canAccessOpsUi: s.canAccessOpsUi,
+        // Re-check ops from /api/me/role every session (email gate).
+        canAccessOpsUi: false,
+        mode: 'employee',
       }),
     }
   )
 )
 
-/** Sections visible to employees (no audit log, skills, API keys, ops). */
+/** Sections visible to members (no audit, skills, API keys, ops, memory). */
 export const EMPLOYEE_SECTIONS = new Set([
   'home',
   'chats',

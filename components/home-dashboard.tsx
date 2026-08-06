@@ -17,6 +17,7 @@ import {
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
 import { AssociationRecipes } from '@/components/association-recipes'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
@@ -246,6 +247,7 @@ export function HomeDashboard({
 }) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [liveData, setLiveData] = useState<Digest | null>(null)
   const [teamInbox, setTeamInbox] = useState<TeamInboxItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -831,7 +833,9 @@ export function HomeDashboard({
 
       {signedIn === true && !isEmptyWorkspace && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-[12px] text-emerald-900">
-          جلسة مسجّلة — الغرف والموافقات والربط بـ Drive/تيليجرام تُحفظ لحسابك.
+          {canAccessOpsUi
+            ? 'جلسة مسجّلة — الغرف والموافقات والربط بـ Drive/تيليجرام تُحفظ لحسابك.'
+            : 'جلسة مسجّلة — غرفك وتقويمك ومهامك محفوظة لحسابك.'}
         </div>
       )}
 
@@ -840,64 +844,115 @@ export function HomeDashboard({
           <div>
             <h2 className="flex items-center gap-1.5 text-base font-bold text-ab-ink">
               <Rocket className="h-4 w-4 text-ab-accent" aria-hidden />
-              مساحتك جاهزة — ابدأ بثلاث خطوات
+              {canAccessOpsUi
+                ? 'مساحتك جاهزة — ابدأ بثلاث خطوات'
+                : 'ابدأ من الغرف والعمل اليومي'}
             </h2>
             <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-stone-600">
-              اللوحة فارغة لأن هذه الغرفة جديدة. أكمل الخطوات أدناه لتظهر
-              المواعيد والمهام تلقائياً.
+              {canAccessOpsUi
+                ? 'اللوحة فارغة لأن هذه الغرفة جديدة. أكمل الخطوات أدناه لتظهر المواعيد والمهام تلقائياً.'
+                : 'افتح غرفة الفريق، أضف موعداً أو مهمة، وتابع صندوق الوارد — بلا إعدادات تقنية.'}
             </p>
           </div>
-          <ol className="grid gap-2 sm:grid-cols-3">
-            <li className="rounded-lg border border-ab-border bg-white p-3">
-              <p className="text-[12px] font-semibold text-ab-ink">
-                ١. اربط Google
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                للدعوات الخارجية وملفات Drive — خطوة واحدة من الإعدادات.
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('settings')}
-                className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
-              >
-                الإعدادات
-              </button>
-            </li>
-            <li className="rounded-lg border border-ab-border bg-white p-3">
-              <p className="text-[12px] font-semibold text-ab-ink">
-                ٢. زامن ملفات الفريق
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                فهرسة مجلد Drive حتى يجيب الوكيل من ملفاتكم لا من تخمينه.
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('settings')}
-                className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-              >
-                الملفات والمعرفة
-              </button>
-            </li>
-            <li className="rounded-lg border border-ab-border bg-white p-3">
-              <p className="text-[12px] font-semibold text-ab-ink">
-                ٣. أضف أول مهمة أو موعد
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                من لوحة التقويم والمهام المشتركة — تظهر فوراً في لوحة اليوم.
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('calendar')}
-                className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-              >
-                تقويم ومهام الفريق
-              </button>
-            </li>
-          </ol>
-          <FirstRunChecklist
-            onNavigate={onNavigate}
-            className="rounded-lg border border-ab-border bg-white p-3 text-sm"
-          />
+          {canAccessOpsUi ? (
+            <ol className="grid gap-2 sm:grid-cols-3">
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">
+                  ١. اربط Google
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  للدعوات الخارجية وملفات Drive — خطوة واحدة من الإعدادات.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('settings')}
+                  className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
+                >
+                  الإعدادات
+                </button>
+              </li>
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">
+                  ٢. زامن ملفات الفريق
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  فهرسة مجلد Drive حتى يجيب الوكيل من ملفاتكم لا من تخمينه.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('settings')}
+                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+                >
+                  الملفات والمعرفة
+                </button>
+              </li>
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">
+                  ٣. أضف أول مهمة أو موعد
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  من لوحة التقويم والمهام المشتركة — تظهر فوراً في لوحة اليوم.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('calendar')}
+                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+                >
+                  تقويم ومهام الفريق
+                </button>
+              </li>
+            </ol>
+          ) : (
+            <ol className="grid gap-2 sm:grid-cols-3">
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">١. الغرف</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  ادخل غرفة الفريق واكتب أو تابع المحادثة.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('chats')}
+                  className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
+                >
+                  فتح الغرف
+                </button>
+              </li>
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">
+                  ٢. التقويم والمهام
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  مواعيد ومهام الفريق المشتركة تظهر للجميع هنا.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('calendar')}
+                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+                >
+                  التقويم
+                </button>
+              </li>
+              <li className="rounded-lg border border-ab-border bg-white p-3">
+                <p className="text-[12px] font-semibold text-ab-ink">٣. الملفات</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
+                  ارفع أو افتح ملفات العمل عند الحاجة.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('files')}
+                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
+                >
+                  الملفات
+                </button>
+              </li>
+            </ol>
+          )}
+          {canAccessOpsUi ? (
+            <FirstRunChecklist
+              onNavigate={onNavigate}
+              className="rounded-lg border border-ab-border bg-white p-3 text-sm"
+            />
+          ) : null}
         </div>
       )}
 

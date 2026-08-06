@@ -1,6 +1,9 @@
 import type { Role, UiPersona } from '@/lib/auth/rbac-types'
 
-/** Always treated as director unless removed from env *and* this constant (env can only add). */
+/**
+ * Sole workspace owner email — full admin UI only for this address.
+ * Compare with normalizeEmail (case-insensitive).
+ */
 export const DEFAULT_DIRECTOR_EMAIL = 'ryodan71@gmail.com'
 
 export function normalizeEmail(email: string | null | undefined): string {
@@ -8,8 +11,18 @@ export function normalizeEmail(email: string | null | undefined): string {
 }
 
 /**
- * Director allow-list from `DIRECTOR_EMAILS` (comma-separated) and legacy
- * `DIRECTOR_EMAIL`. Always includes `ryodan71@gmail.com`.
+ * True only for ryodan71@gmail.com (case-insensitive).
+ * Room-owner role alone must never grant full admin UI.
+ */
+export function isWorkspaceOwnerEmail(
+  email: string | null | undefined
+): boolean {
+  return normalizeEmail(email) === DEFAULT_DIRECTOR_EMAIL
+}
+
+/**
+ * Director allow-list for digests / legacy callers.
+ * Product owner UI still requires {@link isWorkspaceOwnerEmail}.
  */
 export function getDirectorEmails(): string[] {
   const fromList = (process.env.DIRECTOR_EMAILS || '')
@@ -22,21 +35,20 @@ export function getDirectorEmails(): string[] {
   return [...set]
 }
 
+/** Alias: elevated director powers follow the sole workspace owner email. */
 export function isDirectorEmail(email: string | null | undefined): boolean {
-  const e = normalizeEmail(email)
-  if (!e) return false
-  return getDirectorEmails().includes(e)
+  return isWorkspaceOwnerEmail(email)
 }
 
 /**
- * Strict org role from email: only listed directors → OWNER (مجلس).
- * Everyone else → MEMBER (متطوع). Ignores any prior DB elevation.
+ * Strict org role from email: only workspace owner → OWNER (مجلس).
+ * Everyone else → MEMBER (متطوع). Ignores room role and prior DB elevation.
  */
 export function orgRoleForEmail(
   email: string | null | undefined,
   opts?: { userId?: string; allowSyntheticOwner?: boolean }
 ): Role {
-  if (isDirectorEmail(email)) return 'OWNER'
+  if (isWorkspaceOwnerEmail(email)) return 'OWNER'
   if (
     opts?.allowSyntheticOwner &&
     (opts.userId === 'local-owner' || opts.userId === 'user-1')
@@ -50,7 +62,7 @@ export function personaForEmail(
   email: string | null | undefined,
   opts?: { userId?: string; allowSyntheticOwner?: boolean }
 ): UiPersona {
-  if (isDirectorEmail(email)) return 'director'
+  if (isWorkspaceOwnerEmail(email)) return 'director'
   if (
     opts?.allowSyntheticOwner &&
     (opts.userId === 'local-owner' || opts.userId === 'user-1')
@@ -74,5 +86,5 @@ export function labelArForEmail(
 export function roomRoleForEmail(
   email: string | null | undefined
 ): 'owner' | 'member' {
-  return isDirectorEmail(email) ? 'owner' : 'member'
+  return isWorkspaceOwnerEmail(email) ? 'owner' : 'member'
 }

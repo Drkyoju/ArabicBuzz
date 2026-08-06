@@ -10,6 +10,7 @@ import {
 } from '@/lib/auth/role-labels'
 import {
   isDirectorEmail,
+  isWorkspaceOwnerEmail,
   labelArForEmail,
   orgRoleForEmail,
   personaForEmail,
@@ -25,6 +26,7 @@ export {
   roomRoleIsDirector,
   roomRoleLabelAr,
   isDirectorEmail,
+  isWorkspaceOwnerEmail,
   labelArForEmail,
   orgRoleForEmail,
   personaForEmail,
