@@ -73,9 +73,16 @@ function weekdayAr(ymd: string): string {
   }
 }
 
-const AGENDA_DAY_COUNT = 7
+/** نهاية الشهر الحالي بتوقيت الرياض */
+function endOfRiyadhMonth(fromYmd: string) {
+  const [y, m] = fromYmd.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const endYmd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const end = new Date(`${endYmd}T23:59:59.999+03:00`)
+  return { ymd: endYmd, end, endIso: end.toISOString() }
+}
 
-/** Home digest: yesterday / today / tomorrow / week + Zoom + activity. */
+/** Home digest: today / tomorrow / rest of month + Zoom + activity. */
 export async function GET(req: NextRequest) {
   const { requireSessionUser } = await import('@/lib/auth/session')
   const auth = await requireSessionUser(req)
@@ -86,26 +93,38 @@ export async function GET(req: NextRequest) {
   const today = dayBounds(0)
   const tomorrow = dayBounds(1)
   const dayAfter = dayBounds(2)
+  const monthEnd = endOfRiyadhMonth(today.ymd)
   const weekStart = dayBounds(0)
-  const weekEnd = dayBounds(AGENDA_DAY_COUNT - 1)
-  const agendaBounds = Array.from({ length: AGENDA_DAY_COUNT }, (_, i) =>
-    dayBounds(i)
-  )
+  const weekEnd = dayBounds(6)
+  // اليوم + غداً فقط كلوحات كبيرة
+  const agendaBounds = [today, tomorrow]
 
-  const [events, tasks, activity, zoomSessions, posts, zoomSnap, deadlines] =
-    await Promise.all([
-      listRoomCalendarEvents({
-        scopeId,
-        from: yesterday.startIso,
-        to: weekEnd.endIso,
-      }).catch(() => []),
-      listRoomTasks(scopeId).catch(() => []),
-      listRoomActivity(scopeId, 120),
-      listZoomSessions(scopeId, 15),
-      listRoomPosts(scopeId, 30).then((r) => r.posts).catch(() => []),
-      getLiveZoomSnapshot({ scopeId }).catch(() => null),
-      upcomingSystemDeadlines(scopeId, 90).catch(() => []),
-    ])
+  const [
+    events,
+    allBeyondMonth,
+    tasks,
+    activity,
+    zoomSessions,
+    posts,
+    zoomSnap,
+    deadlines,
+  ] = await Promise.all([
+    listRoomCalendarEvents({
+      scopeId,
+      from: yesterday.startIso,
+      to: monthEnd.endIso,
+    }).catch(() => []),
+    listRoomCalendarEvents({
+      scopeId,
+      from: new Date(monthEnd.end.getTime() + 1).toISOString(),
+    }).catch(() => []),
+    listRoomTasks(scopeId).catch(() => []),
+    listRoomActivity(scopeId, 120),
+    listZoomSessions(scopeId, 15),
+    listRoomPosts(scopeId, 30).then((r) => r.posts).catch(() => []),
+    getLiveZoomSnapshot({ scopeId }).catch(() => null),
+    upcomingSystemDeadlines(scopeId, 90).catch(() => []),
+  ])
 
   if (zoomSnap?.meetings) {
     await upsertZoomLiveSessions({
@@ -197,7 +216,7 @@ export async function GET(req: NextRequest) {
       events: list,
     }))
 
-  const beyondMonthCount = allRoomEvents.filter(
+  const beyondMonthCount = allBeyondMonth.filter(
     (e) => e.status !== 'cancelled'
   ).length
 

@@ -445,13 +445,16 @@ export function RoomCalendarBoard({
     })
   }, [upcoming])
 
-  /** أيام لاحقة فيها مواعيد فقط — صفوف/شرائح مضغوطة بالتاريخ */
-  const futureGroups = useMemo((): AgendaDay[] => {
+  const currentYm = useMemo(() => dayBoundsYmd(0).slice(0, 7), [])
+
+  /** باقي الشهر الحالي فقط (بعد غد) — قائمة مضغوطة بالتاريخ */
+  const monthRestGroups = useMemo((): AgendaDay[] => {
     const tomorrowYmd = dayBoundsYmd(1)
     const byYmd = new Map<string, RoomEvent[]>()
     for (const e of upcoming) {
       const ymd = riyadhYmd(e.startsAt)
       if (ymd <= tomorrowYmd) continue
+      if (!ymd.startsWith(currentYm)) continue
       const list = byYmd.get(ymd) || []
       list.push(e)
       byYmd.set(ymd, list)
@@ -465,7 +468,22 @@ export function RoomCalendarBoard({
         weekdayAr: weekdayAr(ymd),
         events,
       }))
-  }, [upcoming])
+  }, [upcoming, currentYm])
+
+  /** مواعيد بعد نهاية الشهر الحالي → التقويم الكامل */
+  const beyondMonthCount = useMemo(() => {
+    const tomorrowYmd = dayBoundsYmd(1)
+    return upcoming.filter((e) => {
+      const ymd = riyadhYmd(e.startsAt)
+      return ymd > tomorrowYmd && !ymd.startsWith(currentYm)
+    }).length
+  }, [upcoming, currentYm])
+
+  function openFullCalendar() {
+    window.dispatchEvent(
+      new CustomEvent('ab-nav', { detail: 'calendar:full' })
+    )
+  }
 
   const conflictIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1199,69 +1217,77 @@ export function RoomCalendarBoard({
               ))}
             </div>
 
-            {/* أيام لاحقة — شرائح مضغوطة بالتاريخ فقط عند وجود مواعيد */}
-            {futureGroups.length > 0 && (
+            {/* باقي الشهر الحالي — قائمة مضغوطة بالتاريخ (بدون مربعات فارغة) */}
+            {monthRestGroups.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-[11px] font-semibold text-stone-500">
-                  لاحقاً
+                  باقي هذا الشهر
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  {futureGroups.map((day) => (
-                    <div
-                      key={day.ymd}
-                      className="min-w-[9.5rem] max-w-full flex-1 basis-[9.5rem] rounded-lg border border-ab-border/80 bg-white px-2.5 py-2 sm:flex-none"
-                    >
-                      <p className="text-[11px] font-semibold text-stone-600">
-                        {day.weekdayAr}
-                      </p>
-                      <ul className="mt-1 space-y-1">
-                        {day.events.map((e) => (
-                          <li
-                            key={e.id}
-                            className={cn(
-                              'flex items-start justify-between gap-1',
-                              conflictIds.has(e.id) && 'text-amber-900'
-                            )}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[12px] font-medium text-ab-ink">
-                                {e.titleAr}
-                              </p>
-                              <p className="text-[10px] text-stone-400">
-                                {fmtTimeOnly(e.startsAt)}
-                                {conflictIds.has(e.id) ? ' · تعارض' : ''}
-                              </p>
-                            </div>
-                            {signedIn === true && (
-                              <div className="flex shrink-0 items-center">
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => startEdit(e)}
-                                  className="rounded p-1 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
-                                  aria-label="تعديل"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => void cancel(e.id)}
-                                  className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-700"
-                                  aria-label="إلغاء"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
+                <ul className="divide-y divide-ab-border overflow-hidden rounded-xl border border-ab-border bg-white">
+                  {monthRestGroups.map((day) =>
+                    day.events.map((e) => (
+                      <li
+                        key={e.id}
+                        className={cn(
+                          'flex flex-wrap items-start justify-between gap-2 px-3 py-2',
+                          conflictIds.has(e.id) && 'bg-amber-50/50'
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-semibold text-stone-500">
+                            {day.weekdayAr}
+                          </p>
+                          <p className="truncate text-[12px] font-medium text-ab-ink">
+                            {e.titleAr}
+                          </p>
+                          <p className="text-[10px] text-stone-400">
+                            {fmtTimeOnly(e.startsAt)}
+                            {conflictIds.has(e.id) ? ' · تعارض' : ''}
+                          </p>
+                        </div>
+                        {signedIn === true && (
+                          <div className="flex shrink-0 items-center">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => startEdit(e)}
+                              className="rounded p-1 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
+                              aria-label="تعديل"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void cancel(e.id)}
+                              className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-700"
+                              aria-label="إلغاء"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    ))
+                  )}
+                </ul>
               </div>
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ab-border bg-stone-50/70 px-3 py-2.5">
+              <p className="text-[11px] text-stone-600">
+                {beyondMonthCount > 0
+                  ? `${beyondMonthCount} موعد بعد هذا الشهر — اعرضها في التقويم الكامل`
+                  : 'كل الأشهر والمواعيد السابقة واللاحقة في التقويم الكامل'}
+              </p>
+              <button
+                type="button"
+                onClick={openFullCalendar}
+                className="shrink-0 rounded-md bg-ab-ink px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-stone-800"
+              >
+                التقويم الكامل
+              </button>
+            </div>
 
             {upcoming.length === 0 && (
               <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-6 text-center text-sm text-stone-400">

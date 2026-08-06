@@ -75,6 +75,14 @@ type Digest = {
     weekdayAr?: string
     events: CalEvent[]
   }>
+  monthRest?: Array<{
+    offset: number
+    ymd: string
+    labelAr: string
+    weekdayAr?: string
+    events: CalEvent[]
+  }>
+  beyondMonthCount?: number
   calendar?: {
     yesterday: CalEvent[]
     today: CalEvent[]
@@ -200,31 +208,27 @@ function DayBlock({
   )
 }
 
-/** مواعيد أيام لاحقة — شريحة مضغوطة بتاريخ واحد */
-function FutureDayChip({
+/** صف مضغوط لموعد في باقي الشهر */
+function MonthRestRow({
   labelAr,
-  events,
+  event,
 }: {
   labelAr: string
-  events: CalEvent[]
+  event: CalEvent
 }) {
   return (
-    <div className="min-w-[9.5rem] max-w-full flex-1 basis-[9.5rem] rounded-lg border border-ab-border/80 bg-white px-2.5 py-2 sm:flex-none">
-      <p className="text-[11px] font-semibold text-stone-600">{labelAr}</p>
-      <ul className="mt-1 space-y-1">
-        {events.map((e) => (
-          <li key={e.id}>
-            <p className="truncate text-[12px] font-medium text-ab-ink">
-              {e.titleAr}
-            </p>
-            <p className="text-[10px] text-stone-400">
-              {e.startsAtAr}
-              {e.hasZoom ? ' · Zoom' : ''}
-            </p>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <li className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-stone-500">{labelAr}</p>
+        <p className="truncate text-[12px] font-medium text-ab-ink">
+          {event.titleAr}
+        </p>
+      </div>
+      <p className="shrink-0 text-[10px] text-stone-400">
+        {event.startsAtAr}
+        {event.hasZoom ? ' · Zoom' : ''}
+      </p>
+    </li>
   )
 }
 
@@ -487,11 +491,15 @@ export function HomeDashboard({
   const showZoomStrip = !authPending && Boolean(zoom?.liveNow)
   const showCockpit =
     !isGuest && !authPending && (livePending > 0 || deadlines.length > 0)
-  // اليوم + غداً — لوحات كبيرة دائماً؛ الباقي مضغوط عند وجود مواعيد فقط
+  // اليوم + غداً — لوحات كبيرة دائماً
   const focusAgendaDays = agendaDays.filter((d) => d.offset === 0 || d.offset === 1)
-  const futureAgendaDays = agendaDays.filter(
-    (d) => d.offset >= 2 && d.events.length > 0
-  )
+  // باقي الشهر الحالي فقط (من الـ API أو من agenda القديمة كاحتياط)
+  const liveDigest = liveData as Digest | null
+  const monthRestDays =
+    liveDigest?.monthRest && liveDigest.monthRest.length > 0
+      ? liveDigest.monthRest.filter((d) => d.events.length > 0)
+      : agendaDays.filter((d) => d.offset >= 2 && d.events.length > 0)
+  const beyondMonthCount = liveDigest?.beyondMonthCount || 0
 
   // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
   if (authPending) {
@@ -667,13 +675,22 @@ export function HomeDashboard({
                 </span>
               ) : null}
             </h2>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('calendar')}
-              className="text-[11px] font-semibold text-ab-accent underline"
-            >
-              فتح تقويم الفريق
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate?.('calendar:full')}
+                className="text-[11px] font-semibold text-ab-accent underline"
+              >
+                التقويم الكامل
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('calendar')}
+                className="text-[11px] font-semibold text-stone-500 underline"
+              >
+                فتح تقويم الفريق
+              </button>
+            </div>
           </div>
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -689,23 +706,39 @@ export function HomeDashboard({
                 />
               ))}
             </div>
-            {futureAgendaDays.length > 0 && (
+            {monthRestDays.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-[11px] font-semibold text-stone-500">
-                  لاحقاً
+                  باقي هذا الشهر
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {futureAgendaDays.map((d) => (
-                    <FutureDayChip
-                      key={`${d.offset}-${d.ymd}`}
-                      labelAr={d.weekdayAr || d.labelAr || d.ymd}
-                      events={d.events}
-                    />
-                  ))}
-                </div>
+                <ul className="divide-y divide-ab-border overflow-hidden rounded-xl border border-ab-border bg-white">
+                  {monthRestDays.flatMap((d) =>
+                    d.events.map((e) => (
+                      <MonthRestRow
+                        key={e.id}
+                        labelAr={d.weekdayAr || d.labelAr || d.ymd}
+                        event={e}
+                      />
+                    ))
+                  )}
+                </ul>
               </div>
             )}
-            {!hasDayEvents && futureAgendaDays.length === 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ab-border bg-stone-50/70 px-3 py-2">
+              <p className="text-[11px] text-stone-600">
+                {beyondMonthCount > 0
+                  ? `${beyondMonthCount} موعد بعد هذا الشهر`
+                  : 'كل الأشهر في التقويم الكامل'}
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('calendar:full')}
+                className="shrink-0 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
+              >
+                التقويم الكامل
+              </button>
+            </div>
+            {!hasDayEvents && monthRestDays.length === 0 && (
               <p className="text-[11px] text-stone-400">
                 لا مواعيد قادمة —{' '}
                 <button

@@ -28,6 +28,7 @@ import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
+import { RoomFullCalendar } from '@/components/room-full-calendar'
 import { RoomTasksBoard } from '@/components/room-tasks-board'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -43,10 +44,17 @@ import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { Fingerprint } from 'lucide-react'
 
-type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
+type CalendarTab =
+  | 'schedule'
+  | 'full'
+  | 'tasks'
+  | 'meetings'
+  | 'external'
+  | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'schedule', labelAr: 'تقويم الغرفة' },
+  { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'محضر / Zoom' },
   { id: 'external', labelAr: 'Google (اختياري)' },
@@ -59,7 +67,9 @@ function visibleCalendarTabs(
   canAccessOpsUi: boolean
 ): Array<{ id: CalendarTab; labelAr: string }> {
   if (signedIn !== true) {
-    return CALENDAR_TABS.filter((t) => t.id === 'schedule' || t.id === 'tasks')
+    return CALENDAR_TABS.filter(
+      (t) => t.id === 'schedule' || t.id === 'full' || t.id === 'tasks'
+    )
   }
   if (!canAccessOpsUi) {
     return CALENDAR_TABS.filter((t) => t.id !== 'export' && t.id !== 'external')
@@ -208,7 +218,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
   useEffect(() => {
     try {
-      const q = new URLSearchParams(window.location.search).get('section')
+      const params = new URLSearchParams(window.location.search)
+      const q = params.get('section')
       if (
         q === 'home' ||
         q === 'calendar' ||
@@ -223,6 +234,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         q === 'ops'
       ) {
         setSection(q)
+      }
+      const tab = params.get('calTab') || params.get('tab')
+      if (
+        tab === 'full' ||
+        tab === 'schedule' ||
+        tab === 'tasks' ||
+        tab === 'meetings' ||
+        tab === 'external' ||
+        tab === 'export'
+      ) {
+        setCalendarTab(tab)
+        if (!q) setSection('calendar')
       }
     } catch {
       /* ignore */
@@ -303,6 +326,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const goToSection = useCallback((target: string) => {
     if (target === 'calendar:tasks') {
       setCalendarTab('tasks')
+      setSection('calendar')
+      return
+    }
+    if (target === 'calendar:full' || target === 'calendar-full') {
+      setCalendarTab('full')
       setSection('calendar')
       return
     }
@@ -414,6 +442,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   )}
                 </>
               )}
+
+              {calendarTab === 'full' && <RoomFullCalendar />}
 
               {calendarTab === 'tasks' && <RoomTasksBoard />}
 
