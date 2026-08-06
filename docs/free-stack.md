@@ -1,30 +1,40 @@
-# Free / open stack (Gulf multiplayer agents)
+# Free / cheap stack only
 
-Arabic Buzz prefers **free defaults** and paid upgrades only when needed.
+Arabic Buzz is wired for **free tiers + open GitHub** — no paid SaaS required.
 
-## Embeddings (knowledge brain)
+## What you need (all free)
 
-| Priority | Provider | Cost | How |
-|----------|----------|------|-----|
-| 1 | Cohere multilingual | Paid | `COHERE_API_KEY` |
-| 2 | BGE-M3 self-host | Free | [FlagOpen/FlagEmbedding](https://github.com/FlagOpen/FlagEmbedding) → set `BGE_M3_BASE_URL` |
-| 3 | Hugging Face e5 | Free tier | `HF_TOKEN` + `intfloat/multilingual-e5-large` |
-| 4 | Hash fallback | Free | Always works (weaker recall) |
+| Piece | Free option | Action |
+|-------|-------------|--------|
+| Hosting | Netlify free | already live |
+| Auth + DB | Supabase free | keep current project |
+| DB from Netlify | Supabase **Transaction pooler** `:6543` | set `DATABASE_URL` to pooler URI (still free tier) |
+| Embeddings | Hugging Face free token | set `HF_TOKEN` (no paid plan) |
+| Or self-host embeds | [FlagOpen/FlagEmbedding](https://github.com/FlagOpen/FlagEmbedding) BGE-M3 | set `BGE_M3_BASE_URL` |
+| Search web | DuckDuckGo / Wikipedia / gov.sa | built-in, no key |
+| URL → brain | Jina Reader free path | built-in |
+| Telegram | BotFather free | `TELEGRAM_BOT_TOKEN` |
+| Models | Gemini / OpenRouter free tiers if you already have keys | optional |
+| STT | HF Arabic models via `HF_TOKEN` | already supported |
 
-Leave `EMBEDDING_PROVIDER` empty — the server picks the best available.
+**Do not set** unless you later choose to pay: `COHERE_API_KEY`, Firecrawl, Brave, Langfuse paid, Steel paid.
 
-## Rerank
+Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → BGE → hash**.
 
-Local Arabic lexical re-rank (no API) runs after hybrid/Supabase search.
+## Open GitHub / Hub (free)
 
-## Database on Netlify
+- Embeddings self-host: https://github.com/FlagOpen/FlagEmbedding  
+- Arabic-capable e5: https://huggingface.co/intfloat/multilingual-e5-large  
+- Multiplayer ideas (not required): https://github.com/yc-software/qm  
+- Agent rooms ideas: https://github.com/block/buzz  
 
-Use Supabase **Transaction pooler** (`:6543` / `pooler.supabase.com`) as `DATABASE_URL`.  
-`lib/db-url.ts` adds `pgbouncer=true` + `connection_limit=1`.
+## One-time Netlify env (free)
 
-## Related open projects (ideas, not vendored)
+```
+HF_TOKEN=hf_...          # free Hugging Face access token
+DATABASE_URL=...         # Supabase pooler :6543 (free tier)
+# EMBEDDING_PROVIDER=    # leave unset
+# no COHERE_API_KEY
+```
 
-- [yc-software/qm](https://github.com/yc-software/qm) — multiplayer scopes / crons
-- [block/buzz](https://github.com/block/buzz) — human+agent rooms
-- [FlagOpen/FlagEmbedding](https://github.com/FlagOpen/FlagEmbedding) — BGE-M3
-- [intfloat/multilingual-e5-large](https://huggingface.co/intfloat/multilingual-e5-large) — free Arabic-capable embeds
+Then sync Drive brain once and use «اسأل ملفات الفريق».

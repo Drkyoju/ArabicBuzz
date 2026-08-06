@@ -7,12 +7,12 @@ export type EmbeddingProvider = 'cohere' | 'bge-m3' | 'hf-e5' | 'hash'
 export type EmbedInputType = 'search_query' | 'search_document'
 
 /**
- * Provider cascade (free-first when no paid key):
- * 1) EMBEDDING_PROVIDER override
- * 2) Cohere if COHERE_API_KEY
- * 3) BGE-M3 remote if BGE_M3_BASE_URL (self-host / GitHub FlagEmbedding)
- * 4) Hugging Face multilingual-e5-large if HF_TOKEN (free tier)
- * 5) Deterministic hash fallback (always works, weaker recall)
+ * Free-first cascade (no paid subscription required):
+ * 1) EMBEDDING_PROVIDER override (explicit)
+ * 2) Hugging Face e5 if HF_TOKEN (free account token)
+ * 3) BGE-M3 if BGE_M3_BASE_URL (self-host from GitHub FlagEmbedding)
+ * 4) Cohere only if EMBEDDING_PROVIDER=cohere (opt-in paid)
+ * 5) Hash fallback (always free)
  */
 function resolveProvider(): EmbeddingProvider {
   const raw = (process.env.EMBEDDING_PROVIDER || '').toLowerCase().trim()
@@ -21,9 +21,9 @@ function resolveProvider(): EmbeddingProvider {
   if (raw === 'hf' || raw === 'hf-e5' || raw === 'e5') return 'hf-e5'
   if (raw === 'cohere') return 'cohere'
 
-  if (process.env.COHERE_API_KEY?.trim()) return 'cohere'
-  if (process.env.BGE_M3_BASE_URL?.trim()) return 'bge-m3'
+  // Default: never auto-pick paid Cohere
   if (process.env.HF_TOKEN?.trim()) return 'hf-e5'
+  if (process.env.BGE_M3_BASE_URL?.trim()) return 'bge-m3'
   return 'hash'
 }
 
