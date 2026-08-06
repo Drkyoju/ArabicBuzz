@@ -44,8 +44,8 @@ function getSpeechRecognitionCtor(): (new () => SpeechRec) | null {
 }
 
 /**
- * Mic → Arabic text in the composer box (live browser STT, cloud fallback).
- * User reviews/edits the text before sending.
+ * Mic → high-quality Arabic STT in the composer (Whisper/Gemini/Willow cascade).
+ * Live captions (browser) are draft-only; final text always comes from the server.
  */
 export function ComposerMicButton({
   composerValue = '',
@@ -67,7 +67,6 @@ export function ComposerMicButton({
   const [state, setState] = useState<MicState>('idle')
   const activeRef = useRef<ActiveRecording | null>(null)
   const speechRef = useRef<SpeechRec | null>(null)
-  const modeRef = useRef<'browser' | 'cloud' | null>(null)
   const listeningRef = useRef(false)
   const finalChunksRef = useRef<string[]>([])
   const prefixRef = useRef('')
@@ -90,7 +89,7 @@ export function ComposerMicButton({
     }
   }, [])
 
-  function stopBrowserSpeech(): string {
+  function stopLiveCaptions() {
     listeningRef.current = false
     const rec = speechRef.current
     speechRef.current = null
@@ -99,12 +98,11 @@ export function ComposerMicButton({
     } catch {
       /* ignore */
     }
-    const text = finalChunksRef.current.join(' ').replace(/\s+/g, ' ').trim()
     finalChunksRef.current = []
-    return text
   }
 
-  function startBrowserSpeech(prefix: string): boolean {
+  /** Optional live draft captions — not the final source of truth. */
+  function startLiveCaptions(prefix: string): boolean {
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor) return false
 
@@ -136,14 +134,8 @@ export function ComposerMicButton({
         if (combined) onPartial?.(combined)
       }
 
-      rec.onerror = (ev) => {
-        const code = ev.error || ''
-        if (code === 'aborted' || code === 'no-speech') return
-        setHint(
-          code === 'not-allowed'
-            ? 'المتصفح منع الميكروفون — اسمح بالوصول من إعدادات الموقع'
-            : `خطأ التعرف: ${code}`
-        )
+      rec.onerror = () => {
+        /* live captions are best-effort */
       }
 
       rec.onend = () => {
@@ -156,7 +148,6 @@ export function ComposerMicButton({
       }
 
       speechRef.current = rec
-      modeRef.current = 'browser'
       rec.start()
       return true
     } catch {
@@ -169,61 +160,57 @@ export function ComposerMicButton({
     if (disabled) return
 
     if (state === 'recording') {
-      if (modeRef.current === 'browser') {
-        modeRef.current = null
-        const spoken = stopBrowserSpeech()
+      if (!activeRef.current) {
+        stopLiveCaptions()
         setState('idle')
-        if (spoken) {
-          const full = [prefixRef.current, spoken].filter(Boolean).join(' ').trim()
-          onTranscript(full, { providerLabelAr: 'تعرّف المتصفح (ar-SA)' })
-          setHint('النص في المربع — راجع أي خطأ ثم اضغط إرسال')
-        } else {
-          setHint('ما انمسك كلام واضح — تكلم أقرب للمايك وحاول مرة ثانية')
-        }
+        setHint('انقطع التسجيل — حاول مرة ثانية')
         return
       }
 
-      if (activeRef.current) {
-        setState('transcribing')
-        setHint('جاري تحويل الصوت لنص… سيظهر في المربع')
-        try {
-          const { blob, mimeType } = await activeRef.current.stop()
-          activeRef.current = null
-          modeRef.current = null
-          const form = new FormData()
-          form.append('file', blob, `voice.${extForAudioMime(mimeType)}`)
-          const res = await fetch('/api/audio/transcribe', {
-            method: 'POST',
-            headers: await authHeaders(),
-            body: form,
-          })
-          const data = (await res.json()) as {
-            text?: string
-            error?: string
-            providerLabelAr?: string
-          }
-          if (!res.ok || !data.text?.trim()) {
-            throw new Error(data.error || 'تعذّر النسخ الصوتي')
-          }
-          const full = [prefixRef.current, data.text.trim()]
-            .filter(Boolean)
-            .join(' ')
-            .trim()
-          onTranscript(full, { providerLabelAr: data.providerLabelAr })
-          setHint('النص في المربع — راجع وصحّح ثم أرسل')
-        } catch (e) {
-          setHint(e instanceof Error ? e.message : 'فشل النسخ الصوتي')
-        } finally {
-          setState('idle')
+      setState('transcribing')
+      setHint('جاري النسخ الدقيق (Whisper/Gemini)… سيظهر في المربع')
+      stopLiveCaptions()
+      try {
+        const { blob, mimeType } = await activeRef.current.stop()
+        activeRef.current = null
+        if (blob.size < 400) {
+          throw new Error('التسجيل قصير جداً — تكلم ثانية أو اثنتين ثم أوقف')
         }
-        return
+        const form = new FormData()
+        form.append('file', blob, `voice.${extForAudioMime(mimeType)}`)
+        const res = await fetch('/api/audio/transcribe', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body: form,
+        })
+        const data = (await res.json()) as {
+          text?: string
+          error?: string
+          providerLabelAr?: string
+        }
+        if (!res.ok || !data.text?.trim()) {
+          throw new Error(data.error || 'تعذّر النسخ الصوتي')
+        }
+        const full = [prefixRef.current, data.text.trim()]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        onTranscript(full, { providerLabelAr: data.providerLabelAr })
+        setHint(
+          `نسخ دقيق عبر ${data.providerLabelAr || 'النموذج'} — راجع ثم أرسل`
+        )
+      } catch (e) {
+        setHint(e instanceof Error ? e.message : 'فشل النسخ الصوتي')
+      } finally {
+        setState('idle')
       }
+      return
     }
 
     if (state !== 'idle') return
 
     const support = checkBrowserRecordSupport()
-    if (!support.ok && !getSpeechRecognitionCtor()) {
+    if (!support.ok) {
       setHint(support.reasonAr || 'التسجيل غير متاح')
       return
     }
@@ -231,23 +218,20 @@ export function ComposerMicButton({
     try {
       setHint('يُطلب إذن الميكروفون…')
       prefixRef.current = composerValue.trim()
-      const browserOk = startBrowserSpeech(prefixRef.current)
-      if (browserOk) {
-        setState('recording')
-        setHint('تكلم الآن — النص يظهر في المربع مباشرة. اضغط لإيقاف')
-        return
-      }
-
       const active = await startBrowserRecording()
       activeRef.current = active
-      modeRef.current = 'cloud'
+      const live = startLiveCaptions(prefixRef.current)
       setState('recording')
-      setHint('جاري التسجيل… اضغط للإيقاف ليظهر النص في المربع')
+      setHint(
+        live
+          ? 'تكلم الآن — مسودة حية في المربع، والنسخ النهائي الدقيق بعد الإيقاف'
+          : 'جاري التسجيل بجودة عالية… اضغط للإيقاف ليُنسخ النص بدقة'
+      )
     } catch (e) {
       setHint(e instanceof Error ? e.message : 'تعذّر بدء التسجيل')
       setState('idle')
-      modeRef.current = null
       listeningRef.current = false
+      activeRef.current = null
     }
   }
 
@@ -260,8 +244,8 @@ export function ComposerMicButton({
         aria-label={state === 'recording' ? 'إيقاف الإملاء' : 'إملاء نص بالصوت'}
         title={
           state === 'recording'
-            ? 'إيقاف وكتابة النص في المربع'
-            : 'إملاء — النص يُكتب في مربع الإدخال للمراجعة (ليس حفظ ملف)'
+            ? 'إيقاف ثم نسخ دقيق للعربية'
+            : 'إملاء عربي عالي الدقة (Gemini / Whisper / Willow)'
         }
         className={cn(
           'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40',

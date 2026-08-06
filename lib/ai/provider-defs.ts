@@ -23,7 +23,7 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelAr: 'Google Gemini',
     labelEn: 'Gemini',
     kind: 'llm',
-    hintAr: 'Gemini 2.0 Flash · 2.5 Pro — يعمل الآن إن وُجد مفتاح صالح',
+    hintAr: 'Gemini 2.5 — دردشة + تضمين + نسخ صوت المايك (مجاني)',
     docsUrl: 'https://aistudio.google.com/apikey',
   },
   {
@@ -68,7 +68,7 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelAr: 'Hugging Face',
     labelEn: 'Hugging Face',
     kind: 'stt',
-    hintAr: 'نسخ عربي مجاني (Cohere / SADA سعودي)',
+    hintAr: 'نسخ عربي مجاني (Cohere / SADA) — بديل للمايك إن رغبت',
     docsUrl: 'https://huggingface.co/settings/tokens',
   },
   {
@@ -76,7 +76,7 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     labelAr: 'Groq',
     labelEn: 'Groq',
     kind: 'stt',
-    hintAr: 'Whisper مجاني كنسخة احتياطية للصوت',
+    hintAr: 'Whisper large-v3 مجاني كنسخة احتياطية للصوت',
     docsUrl: 'https://console.groq.com/keys',
   },
   {

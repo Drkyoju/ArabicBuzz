@@ -20,6 +20,8 @@ export function cleanTranscript(text: string): string {
 }
 
 export type ArabicSttProvider =
+  | 'willow'
+  | 'gemini'
   | 'cohere-hf'
   | 'sada-hf'
   | 'groq'
@@ -218,6 +220,125 @@ async function transcribeViaDeepgram(
 }
 
 /**
+ * Self-hosted Willow Inference Server (open source Whisper).
+ * https://github.com/toverainc/willow-inference-server
+ * Set WILLOW_STT_URL=https://host:19000/api/willow
+ */
+async function transcribeViaWillow(
+  buffer: Buffer,
+  mimeType: string
+): Promise<string | null> {
+  const base = (
+    process.env.WILLOW_STT_URL ||
+    process.env.WIS_URL ||
+    process.env.WILLOW_INFERENCE_URL ||
+    ''
+  )
+    .trim()
+    .replace(/\/$/, '')
+  if (!base) return null
+
+  const endpoint = /\/api\//i.test(base) ? base : `${base}/api/willow`
+  validateNetworkAccess(endpoint)
+
+  const form = new FormData()
+  const blob = new Blob([new Uint8Array(buffer)], {
+    type: mimeType || 'audio/webm',
+  })
+  form.append('file', blob, `audio.${extFromMime(mimeType)}`)
+  form.append('language', process.env.WILLOW_STT_LANGUAGE || 'ar')
+  form.append('model', process.env.WILLOW_STT_MODEL || 'medium')
+
+  const headers: Record<string, string> = {}
+  const token =
+    process.env.WILLOW_STT_TOKEN?.trim() ||
+    process.env.WIS_TOKEN?.trim() ||
+    ''
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: form,
+    signal: AbortSignal.timeout(90_000),
+  })
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => null)) as
+    | { text?: string; transcript?: string; result?: string }
+    | string
+    | null
+  if (typeof data === 'string') return cleanTranscript(data) || null
+  const text = data?.text || data?.transcript || data?.result || ''
+  return cleanTranscript(text) || null
+}
+
+/**
+ * Free Gemini multimodal transcription (same GEMINI_API_KEY as chat).
+ * Strong Arabic/Gulf understanding without a separate Whisper bill.
+ */
+async function transcribeViaGemini(
+  buffer: Buffer,
+  mimeType: string
+): Promise<string | null> {
+  const key =
+    resolveProviderKeySync('GEMINI_API_KEY') ||
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim()
+  if (!key) return null
+
+  const model =
+    process.env.GEMINI_STT_MODEL?.trim() ||
+    process.env.OCR_GEMINI_MODEL?.trim() ||
+    'gemini-2.5-flash'
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`
+  validateNetworkAccess(url)
+
+  const mime =
+    mimeType && mimeType.startsWith('audio/')
+      ? mimeType.split(';')[0]
+      : 'audio/webm'
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text:
+                'انسخ الكلام المنطوق في هذا التسجيل إلى نص عربي فقط بدقة عالية (فصحى أو لهجة خليجية/سعودية حسب المتحدث). لا تلخّص ولا ترجم ولا تضف تعليقات. أعد النص المنطوق فقط.',
+            },
+            {
+              inlineData: {
+                mimeType: mime,
+                data: buffer.toString('base64'),
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 4096,
+      },
+    }),
+    signal: AbortSignal.timeout(90_000),
+  })
+  if (!res.ok) return null
+  const json = (await res.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> }
+    }>
+  }
+  const text =
+    json.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join(' ') ||
+    ''
+  return cleanTranscript(text) || null
+}
+
+/**
  * Transcribe Arabic (incl. Saudi dialect) with paid OpenAI Whisper (fallback).
  */
 export async function transcribeArabicAudioBuffer(
@@ -262,7 +383,7 @@ export async function transcribeArabicAudioBuffer(
 
 /**
  * Free-first Arabic/Saudi STT cascade for the composer mic.
- * Cohere/SADA (HF) → Groq Whisper → Deepgram → OpenAI Whisper.
+ * Willow (self-host Whisper) → Gemini → HF Arabic → Groq Whisper → Deepgram.
  */
 export async function transcribeArabicSpeech(
   buffer: Buffer,
@@ -280,6 +401,36 @@ export async function transcribeArabicSpeech(
     preferred === 'sada' ||
     (process.env.ASR_DIALECT || '').toLowerCase().includes('saudi')
 
+  if (!preferred || preferred === 'willow' || preferred === 'wis') {
+    try {
+      const text = await transcribeViaWillow(buffer, mimeType)
+      if (text) {
+        return {
+          text,
+          provider: 'willow',
+          providerLabelAr: 'Willow Whisper (ذاتي/مجاني)',
+        }
+      }
+    } catch {
+      /* try next */
+    }
+  }
+
+  if (!preferred || preferred === 'gemini' || preferred === 'google') {
+    try {
+      const text = await transcribeViaGemini(buffer, mimeType)
+      if (text) {
+        return {
+          text,
+          provider: 'gemini',
+          providerLabelAr: 'Gemini صوت → نص (مجاني)',
+        }
+      }
+    } catch {
+      /* try next */
+    }
+  }
+
   const hfOrder = preferSaudi
     ? ([
         { model: HF_SADA, provider: 'sada-hf' as const, label: 'SADA سعودي (مجاني)' },
@@ -291,8 +442,15 @@ export async function transcribeArabicSpeech(
       ] as const)
 
   for (const step of hfOrder) {
-    if (preferred === 'groq' || preferred === 'openai' || preferred === 'deepgram')
+    if (
+      preferred === 'groq' ||
+      preferred === 'openai' ||
+      preferred === 'deepgram' ||
+      preferred === 'gemini' ||
+      preferred === 'willow'
+    ) {
       break
+    }
     if (preferred === 'sada' && step.provider !== 'sada-hf') continue
     if (preferred === 'cohere' && step.provider !== 'cohere-hf') continue
     try {
@@ -309,7 +467,7 @@ export async function transcribeArabicSpeech(
     }
   }
 
-  if (preferred !== 'openai' && preferred !== 'deepgram') {
+  if (preferred !== 'openai' && preferred !== 'deepgram' && preferred !== 'gemini') {
     try {
       const text = await transcribeViaGroq(buffer, mimeType)
       if (text) {
@@ -324,7 +482,7 @@ export async function transcribeArabicSpeech(
     }
   }
 
-  if (preferred === 'deepgram' || (preferred !== 'openai' && preferred !== 'groq')) {
+  if (preferred === 'deepgram' || (preferred !== 'openai' && preferred !== 'groq' && preferred !== 'gemini')) {
     try {
       const text = await transcribeViaDeepgram(buffer, mimeType)
       if (text) {
@@ -349,7 +507,7 @@ export async function transcribeArabicSpeech(
   }
 
   throw new Error(
-    'تعذّر النسخ الصوتي. أضف HF_TOKEN أو GROQ_API_KEY أو DEEPGRAM_API_KEY أو OPENAI_API_KEY من الإعدادات.'
+    'تعذّر النسخ الصوتي. تأكد من GEMINI_API_KEY، أو أضف HF_TOKEN / GROQ_API_KEY، أو اضبط WILLOW_STT_URL لخادم Whisper مجاني.'
   )
 }
 

@@ -16,11 +16,13 @@ Arabic Buzz is wired for **free tiers + open GitHub** — no paid SaaS required.
 | URL → brain | Jina Reader free path | built-in |
 | Telegram | BotFather free | `TELEGRAM_BOT_TOKEN` |
 | Models | Gemini / OpenRouter free tiers if you already have keys | optional |
-| STT | HF Arabic models via `HF_TOKEN` | already supported |
+| STT (mic) | **Gemini audio** (same key) + optional [Willow WIS](https://github.com/toverainc/willow-inference-server) / Groq / HF Arabic | already works with `GEMINI_API_KEY` |
 
 **Do not set** unless you later choose to pay: `COHERE_API_KEY`, Firecrawl, Brave, Langfuse paid, Steel paid.
 
 Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → Gemini → BGE → hash**.
+
+Mic STT cascade: **Willow (if URL) → Gemini → HF Arabic → Groq Whisper**.
 
 ## Health check
 
@@ -30,6 +32,7 @@ Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → Gemini → BGE → hash**.
 
 - Embeddings self-host: https://github.com/FlagOpen/FlagEmbedding  
 - Arabic-capable e5: https://huggingface.co/intfloat/multilingual-e5-large  
+- Willow Inference Server (self-host Whisper): https://github.com/toverainc/willow-inference-server  
 - Multiplayer ideas (not required): https://github.com/yc-software/qm  
 - Agent rooms ideas: https://github.com/block/buzz  
 
@@ -38,8 +41,10 @@ Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → Gemini → BGE → hash**.
 ```
 DATABASE_URL=...              # Supabase pooler :6543 (recommended)
 SUPABASE_POOLER_REGION=eu-central-1   # auto-rewrite if direct URL left
-GEMINI_API_KEY=...            # already used for chat + free embeds
-# HF_TOKEN=hf_...             # optional upgrade for e5
+GEMINI_API_KEY=...            # chat + embeds + mic STT
+# HF_TOKEN=hf_...             # optional Arabic HF STT / e5
+# GROQ_API_KEY=...            # optional free Whisper large-v3
+# WILLOW_STT_URL=https://host:19000/api/willow   # optional self-host
 # EMBEDDING_PROVIDER=         # leave unset
 # no COHERE_API_KEY
 ```
