@@ -116,10 +116,7 @@ export async function executeEditImage(
 
   const width = params.width != null ? Number(params.width) : undefined
   const height = params.height != null ? Number(params.height) : undefined
-  if (
-    (width && width > 0) ||
-    (height && height > 0)
-  ) {
+  if ((width && width > 0) || (height && height > 0)) {
     pipeline = pipeline.resize({
       width: width && width > 0 ? Math.round(width) : undefined,
       height: height && height > 0 ? Math.round(height) : undefined,
@@ -128,9 +125,11 @@ export async function executeEditImage(
     })
   }
 
+  // Materialize transforms first so overlay SVG matches final pixel size.
+  let working = await pipeline.png().toBuffer()
   const overlayText = String(params.overlayText || params.captionAr || '').trim()
   if (overlayText) {
-    const meta = await pipeline.metadata()
+    const meta = await sharp(working).metadata()
     const w = meta.width || 800
     const h = meta.height || 600
     const fontSize = Math.max(
@@ -148,9 +147,10 @@ export async function executeEditImage(
         <text class="t" x="${w - 24}" y="${h - fontSize * 0.7}" text-anchor="end">${escapeXml(overlayText.slice(0, 120))}</text>
       </svg>`
     )
-    pipeline = sharp(await pipeline.toBuffer()).composite([
-      { input: svg, top: 0, left: 0 },
-    ])
+    working = await sharp(working)
+      .composite([{ input: svg, top: 0, left: 0 }])
+      .png()
+      .toBuffer()
   }
 
   const format = String(params.format || 'png').toLowerCase()
@@ -158,15 +158,15 @@ export async function executeEditImage(
   let mimeType: string
   let ext: string
   if (format === 'jpeg' || format === 'jpg') {
-    buffer = await pipeline.jpeg({ quality: 90 }).toBuffer()
+    buffer = await sharp(working).jpeg({ quality: 90 }).toBuffer()
     mimeType = 'image/jpeg'
     ext = 'jpg'
   } else if (format === 'webp') {
-    buffer = await pipeline.webp({ quality: 90 }).toBuffer()
+    buffer = await sharp(working).webp({ quality: 90 }).toBuffer()
     mimeType = 'image/webp'
     ext = 'webp'
   } else {
-    buffer = await pipeline.png().toBuffer()
+    buffer = await sharp(working).png().toBuffer()
     mimeType = 'image/png'
     ext = 'png'
   }
