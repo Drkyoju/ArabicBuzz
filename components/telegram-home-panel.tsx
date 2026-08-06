@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageCircle, RefreshCw, Send } from 'lucide-react'
+import { MessageCircle, RefreshCw, Send, X } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -12,6 +12,7 @@ import type {
 } from '@/lib/rooms/telegram-feed'
 
 const POLL_MS = 8_000
+const STORAGE_KEY = 'arabicbuzz-telegram-panel-open'
 
 const SOURCE_TONE: Record<TelegramFeedItem['source'], string> = {
   site: 'bg-sky-50 text-sky-900 border-sky-200',
@@ -19,12 +20,23 @@ const SOURCE_TONE: Record<TelegramFeedItem['source'], string> = {
   bot: 'bg-emerald-50 text-emerald-900 border-emerald-200',
 }
 
+function readStoredOpen(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 /**
- * نافذة تيليجرام على لوحة اليوم — إرسال من الموقع + مرآة لما يحدث في تيليجرام.
+ * نافذة تيليجرام على لوحة اليوم — فقاعة قابلة للطي أسفل اليسار (يسار فيزيائي).
  */
 export function TelegramHomePanel() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const signedIn = useSignedIn()
+  const [open, setOpen] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
   const [items, setItems] = useState<TelegramFeedItem[]>([])
   const [link, setLink] = useState<TelegramLinkStatus | null>(null)
   const [text, setText] = useState('')
@@ -34,6 +46,20 @@ export function TelegramHomePanel() {
   const [note, setNote] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
   const stickBottom = useRef(true)
+
+  useEffect(() => {
+    setOpen(readStoredOpen())
+    setHydrated(true)
+  }, [])
+
+  const setOpenPersist = useCallback((next: boolean) => {
+    setOpen(next)
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0')
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [])
 
   const load = useCallback(async () => {
     if (signedIn !== true) return
@@ -70,18 +96,18 @@ export function TelegramHomePanel() {
   }, [scopeId, signedIn])
 
   useEffect(() => {
+    if (signedIn !== true || !open) return
     void load()
-    if (signedIn !== true) return
     const t = window.setInterval(() => void load(), POLL_MS)
     return () => window.clearInterval(t)
-  }, [load, signedIn])
+  }, [load, signedIn, open])
 
   useEffect(() => {
-    if (!stickBottom.current || !listRef.current) return
+    if (!open || !stickBottom.current || !listRef.current) return
     listRef.current.scrollTop = listRef.current.scrollHeight
-  }, [items])
+  }, [items, open])
 
-  if (signedIn !== true) return null
+  if (signedIn !== true || !hydrated) return null
 
   const linked = Boolean(link?.linked)
   const deepLink = link?.deepLink || ''
@@ -122,16 +148,36 @@ export function TelegramHomePanel() {
     }
   }
 
+  /* Physical left (not logical start) so RTL sidebar stays clear. */
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpenPersist(true)}
+        className="fixed bottom-3 left-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-ab-border bg-white px-3 py-2 text-[12px] font-semibold text-ab-ink shadow-md transition hover:bg-stone-50 md:bottom-4 md:left-4"
+        aria-label="فتح تيليجرام"
+        aria-expanded={false}
+      >
+        <MessageCircle className="h-4 w-4 text-ab-accent" aria-hidden />
+        تيليجرام
+      </button>
+    )
+  }
+
   return (
     <section
       className="fixed bottom-3 left-3 z-40 flex h-[min(20rem,65vh)] w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-ab-border bg-white p-2.5 shadow-lg md:bottom-4 md:left-4"
       dir="rtl"
       aria-label="نافذة تيليجرام"
+      aria-expanded={true}
     >
       <div className="mb-1.5 flex shrink-0 items-center justify-between gap-1.5">
         <h2 className="flex min-w-0 items-center gap-1 text-[12px] font-bold text-ab-ink">
-          <MessageCircle className="h-3.5 w-3.5 shrink-0 text-ab-accent" aria-hidden />
-          <span className="truncate">نافذة تيليجرام</span>
+          <MessageCircle
+            className="h-3.5 w-3.5 shrink-0 text-ab-accent"
+            aria-hidden
+          />
+          <span className="truncate">تيليجرام</span>
           {linked ? (
             <span className="shrink-0 text-[10px] font-normal text-emerald-700">
               · مربوطة
@@ -142,15 +188,27 @@ export function TelegramHomePanel() {
             </span>
           )}
         </h2>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void load()}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-ab-border bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-700 disabled:opacity-40"
-          title="تحديث"
-        >
-          <RefreshCw className={cn('h-3 w-3', busy && 'animate-spin')} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void load()}
+            className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-700 disabled:opacity-40"
+            title="تحديث"
+          >
+            <RefreshCw className={cn('h-3 w-3', busy && 'animate-spin')} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpenPersist(false)}
+            className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-stone-50 px-1.5 py-0.5 text-[10px] text-stone-700"
+            aria-label="إغلاق"
+            title="إغلاق"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            إغلاق
+          </button>
+        </div>
       </div>
 
       {!linked && (
@@ -176,8 +234,7 @@ export function TelegramHomePanel() {
         ref={listRef}
         onScroll={(e) => {
           const el = e.currentTarget
-          const dist =
-            el.scrollHeight - el.scrollTop - el.clientHeight
+          const dist = el.scrollHeight - el.scrollTop - el.clientHeight
           stickBottom.current = dist < 48
         }}
         className="mb-1.5 min-h-0 flex-1 overflow-y-auto rounded-lg border border-ab-border/80 bg-stone-50/60 px-2 py-1.5"
@@ -233,9 +290,7 @@ export function TelegramHomePanel() {
           rows={1}
           disabled={!linked || sending}
           placeholder={
-            linked
-              ? 'اكتب رسالة…'
-              : 'اربط تيليجرام أولاً'
+            linked ? 'اكتب رسالة…' : 'اربط تيليجرام أولاً'
           }
           className="min-h-[2rem] flex-1 resize-none rounded-md border border-ab-border bg-white px-2 py-1.5 text-[12px] text-ab-ink placeholder:text-stone-400 disabled:bg-stone-50 disabled:opacity-60"
         />
