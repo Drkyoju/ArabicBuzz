@@ -22,6 +22,7 @@ import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
 import { AssociationRecipes } from '@/components/association-recipes'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { DateDual } from '@/components/date-dual'
+import { TelegramHomePanel } from '@/components/telegram-home-panel'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -461,6 +462,8 @@ export function HomeDashboard({
           </button>
         </div>
       </header>
+
+      {!authPending && <TelegramHomePanel />}
 
       {!authPending && teamInbox.length > 0 && (
         <div className="rounded-xl border border-ab-border bg-white p-3.5">

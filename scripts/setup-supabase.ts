@@ -49,6 +49,7 @@ const MIGRATIONS = [
   'supabase/migrations/024_opus5_invites_audit_rls.sql',
   'supabase/migrations/025_deny_oauth_rosters_rls.sql',
   'supabase/migrations/026_team_collab.sql',
+  'supabase/migrations/027_telegram_feed_idx.sql',
 ]
 
 function present(v?: string): boolean {

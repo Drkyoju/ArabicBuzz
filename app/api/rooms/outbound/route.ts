@@ -32,22 +32,43 @@ export async function POST(req: Request) {
     return Response.json({ error: gate.error }, { status: 403 })
   }
 
+  const displayNameAr =
+    (auth.user.user_metadata?.full_name as string) ||
+    auth.user.email?.split('@')[0] ||
+    'عضو'
+  const outboundText =
+    channel === 'telegram'
+      ? `من الموقع · ${displayNameAr}:\n${textAr}`
+      : textAr
+
   const sent = await emitNotification({
     channel,
-    textAr,
+    textAr: outboundText,
     meta: { scopeId, fromUserId: auth.user.id },
   })
 
-  const post = await insertRoomPost({
-    scopeId,
-    authorKind: 'system',
-    authorId: 'outbound',
-    authorNameAr: channel === 'telegram' ? 'تيليجرام' : 'واتساب',
-    content: sent.ok
-      ? `تم إرسال رسالة للخارج عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'}:\n${textAr}`
-      : `تعذّر الإرسال عبر ${channel === 'telegram' ? 'تيليجرام' : 'واتساب'} (تحقق من مفاتيح القناة). النص:\n${textAr}`,
-    channel,
-  })
+  // Telegram: clean human mirror so لوحة اليوم «نافذة تيليجرام» shows real text.
+  // WhatsApp keeps the legacy system note in the room timeline.
+  const post =
+    channel === 'telegram'
+      ? await insertRoomPost({
+          scopeId,
+          authorKind: 'human',
+          authorId: auth.user.id,
+          authorNameAr: displayNameAr,
+          content: textAr,
+          channel,
+        })
+      : await insertRoomPost({
+          scopeId,
+          authorKind: 'system',
+          authorId: 'outbound',
+          authorNameAr: 'واتساب',
+          content: sent.ok
+            ? `تم إرسال رسالة للخارج عبر واتساب:\n${textAr}`
+            : `تعذّر الإرسال عبر واتساب (تحقق من مفاتيح القناة). النص:\n${textAr}`,
+          channel,
+        })
 
   if (!sent.ok) {
     return Response.json(
