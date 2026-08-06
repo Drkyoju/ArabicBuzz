@@ -162,7 +162,9 @@ export function OpsHealthPanel() {
             snap.kimiDetailAr?.includes('جاهز') ||
               snap.kimiDetailAr?.includes('مفعّل')
           ),
-          detail: snap.kimiDetailAr || 'اختياري',
+          detail: /رصيد|منته|quota/i.test(snap.kimiDetailAr || '')
+            ? 'رصيد منتهٍ'
+            : snap.kimiDetailAr || 'غير مضبوط',
           soft: true,
         },
         {
@@ -187,19 +189,19 @@ export function OpsHealthPanel() {
           soft: true,
         },
         {
-          label: 'أدوات إضافية',
+          label: 'أدوات إضافية (MCP)',
           ok: Boolean(snap.toolsReady),
-          detail: snap.toolsReady ? 'متصل' : 'اختياري',
+          detail: snap.toolsReady ? 'متصل' : 'غير مضبوط',
           soft: !snap.toolsReady,
         },
         {
-          label: 'خزنة الجهاز',
+          label: 'خزنة الجهاز (Mac)',
           ok: Boolean(snap.macOnline),
           detail: snap.macOnline
             ? 'متصل'
             : snap.macConfigured
               ? 'غير متصل'
-              : 'اختياري',
+              : 'غير مضبوط',
           soft: !snap.macOnline,
         },
         {

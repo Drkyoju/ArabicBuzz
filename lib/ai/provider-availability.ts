@@ -402,11 +402,14 @@ export async function getProvidersSnapshot(
           def?.hintAr ||
           'حدّث المفتاح أو الرصيد لدى TokenRouter ثم أعد التحقق'
       } else if (!hasKey) blockedReasonAr = `أضف ${m.requiresKey} من صفحة مفاتيح API`
-      else if (live === false)
-        blockedReasonAr =
+      else if (live === false) {
+        const detail =
           probes.get(m.requiresKey)?.detail ||
           `مفتاح ${m.requiresKey} مرفوض أو لا يستجيب`
-      else blockedReasonAr = 'غير متاح'
+        blockedReasonAr = /رصيد|منته|quota|RemainQuota/i.test(detail)
+          ? 'رصيد منتهٍ — أنشئ مفتاح TokenRouter جديداً أو انتظر تجديد الباقة'
+          : detail
+      } else blockedReasonAr = 'غير متاح'
     }
     return {
       ...m,

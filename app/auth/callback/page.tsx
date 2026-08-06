@@ -79,7 +79,25 @@ export default function AuthCallbackPage() {
           }
         }
 
-        router.replace(wantCalendar ? '/?calendar=connected' : '/')
+        let nextPath = '/'
+        try {
+          const stored = sessionStorage.getItem('ab-auth-next')
+          if (
+            stored &&
+            stored.startsWith('/') &&
+            !stored.startsWith('//')
+          ) {
+            nextPath = stored
+            sessionStorage.removeItem('ab-auth-next')
+          }
+        } catch {
+          /* ignore */
+        }
+        if (wantCalendar && nextPath === '/') {
+          router.replace('/?calendar=connected')
+        } else {
+          router.replace(nextPath)
+        }
       } catch (e) {
         router.replace(
           `/auth/login?error=${encodeURIComponent(

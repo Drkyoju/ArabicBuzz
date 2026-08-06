@@ -12,18 +12,19 @@ type PostureState = {
 export const useSecurityPostureStore = create<PostureState>()(
   persist(
     (set) => ({
-      posture: 'DANGEROUS',
+      // Safer default when HITL is re-enabled (server still forces DANGEROUS if HITL_DISABLED).
+      posture: 'AUTO',
       setPosture: (posture) => set({ posture }),
     }),
     {
       name: 'ab-security-posture',
-      // Migrate old AUTO/STRICT clients to free execution.
-      version: 2,
+      // v3: association-safe AUTO when HITL on; interceptor ignores when HITL_DISABLED.
+      version: 3,
       migrate: (persisted) => {
         const state = persisted as PostureState
         return {
           ...state,
-          posture: 'DANGEROUS',
+          posture: 'AUTO',
         }
       },
     }

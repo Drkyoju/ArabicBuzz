@@ -9,11 +9,20 @@ import {
 } from '@/lib/ai/harness-catalog'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 
-type ModelAvailRow = { slug: string; available: boolean; labelAr?: string }
+type ModelAvailRow = {
+  slug: string
+  available: boolean
+  labelAr?: string
+  blockedReasonAr?: string | null
+  provider?: string
+}
+
+const KIMI_SLUG = 'moonshotai/kimi-k3-free'
 
 /**
  * Three capability tiers (سريع / متوازن / أعلى دقة). Provider model names stay
  * in the subtitle and tooltip so the picker never reads like an engineering menu.
+ * Exhausted TokenRouter/Kimi is shown disabled with «رصيد منتهٍ» — not selectable.
  */
 export function ModelPicker({
   airGapped = false,
@@ -25,6 +34,10 @@ export function ModelPicker({
   const { selectedModel, setSelectedModel } = useModelPickerStore()
   const catalog = listAvailableHarnessModels(airGapped)
   const [availableSlugs, setAvailableSlugs] = useState<Set<string> | null>(null)
+  const [kimiBlocked, setKimiBlocked] = useState<{
+    show: boolean
+    reasonAr: string
+  } | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -37,6 +50,21 @@ export function ModelPicker({
           d.models.filter((m) => m.available).map((m) => m.slug)
         )
         setAvailableSlugs(ok)
+        const kimi = d.models.find((m) => m.slug === KIMI_SLUG)
+        if (kimi && !kimi.available) {
+          const reason = kimi.blockedReasonAr || ''
+          const exhausted = /رصيد|منته|quota|RemainQuota/i.test(reason)
+          setKimiBlocked({
+            show: true,
+            reasonAr: exhausted
+              ? 'رصيد منتهٍ'
+              : reason.includes('أضف')
+                ? 'غير مضبوط'
+                : 'غير متاح',
+          })
+        } else {
+          setKimiBlocked(null)
+        }
         setLoaded(true)
       })
       .catch(() => {
@@ -72,6 +100,7 @@ export function ModelPicker({
   useEffect(() => {
     if (!loaded || !availableSlugs) return
     if (availableSlugs.has(selectedModel)) return
+    // Never keep a dead Kimi selection
     const fallback = tiers[0]?.model.slug
     if (fallback) setSelectedModel(fallback as HarnessModelSlug)
   }, [loaded, availableSlugs, selectedModel, tiers, setSelectedModel])
@@ -125,6 +154,18 @@ export function ModelPicker({
           ))
         )}
       </select>
+      {kimiBlocked?.show && (
+        <span
+          className={
+            compact
+              ? 'truncate text-[9px] text-amber-700'
+              : 'text-[10px] text-amber-700'
+          }
+          title="Kimi Free عبر TokenRouter غير قابل للاختيار حالياً"
+        >
+          Kimi Free · {kimiBlocked.reasonAr}
+        </span>
+      )}
       {!compact && currentModelName && (
         <span className="text-[10px] text-stone-400" dir="ltr">
           {currentModelName}

@@ -180,6 +180,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
+  const [hitlDisabled, setHitlDisabled] = useState<boolean | null>(null)
   const [cronReloadToken, setCronReloadToken] = useState(0)
   const [showDevOps, setShowDevOps] = useState(false)
   const [showSdaia, setShowSdaia] = useState(false)
@@ -263,6 +264,21 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       setPendingCount(0)
     } finally {
       setApprovalsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/health/free')
+      .then((r) => r.json())
+      .then((d: { hitlDisabled?: boolean }) => {
+        if (!cancelled) setHitlDisabled(Boolean(d.hitlDisabled))
+      })
+      .catch(() => {
+        if (!cancelled) setHitlDisabled(null)
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -433,17 +449,39 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 type="button"
                 onClick={() => void loadApprovals()}
                 className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                disabled={hitlDisabled === true}
               >
                 تحديث
               </button>
             </div>
-            {approvalsLoading && pendingCount === 0 && signedIn !== false && (
-              <p className="text-sm text-stone-500">جاري التحميل…</p>
+            {hitlDisabled === true && (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4">
+                <p className="text-sm font-semibold text-amber-950">
+                  الموافقات معطّلة — التنفيذ فوري
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
+                  حوكمة الاعتماد البشري (HITL) متوقفة حالياً: الوكيل ينفّذ
+                  الإجراءات دون انتظار موافقة هنا. لإعادة التفعيل اضبط{' '}
+                  <code dir="ltr" className="rounded bg-white/80 px-1">
+                    HITL_DISABLED=0
+                  </code>{' '}
+                  في الاستضافة — مسار موافقات تيليجرام يعود معها.
+                </p>
+              </div>
             )}
-            {approvalsError && approvalsError !== 'GUEST' && (
+            {hitlDisabled === true ? (
+              <p className="text-sm text-stone-500">
+                لا طلبات معلّقة لأن الحوكمة معطّلة (ليست قائمة فارغة بمعنى
+                «كل شيء معتمد»).
+              </p>
+            ) : approvalsLoading && pendingCount === 0 && signedIn !== false ? (
+              <p className="text-sm text-stone-500">جاري التحميل…</p>
+            ) : null}
+            {hitlDisabled !== true && approvalsError && approvalsError !== 'GUEST' && (
               <p className="mb-3 text-sm text-ab-warn">{approvalsError}</p>
             )}
-            {(approvalsError === 'GUEST' || signedIn === false) &&
+            {hitlDisabled !== true &&
+            (approvalsError === 'GUEST' || signedIn === false) &&
             !approvalsLoading ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-center">
                 <p className="text-sm font-semibold text-ab-ink">
@@ -459,9 +497,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   سجّل الدخول
                 </Link>
               </div>
-            ) : !approvalsLoading && pendingCount === 0 && !approvalsError ? (
+            ) : hitlDisabled !== true &&
+              !approvalsLoading &&
+              pendingCount === 0 &&
+              !approvalsError ? (
               <p className="text-sm text-stone-500">لا موافقات معلّقة.</p>
-            ) : (
+            ) : hitlDisabled !== true ? (
               approvals
                 .filter((item) => item.status === 'PENDING_APPROVAL')
                 .map((item) => (
@@ -480,7 +521,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                     />
                   </div>
                 ))
-            )}
+            ) : null}
           </section>
         )}
 

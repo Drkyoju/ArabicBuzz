@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     })
     emailSent = sent.ok
     emailNote = sent.skipped
-      ? 'Resend غير مضبوط — استخدم mailto أو انسخ الرابط.'
+      ? 'إرسال البريد يحتاج ضبط RESEND_API_KEY — انسخ الرابط وشاركه يدوياً (النسخ يعمل دائماً).'
       : sent.error
   }
 

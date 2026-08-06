@@ -1,4 +1,5 @@
 import type { RAGDocument } from '@/lib/rag/hybrid'
+import { expandArabicQueryTokens } from '@/lib/rag/arabic-synonyms'
 
 /**
  * Free local Arabic-aware re-rank (no API).
@@ -10,12 +11,7 @@ export function rerankArabicLexical(
   docs: RAGDocument[],
   limit: number
 ): RAGDocument[] {
-  const tokens = queryAr
-    .normalize('NFC')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 2)
+  const tokens = expandArabicQueryTokens(queryAr).filter((t) => t.length >= 2)
 
   if (tokens.length === 0 || docs.length === 0) {
     return docs.slice(0, limit)

@@ -66,14 +66,32 @@ export async function GET() {
       embeddingProvider === 'bge-m3' ||
       embeddingProvider === 'hash')
 
+  const willowConfigured = Boolean(
+    process.env.WILLOW_STT_URL?.trim() ||
+      process.env.WIS_URL?.trim() ||
+      process.env.WILLOW_INFERENCE_URL?.trim()
+  )
+  const hfTokenPresent = Boolean(process.env.HF_TOKEN?.trim())
+  const groqKeyPresent = Boolean(process.env.GROQ_API_KEY?.trim())
+  const geminiKeyPresent = Boolean(
+    process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
+  )
+  // Mic cascade: Willow → Gemini → HF → Groq (backups optional)
+  const sttPrimaryReady = willowConfigured || geminiKeyPresent
+  const sttBackupReady = hfTokenPresent || groqKeyPresent
+
   return Response.json({
     ok: freeReady && (prismaOk || supabaseOk),
     freeReady,
     embeddingProvider,
-    geminiKeyPresent: Boolean(
-      process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
-    ),
-    hfTokenPresent: Boolean(process.env.HF_TOKEN?.trim()),
+    geminiKeyPresent,
+    hfTokenPresent,
+    groqKeyPresent,
+    willowConfigured,
+    sttPrimaryReady,
+    sttBackupReady,
+    sttCascadeAr:
+      'Willow → Gemini → Hugging Face → Groq — النسخ الاحتياطية (HF/Groq) اختيارية',
     dbHost,
     dbPooler,
     supabaseOk,

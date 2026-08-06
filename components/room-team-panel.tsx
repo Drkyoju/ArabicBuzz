@@ -394,7 +394,20 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           </div>
 
           <div className="rounded-md border border-ab-border bg-white p-2 space-y-2">
-            <p className="font-semibold text-ab-ink">سجل أعضاء الغرفة</p>
+            <p className="font-semibold text-ab-ink">دعوة زميل للغرفة</p>
+            {canManage && (
+              <ol className="list-decimal space-y-1 pe-4 text-[10px] leading-relaxed text-stone-600">
+                <li>
+                  أنشئ <strong>رابط دعوة</strong> (أو دعوة بريد) وانسخه.
+                </li>
+                <li>
+                  زميلُك: <strong>يسجّل الدخول أولاً</strong> بحسابه.
+                </li>
+                <li>
+                  ثم يفتح <strong>رابط الدعوة</strong> ويكتب اسمه وينضم.
+                </li>
+              </ol>
+            )}
             {!canManage && (
               <p className="rounded-md bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
                 الدعوة وإدارة الأعضاء للمالك فقط.
@@ -509,23 +522,29 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               </p>
             )}
             <p className="text-[10px] leading-relaxed text-stone-500">
-              «رابط دعوة» يكفي لمشاركة الانضمام فوراً (بدون Google). البريد يفتح
-              تطبيق بريدك إن لم تُضبط خدمة الإرسال. تيليجرام يرسل الرابط للقناة
-              المضبوطة.
+              «رابط دعوة» هو الأوثق — انسخه وشاركه. إرسال البريد التلقائي يحتاج
+              ضبط <span dir="ltr">RESEND_API_KEY</span>؛ بدونها يبقى النسخ
+              وmailto يعملان. تيليجرام يرسل الرابط للقناة المضبوطة إن وُجدت.
             </p>
             {linkUrl && (
-              <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
-                <code className="min-w-0 flex-1 truncate text-[10px]">
-                  {linkUrl}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => void copyLink(linkUrl)}
-                  className="rounded border border-ab-border p-1"
-                  aria-label="نسخ الرابط"
-                >
-                  <Copy className="h-3 w-3" />
-                </button>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
+                  <code className="min-w-0 flex-1 truncate text-[10px]">
+                    {linkUrl}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => void copyLink(linkUrl)}
+                    className="inline-flex items-center gap-1 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-ink"
+                    aria-label="نسخ الرابط"
+                  >
+                    <Copy className="h-3 w-3" />
+                    نسخ الرابط
+                  </button>
+                </div>
+                <p className="text-[10px] text-emerald-800">
+                  انسخ الرابط وأرسله للزميل — بعد تسجيل دخوله يفتح الرابط وينضم.
+                </p>
               </div>
             )}
           </div>

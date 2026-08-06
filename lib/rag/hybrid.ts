@@ -6,6 +6,7 @@ import {
 import { COMPANY_BRAIN_SCOPE_ID } from '@/lib/google/drive'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { rerankArabicLexical } from '@/lib/rag/rerank'
+import { expandArabicQueryText } from '@/lib/rag/arabic-synonyms'
 
 export type RAGDocument = {
   id: string
@@ -239,11 +240,13 @@ export async function hybridArabicSearch(
 ): Promise<RAGDocument[]> {
   const trimmed = queryText?.trim()
   if (!trimmed) return []
+  // Expand association-doc synonyms (تأسيس/ترخيص/لائحة…) for better Arabic recall
+  const expanded = expandArabicQueryText(trimmed)
   const source: KnowledgeSourceFilter = opts?.source ?? 'drive'
   const searchScopeId = resolveSearchScopeId(scopeId, source)
 
   const viaPrisma = await withPrismaFallback(async () => {
-    const tsQuery = buildArabicTsQuery(trimmed)
+    const tsQuery = buildArabicTsQuery(expanded)
     const fetchLimit = Math.max(limit * 4, 20)
 
     let bm25Hits: RankedHit[] = []
@@ -257,7 +260,7 @@ export async function hybridArabicSearch(
     ).catch(() => [] as RankedHit[])
 
     try {
-      const queryEmbedding = await embedQuery(trimmed)
+      const queryEmbedding = await embedQuery(expanded)
       const embeddingLiteral = toPgVectorLiteral(queryEmbedding)
       vectorHits = await vectorSimilaritySearch(
         embeddingLiteral,
@@ -346,9 +349,14 @@ export async function hybridArabicSearch(
   const base =
     viaPrisma.length > 0
       ? viaPrisma
-      : await supabaseLexicalFallback(trimmed, searchScopeId, Math.max(limit * 3, 12), source)
+      : await supabaseLexicalFallback(
+          expanded,
+          searchScopeId,
+          Math.max(limit * 3, 12),
+          source
+        )
 
-  return rerankArabicLexical(trimmed, base, limit)
+  return rerankArabicLexical(expanded, base, limit)
 }
 
 /** Insert / update a knowledge chunk (embeds content with the active provider). */

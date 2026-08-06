@@ -85,10 +85,21 @@ export function CommitteeTelegramPanel() {
         <MessageCircle className="h-4 w-4 text-ab-accent" aria-hidden />
         قنوات تيليجرام للجان
       </h3>
-      <p className="mb-3 text-xs text-stone-500">
-        لجنة مالية / برامج / مجلس — كل قناة مربوطة بنفس الغرفة. افتح رابط الدعوة
-        من داخل مجموعة تيليجرام، أو الصق معرّف المحادثة.
-      </p>
+      <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs leading-relaxed text-stone-600">
+        <li>
+          أنشئ مجموعة تيليجرام للجنة (مالية / برامج / مجلس) وأضف بوت Arabic Buzz
+          إليها.
+        </li>
+        <li>
+          من داخل المجموعة اضغط «ربط من تيليجرام» — أو انسخ معرّف المحادثة
+          (أرقام سالبة غالباً مثل <span dir="ltr">-100…</span>) والصقه أدناه ثم
+          «حفظ المعرّف».
+        </li>
+        <li>
+          لا نخترع معرّفات — المعرّف يظهر من تيليجرام أو من رسالة البوت بعد{' '}
+          <code dir="ltr">/start</code> في المجموعة.
+        </li>
+      </ol>
       <ul className="space-y-3">
         {rows.map((r) => (
           <li
@@ -117,7 +128,7 @@ export function CommitteeTelegramPanel() {
               <input
                 dir="ltr"
                 className="min-w-[8rem] flex-1 rounded-md border border-ab-border px-2 py-1 font-mono text-[11px]"
-                placeholder="chat id"
+                placeholder="-100… معرّف المجموعة"
                 value={chatDraft[r.key] || ''}
                 onChange={(e) =>
                   setChatDraft((p) => ({ ...p, [r.key]: e.target.value }))

@@ -232,10 +232,11 @@ export function GoogleDriveBrainPanel() {
             onClick={() => void sync()}
             disabled={syncing}
             className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            title="أعد فهرسة ملفات Drive إلى عقل المعرفة (بحث عربي)"
           >
             {syncing
               ? 'جاري الفهرسة السحابية…'
-              : 'زامن العقل'}
+              : 'أعد المزامنة · فهرسة Drive'}
           </button>
         )}
       </div>
@@ -247,7 +248,14 @@ export function GoogleDriveBrainPanel() {
       {!preview?.connected && !isGuest && (
         <p className="mb-3 text-[11px] leading-snug text-stone-500">
           استخدم حساب Google الذي يملك وصولاً لمجلد المشاركة أعلاه، ثم اضغط
-          المزامنة. لا حاجة لخزنة الماك.
+          «أعد المزامنة» لفهرسة الوثائق (لائحة، ترخيص، خطابات…). لا حاجة لخزنة
+          الماك.
+        </p>
+      )}
+      {preview?.connected && (preview.count || 0) > 0 && (
+        <p className="mb-3 text-[11px] leading-snug text-stone-500">
+          إن لم يظهر مستند في البحث: اضغط «أعد المزامنة · فهرسة Drive» بعد رفع
+          ملفات جديدة إلى المجلد.
         </p>
       )}
 

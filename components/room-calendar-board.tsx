@@ -473,6 +473,35 @@ export function RoomCalendarBoard({
     }
   }
 
+  async function cleanupTestEvents() {
+    if (signedIn !== true) return
+    if (
+      !window.confirm(
+        'إلغاء مواعيد الاختبار الظاهرة في التقويم (مثل «اختبار تقويم الفريق»)؟'
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const res = await fetch('/api/rooms/calendar', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'cleanup_test', scopeId }),
+      })
+      const data = (await res.json()) as { error?: string; messageAr?: string }
+      if (!res.ok) throw new Error(data.error || 'فشل التنظيف')
+      setMsg(data.messageAr || 'تم التنظيف')
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const sourceLabel = (s: string) =>
     s === 'ai'
       ? 'وكيل'
@@ -765,6 +794,18 @@ export function RoomCalendarBoard({
               >
                 <RefreshCw className="h-3 w-3" />
                 رتّب وكشّف التعارض
+              </button>
+            )}
+            {signedIn === true && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void cleanupTestEvents()}
+                className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-950 disabled:opacity-40"
+                title="للمدير: إلغاء مواعيد الاختبار من التقويم"
+              >
+                <Trash2 className="h-3 w-3" />
+                تنظيف مواعيد الاختبار
               </button>
             )}
             <button

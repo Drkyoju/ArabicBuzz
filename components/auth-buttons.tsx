@@ -124,7 +124,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     try {
       await verifyEmailOtp(email, code)
       setUser((await getBrowserSession())?.user ?? null)
-      router.replace('/')
+      let nextPath = '/'
+      try {
+        const stored = sessionStorage.getItem('ab-auth-next')
+        if (stored?.startsWith('/') && !stored.startsWith('//')) {
+          nextPath = stored
+          sessionStorage.removeItem('ab-auth-next')
+        }
+      } catch {
+        /* ignore */
+      }
+      router.replace(nextPath)
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'الرمز غير صحيح')
@@ -166,7 +176,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
       if (sessionError) throw sessionError
       setUser((await getBrowserSession())?.user ?? null)
       setInfo(data.messageAr || 'تم الدخول التجريبي')
-      router.replace('/')
+      let nextPath = '/'
+      try {
+        const stored = sessionStorage.getItem('ab-auth-next')
+        if (stored?.startsWith('/') && !stored.startsWith('//')) {
+          nextPath = stored
+          sessionStorage.removeItem('ab-auth-next')
+        }
+      } catch {
+        /* ignore */
+      }
+      router.replace(nextPath)
       router.refresh()
       // Hard navigation so home auth gate re-reads session cookies
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload after setSession

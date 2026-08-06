@@ -170,12 +170,18 @@ export async function GET(req: NextRequest) {
   )
   const zoomLiveNow = liveZoom.length > 0
 
-  // Presence-ish actors from recent activity
+  // Meaningful actors only — skip presence page-opens («فتح لوحة اليوم»)
+  const meaningfulActivity = activity.filter(
+    (a) =>
+      a.kind !== 'presence' &&
+      a.actionAr !== 'فتح لوحة اليوم' &&
+      a.actionAr !== 'تواجد في الغرفة'
+  )
   const peopleMap = new Map<
     string,
     { nameAr: string; email?: string | null; actions: number; lastAt: string; lastAction: string }
   >()
-  for (const a of activity) {
+  for (const a of meaningfulActivity) {
     const key = a.actorEmail || a.actorAr
     const prev = peopleMap.get(key)
     if (!prev) {
@@ -263,7 +269,7 @@ export async function GET(req: NextRequest) {
       messageAr: zoomSnap?.messageAr || '',
       configured: Boolean(zoomSnap?.configured),
     },
-    activity: activity.slice(0, 25).map((a) => ({
+    activity: meaningfulActivity.slice(0, 25).map((a) => ({
       ...a,
       atAr: fmtTime(a.createdAt),
     })),
@@ -297,7 +303,7 @@ export async function GET(req: NextRequest) {
   })
 }
 
-/** Log presence / manual activity from the client. */
+/** Log manual activity from the client (presence page-opens are ignored). */
 export async function POST(req: NextRequest) {
   const { requireRealUser } = await import('@/lib/auth/session')
   const auth = await requireRealUser(req)
@@ -311,18 +317,28 @@ export async function POST(req: NextRequest) {
     actionAr?: string
     detailAr?: string
   }
+  const kind =
+    body.kind === 'presence' ||
+    body.kind === 'edit' ||
+    body.kind === 'message' ||
+    body.kind === 'canvas' ||
+    body.kind === 'zoom' ||
+    body.kind === 'system'
+      ? body.kind
+      : 'presence'
+  const actionAr = String(body.actionAr || 'تواجد في الغرفة')
+  // Do not persist home page-open noise into the activity feed
+  if (
+    kind === 'presence' ||
+    actionAr === 'فتح لوحة اليوم' ||
+    actionAr === 'تواجد في الغرفة'
+  ) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'presence_ignored' })
+  }
   const scopeId = String(body.scopeId || 'shared-demo')
   const row = await logRoomActivity({
     scopeId,
-    kind:
-      body.kind === 'presence' ||
-      body.kind === 'edit' ||
-      body.kind === 'message' ||
-      body.kind === 'canvas' ||
-      body.kind === 'zoom' ||
-      body.kind === 'system'
-        ? body.kind
-        : 'presence',
+    kind,
     actorAr: String(
       body.actorAr ||
         auth.user.user_metadata?.full_name ||
@@ -330,7 +346,7 @@ export async function POST(req: NextRequest) {
         'عضو'
     ),
     actorEmail: body.actorEmail || auth.user.email || null,
-    actionAr: String(body.actionAr || 'تواجد في الغرفة'),
+    actionAr,
     detailAr: body.detailAr || null,
   })
   return NextResponse.json({ ok: true, row })

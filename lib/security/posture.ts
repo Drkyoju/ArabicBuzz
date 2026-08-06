@@ -144,17 +144,21 @@ export function shouldHaltForApproval(result: ActionRiskResult): boolean {
 
 /**
  * When true (default), tools never pause for HITL.
- * Set HITL_DISABLED=0 on Netlify to re-enable approvals.
+ * Set HITL_DISABLED=0 on Netlify to re-enable approvals (Telegram path intact).
  */
 export function isHitlDisabled(): boolean {
   const v = (process.env.HITL_DISABLED ?? '1').trim().toLowerCase()
   return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no'
 }
 
+/**
+ * When HITL is enabled, default to AUTO (high-risk only) for association safety.
+ * Override with DEFAULT_SECURITY_POSTURE=STRICT|DANGEROUS|AUTO.
+ */
 export function parsePosture(raw?: string | null): SecurityPostureMode {
   if (isHitlDisabled()) return 'DANGEROUS'
-  const fallback = (process.env.DEFAULT_SECURITY_POSTURE || 'DANGEROUS').toUpperCase()
+  const fallback = (process.env.DEFAULT_SECURITY_POSTURE || 'AUTO').toUpperCase()
   const v = (raw || fallback).toUpperCase()
   if (v === 'STRICT' || v === 'DANGEROUS' || v === 'AUTO') return v
-  return 'DANGEROUS'
+  return 'AUTO'
 }

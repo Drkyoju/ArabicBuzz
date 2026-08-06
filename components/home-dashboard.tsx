@@ -209,35 +209,7 @@ export function HomeDashboard({
         throw new Error(json.error || 'فشل التحميل')
       }
       setLiveData(json)
-
-      try {
-        const key = `ab-home-ping-${scopeId}`
-        const last = Number(localStorage.getItem(key) || 0)
-        if (Date.now() - last > 10 * 60_000) {
-          localStorage.setItem(key, String(Date.now()))
-          const { getBrowserSession } = await import('@/lib/supabase/browser')
-          const session = await getBrowserSession()
-          const name =
-            localStorage.getItem('ab-display-name') ||
-            session?.user?.user_metadata?.full_name ||
-            session?.user?.email?.split('@')[0] ||
-            'زائر'
-          await fetch('/api/rooms/home', {
-            method: 'POST',
-            headers: await authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-              scopeId,
-              kind: 'presence',
-              actorAr: String(name),
-              actorEmail: session?.user?.email || null,
-              actionAr: 'فتح لوحة اليوم',
-              detailAr: 'يشاهد الصفحة الرئيسية',
-            }),
-          })
-        }
-      } catch {
-        /* ignore */
-      }
+      // Presence page-opens are no longer logged — they flooded «من كانوا هنا».
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
     } finally {

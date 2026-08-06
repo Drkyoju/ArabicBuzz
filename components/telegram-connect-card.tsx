@@ -78,12 +78,12 @@ export function TelegramConnectCard() {
       </div>
       <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs text-stone-600">
         <li>
-          للمحادثة الخاصة: اضغط «ربط هذه المساحة» ثم أرسل{' '}
+          للمحادثة الخاصة (تنبيهاتك): اضغط «ربط هذه المساحة» ثم أرسل{' '}
           <code dir="ltr">/start</code> إن لم يُفتح تلقائياً.
         </li>
         <li>
-          للمجموعة: أضف البوت للمجموعة، افتح رابط الدعوة من داخلها، أو الصق
-          معرّف المجموعة في قسم اللجان.
+          لمجموعة لجنة: أضف البوت للمجموعة → من داخل المجموعة افتح رابط «ربط من
+          تيليجرام» تحت اللجان، أو الصق معرّف المجموعة يدوياً (لا نولّد معرّفات).
         </li>
         <li>
           أوامر مفيدة: <code dir="ltr">/help</code> ·{' '}
@@ -180,7 +180,7 @@ export function ConnectedServicesPanel() {
           className="mt-2 group"
           summaryAr="ترتيب مزوّدي التفريغ"
         >
-          Gemini (مجاني بمفتاحكم) → Willow إن وُجد → Hugging Face عربية → Groq
+          Willow إن وُجد → Gemini → Hugging Face عربية → Groq (النسخ الاحتياطية اختيارية)
           Whisper → Deepgram اختياري.
         </DevDisclosure>
       </div>
