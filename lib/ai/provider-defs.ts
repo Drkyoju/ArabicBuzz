@@ -55,13 +55,12 @@ export const PROVIDER_DEFS: ProviderDef[] = [
   },
   {
     envName: 'TOKENROUTER_API_KEY',
-    labelAr: 'مسار الرموز (متوقف)',
-    labelEn: 'Token path (degraded)',
+    labelAr: 'TokenRouter · Kimi Free',
+    labelEn: 'TokenRouter (Kimi Free)',
     kind: 'llm',
     hintAr:
-      'متوقف مؤقتاً — حدّث المفتاح لدى المسؤول ثم أعد التفعيل.',
+      'يفتح moonshotai/kimi-k3-free عند وجود رصيد في المفتاح. إن ظهر «الرصيد منتهٍ» أنشئ مفتاحاً جديداً من لوحة TokenRouter.',
     docsUrl: 'https://docs.tokenrouter.io/',
-    degraded: true,
   },
   {
     envName: 'OPENAI_API_KEY',

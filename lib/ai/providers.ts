@@ -272,9 +272,7 @@ export function getModel(modelId: string) {
 
   const tokenRouterId = TOKENROUTER_IDS[id]
   if (tokenRouterId) {
-    throw new Error(
-      'TokenRouter متوقف مؤقتاً: مفتاح api.tokenrouter.com غير صالح أو بلا رصيد (401). اختر مزوّداً آخر من قدرة الرد.'
-    )
+    return getCloudProviders().tokenrouter(tokenRouterId)
   }
 
   // Raw OpenRouter path: provider/model (after TokenRouter map)

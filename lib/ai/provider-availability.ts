@@ -155,10 +155,10 @@ export async function validateProviderKey(
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(10000),
         })
-        // Some gateways omit /models — fall back to a tiny chat probe.
         if (res.ok) {
           return { ok: true, detail: 'صالح' }
         }
+        const modelsBody = await res.text().catch(() => '')
         const chat = await fetch(`${base}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -172,12 +172,26 @@ export async function validateProviderKey(
           }),
           signal: AbortSignal.timeout(15000),
         })
+        const chatBody = await chat.text().catch(() => '')
+        const combined = `${modelsBody} ${chatBody}`
+        if (chat.ok || chat.status === 400) {
+          return { ok: true, detail: 'صالح' }
+        }
+        if (
+          /额度已用尽|RemainQuota\s*=\s*0|quota|insufficient/i.test(combined)
+        ) {
+          return {
+            ok: false,
+            detail:
+              'الرصيد منتهٍ على هذا المفتاح — أنشئ مفتاح TokenRouter جديداً برصيد، أو انتظر تجديد الباقة المجانية',
+          }
+        }
+        if (chat.status === 401 || res.status === 401) {
+          return { ok: false, detail: 'مفتاح TokenRouter مرفوض (401)' }
+        }
         return {
-          ok: chat.ok || chat.status === 400,
-          detail:
-            chat.ok || chat.status === 400
-              ? 'صالح'
-              : `رفض المزوّد (${chat.status})`,
+          ok: false,
+          detail: `رفض المزوّد (${chat.status || res.status})`,
         }
       }
       case 'GEMINI_API_KEY': {
