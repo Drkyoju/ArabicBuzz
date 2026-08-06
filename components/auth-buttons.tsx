@@ -47,8 +47,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     if (!configured) return
-    void getBrowserSession()
-      .then(async (s) => {
+    let cancelled = false
+    const sb = createBrowserSupabaseClient()
+    void (async () => {
+      try {
+        const s = await Promise.race([
+          getBrowserSession(),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 2500)
+          ),
+        ])
+        if (cancelled) return
         setUser(s?.user ?? null)
         // If OAuth landed on /auth/login instead of /auth/callback,
         // still persist Calendar/Drive tokens when present.
@@ -59,8 +68,17 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         ) {
           await persistGoogleProviderTokens(s)
         }
-      })
-      .catch(() => setUser(null))
+      } catch {
+        if (!cancelled) setUser(null)
+      }
+    })()
+    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
+      if (!cancelled) setUser(session?.user ?? null)
+    })
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
   }, [configured])
 
   useEffect(() => {

@@ -93,15 +93,17 @@ export function GoogleDriveBrainPanel() {
       let rounds = 0
       let totalIngested = 0
       let lastMessage = ''
+      let batchSize = 2
+      let timeouts = 0
       // Auto-continue batches until folder is fully indexed (cap rounds)
-      while (rounds < 12) {
+      while (rounds < 20) {
         rounds += 1
         const res = await fetch('/api/google/drive/brain', {
           method: 'POST',
           headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ maxFiles: 8 }),
+          body: JSON.stringify({ maxFiles: batchSize }),
         })
-        const data = (await res.json()) as {
+        const data = (await res.json().catch(() => ({}))) as {
           error?: string
           messageAr?: string
           ingested?: number
@@ -110,7 +112,24 @@ export function GoogleDriveBrainPanel() {
           remaining?: number
           alreadyIndexed?: number
         }
-        if (!res.ok) throw new Error(data.error || 'فشلت المزامنة')
+        if (!res.ok) {
+          // Gateway timeout: shrink batch and retry instead of aborting the whole sync.
+          if (res.status === 504 || res.status === 502) {
+            timeouts += 1
+            batchSize = 1
+            setNote(
+              `انتهت مهلة الجولة ${rounds} — نكمل بملف واحد في كل جولة…`
+            )
+            if (timeouts >= 6) {
+              throw new Error(
+                'المزامنة بطيئة جداً على الاستضافة. أعد المحاولة لاحقاً أو زامن على دفعات.'
+              )
+            }
+            continue
+          }
+          throw new Error(data.error || 'فشلت المزامنة')
+        }
+        timeouts = 0
         totalIngested += data.ingested || 0
         lastMessage = data.messageAr || ''
         setNote(

@@ -134,7 +134,8 @@ export async function syncDriveFolderToBrain(opts: {
 }): Promise<DriveSyncResult> {
   const folderId = opts.folderId || getDriveBrainFolderId()
   const folderUrl = `https://drive.google.com/drive/folders/${folderId}`
-  const batchLimit = opts.maxFiles ?? 8
+  // Netlify edge/function wall clock (~26–60s): one heavy PDF+OCR can fill a round.
+  const batchLimit = opts.maxFiles ?? 2
   const maxBytes = 40 * 1024 * 1024
   const scopeId = COMPANY_BRAIN_SCOPE_ID
 
@@ -203,11 +204,13 @@ export async function syncDriveFolderToBrain(opts: {
         })
         continue
       }
+      // OCR is expensive on Netlify — only for small scans; text PDFs extract without it.
+      const enableOcr = Number(file.size || dl.buffer.length) < 2 * 1024 * 1024
       const extracted = await extractDocumentText({
         buffer: dl.buffer,
         filename: dl.filename,
         mimeType: dl.mimeType,
-        enableOcr: true,
+        enableOcr,
       })
       if (!extracted.text.trim() || extracted.text.trim() === '[object Object]') {
         skipped += 1
