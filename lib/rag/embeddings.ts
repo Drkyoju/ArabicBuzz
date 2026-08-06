@@ -2,7 +2,12 @@ import { CohereClient } from 'cohere-ai'
 
 export const EMBEDDING_DIMENSIONS = 1024
 
-export type EmbeddingProvider = 'cohere' | 'bge-m3' | 'hf-e5' | 'hash'
+export type EmbeddingProvider =
+  | 'gemini'
+  | 'cohere'
+  | 'bge-m3'
+  | 'hf-e5'
+  | 'hash'
 
 export type EmbedInputType = 'search_query' | 'search_document'
 
@@ -10,21 +15,37 @@ export type EmbedInputType = 'search_query' | 'search_document'
  * Free-first cascade (no paid subscription required):
  * 1) EMBEDDING_PROVIDER override (explicit)
  * 2) Hugging Face e5 if HF_TOKEN (free account token)
- * 3) BGE-M3 if BGE_M3_BASE_URL (self-host from GitHub FlagEmbedding)
- * 4) Cohere only if EMBEDDING_PROVIDER=cohere (opt-in paid)
- * 5) Hash fallback (always free)
+ * 3) Gemini embed if GEMINI_API_KEY (free tier, 1024-d)
+ * 4) BGE-M3 if BGE_M3_BASE_URL (self-host from GitHub FlagEmbedding)
+ * 5) Cohere only if EMBEDDING_PROVIDER=cohere (opt-in paid)
+ * 6) Hash fallback (always free)
  */
 function resolveProvider(): EmbeddingProvider {
   const raw = (process.env.EMBEDDING_PROVIDER || '').toLowerCase().trim()
   if (raw === 'hash' || raw === 'fallback') return 'hash'
   if (raw === 'bge-m3' || raw === 'bge') return 'bge-m3'
   if (raw === 'hf' || raw === 'hf-e5' || raw === 'e5') return 'hf-e5'
+  if (raw === 'gemini' || raw === 'google') return 'gemini'
   if (raw === 'cohere') return 'cohere'
 
   // Default: never auto-pick paid Cohere
   if (process.env.HF_TOKEN?.trim()) return 'hf-e5'
+  if (
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim()
+  ) {
+    return 'gemini'
+  }
   if (process.env.BGE_M3_BASE_URL?.trim()) return 'bge-m3'
   return 'hash'
+}
+
+function geminiApiKey(): string | undefined {
+  return (
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_API_KEY?.trim() ||
+    undefined
+  )
 }
 
 /** Format float array as pgvector literal: [0.1,0.2,...] */
@@ -104,6 +125,48 @@ async function embedWithCohere(
 }
 
 /**
+ * Free Gemini embeddings (gemini-embedding-001) at 1024-d to match pgvector.
+ * Uses the same GEMINI_API_KEY already used for chat/OCR.
+ */
+async function embedWithGemini(texts: string[]): Promise<number[][]> {
+  const key = geminiApiKey()
+  if (!key) throw new Error('GEMINI_API_KEY required for gemini embeddings')
+
+  const model =
+    process.env.GEMINI_EMBED_MODEL?.trim() || 'gemini-embedding-001'
+  const out: number[][] = []
+
+  for (const text of texts) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${encodeURIComponent(key)}`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: `models/${model}`,
+        content: { parts: [{ text: text.slice(0, 8000) }] },
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(
+        `Gemini embed failed (${res.status}): ${body.slice(0, 200)}`
+      )
+    }
+    const json = (await res.json()) as {
+      embedding?: { values?: number[] }
+    }
+    const values = json.embedding?.values
+    if (!values?.length) {
+      throw new Error('Gemini embed returned empty vector')
+    }
+    out.push(normalizeDims(values))
+  }
+
+  return out
+}
+
+/**
  * BGE-M3 via OpenAI-compatible embeddings endpoint
  * (Ollama, TEI, Infinity, HuggingFace routers, FlagEmbedding server).
  * Free when self-hosted: https://github.com/FlagOpen/FlagEmbedding
@@ -112,7 +175,7 @@ async function embedWithBgeM3(texts: string[]): Promise<number[][]> {
   const base = process.env.BGE_M3_BASE_URL || process.env.OLLAMA_BASE_URL || ''
   if (!base) {
     throw new Error(
-      'BGE-M3 غير مُعدّ. اضبط BGE_M3_BASE_URL أو استخدم HF_TOKEN للمسار المجاني.'
+      'BGE-M3 غير مُعدّ. اضبط BGE_M3_BASE_URL أو استخدم HF_TOKEN / GEMINI_API_KEY للمسار المجاني.'
     )
   }
   const model = process.env.BGE_M3_MODEL || 'bge-m3'
@@ -252,12 +315,22 @@ export async function embedTexts(
     if (provider === 'hf-e5') {
       return await embedWithHfE5(texts, inputType)
     }
+    if (provider === 'gemini') {
+      return await embedWithGemini(texts)
+    }
     return await embedWithCohere(texts, inputType)
   } catch (e) {
     // Cascade down to free options so ingest/search never hard-fail
     if (provider !== 'hf-e5' && process.env.HF_TOKEN?.trim()) {
       try {
         return await embedWithHfE5(texts, inputType)
+      } catch {
+        /* fall through */
+      }
+    }
+    if (provider !== 'gemini' && geminiApiKey()) {
+      try {
+        return await embedWithGemini(texts)
       } catch {
         /* fall through */
       }

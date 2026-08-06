@@ -8,8 +8,9 @@ Arabic Buzz is wired for **free tiers + open GitHub** — no paid SaaS required.
 |-------|-------------|--------|
 | Hosting | Netlify free | already live |
 | Auth + DB | Supabase free | keep current project |
-| DB from Netlify | Supabase **Transaction pooler** `:6543` | set `DATABASE_URL` to pooler URI (still free tier) |
-| Embeddings | Hugging Face free token | set `HF_TOKEN` (no paid plan) |
+| DB from Netlify | Supabase **Transaction pooler** `:6543` | set `DATABASE_URL` to pooler URI (or keep direct — app rewrites with `SUPABASE_POOLER_REGION`) |
+| Embeddings (default) | **Gemini** `gemini-embedding-001` @ 1024-d | already uses `GEMINI_API_KEY` |
+| Embeddings (alt) | Hugging Face free token | set `HF_TOKEN` (preferred if set) |
 | Or self-host embeds | [FlagOpen/FlagEmbedding](https://github.com/FlagOpen/FlagEmbedding) BGE-M3 | set `BGE_M3_BASE_URL` |
 | Search web | DuckDuckGo / Wikipedia / gov.sa | built-in, no key |
 | URL → brain | Jina Reader free path | built-in |
@@ -19,7 +20,11 @@ Arabic Buzz is wired for **free tiers + open GitHub** — no paid SaaS required.
 
 **Do not set** unless you later choose to pay: `COHERE_API_KEY`, Firecrawl, Brave, Langfuse paid, Steel paid.
 
-Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → BGE → hash**.
+Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → Gemini → BGE → hash**.
+
+## Health check
+
+`GET /api/health/free` → `embeddingProvider`, `dbPooler`, `supabaseOk`, `brainDocuments`, `prismaOk`.
 
 ## Open GitHub / Hub (free)
 
@@ -31,9 +36,11 @@ Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → BGE → hash**.
 ## One-time Netlify env (free)
 
 ```
-HF_TOKEN=hf_...          # free Hugging Face access token
-DATABASE_URL=...         # Supabase pooler :6543 (free tier)
-# EMBEDDING_PROVIDER=    # leave unset
+DATABASE_URL=...              # Supabase pooler :6543 (recommended)
+SUPABASE_POOLER_REGION=eu-central-1   # auto-rewrite if direct URL left
+GEMINI_API_KEY=...            # already used for chat + free embeds
+# HF_TOKEN=hf_...             # optional upgrade for e5
+# EMBEDDING_PROVIDER=         # leave unset
 # no COHERE_API_KEY
 ```
 

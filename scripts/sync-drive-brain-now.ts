@@ -39,9 +39,9 @@ async function loadNetlifyGoogleCreds() {
       /* optional */
     }
   }
-  if (!process.env.EMBEDDING_PROVIDER && process.env.COHERE_API_KEY) {
-    process.env.EMBEDDING_PROVIDER = 'cohere'
-  }
+  // Free-first: leave EMBEDDING_PROVIDER unset so Gemini/HF cascade applies.
+  // Only force Cohere when explicitly requested.
+
   process.env.OCR_GEMINI_MODEL =
     process.env.OCR_GEMINI_MODEL || 'gemini-2.5-flash'
   const folder = list.find((e) => e.key === 'GOOGLE_DRIVE_BRAIN_FOLDER_ID')

@@ -1,6 +1,10 @@
 /**
  * Prefer a Supabase/PgBouncer pooler URL on serverless (Netlify).
  * Mutates DATABASE_URL in-process before PrismaClient is constructed.
+ *
+ * Direct host `db.<ref>.supabase.co:5432` often fails DNS from some networks
+ * and is a poor fit for serverless. Rewrite to transaction pooler :6543 when
+ * SUPABASE_POOLER_REGION is set (or default eu-central-1).
  */
 export function ensurePooledDatabaseUrl(): string | undefined {
   const candidates = [
@@ -13,7 +17,9 @@ export function ensurePooledDatabaseUrl(): string | undefined {
   if (!raw) return undefined
 
   try {
-    const u = new URL(raw)
+    let u = new URL(raw)
+    u = maybeRewriteSupabaseDirectToPooler(u)
+
     const isPooler =
       u.port === '6543' ||
       u.hostname.includes('pooler') ||
@@ -37,4 +43,37 @@ export function ensurePooledDatabaseUrl(): string | undefined {
     process.env.DATABASE_URL = raw
     return raw
   }
+}
+
+/**
+ * postgresql://postgres:PASS@db.REF.supabase.co:5432/postgres
+ * → postgresql://postgres.REF:PASS@aws-0-REGION.pooler.supabase.com:6543/postgres
+ */
+function maybeRewriteSupabaseDirectToPooler(u: URL): URL {
+  const m = /^db\.([a-z0-9]+)\.supabase\.co$/i.exec(u.hostname)
+  if (!m) return u
+  if (u.port && u.port !== '5432' && u.port !== '') return u
+
+  const projectRef = m[1]
+  const region =
+    process.env.SUPABASE_POOLER_REGION?.trim() ||
+    process.env.SUPABASE_REGION?.trim() ||
+    'eu-central-1'
+
+  const next = new URL(u.toString())
+  next.hostname = `aws-0-${region}.pooler.supabase.com`
+  next.port = '6543'
+  // Pooler login is postgres.<projectRef>
+  const user = decodeURIComponent(next.username || 'postgres')
+  if (user === 'postgres' || !user.includes('.')) {
+    next.username = `postgres.${projectRef}`
+  }
+  next.searchParams.set('pgbouncer', 'true')
+  if (!next.searchParams.has('connection_limit')) {
+    next.searchParams.set('connection_limit', '1')
+  }
+  if (!next.searchParams.has('sslmode')) {
+    next.searchParams.set('sslmode', 'require')
+  }
+  return next
 }

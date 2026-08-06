@@ -6,12 +6,26 @@ import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { MCP_CATALOG } from '@/lib/mcp/catalog'
 import { isLangfuseConfigured } from '@/lib/observability/langfuse'
 import { isBrowserRpaConfigured } from '@/lib/tools/browser-rpa'
+import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
+import { ensurePooledDatabaseUrl } from '@/lib/db-url'
 
 export const dynamic = 'force-dynamic'
 
 /** Public-ish status of optional integrations (no secrets). */
 export async function GET() {
+  ensurePooledDatabaseUrl()
   const telegramOwnerConfigured = await hasTelegramOwnerTarget()
+  const embeddingProvider = getActiveEmbeddingProvider()
+  let dbPooler = false
+  try {
+    const u = new URL(process.env.DATABASE_URL || '')
+    dbPooler =
+      u.port === '6543' ||
+      u.hostname.includes('pooler') ||
+      u.searchParams.get('pgbouncer') === 'true'
+  } catch {
+    /* ignore */
+  }
   let mcpServers = 0
   let mcpTools = 0
   try {
@@ -23,6 +37,18 @@ export async function GET() {
     /* ignore */
   }
   return Response.json({
+    embeddingProvider,
+    embeddingStatusAr:
+      embeddingProvider === 'gemini'
+        ? 'مجاني · Gemini (مفتاحكم الحالي)'
+        : embeddingProvider === 'hf-e5'
+          ? 'مجاني · Hugging Face e5'
+          : embeddingProvider === 'bge-m3'
+            ? 'مجاني · BGE-M3 محلي'
+            : embeddingProvider === 'cohere'
+              ? 'مدفوع اختياري · Cohere'
+              : 'احتياطي مجاني · hash',
+    dbPooler,
     zoomConfigured: isZoomCreateConfigured(),
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
     telegramOwnerConfigured,
