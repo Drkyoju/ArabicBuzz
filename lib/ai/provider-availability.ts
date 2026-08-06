@@ -403,7 +403,9 @@ export async function getProvidersSnapshot(
           'حدّث المفتاح أو الرصيد لدى TokenRouter ثم أعد التحقق'
       } else if (!hasKey) blockedReasonAr = `أضف ${m.requiresKey} من صفحة مفاتيح API`
       else if (live === false)
-        blockedReasonAr = `مفتاح ${m.requiresKey} مرفوض أو لا يستجيب`
+        blockedReasonAr =
+          probes.get(m.requiresKey)?.detail ||
+          `مفتاح ${m.requiresKey} مرفوض أو لا يستجيب`
       else blockedReasonAr = 'غير متاح'
     }
     return {
