@@ -50,7 +50,8 @@ async function resolveTelegramTarget(meta?: Record<string, unknown>) {
       /* fall through */
     }
   }
-  if (explicit && !committeeKey) return explicit
+  // Prefer the room's linked chat (/link group) over owner DM env — otherwise
+  // site → Telegram always hits TELEGRAM_OWNER_CHAT_ID and never the group.
   try {
     const { getSupabaseAdmin } = await import('@/lib/supabase/server')
     const { findLatestTelegramChatId } = await import(
@@ -68,9 +69,10 @@ async function resolveTelegramTarget(meta?: Record<string, unknown>) {
         .maybeSingle()
       if (data?.external_id) return String(data.external_id)
     }
+    if (explicit) return explicit
     return findLatestTelegramChatId()
   } catch {
-    return ''
+    return explicit || ''
   }
 }
 
