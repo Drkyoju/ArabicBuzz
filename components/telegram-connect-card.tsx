@@ -14,6 +14,7 @@ export function TelegramConnectCard() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const [ready, setReady] = useState<boolean | null>(null)
   const [ownerOk, setOwnerOk] = useState(false)
+  const [outboundOk, setOutboundOk] = useState(false)
   const botBase =
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL ||
     'https://t.me/alhuda14bot'
@@ -30,8 +31,9 @@ export function TelegramConnectCard() {
           telegramOutboundReady?: boolean
         }) => {
           if (cancelled) return
-          setReady(Boolean(d.telegramOutboundReady || d.telegramConfigured))
+          setReady(Boolean(d.telegramConfigured))
           setOwnerOk(Boolean(d.telegramOwnerConfigured))
+          setOutboundOk(Boolean(d.telegramOutboundReady))
         }
       )
       .catch(() => {
@@ -51,7 +53,8 @@ export function TelegramConnectCard() {
         تيليجرام · أوامر من الجوال
       </h3>
       <p className="mb-3 text-xs text-stone-500">
-        افتح الرابط أدناه لربط هذه المساحة تلقائياً، ثم أرسل الأوامر من هاتفك.
+        بوت واحد فقط — اربطه بمحادثة خاصة (تنبيهات لك) أو أضفه لمجموعة
+        اللجان أدناه. لا حاجة لبوت ثانٍ.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         {ready === null ? (
@@ -60,7 +63,11 @@ export function TelegramConnectCard() {
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-emerald-800">
             <CheckCircle2 className="h-3.5 w-3.5" />
             البوت جاهز
-            {ownerOk ? ' · المالك مربوط' : ' · افتح رابط الربط أدناه'}
+            {outboundOk
+              ? ' · الإرسال جاهز'
+              : ownerOk
+                ? ' · المالك مربوط'
+                : ' · افتح رابط الربط أدناه'}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-amber-900">
@@ -70,13 +77,17 @@ export function TelegramConnectCard() {
         )}
       </div>
       <ol className="mb-3 list-decimal space-y-1 pe-4 text-xs text-stone-600">
-        <li>اضغط «ربط هذه المساحة» لفتح البوت مع رمز الدعوة.</li>
         <li>
-          أرسل <code dir="ltr">/start</code> إن لم يُفتح تلقائياً، ثم{' '}
-          <code dir="ltr">/help</code>
+          للمحادثة الخاصة: اضغط «ربط هذه المساحة» ثم أرسل{' '}
+          <code dir="ltr">/start</code> إن لم يُفتح تلقائياً.
         </li>
         <li>
-          للموافقات المعلّقة: <code dir="ltr">/approve</code>
+          للمجموعة: أضف البوت للمجموعة، افتح رابط الدعوة من داخلها، أو الصق
+          معرّف المجموعة في قسم اللجان.
+        </li>
+        <li>
+          أوامر مفيدة: <code dir="ltr">/help</code> ·{' '}
+          <code dir="ltr">/status</code> · <code dir="ltr">/approve</code>
         </li>
       </ol>
       {botBase.includes('t.me/') && (
@@ -169,8 +180,8 @@ export function ConnectedServicesPanel() {
           className="mt-2 group"
           summaryAr="ترتيب مزوّدي التفريغ"
         >
-          نماذج عربية مجانية → Groq Whisper → Deepgram (إن وُجد{' '}
-          <code dir="ltr">DEEPGRAM_API_KEY</code>) → OpenAI Whisper.
+          Gemini (مجاني بمفتاحكم) → Willow إن وُجد → Hugging Face عربية → Groq
+          Whisper → Deepgram اختياري.
         </DevDisclosure>
       </div>
     </div>

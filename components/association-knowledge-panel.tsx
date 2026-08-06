@@ -195,7 +195,8 @@ export function AssociationKnowledgePanel() {
         </li>
         <li>
           السحب يعمل بدون مفاتيح. Firecrawl اختياري فقط. تفريغ الصوت يعمل من
-          ميكروفون الغرفة (نماذج عربية → Groq/Deepgram/OpenAI حسب المفاتيح).
+          ميكروفون الغرفة (Gemini → Willow → Hugging Face → Groq حسب
+          المفاتيح المجانية).
         </li>
         <li>
           ابنِ سجل الأعضاء من لوحة الغرفة (اسم · جوال · لجنة) — هذا يفرق عن

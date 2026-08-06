@@ -1,0 +1,35 @@
+# Hourly ops heartbeat → Netlify Next.js cron API.
+# Requires GitHub secret CRON_SECRET (same value as Netlify CRON_SECRET).
+name: Cron runner
+
+on:
+  schedule:
+    # Every hour at :07 UTC (~10:07 Asia/Riyadh in winter; still fine for heartbeats)
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/crons/runner
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: https://arabicbuzz.netlify.app
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "CRON_SECRET secret is missing in this repo."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/cron-body.json -w '%{http_code}' \
+            -X POST "${APP_URL}/api/crons/runner" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --max-time 90 \
+            -d '{}')
+          echo "HTTP ${code}"
+          head -c 2000 /tmp/cron-body.json || true
+          echo
+          test "$code" = "200"

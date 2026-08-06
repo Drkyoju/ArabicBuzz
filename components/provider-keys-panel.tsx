@@ -352,11 +352,17 @@ function ProviderEditor({
         <span
           className={
             p.configured && p.liveOk === false
-              ? 'rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700'
+              ? /رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '')
+                ? 'rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800'
+                : 'rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700'
               : 'rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800'
           }
         >
-          {p.configured && p.liveOk === false ? 'مرفوض' : 'يحتاج مفتاحاً'}
+          {p.configured && p.liveOk === false
+            ? /رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '')
+              ? 'رصيد منتهٍ'
+              : 'مرفوض'
+            : 'يحتاج مفتاحاً'}
         </span>
       </div>
       <p className="mb-2 text-[11px] text-stone-500">
@@ -370,12 +376,24 @@ function ProviderEditor({
           <span className="ms-2 text-stone-400">· {p.liveDetail}</span>
         ) : null}
       </p>
-      {p.configured && p.liveOk === false && p.source === 'environment' && (
-        <p className="mb-2 text-[11px] text-amber-800">
-          المفتاح من الاستضافة غير صالح — الصق مفتاحاً صالحاً هنا (يُحفظ
-          كتجاوز) أو حدّثه لدى المسؤول.
-        </p>
-      )}
+      {p.configured &&
+        p.liveOk === false &&
+        /رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '') && (
+          <p className="mb-2 text-[11px] text-amber-800">
+            المسار جاهز — أنشئ مفتاح TokenRouter جديداً برصيد مجاني والصقه هنا،
+            أو انتظر تجديد الباقة. باقي النماذج (Gemini / GLM / AgentRouter)
+            تعمل بدون Kimi.
+          </p>
+        )}
+      {p.configured &&
+        p.liveOk === false &&
+        p.source === 'environment' &&
+        !/رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '') && (
+          <p className="mb-2 text-[11px] text-amber-800">
+            المفتاح من الاستضافة غير صالح — الصق مفتاحاً صالحاً هنا (يُحفظ
+            كتجاوز) أو حدّثه لدى المسؤول.
+          </p>
+        )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="password"

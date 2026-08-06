@@ -9,6 +9,10 @@ type Snapshot = {
   driveReady?: boolean
   zoomConfigured?: boolean
   telegramConfigured?: boolean
+  telegramOutboundReady?: boolean
+  telegramOwnerConfigured?: boolean
+  telegramDetailAr?: string
+  kimiDetailAr?: string
   macOnline?: boolean
   macConfigured?: boolean
   modelsReady?: number
@@ -19,6 +23,36 @@ type Snapshot = {
   crawlDetailAr?: string
   langfuseDetailAr?: string
   toolsReady?: boolean
+}
+
+async function fetchJson(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = 12_000
+): Promise<Record<string, unknown> | null> {
+  const ctrl = new AbortController()
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal })
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return null
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+function telegramDetailAr(integ: Record<string, unknown> | null): string {
+  if (!integ?.telegramConfigured) {
+    return 'اختياري — يحتاج TELEGRAM_BOT_TOKEN'
+  }
+  if (integ.telegramOutboundReady) {
+    return 'متصل · الإرسال جاهز (خاص أو مجموعة مربوطة)'
+  }
+  if (integ.telegramOwnerConfigured) {
+    return 'البوت جاهز · افتح رابط «ربط هذه المساحة» من الإعدادات'
+  }
+  return 'البوت جاهز · اربط محادثة خاصة عبر /start أو أضف المجموعة'
 }
 
 /**
@@ -34,28 +68,45 @@ export function OpsHealthPanel() {
     setBusy(true)
     setError('')
     try {
-      const h = await authHeaders()
-      const [cal, drive, integ, mac, providers, approvals] = await Promise.all([
-        fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
-          r.json()
+      const h = await Promise.race([
+        authHeaders(),
+        new Promise<HeadersInit>((resolve) =>
+          window.setTimeout(() => resolve({}), 4_000)
         ),
-        fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
-        fetch('/api/integrations/status').then((r) => r.json()),
-        fetch('/api/mac/status', { headers: h }).then((r) => r.json()),
-        fetch('/api/settings/providers').then((r) => r.json()),
-        fetch('/api/agent/approvals', { headers: h }).then((r) => r.json()),
       ])
+      const [cal, drive, integ, mac, providers, approvals] = await Promise.all([
+        fetchJson('/api/google/calendar?action=status', { headers: h }),
+        fetchJson('/api/google/drive/brain', { headers: h }),
+        fetchJson('/api/integrations/status', undefined, 18_000),
+        fetchJson('/api/mac/status', { headers: h }),
+        fetchJson('/api/settings/providers', undefined, 18_000),
+        fetchJson('/api/agent/approvals', { headers: h }),
+      ])
+
+      if (!integ && !providers) {
+        throw new Error('تعذّر تحميل حالة الربط — أعد المحاولة')
+      }
+
+      const tokenrouterStatusAr =
+        typeof integ?.tokenrouterStatusAr === 'string'
+          ? integ.tokenrouterStatusAr
+          : null
+
       setSnap({
         googleConnected: Boolean(cal?.connected),
         driveReady: Number(drive?.count || 0) > 0,
         zoomConfigured: Boolean(integ?.zoomConfigured),
         telegramConfigured: Boolean(integ?.telegramConfigured),
+        telegramOutboundReady: Boolean(integ?.telegramOutboundReady),
+        telegramOwnerConfigured: Boolean(integ?.telegramOwnerConfigured),
+        telegramDetailAr: telegramDetailAr(integ),
+        kimiDetailAr: tokenrouterStatusAr || undefined,
         macOnline: Boolean(mac?.online),
         macConfigured: Boolean(mac?.configured || integ?.macSyncConfigured),
         modelsReady: Number(providers?.serviceableCount || 0),
         pendingApprovals: Array.isArray(approvals?.approvals)
-          ? approvals.approvals.filter(
-              (a: { status?: string }) => a.status === 'PENDING_APPROVAL'
+          ? (approvals.approvals as Array<{ status?: string }>).filter(
+              (a) => a.status === 'PENDING_APPROVAL'
             ).length
           : 0,
         searchReady: Boolean(
@@ -100,7 +151,19 @@ export function OpsHealthPanel() {
         {
           label: 'نماذج المحادثة',
           ok: (snap.modelsReady || 0) > 0,
-          detail: (snap.modelsReady || 0) > 0 ? 'متصل' : 'غير متصل',
+          detail:
+            (snap.modelsReady || 0) > 0
+              ? `${snap.modelsReady} جاهز`
+              : 'غير متصل',
+        },
+        {
+          label: 'Kimi Free',
+          ok: Boolean(
+            snap.kimiDetailAr?.includes('جاهز') ||
+              snap.kimiDetailAr?.includes('مفعّل')
+          ),
+          detail: snap.kimiDetailAr || 'اختياري',
+          soft: true,
         },
         {
           label: 'البحث على الويب',
@@ -118,7 +181,9 @@ export function OpsHealthPanel() {
             snap.langfuseDetailAr?.includes('مفعّل') &&
               !snap.langfuseDetailAr?.includes('يحتاج')
           ),
-          detail: snap.langfuseDetailAr || 'يحتاج مفتاح مجاني من cloud.langfuse.com',
+          detail:
+            snap.langfuseDetailAr ||
+            'يحتاج مفتاح مجاني من cloud.langfuse.com',
           soft: true,
         },
         {
@@ -151,8 +216,8 @@ export function OpsHealthPanel() {
         },
         {
           label: 'تيليجرام',
-          ok: Boolean(snap.telegramConfigured),
-          detail: snap.telegramConfigured ? 'متصل' : 'اختياري',
+          ok: Boolean(snap.telegramOutboundReady || snap.telegramConfigured),
+          detail: snap.telegramDetailAr || 'اختياري',
           soft: !snap.telegramConfigured,
         },
         {
@@ -179,7 +244,8 @@ export function OpsHealthPanel() {
           </h2>
           <p className="mt-1 text-sm text-stone-500">
             البحث والزحف يعملان مجاناً بدون مفاتيح. Brave / Firecrawl / Langfuse
-            اختياري.
+            اختياري. تيليجرام: بوت واحد — محادثة خاصة للتنبيهات أو مجموعة
+            للجان.
           </p>
         </div>
         <button

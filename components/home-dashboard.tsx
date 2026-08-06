@@ -51,6 +51,13 @@ type Person = {
 
 type Digest = {
   days?: { yesterday: string; today: string; tomorrow: string; dayAfter: string }
+  agenda?: Array<{
+    offset: number
+    ymd: string
+    labelAr: string
+    weekdayAr?: string
+    events: CalEvent[]
+  }>
   calendar?: {
     yesterday: CalEvent[]
     today: CalEvent[]
@@ -120,7 +127,6 @@ function DayBlock({
   events: CalEvent[]
   accent?: string
 }) {
-  if (events.length === 0) return null
   return (
     <div
       className={cn(
@@ -134,21 +140,25 @@ function DayBlock({
           {subtitle}
         </p>
       )}
-      <ul className="mt-2 space-y-2">
-        {events.map((e) => (
-          <li
-            key={e.id}
-            className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
-          >
-            <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
-            <p className="mt-0.5 text-[10px] text-stone-500">
-              {e.startsAtAr}
-              {e.hasZoom ? ' · Zoom' : ''}
-              {e.locationAr ? ` · ${e.locationAr}` : ''}
-            </p>
-          </li>
-        ))}
-      </ul>
+      {events.length === 0 ? (
+        <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
+            >
+              <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
+              <p className="mt-0.5 text-[10px] text-stone-500">
+                {e.startsAtAr}
+                {e.hasZoom ? ' · Zoom' : ''}
+                {e.locationAr ? ` · ${e.locationAr}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -295,11 +305,38 @@ export function HomeDashboard({
 
   const hasDayEvents =
     !authPending &&
-    (cal?.yesterday || []).length +
-      (cal?.today || []).length +
-      (cal?.tomorrow || []).length +
-      (cal?.dayAfter || []).length >
-      0
+    ((viewData.agenda || []).some((d) => d.events.length > 0) ||
+      (cal?.yesterday || []).length +
+        (cal?.today || []).length +
+        (cal?.tomorrow || []).length +
+        (cal?.dayAfter || []).length >
+        0)
+  const agendaDays =
+    viewData.agenda && viewData.agenda.length > 0
+      ? viewData.agenda
+      : [
+          {
+            offset: 0,
+            ymd: viewData.days?.today || '',
+            labelAr: 'اليوم',
+            weekdayAr: undefined as string | undefined,
+            events: cal?.today || [],
+          },
+          {
+            offset: 1,
+            ymd: viewData.days?.tomorrow || '',
+            labelAr: 'غداً',
+            weekdayAr: undefined,
+            events: cal?.tomorrow || [],
+          },
+          {
+            offset: 2,
+            ymd: viewData.days?.dayAfter || '',
+            labelAr: 'بعد غد',
+            weekdayAr: undefined,
+            events: cal?.dayAfter || [],
+          },
+        ]
   const hasCommitments =
     !authPending && (viewData.commitments?.items || []).length > 0
   const hasWeek = !authPending && (cal?.week || []).length > 0
@@ -369,11 +406,18 @@ export function HomeDashboard({
         <div>
           <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
           <p className="mt-1 max-w-lg text-sm text-stone-500">
-            ما الذي ينتظر قرارك، وما المواعيد النظامية، ومن يعمل الآن.
+            مواعيد اليوم والأيام القادمة أولاً — ثم ما ينتظر قرارك ومن يعمل الآن.
           </p>
           <DateDual className="mt-2" />
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate?.('calendar')}
+            className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            أضف موعد
+          </button>
           {!isEmptyWorkspace && (
             <button
               type="button"
@@ -383,7 +427,7 @@ export function HomeDashboard({
                   block: 'start',
                 })
               }
-              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+              className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
             >
               تشغيل وصفة
             </button>
@@ -406,6 +450,40 @@ export function HomeDashboard({
           </button>
         </div>
       </header>
+
+      {!authPending && (
+        <div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+              <CalendarDays className="h-4 w-4 text-ab-accent" />
+              أجندة الأيام القادمة
+              {hasDayEvents ? (
+                <span className="text-[11px] font-normal text-stone-500">
+                  · اليوم ثم غداً وما بعده
+                </span>
+              ) : null}
+            </h2>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('calendar')}
+              className="text-[11px] font-semibold text-ab-accent underline"
+            >
+              فتح تقويم الفريق
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {agendaDays.map((d) => (
+              <DayBlock
+                key={`${d.offset}-${d.ymd}`}
+                title={d.labelAr}
+                subtitle={d.weekdayAr || d.ymd}
+                events={d.events}
+                accent={d.offset === 0 ? 'ring-1 ring-ab-accent/30' : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {showCockpit && (
         <div className="grid gap-3 lg:grid-cols-12">
@@ -619,38 +697,6 @@ export function HomeDashboard({
                 <Radio className="h-3 w-3 animate-pulse" />
                 LIVE
               </span>
-            </div>
-          )}
-
-          {hasDayEvents && (
-            <div>
-              <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                <CalendarDays className="h-4 w-4 text-ab-accent" />
-                المواعيد — أمس / اليوم / غداً / بعده
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <DayBlock
-                  title="أمس"
-                  subtitle={viewData.days?.yesterday}
-                  events={cal?.yesterday || []}
-                />
-                <DayBlock
-                  title="اليوم"
-                  subtitle={viewData.days?.today}
-                  events={cal?.today || []}
-                  accent="ring-1 ring-ab-accent/30"
-                />
-                <DayBlock
-                  title="غداً"
-                  subtitle={viewData.days?.tomorrow}
-                  events={cal?.tomorrow || []}
-                />
-                <DayBlock
-                  title="بعد غد"
-                  subtitle={viewData.days?.dayAfter}
-                  events={cal?.dayAfter || []}
-                />
-              </div>
             </div>
           )}
 

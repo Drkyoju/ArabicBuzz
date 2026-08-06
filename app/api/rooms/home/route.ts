@@ -53,6 +53,28 @@ function fmtTime(iso: string) {
   }
 }
 
+function dayLabelAr(offset: number): string {
+  if (offset === 0) return 'اليوم'
+  if (offset === 1) return 'غداً'
+  if (offset === 2) return 'بعد غد'
+  return `بعد ${offset} أيام`
+}
+
+function weekdayAr(ymd: string): string {
+  try {
+    return new Intl.DateTimeFormat('ar-SA', {
+      timeZone: TZ,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date(`${ymd}T12:00:00+03:00`))
+  } catch {
+    return ymd
+  }
+}
+
+const AGENDA_DAY_COUNT = 7
+
 /** Home digest: yesterday / today / tomorrow / week + Zoom + activity. */
 export async function GET(req: NextRequest) {
   const { requireSessionUser } = await import('@/lib/auth/session')
@@ -65,7 +87,10 @@ export async function GET(req: NextRequest) {
   const tomorrow = dayBounds(1)
   const dayAfter = dayBounds(2)
   const weekStart = dayBounds(0)
-  const weekEnd = dayBounds(6)
+  const weekEnd = dayBounds(AGENDA_DAY_COUNT - 1)
+  const agendaBounds = Array.from({ length: AGENDA_DAY_COUNT }, (_, i) =>
+    dayBounds(i)
+  )
 
   const [events, tasks, activity, zoomSessions, posts, zoomSnap, deadlines] =
     await Promise.all([
@@ -128,6 +153,16 @@ export async function GET(req: NextRequest) {
       events.filter((e) => inRange(e.startsAt, weekStart.start, weekEnd.end))
     ),
   }
+
+  const agenda = agendaBounds.map((d, offset) => ({
+    offset,
+    ymd: d.ymd,
+    labelAr: dayLabelAr(offset),
+    weekdayAr: weekdayAr(d.ymd),
+    events: mapEv(
+      events.filter((e) => inRange(e.startsAt, d.start, d.end))
+    ),
+  }))
 
   const lastZoom = await lastZoomLiveAt(scopeId)
   const liveZoom = (zoomSnap?.meetings || []).filter(
@@ -204,6 +239,7 @@ export async function GET(req: NextRequest) {
       dayAfter: dayAfter.ymd,
     },
     calendar: byDay,
+    agenda,
     commitments: {
       count: commitments.length,
       items: commitments.slice(0, 20),

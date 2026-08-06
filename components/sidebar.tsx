@@ -74,9 +74,9 @@ const PRIMARY_NAV: Array<{
   icon: LucideIcon
 }> = [
   { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
+  { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
-  { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
