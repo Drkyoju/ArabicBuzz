@@ -27,7 +27,7 @@ import {
   AuthorizationError,
 } from '@/lib/auth/rbac'
 import type { RoomCitation } from '@/lib/scopes/types'
-import { transcribeArabicAudioBuffer } from '@/lib/audio/transcribe'
+import { transcribeArabicSpeech } from '@/lib/audio/transcribe'
 import { generateArabicAudioBuffer } from '@/lib/audio/tts'
 import {
   extractAttachmentsFromToolOutput,
@@ -37,6 +37,82 @@ import {
   sendAttachmentsToTelegramChat,
   type TelegramAttachmentRef,
 } from '@/lib/telegram/media'
+import {
+  classifyTelegramFastPath,
+  isHeavyTelegramPrompt,
+  runTelegramFastPath,
+  shouldNormalizeTelegramDialect,
+} from '@/lib/telegram/fast-path'
+
+/** Chat turns: lean toolset (no Drive sync / browser RPA / sheets / MCP by default). */
+const TELEGRAM_CHAT_TOOL_NAMES = [
+  'search_knowledge_base',
+  'memory_search',
+  'list_workspace_files',
+  'list_files',
+  'read_file',
+  'read_document',
+  'read_excel',
+  'return_file',
+  'edit_document',
+  'edit_excel',
+  'write_file',
+  'brain_open_document',
+  'brain_save_document',
+  'room_calendar_list',
+  'room_calendar_create',
+  'room_calendar_update',
+  'room_calendar_cancel',
+  'room_tasks_list',
+  'room_tasks_create',
+  'room_tasks_update',
+  'room_memory_list',
+  'room_memory_add',
+  'web_search',
+  'web_fetch',
+  'calendar_list_events',
+] as const
+
+/** File/doc turns: fuller set still excluding slow/rare tools. */
+const TELEGRAM_HEAVY_TOOL_NAMES = [
+  ...TELEGRAM_CHAT_TOOL_NAMES,
+  'convert_document',
+  'pdf_create',
+  'pdf_stamp',
+  'pdf_merge',
+  'pdf_list_fields',
+  'pdf_fill_form',
+  'arabic_ocr',
+  'edit_image',
+  'generate_image_edit',
+  'brain_create_document',
+  'fill_policy_audit',
+  'read_decision_document',
+  'gmail_search',
+  'gmail_read',
+] as const
+
+function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
+  const out: ToolSet = {}
+  for (const name of names) {
+    if (all[name]) out[name] = all[name]
+  }
+  return out
+}
+
+function resolveTelegramModelSlug(heavy: boolean): string {
+  if (heavy) {
+    return (
+      process.env.TELEGRAM_HEAVY_MODEL?.trim() ||
+      process.env.DEFAULT_HARNESS_MODEL?.trim() ||
+      'gemini-3.1-pro'
+    )
+  }
+  return (
+    process.env.TELEGRAM_HARNESS_MODEL?.trim() ||
+    'gemini-2.5-flash'
+  )
+}
 
 let bot: Bot | null = null
 let botInitPromise: Promise<void> | null = null
@@ -45,10 +121,12 @@ let commandsRegistered = false
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — هذه القناة مثل غرفة الموقع تماماً.
 - افهم العربية الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة.
-- أكمل العمل بنفسك: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
+- أجب بإيجاز. للأسئلة البسيطة أجب مباشرة دون أدوات إن أمكن.
+- أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
 - الملفات: list_workspace_files → read_document / read_excel → edit_document / edit_excel → return_file.
   أي ملف تُنشئه أو تعدّله يُرسل تلقائياً كمرفق في هذه المحادثة — لا تكتفِ بوصف الرابط.
-- عقل الشركة (Drive): search_knowledge_base / brain_open_document → عدّل → brain_save_document.
+- عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.
+  لا تستدعِ مزامنة Drive كاملة من تيليجرام (تبطئ الرد) — ابحث فقط.
 - للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
@@ -224,6 +302,7 @@ export function buildApprovalKeyboard(actionId: string) {
 async function bindTelegramTools(opts: {
   requesterId: string
   scopeId: string
+  heavy: boolean
 }): Promise<ToolSet> {
   const { parsePosture } = await import('@/lib/security/posture')
   const native = getNativeAiTools({
@@ -231,14 +310,20 @@ async function bindTelegramTools(opts: {
     scopeId: opts.scopeId,
     mode: parsePosture('DANGEROUS'),
   })
-  let mcpTools: ToolSet = {}
-  try {
-    await connectEnvMcpServers()
-    mcpTools = await getMCPHostManager().getCombinedToolSet()
-  } catch {
-    /* optional */
+  const names = opts.heavy ? TELEGRAM_HEAVY_TOOL_NAMES : TELEGRAM_CHAT_TOOL_NAMES
+  const subset = pickToolSubset(native, names)
+
+  // MCP env connect is slow on cold start — opt-in only for Telegram.
+  if (process.env.TELEGRAM_INCLUDE_MCP === '1') {
+    try {
+      await connectEnvMcpServers()
+      const mcpTools = await getMCPHostManager().getCombinedToolSet()
+      return { ...subset, ...mcpTools }
+    } catch {
+      /* optional */
+    }
   }
-  return { ...native, ...mcpTools }
+  return subset
 }
 
 async function streamTelegramReply(opts: {
@@ -248,6 +333,10 @@ async function streamTelegramReply(opts: {
   modelSlug: string
   requesterId: string
   scopeId: string
+  maxSteps: number
+  tools: ToolSet
+  /** Pre-sent ack message to edit into the final reply. */
+  placeholderMessageId?: number
 }): Promise<{
   text: string
   citations: RoomCitation[]
@@ -255,24 +344,26 @@ async function streamTelegramReply(opts: {
   attachmentsSent: string[]
 }> {
   await opts.ctx.replyWithChatAction('typing')
-  const placeholder = await opts.ctx.reply('جاري التفكير…')
-  const tools = await bindTelegramTools({
-    requesterId: opts.requesterId,
-    scopeId: opts.scopeId,
-  })
+  let placeholderId = opts.placeholderMessageId
+  if (!placeholderId) {
+    const placeholder = await opts.ctx.reply('جاري…')
+    placeholderId = placeholder.message_id
+  }
 
   const citations: RoomCitation[] = []
   const pendingApprovalIds: string[] = []
   const attachmentBucket: TelegramAttachmentRef[] = []
   let assembled = ''
   let lastEdit = 0
+  /** Fewer Telegram API round-trips during stream (was 1s). */
+  const editThrottleMs = 2500
 
   const result = streamText({
     model: getHarnessModel(opts.modelSlug),
     system: opts.system,
     prompt: opts.prompt,
-    tools,
-    stopWhen: stepCountIs(10),
+    tools: opts.tools,
+    stopWhen: stepCountIs(opts.maxSteps),
   })
 
   try {
@@ -291,12 +382,12 @@ async function streamTelegramReply(opts: {
       ) {
         assembled += String(p.textDelta ?? p.delta ?? '')
         const now = Date.now()
-        if (now - lastEdit > 1000 && assembled.trim()) {
+        if (now - lastEdit > editThrottleMs && assembled.trim()) {
           lastEdit = now
           try {
             await opts.ctx.api.editMessageText(
               opts.ctx.chat!.id,
-              placeholder.message_id,
+              placeholderId,
               assembled.slice(0, 3900)
             )
           } catch {
@@ -323,14 +414,15 @@ async function streamTelegramReply(opts: {
   }
 
   const finalText = (await result.text)?.trim() || assembled.trim()
-  const stepsExtract = extractFromAgentSteps(await result.steps)
+  const steps = await result.steps
+  const stepsExtract = extractFromAgentSteps(steps)
   for (const c of stepsExtract.citations) {
     if (!citations.some((x) => x.labelAr === c.labelAr)) citations.push(c)
   }
   for (const id of stepsExtract.pendingApprovalIds) {
     if (!pendingApprovalIds.includes(id)) pendingApprovalIds.push(id)
   }
-  for (const step of await result.steps) {
+  for (const step of steps) {
     const toolResults = (
       step as { toolResults?: Array<{ result?: unknown; output?: unknown }> }
     ).toolResults
@@ -353,7 +445,7 @@ async function streamTelegramReply(opts: {
   try {
     await opts.ctx.api.editMessageText(
       opts.ctx.chat!.id,
-      placeholder.message_id,
+      placeholderId,
       body.slice(0, 4000),
       firstApproval
         ? { reply_markup: buildApprovalKeyboard(firstApproval) }
@@ -388,11 +480,78 @@ async function runTelegramAgentTurn(opts: {
   chatId: string
   userId: string
   scope: NonNullable<Awaited<ReturnType<typeof resolveTelegramScope>>>
+  /** Document/photo path — use heavier model + more tools/steps. */
+  forceHeavy?: boolean
 }) {
-  const normalized = await normalizeArabicPrompt(opts.promptSource)
-  const modelSlug = process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
-  const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
-  const system = await buildScopedSystemPrompt(TELEGRAM_AGENT_SYSTEM, opts.scope)
+  const t0 = Date.now()
+  const scopeId = opts.scope.scope.id
+
+  // Ack immediately so group UX feels responsive while we prep.
+  void opts.ctx.replyWithChatAction('typing').catch(() => undefined)
+  const ack = await opts.ctx.reply('جاري…')
+
+  const fastKind = classifyTelegramFastPath(opts.promptSource)
+  if (fastKind && !opts.forceHeavy) {
+    try {
+      const text = await runTelegramFastPath({
+        kind: fastKind,
+        scopeId,
+        userFirstName: opts.ctx.from?.first_name,
+        rawPrompt: opts.promptSource,
+      })
+      try {
+        await opts.ctx.api.editMessageText(opts.ctx.chat!.id, ack.message_id, text)
+      } catch {
+        await opts.ctx.reply(text)
+      }
+      void mirrorChannelTurnToRoom({
+        scopeId,
+        channel: 'telegram',
+        externalId: opts.chatId,
+        userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+        userMessageAr: opts.promptSource,
+        agentReplyAr: text,
+      })
+      console.info('[telegram] timing', {
+        path: 'fast',
+        kind: fastKind,
+        totalMs: Date.now() - t0,
+      })
+      return {
+        text,
+        citations: [] as RoomCitation[],
+        pendingApprovalIds: [] as string[],
+        attachmentsSent: [] as string[],
+      }
+    } catch (e) {
+      console.error('[telegram] fast-path', e)
+      /* fall through to agent */
+    }
+  }
+
+  const heavy = Boolean(opts.forceHeavy) || isHeavyTelegramPrompt(opts.promptSource)
+  const modelSlug = resolveTelegramModelSlug(heavy)
+  const maxSteps = heavy ? 6 : 4
+  const needDialect = shouldNormalizeTelegramDialect(opts.promptSource)
+
+  const tPrep = Date.now()
+  const [normalized, requesterId, system] = await Promise.all([
+    normalizeArabicPrompt(opts.promptSource, {
+      skip: !needDialect,
+      modelSlug: needDialect
+        ? process.env.TELEGRAM_DIALECT_MODEL?.trim() || 'gemini-2.5-flash'
+        : undefined,
+    }),
+    resolveChannelOwnerUserIdAsync(opts.userId),
+    buildScopedSystemPrompt(TELEGRAM_AGENT_SYSTEM, opts.scope),
+  ])
+  const tools = await bindTelegramTools({
+    requesterId,
+    scopeId,
+    heavy,
+  })
+  const prepMs = Date.now() - tPrep
+  const tStream = Date.now()
 
   const out = await streamTelegramReply({
     ctx: opts.ctx,
@@ -400,11 +559,26 @@ async function runTelegramAgentTurn(opts: {
     system,
     modelSlug,
     requesterId,
-    scopeId: opts.scope.scope.id,
+    scopeId,
+    maxSteps,
+    tools,
+    placeholderMessageId: ack.message_id,
+  })
+
+  console.info('[telegram] timing', {
+    path: 'agent',
+    heavy,
+    model: modelSlug,
+    dialect: needDialect,
+    maxSteps,
+    toolCount: Object.keys(tools).length,
+    prepMs,
+    streamMs: Date.now() - tStream,
+    totalMs: Date.now() - t0,
   })
 
   void mirrorChannelTurnToRoom({
-    scopeId: opts.scope.scope.id,
+    scopeId,
     channel: 'telegram',
     externalId: opts.chatId,
     userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
@@ -845,12 +1019,15 @@ export function getTelegramBot() {
       })
 
       await ctx.replyWithChatAction('typing')
-      const transcript = await transcribeArabicAudioBuffer(buffer, mime)
+      const stt = await transcribeArabicSpeech(buffer, mime)
+      const transcript = stt.text
       if (!transcript?.trim()) {
         await ctx.reply('لم أتمكن من تفريغ الصوت. أعد التسجيل أو اكتب النص.')
         return
       }
-      await ctx.reply(`🎤 تم التحويل:\n${transcript.slice(0, 3500)}`)
+      await ctx.reply(
+        `🎤 تم التحويل (${stt.providerLabelAr}):\n${transcript.slice(0, 3500)}`
+      )
 
       const out = await runTelegramAgentTurn({
         ctx,
@@ -860,11 +1037,14 @@ export function getTelegramBot() {
         scope,
       })
 
-      try {
-        const audioOut = await generateArabicAudioBuffer(out.text.slice(0, 800))
-        await ctx.replyWithVoice(new InputFile(audioOut, 'reply.ogg'))
-      } catch {
-        /* TTS optional */
+      // TTS adds 1–3s — opt-in only (TELEGRAM_VOICE_REPLY=1).
+      if (process.env.TELEGRAM_VOICE_REPLY === '1') {
+        try {
+          const audioOut = await generateArabicAudioBuffer(out.text.slice(0, 800))
+          await ctx.replyWithVoice(new InputFile(audioOut, 'reply.ogg'))
+        } catch {
+          /* TTS optional */
+        }
       }
     } catch (e) {
       console.error('[telegram] voice', e)
@@ -972,13 +1152,13 @@ export function getTelegramBot() {
         'استخدم read_document أو read_excel أو أدوات الصور حسب النوع، ثم عدّل عند الحاجة بـ edit_document/edit_excel وأعد الملف عبر return_file.',
       ].join('\n')
 
-      await ctx.reply(`📎 استلمت «${ingested.name}» — جاري المعالجة…`)
       await runTelegramAgentTurn({
         ctx,
         promptSource,
         chatId,
         userId,
         scope,
+        forceHeavy: true,
       })
     } catch (e) {
       console.error('[telegram] document/photo', e)

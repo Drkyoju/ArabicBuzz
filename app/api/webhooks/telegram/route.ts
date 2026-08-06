@@ -86,5 +86,17 @@ export async function GET() {
       privacyNoteAr:
         'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل العادية بدون /ask. الخصوصية الافتراضية = أوامر ومنشن فقط.',
     },
+    latency: {
+      chatModelDefault: process.env.TELEGRAM_HARNESS_MODEL || 'gemini-2.5-flash',
+      heavyModelDefault:
+        process.env.TELEGRAM_HEAVY_MODEL ||
+        process.env.DEFAULT_HARNESS_MODEL ||
+        'gemini-3.1-pro',
+      maxStepsChat: 4,
+      maxStepsHeavy: 6,
+      mcpDefault: process.env.TELEGRAM_INCLUDE_MCP === '1',
+      voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY === '1',
+      fastPath: ['greeting', 'calendar_count', 'tasks_count'],
+    },
   })
 }

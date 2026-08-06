@@ -28,11 +28,29 @@ const SYSTEM = `أنت محرك تحليل النصوص والمصطلحات ا�
 2. detectedLanguage: اللغات أو اللهجات المستخدمة (عامية_سعودية / خليجية / فصحى / إنجليزي).
 3. extractedParameters: المخرجات والمصطلحات التقنية المستخرجة.`
 
+export type NormalizeArabicPromptOpts = {
+  /** Override model (Telegram prefers flash). Default: gemini-3.1-pro / ollama. */
+  modelSlug?: string
+  /** When true, skip the LLM rewrite and return the raw prompt. */
+  skip?: boolean
+}
+
 export async function normalizeArabicPrompt(
-  rawUserPrompt: string
+  rawUserPrompt: string,
+  opts?: NormalizeArabicPromptOpts
 ): Promise<NormalizedArabicPrompt> {
+  if (opts?.skip) {
+    return {
+      normalizedPromptAr: rawUserPrompt,
+      detectedLanguage: ['تخطي'],
+      extractedParameters: {},
+      rawUserPrompt,
+    }
+  }
   try {
-    const modelSlug = IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-3.1-pro'
+    const modelSlug =
+      opts?.modelSlug ||
+      (IS_AIR_GAPPED_MODE ? 'ollama-local' : 'gemini-3.1-pro')
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug),
       schema,
