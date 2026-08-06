@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser } from '@/lib/auth/session'
 import {
   cancelRoomCalendarEvent,
+  cancelTestCalendarEvents,
   createRoomCalendarEvent,
   ingestProposedDates,
   listRoomCalendarEvents,
   reconcileRoomCalendar,
   updateRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
+import { isDirectorEmail } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +26,7 @@ export async function GET(req: NextRequest) {
     count: events.length,
     events,
     messageAr:
-      'تقويم الغرفة المشترك — للجميع وللوكيل. Google اختياري للمزامنة الخارجية.',
+      'تقويم الغرفة المشترك — للجميع وللوكيل. المصدر الرسمي لمواعيد الفريق؛ Google اختياري كنسخة خاصة لمن يفعّلها فقط.',
   })
 }
 
@@ -175,6 +177,23 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    if (action === 'cleanup_test') {
+      if (!isDirectorEmail(user.email)) {
+        return NextResponse.json(
+          { error: 'تنظيف مواعيد الاختبار للمدير فقط' },
+          { status: 403 }
+        )
+      }
+      const result = await cancelTestCalendarEvents(scopeId)
+      return NextResponse.json({
+        ...result,
+        messageAr:
+          result.cancelled === 0
+            ? 'لا مواعيد اختبار ظاهرة في التقويم'
+            : `أُلغي ${result.cancelled} موعد اختبار من التقويم`,
+      })
+    }
+
     // create
     const result = await createRoomCalendarEvent({
       scopeId,
@@ -190,8 +209,10 @@ export async function POST(req: NextRequest) {
       createdByAr,
     })
 
+    // Opt-in only: copy to the *acting user's* Google — never the room owner's
+    // or another member's calendar. Shared room DB remains source of truth.
     let googleNote = ''
-    if (body.copyToGoogle) {
+    if (body.copyToGoogle === true) {
       try {
         const { listGoogleAccounts } = await import('@/lib/google/tokens')
         const { createCalendarEvent } = await import('@/lib/google/calendar')
@@ -215,12 +236,12 @@ export async function POST(req: NextRequest) {
               .eq('id', result.event.id)
               .eq('scope_id', scopeId)
           }
-          googleNote = ' · نُسخ إلى Google'
+          googleNote = ' · ونُسخت نسخة خاصة إلى تقويمك على Google'
         } else {
-          googleNote = ' · Google غير مربوط'
+          googleNote = ' · لم تُنسخ إلى Google (حسابك غير مربوط)'
         }
       } catch {
-        googleNote = ' · تعذّرت النسخة إلى Google'
+        googleNote = ' · تعذّرت النسخة الخاصة إلى Google'
       }
     }
 
@@ -228,8 +249,8 @@ export async function POST(req: NextRequest) {
       ...result,
       messageAr:
         result.conflicts.length > 0
-          ? `أُضيف الموعد — تنبيه: ${result.conflicts.length} تعارض. ${result.suggestion?.messageAr || ''}${googleNote}`
-          : `أُضيف الموعد إلى تقويم الغرفة المشترك${googleNote}`,
+          ? `أُضيف الموعد إلى تقويم الغرفة المشترك — تنبيه: ${result.conflicts.length} تعارض. ${result.suggestion?.messageAr || ''}${googleNote}`
+          : `أُضيف الموعد إلى تقويم الغرفة المشترك (ظاهر للفريق)${googleNote}`,
     })
   } catch (e) {
     return NextResponse.json(

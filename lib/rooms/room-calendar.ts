@@ -6,6 +6,10 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
+import {
+  filterOutTestCalendarEvents,
+  isTestCalendarTitle,
+} from '@/lib/rooms/calendar-test-noise'
 
 export type RoomEventSource = 'manual' | 'ai' | 'email' | 'import' | 'google_sync'
 export type RoomEventStatus = 'confirmed' | 'tentative' | 'cancelled'
@@ -174,8 +178,12 @@ export async function listRoomCalendarEvents(opts: {
   from?: string
   to?: string
   includeCancelled?: boolean
+  /** When true (default), hide QA titles like «اختبار تقويم الفريق». */
+  hideTestTitles?: boolean
 }): Promise<RoomCalendarEvent[]> {
+  const hideTest = opts.hideTestTitles !== false
   const sb = getSupabaseAdmin()
+  let rows: RoomCalendarEvent[] | null = null
   if (sb) {
     let q = sb
       .from('room_calendar_events')
@@ -188,15 +196,37 @@ export async function listRoomCalendarEvents(opts: {
     if (opts.to) q = q.lte('starts_at', opts.to)
     const { data, error } = await q
     if (!error && data) {
-      return (data as DbRow[]).map(rowToEvent)
+      rows = (data as DbRow[]).map(rowToEvent)
     }
   }
-  return [...memory.values()]
-    .filter((e) => e.scopeId === opts.scopeId)
-    .filter((e) => opts.includeCancelled || e.status !== 'cancelled')
-    .filter((e) => !opts.from || e.startsAt >= opts.from)
-    .filter((e) => !opts.to || e.startsAt <= opts.to)
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  if (rows == null) {
+    rows = [...memory.values()]
+      .filter((e) => e.scopeId === opts.scopeId)
+      .filter((e) => opts.includeCancelled || e.status !== 'cancelled')
+      .filter((e) => !opts.from || e.startsAt >= opts.from)
+      .filter((e) => !opts.to || e.startsAt <= opts.to)
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  }
+  return hideTest ? filterOutTestCalendarEvents(rows) : rows
+}
+
+/** Soft-cancel known test/QA calendar events for a room (director cleanup). */
+export async function cancelTestCalendarEvents(scopeId: string): Promise<{
+  cancelled: number
+  titles: string[]
+}> {
+  const all = await listRoomCalendarEvents({
+    scopeId,
+    includeCancelled: false,
+    hideTestTitles: false,
+  })
+  const targets = all.filter((e) => isTestCalendarTitle(e.titleAr))
+  const titles: string[] = []
+  for (const e of targets) {
+    await cancelRoomCalendarEvent(e.id, scopeId)
+    titles.push(e.titleAr)
+  }
+  return { cancelled: titles.length, titles }
 }
 
 export async function createRoomCalendarEvent(opts: {

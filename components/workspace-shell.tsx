@@ -46,10 +46,10 @@ import { Fingerprint } from 'lucide-react'
 type CalendarTab = 'schedule' | 'tasks' | 'meetings' | 'external' | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
-  { id: 'schedule', labelAr: 'لوحة المواعيد' },
+  { id: 'schedule', labelAr: 'تقويم الغرفة' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'محضر / Zoom' },
-  { id: 'external', labelAr: 'دعوات Google' },
+  { id: 'external', labelAr: 'Google (اختياري)' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
@@ -344,8 +344,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div>
               <h2 className="text-xl font-bold text-ab-ink">تقويم الفريق</h2>
               <p className="mt-1 text-sm text-stone-500">
-                أجندة الأيام أولاً — أي عضو مسجّل يضيف أو يعدّل. باقي التبويبات
-                اختيارية.
+                تقويم الغرفة المشترك للجميع — أي عضو مسجّل يضيف أو يعدّل، والمواعيد
+                تظهر لكل الأعضاء هنا. ليس تقويماً شخصياً، ولا يُضاف تلقائياً إلى
+                Google. باقي التبويبات اختيارية.
               </p>
             </div>
 
@@ -401,8 +402,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               {calendarTab === 'external' && (
                 <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
                   <p className="mb-3 text-xs text-stone-500">
-                    لوحات المواعيد والمهام مشتركة للغرفة. Google هنا فقط لإرسال
-                    دعوات بريد خارجية أو Zoom — وليس مصدر مواعيد الفريق.
+                    تقويم الفريق المشترك يبقى في تبويب «تقويم الغرفة». Google هنا
+                    اختياري لدعوات خارجية أو Zoom من حسابك أنت فقط — لا يستبدل
+                    التقويم المشترك ولا يكتب في تقويم عضو آخر.
                   </p>
                   <GoogleCalendarPanel hideTitle />
                 </div>

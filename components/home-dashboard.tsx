@@ -462,10 +462,10 @@ export function HomeDashboard({
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
               <CalendarDays className="h-4 w-4 text-ab-accent" />
-              أجندة الأيام القادمة
+              تقويم الفريق · الأيام القادمة
               {hasDayEvents ? (
                 <span className="text-[11px] font-normal text-stone-500">
-                  · اليوم ثم غداً وما بعده
+                  · مشترك للجميع
                 </span>
               ) : null}
             </h2>

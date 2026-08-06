@@ -279,6 +279,7 @@ export function RoomCalendarBoard({
     setEditingId(null)
     setTitleAr('')
     setAttendees('')
+    setCopyToGoogle(false)
     const now = new Date()
     setStartsAt(toLocalInput(now))
     const end = new Date(now)
@@ -561,11 +562,11 @@ export function RoomCalendarBoard({
       <div>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold text-ab-ink">
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-          أجندة الغرفة
+          تقويم الغرفة المشترك
         </h2>
         <p className="text-sm text-stone-500">
-          اليوم ثم غداً والأيام التالية — أي عضو مسجّل يضيف أو يعدّل. Google
-          اختياري لنسخ الموعد إلى تقويمك الشخصي إن كان مربوطاً.
+          تقويم الفريق للجميع — أي عضو مسجّل يضيف أو يعدّل، ويظهر الموعد لكل
+          الأعضاء هنا. لا يُكتب تلقائياً في تقويم Google الشخصي لأحد.
         </p>
       </div>
 
@@ -576,11 +577,11 @@ export function RoomCalendarBoard({
       ) : isGuest ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-5 text-center">
           <p className="text-sm font-semibold text-ab-ink">
-            سجّل الدخول لإضافة مواعيد للفريق
+            سجّل الدخول لإضافة مواعيد لتقويم الفريق
           </p>
           <p className="mt-1 text-xs text-stone-600">
-            الزائر يرى الواجهة فقط — لا مواعيد وهمية. بعد الدخول يظهر التقويم
-            الحقيقي ويمكنك الضغط «أضف موعد».
+            الزائر يرى الواجهة فقط — لا مواعيد وهمية. بعد الدخول يظهر تقويم
+            الغرفة المشترك ويمكنك الضغط «أضف موعد».
           </p>
           <Link
             href="/auth/login"
@@ -659,15 +660,25 @@ export function RoomCalendarBoard({
                 </label>
               </div>
               {!editingId && googleConnected && (
-                <label className="mt-2 flex items-center gap-2 text-xs text-stone-600">
-                  <input
-                    type="checkbox"
-                    checked={copyToGoogle}
-                    onChange={(e) => setCopyToGoogle(e.target.checked)}
-                    className="rounded border-ab-border"
-                  />
-                  انسخ أيضاً إلى Google Calendar (اختياري)
-                </label>
+                <div className="mt-2 rounded-md border border-dashed border-ab-border bg-white/70 px-2.5 py-2">
+                  <label className="flex items-start gap-2 text-xs text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={copyToGoogle}
+                      onChange={(e) => setCopyToGoogle(e.target.checked)}
+                      className="mt-0.5 rounded border-ab-border"
+                    />
+                    <span>
+                      <span className="font-semibold">
+                        نسخة خاصة في Google (اختياري)
+                      </span>
+                      <span className="mt-0.5 block text-[11px] font-normal text-stone-500">
+                        يُنسخ إلى تقويمك أنت فقط إن كان مربوطاً — لا يستبدل
+                        تقويم الفريق المشترك، ولا يُضاف لتقويم عضو آخر.
+                      </span>
+                    </span>
+                  </label>
+                </div>
               )}
               <button
                 type="button"
@@ -741,7 +752,7 @@ export function RoomCalendarBoard({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ab-ink">
-            أجندة الأيام · {upcoming.length} موعد
+              تقويم الفريق · {upcoming.length} موعد
           </h3>
           <div className="flex flex-wrap items-center gap-2">
             {signedIn === true && (
@@ -853,7 +864,7 @@ export function RoomCalendarBoard({
             {upcoming.length === 0 && (
               <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-6 text-center text-sm text-stone-400">
                 لا مواعيد بعد — اضغط «أضف موعد» أعلاه، أو اطلب من الوكيل: «أضف
-                اجتماع غداً ١٠ ص إلى تقويم الغرفة».
+                اجتماع غداً ١٠ ص إلى تقويم الفريق المشترك».
               </p>
             )}
           </>
@@ -895,8 +906,8 @@ export function RoomCalendarBoard({
 
       <p className="flex items-start gap-1.5 text-[11px] text-stone-400">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        مصدر الفريق هو هذه الأجندة. Google اختياري لدعوات خارجية أو نسخ الموعد
-        إلى تقويمك الشخصي إن كان مربوطاً.
+        المصدر الرسمي لمواعيد الفريق هو تقويم الغرفة المشترك أعلاه. Google
+        اختياري فقط كنسخة خاصة لمن يفعّلها — ولا يُكتب في تقويم شخص آخر.
       </p>
     </section>
   )
