@@ -37,13 +37,24 @@ import {
   executeListWorkspaceFiles,
   executeReadDocument,
   executeReadFile,
+  executeReturnFile,
 } from '@/lib/agents/tools/document-tools'
 import { executeConvertDocument } from '@/lib/agents/tools/convert-document'
 import {
+  executeBrainDeleteDocument,
   executeBrainOpenDocument,
   executeBrainSaveDocument,
+  executeBrainCreateDocument,
 } from '@/lib/agents/tools/drive-doc-tools'
 import { executeFillPolicyAudit } from '@/lib/agents/tools/policy-audit'
+import {
+  executeEditExcel,
+  executeReadExcel,
+} from '@/lib/agents/tools/excel-edit'
+import {
+  executeEditImage,
+  executeGenerateImageEdit,
+} from '@/lib/agents/tools/image-tools'
 import {
   executePdfCreate,
   executePdfFillForm,
@@ -201,8 +212,15 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   read_document: executeReadDocument,
   edit_document: executeEditDocument,
   convert_document: executeConvertDocument,
+  return_file: executeReturnFile,
+  edit_excel: executeEditExcel,
+  read_excel: executeReadExcel,
+  edit_image: executeEditImage,
+  generate_image_edit: executeGenerateImageEdit,
   brain_open_document: executeBrainOpenDocument,
   brain_save_document: executeBrainSaveDocument,
+  brain_create_document: executeBrainCreateDocument,
+  brain_delete_document: executeBrainDeleteDocument,
   fill_policy_audit: executeFillPolicyAudit,
   send_director_digest: async (_n, params) => {
     const { sendDirectorWeeklyDigest } = await import(
@@ -281,19 +299,40 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       mimeType: String(params.mimeType || 'text/plain; charset=utf-8'),
       replaceId: params.fileId ? String(params.fileId) : undefined,
     })
+    const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
     return {
       ok: true,
       fileId: saved.file.id,
       name: saved.file.originalName,
       source: saved.source,
-      messageAr: `تم حفظ الملف «${saved.file.originalName}».`,
+      downloadPath,
+      downloadUrl: downloadPath,
+      attachments: [
+        {
+          fileId: saved.file.id,
+          name: saved.file.originalName,
+          mimeType: saved.file.mimeType,
+          scopeId,
+          downloadPath,
+        },
+      ],
+      messageAr: `تم حفظ الملف «${saved.file.originalName}» — جاهز للتنزيل في الشات.`,
     }
   },
   delete_file: async (_n, params) => {
     const scopeId = String(params.scopeId || 'shared-demo')
-    const fileId = String(params.fileId || params.id || '').trim()
-    if (!fileId) throw new Error('يلزم fileId لحذف الملف.')
-    return deleteWorkspaceFile(scopeId, fileId)
+    const ref = String(params.fileId || params.id || params.name || '').trim()
+    if (!ref) throw new Error('يلزم fileId أو اسم الملف للحذف.')
+    const { findWorkspaceFile } = await import('@/lib/documents/workspace')
+    const found = await findWorkspaceFile(scopeId, ref)
+    if (!found) throw new Error(`لم يُعثر على الملف «${ref}».`)
+    const result = await deleteWorkspaceFile(scopeId, found.id)
+    return {
+      ...result,
+      fileId: found.id,
+      name: found.originalName,
+      messageAr: `حُذف الملف «${found.originalName}» من مساحة الغرفة.`,
+    }
   },
   send_message: async (_n, params) => {
     const channel = String(params.channel || 'telegram') as

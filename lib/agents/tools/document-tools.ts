@@ -130,6 +130,41 @@ export async function executeReadDocument(
   }
 }
 
+/** Re-attach an existing workspace file so it appears as a download chip in chat. */
+export async function executeReturnFile(
+  _name: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = String(params.scopeId || 'shared-demo')
+  const ref = String(params.fileId || params.path || params.name || '').trim()
+  if (!ref) throw new Error('مرّر fileId أو اسم الملف.')
+
+  const found = await findWorkspaceFile(scopeId, ref)
+  if (!found) {
+    throw new Error(`لم يُعثر على الملف «${ref}». استخدم list_workspace_files.`)
+  }
+
+  const downloadPath = `/api/storage/file?id=${encodeURIComponent(found.id)}&scopeId=${encodeURIComponent(scopeId)}`
+  return {
+    ok: true,
+    fileId: found.id,
+    name: found.originalName,
+    mimeType: found.mimeType,
+    downloadPath,
+    downloadUrl: downloadPath,
+    attachments: [
+      {
+        fileId: found.id,
+        name: found.originalName,
+        mimeType: found.mimeType,
+        scopeId,
+        downloadPath,
+      },
+    ],
+    messageAr: `الملف «${found.originalName}» جاهز للتنزيل في الشات.`,
+  }
+}
+
 export async function executeEditDocument(
   _name: string,
   params: Record<string, unknown>

@@ -10,6 +10,7 @@ import {
   getDriveBrainFolderId,
   updateDriveFileMedia,
   uploadDriveBinaryFile,
+  trashDriveFile,
 } from '@/lib/google/drive'
 import {
   inferFormatFromName,
@@ -222,4 +223,39 @@ export async function executeBrainCreateDocument(
   return executeBrainSaveDocument(_name, { ...params, asNew: true })
 }
 
-void 0
+/** Soft-delete (trash) a Drive brain file and drop its RAG rows. */
+export async function executeBrainDeleteDocument(
+  _name: string,
+  params: Record<string, unknown>
+) {
+  const userId = String(params.userId || '')
+  if (!userId || userId === 'local-owner') {
+    throw new Error('يلزم تسجيل الدخول وربط Google لحذف ملف من عقل الشركة.')
+  }
+  const ref = String(
+    params.driveFileId || params.name || params.queryAr || params.fileId || ''
+  ).trim()
+  if (!ref) throw new Error('مرّر driveFileId أو اسم الملف.')
+
+  const meta = await findDriveBrainFile(userId, ref)
+  if (!meta) throw new Error(`لم يُعثر على الملف في Drive: «${ref}».`)
+
+  await trashDriveFile(userId, meta.id)
+
+  const sourceFileId = `gdrive:${meta.id}`
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `DELETE FROM knowledge_documents WHERE source_file_id = $1`,
+        sourceFileId
+      ),
+    0
+  )
+
+  return {
+    ok: true,
+    driveFileId: meta.id,
+    name: meta.name,
+    messageAr: `نُقل «${meta.name}» إلى سلة مهملات Drive وأُزيل من فهرس العقل.`,
+  }
+}

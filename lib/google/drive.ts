@@ -293,6 +293,36 @@ export async function updateDriveFileMedia(
   return data
 }
 
+/** Move a Drive file to trash (soft delete). */
+export async function trashDriveFile(
+  userId: string,
+  fileId: string
+): Promise<{ ok: true; id: string }> {
+  const tok = await getValidGoogleAccessToken(userId)
+  if (!tok.ok) throw new Error(tok.error)
+  const res = await fetch(
+    `${DRIVE}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${tok.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    }
+  )
+  const data = (await res.json()) as {
+    id?: string
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message || `فشل نقل الملف لسلة المهملات (HTTP ${res.status})`
+    )
+  }
+  return { ok: true, id: data.id || fileId }
+}
+
 /** Resolve a Drive file by id or fuzzy name inside the brain folder. */
 export async function findDriveBrainFile(
   userId: string,

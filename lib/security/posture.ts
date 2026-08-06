@@ -45,13 +45,20 @@ const LOW_RISK_TOOLS = new Set([
   'room_tasks_list',
   'room_memory_list',
   'pdf_list_fields',
+  'read_excel',
+  'return_file',
 ])
 
 const HIGH_RISK_TOOLS = new Set([
   'write_file',
   'delete_file',
   'edit_document',
+  'edit_excel',
+  'edit_image',
+  'generate_image_edit',
   'brain_save_document',
+  'brain_create_document',
+  'brain_delete_document',
   'fill_policy_audit',
   'send_director_digest',
   'db_update',
@@ -99,7 +106,12 @@ export function evaluateActionRisk(
   // New edited copies / conversions are additive; overwriting source needs HITL.
   if (
     (toolName === 'edit_document' && !params.replaceSource) ||
-    toolName === 'convert_document'
+    (toolName === 'edit_excel' && !params.replaceSource) ||
+    (toolName === 'edit_image' && !params.replaceSource) ||
+    (toolName === 'generate_image_edit' && !params.replaceSource) ||
+    toolName === 'convert_document' ||
+    toolName === 'return_file' ||
+    toolName === 'read_excel'
   ) {
     if (mode === 'STRICT') {
       return { riskLevel: 'LOW', requiresApproval: true }

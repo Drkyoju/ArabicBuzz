@@ -199,6 +199,154 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('convert_document'),
         }),
     }),
+    return_file: tool({
+      description:
+        'إظهار ملف موجود من مساحة الغرفة كزر تنزيل في الشات دون تعديله.',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف الملف أو اسمه'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'return_file',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('return_file'),
+        }),
+    }),
+    write_file: tool({
+      description:
+        'إنشاء أو استبدال ملف نصي بسيط في مساحة الغرفة وإرجاعه للتنزيل في الشات.',
+      inputSchema: z.object({
+        name: z.string().describe('اسم الملف مثل ملاحظات.txt'),
+        content: z.string().describe('المحتوى النصي'),
+        fileId: z.string().optional().describe('لاستبدال ملف موجود'),
+        mimeType: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'write_file',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('write_file'),
+        }),
+    }),
+    delete_file: tool({
+      description:
+        'حذف ملف من مساحة الغرفة (الخزنة). استخدم list_workspace_files أولاً. لحذف من Drive استخدم brain_delete_document.',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف الملف أو اسمه'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'delete_file',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('delete_file'),
+        }),
+    }),
+    read_excel: tool({
+      description:
+        'قراءة صفوف Excel كجدول منظم قبل التعديل الخلوي. أفضل من read_document لجداول xlsx.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        sheet: z.string().optional(),
+        maxRows: z.number().optional(),
+        maxCols: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'read_excel',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('read_excel'),
+        }),
+    }),
+    edit_excel: tool({
+      description:
+        'تعديل خلايا Excel مع الحفاظ على بنية الملف (exceljs) ثم إرجاع النسخة المعدّلة للتنزيل في الشات. مرّر cells مثل [{cell:"B2", value:"نص"}].',
+      inputSchema: z.object({
+        fileId: z.string(),
+        sheet: z.string().optional(),
+        cells: z
+          .array(
+            z.object({
+              cell: z.string().optional().describe('مثل B12'),
+              row: z.number().optional(),
+              col: z.number().optional(),
+              value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+              sheet: z.string().optional(),
+            })
+          )
+          .min(1),
+        outputName: z.string().optional(),
+        replaceSource: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'edit_excel',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('edit_excel'),
+        }),
+    }),
+    edit_image: tool({
+      description:
+        'تعديل صورة مرفوعة (تدوير، قلب، تحجيم، رمادي، ضبابية، نص عربي فوق الصورة) وإرجاعها للتنزيل في الشات.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        rotate: z.number().optional().describe('درجات مثل 90'),
+        flipHorizontal: z.boolean().optional(),
+        flipVertical: z.boolean().optional(),
+        grayscale: z.boolean().optional(),
+        blur: z.number().optional(),
+        sharpen: z.boolean().optional(),
+        width: z.number().optional(),
+        height: z.number().optional(),
+        overlayText: z.string().optional().describe('نص عربي يُختم أسفل الصورة'),
+        overlayColor: z.string().optional(),
+        format: z.enum(['png', 'jpeg', 'jpg', 'webp']).optional(),
+        outputName: z.string().optional(),
+        replaceSource: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'edit_image',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('edit_image'),
+        }),
+    }),
+    generate_image_edit: tool({
+      description:
+        'تعديل/إعادة توليد صورة بوصف عربي عبر Gemini (توليدي). للتعديلات البسيطة فضّل edit_image.',
+      inputSchema: z.object({
+        fileId: z.string().optional().describe('صورة مصدر اختيارية'),
+        promptAr: z.string().describe('وصف التعديل بالعربية'),
+        outputName: z.string().optional(),
+        replaceSource: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'generate_image_edit',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('generate_image_edit'),
+        }),
+    }),
     brain_open_document: tool({
       description:
         'فتح ملف من مجلد عقل الشركة على Google Drive داخل مساحة الغرفة للتعديل أو التحويل. استخدم اسم الملف أو معرّف Drive.',
@@ -248,6 +396,50 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('brain_save_document'),
+        }),
+    }),
+    brain_create_document: tool({
+      description:
+        'رفع ملف من مساحة الغرفة كمستند جديد دائماً إلى مجلد عقل الشركة على Drive.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'brain_create_document',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+            asNew: true,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('brain_create_document'),
+        }),
+    }),
+    brain_delete_document: tool({
+      description:
+        'نقل ملف من مجلد عقل الشركة (Drive) إلى سلة المهملات وإزالته من فهرس البحث. يتطلب ربط Google.',
+      inputSchema: z.object({
+        driveFileId: z.string().optional(),
+        name: z.string().optional().describe('اسم الملف على Drive'),
+        queryAr: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'brain_delete_document',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('brain_delete_document'),
         }),
     }),
     fill_policy_audit: tool({
