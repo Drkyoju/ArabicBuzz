@@ -117,11 +117,12 @@ export async function getTelegramLinkStatus(
   scopeId: string
 ): Promise<TelegramLinkStatus> {
   const botConfigured = Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim())
-  const hasOwnerFallback = Boolean(
+  const envOwnerChat = Boolean(
     process.env.TELEGRAM_OWNER_CHAT_ID?.trim() ||
       process.env.TELEGRAM_TEST_CHAT_ID?.trim()
   )
   let hasScopeBinding = false
+  let hasAnyBinding = false
   try {
     const sb = getSupabaseAdmin()
     if (sb) {
@@ -139,20 +140,36 @@ export async function getTelegramLinkStatus(
     hasScopeBinding = false
   }
 
+  // Align with emitNotification / hasTelegramOwnerTarget: owner env OR any
+  // stored chat id can deliver outbound (scope binding preferred when present).
+  if (!envOwnerChat && !hasScopeBinding) {
+    try {
+      const { findLatestTelegramChatId } = await import(
+        '@/lib/channels/bindings'
+      )
+      hasAnyBinding = Boolean(await findLatestTelegramChatId())
+    } catch {
+      hasAnyBinding = false
+    }
+  }
+
+  const hasOwnerFallback = envOwnerChat || hasAnyBinding
   const botUrl =
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL?.trim() ||
     'https://t.me/alhuda14bot'
   const deepLink = `${botUrl.replace(/\/$/, '')}?start=scope_${encodeURIComponent(scopeId)}`
   const linked = botConfigured && (hasScopeBinding || hasOwnerFallback)
 
-  let hintAr =
-    'اربط هذه المساحة بالبوت عبر الرابط أدناه، ثم أرسل /start من تيليجرام. لا نخترع معرّفات محادثة.'
+  let hintAr = ''
   if (!botConfigured) {
     hintAr =
       'البوت غير مفعّل بعد — يحتاج المسؤول ضبط TELEGRAM_BOT_TOKEN والويب هوك على الاستضافة.'
   } else if (!linked) {
     hintAr =
-      'لا محادثة مربوطة لهذه المساحة. افتح «ربط هذه المساحة» من تيليجرام أو اضبط TELEGRAM_OWNER_CHAT_ID للتنبيهات.'
+      'لا محادثة مربوطة لهذه المساحة. افتح الرابط أدناه في تيليجرام ثم اضغط Start (/start) مرة واحدة — بعدها تظهر الحالة «مربوطة» ويمكن الإرسال.'
+  } else if (!hasScopeBinding) {
+    hintAr =
+      'التنبيهات جاهزة عبر محادثة المالك. لربط هذه المساحة تحديداً: افتح الرابط أدناه واضغط Start.'
   }
 
   return {

@@ -15,12 +15,10 @@ async function main() {
   let token = process.env.TELEGRAM_BOT_TOKEN?.trim()
   let secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
 
-  // Prefer Netlify live values when local env is incomplete
-  if (
-    (!token || !secret) &&
-    process.env.NETLIFY_SITE_ID &&
-    process.env.NETLIFY_AUTH_TOKEN
-  ) {
+  // Always prefer Netlify live secret when CLI credentials exist — local
+  // TELEGRAM_WEBHOOK_SECRET often drifts and re-registers a mismatched
+  // secret_token → Telegram gets 401 from /api/webhooks/telegram.
+  if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_AUTH_TOKEN) {
     const res = await fetch(
       `https://api.netlify.com/api/v1/sites/${process.env.NETLIFY_SITE_ID}/env`,
       {
@@ -36,10 +34,16 @@ async function main() {
       }>
       const get = (k: string) =>
         list.find((e) => e.key === k)?.values?.[0]?.value?.trim()
-      token = token || get('TELEGRAM_BOT_TOKEN')
-      secret = secret || get('TELEGRAM_WEBHOOK_SECRET')
-      if (token) process.env.TELEGRAM_BOT_TOKEN = token
-      if (secret) process.env.TELEGRAM_WEBHOOK_SECRET = secret
+      const netToken = get('TELEGRAM_BOT_TOKEN')
+      const netSecret = get('TELEGRAM_WEBHOOK_SECRET')
+      if (netToken) {
+        token = netToken
+        process.env.TELEGRAM_BOT_TOKEN = netToken
+      }
+      if (netSecret) {
+        secret = netSecret
+        process.env.TELEGRAM_WEBHOOK_SECRET = netSecret
+      }
     }
   }
 

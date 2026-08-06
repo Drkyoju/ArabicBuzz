@@ -67,11 +67,19 @@ export function TelegramHomePanel() {
     if (signedIn !== true) return
     setBusy(true)
     try {
-      const headers = await authHeaders()
-      const res = await fetch(
-        `/api/rooms/telegram-feed?scopeId=${encodeURIComponent(scopeId)}&limit=40`,
-        { headers }
-      )
+      const attempt = async () => {
+        const headers = await authHeaders()
+        return fetch(
+          `/api/rooms/telegram-feed?scopeId=${encodeURIComponent(scopeId)}&limit=40`,
+          { headers }
+        )
+      }
+      // First paint often races Supabase session hydration → 401 without Bearer.
+      let res = await attempt()
+      if (res.status === 401) {
+        await new Promise((r) => setTimeout(r, 400))
+        res = await attempt()
+      }
       const json = (await res.json()) as {
         items?: TelegramFeedItem[]
         link?: TelegramLinkStatus
@@ -81,7 +89,7 @@ export function TelegramHomePanel() {
       }
       if (!res.ok) {
         if (res.status === 401) {
-          setItems([])
+          // Keep prior link if we had one; otherwise stay in "checking" (link null).
           setErr('')
           return
         }
@@ -111,8 +119,14 @@ export function TelegramHomePanel() {
 
   if (signedIn !== true || !hydrated) return null
 
+  const statusKnown = link !== null
   const linked = Boolean(link?.linked)
-  const deepLink = link?.deepLink || ''
+  const botBase =
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL?.trim() ||
+    'https://t.me/alhuda14bot'
+  const deepLink =
+    link?.deepLink ||
+    `${botBase.replace(/\/$/, '')}?start=scope_${encodeURIComponent(scopeId)}`
 
   async function send() {
     const body = text.trim()
@@ -183,7 +197,11 @@ export function TelegramHomePanel() {
             aria-hidden
           />
           <span className="truncate">تيليجرام</span>
-          {linked ? (
+          {!statusKnown ? (
+            <span className="shrink-0 text-[10px] font-normal text-stone-500">
+              · جاري التحقق…
+            </span>
+          ) : linked ? (
             <span className="shrink-0 text-[10px] font-normal text-emerald-700">
               · مربوطة
             </span>
@@ -217,12 +235,34 @@ export function TelegramHomePanel() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col p-2.5 pt-2">
-        {!linked && (
+        {statusKnown && !linked && (
           <div className="mb-1.5 shrink-0 rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5">
             <p className="text-[10px] leading-snug text-amber-950">
               {link?.hintAr ||
-                'لا محادثة مربوطة. اربط البوت من تيليجرام أولاً.'}
+                'افتح الرابط ثم اضغط Start في تيليجرام لربط هذه المساحة.'}
             </p>
+            <ol className="mt-1 list-decimal space-y-0.5 pe-3 text-[10px] leading-snug text-amber-950/90">
+              <li>
+                اضغط «ربط من تيليجرام»
+                {botBase.includes('t.me/') ? (
+                  <>
+                    {' '}
+                    (يفتح{' '}
+                    <span dir="ltr">
+                      @{botBase.replace(/^https?:\/\/t\.me\//i, '').replace(/\/$/, '')}
+                    </span>
+                    ).
+                  </>
+                ) : (
+                  '.'
+                )}
+              </li>
+              <li>
+                اضغط <span dir="ltr">Start</span> أو أرسل{' '}
+                <code dir="ltr">/start</code>.
+              </li>
+              <li>ارجع هنا — يجب أن تصبح الحالة «مربوطة».</li>
+            </ol>
             {deepLink && link?.botConfigured !== false && (
               <a
                 href={deepLink}
@@ -231,6 +271,23 @@ export function TelegramHomePanel() {
                 className="mt-1.5 inline-flex rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white"
               >
                 ربط من تيليجرام
+              </a>
+            )}
+          </div>
+        )}
+        {statusKnown && linked && link?.hintAr && !link.hasScopeBinding && (
+          <div className="mb-1.5 shrink-0 rounded-lg border border-emerald-200 bg-emerald-50/70 px-2 py-1.5">
+            <p className="text-[10px] leading-snug text-emerald-950">
+              {link.hintAr}
+            </p>
+            {deepLink && (
+              <a
+                href={deepLink}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1.5 inline-flex rounded-md border border-emerald-300 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-900"
+              >
+                تأكيد ربط المساحة
               </a>
             )}
           </div>
@@ -296,7 +353,11 @@ export function TelegramHomePanel() {
             rows={1}
             disabled={!linked || sending}
             placeholder={
-              linked ? 'اكتب رسالة…' : 'اربط تيليجرام أولاً'
+              !statusKnown
+                ? 'جاري التحقق…'
+                : linked
+                  ? 'اكتب رسالة…'
+                  : 'اربط تيليجرام أولاً'
             }
             className="min-h-[2rem] flex-1 resize-none rounded-md border border-ab-border bg-white px-2 py-1.5 text-[12px] text-ab-ink placeholder:text-stone-400 disabled:bg-stone-50 disabled:opacity-60"
           />
