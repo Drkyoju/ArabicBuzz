@@ -73,9 +73,18 @@ export async function GET() {
     secretMode: 'compat_missing_header_ok',
     groupSupport: {
       bindCommands: ['/link', '/start'],
-      askCommands: ['/ask', '@mention'],
+      linkedGroupMode: 'natural_arabic_no_ask',
+      triggers: [
+        'plain_text_when_privacy_off',
+        '@mention',
+        'reply_to_bot',
+        '/ask_optional',
+        'voice',
+        'document',
+        'photo',
+      ],
       privacyNoteAr:
-        'مع Group Privacy الافتراضي يرى البوت الأوامر والذكر فقط — عطّله من BotFather ليرى كل الرسائل.',
+        'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل العادية بدون /ask. الخصوصية الافتراضية = أوامر ومنشن فقط.',
     },
   })
 }

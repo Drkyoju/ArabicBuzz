@@ -82,19 +82,18 @@ export function TelegramConnectCard() {
           <code dir="ltr">/start</code>.
         </li>
         <li>
-          مجموعة (مثل «عمل الجمعية»): أضف البوت كمشرف → من داخل المجموعة أرسل{' '}
-          <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code> أو{' '}
-          <code dir="ltr">/start@alhuda14bot</code> — البوت يرد بالمعرّف ويربط
-          الغرفة (لا نخترع معرّفات).
+          مجموعة: أضف البوت كمشرف (رسائل + وسائط) → من داخل المجموعة أرسل{' '}
+          <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code> — مرة واحدة
+          فقط للربط.
         </li>
         <li>
-          اسأل في المجموعة:{' '}
-          <code dir="ltr">/ask@alhuda14bot سؤالك</code> أو اذكر البوت. إن لم
-          يرد على الرسائل العادية: BotFather → Group Privacy → Disable.
+          بعد الربط اكتب بالعربية العادية — بدون{' '}
+          <code dir="ltr">/ask</code>. الصوت والملفات مدعومان.
         </li>
         <li>
-          أوامر: <code dir="ltr">/help</code> · <code dir="ltr">/link</code> ·{' '}
-          <code dir="ltr">/ask</code> · <code dir="ltr">/status</code>
+          ضروري: BotFather → Group Privacy →{' '}
+          <strong className="font-semibold">Disable</strong> ليرى كل الرسائل.
+          إن بقيت الخصوصية مفعّلة: منشن البوت أو رد على رسالته.
         </li>
       </ol>
       {botBase.includes('t.me/') && (

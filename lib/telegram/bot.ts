@@ -1,6 +1,7 @@
 import { Bot, InlineKeyboard, InputFile, type Context } from 'grammy'
 import { streamText, stepCountIs, type ToolSet } from 'ai'
 import {
+  lookupChannelBinding,
   resolveChannelScope,
   upsertChannelBinding,
 } from '@/lib/channels/bindings'
@@ -12,7 +13,6 @@ import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { normalizeArabicPrompt } from '@/lib/ai/dialect-parser'
 import { resolveApproval, listPendingApprovals } from '@/lib/agents/resolve-approval'
-import { handleInboundVoiceNote } from '@/lib/audio/voice-pipeline'
 import { updateApprovalInSupabase } from '@/lib/supabase/server'
 import { mirrorChannelTurnToRoom } from '@/lib/rooms/channel-mirror'
 import {
@@ -27,9 +27,29 @@ import {
   AuthorizationError,
 } from '@/lib/auth/rbac'
 import type { RoomCitation } from '@/lib/scopes/types'
+import { transcribeArabicAudioBuffer } from '@/lib/audio/transcribe'
+import { generateArabicAudioBuffer } from '@/lib/audio/tts'
+import {
+  extractAttachmentsFromToolOutput,
+  ingestTelegramDocumentToWorkspace,
+  ingestTelegramPhotoToWorkspace,
+  isTrivialGroupMessage,
+  sendAttachmentsToTelegramChat,
+  type TelegramAttachmentRef,
+} from '@/lib/telegram/media'
 
 let bot: Bot | null = null
 let botInitPromise: Promise<void> | null = null
+let commandsRegistered = false
+
+const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — هذه القناة مثل غرفة الموقع تماماً.
+- افهم العربية الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
+- لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة.
+- أكمل العمل بنفسك: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
+- الملفات: list_workspace_files → read_document / read_excel → edit_document / edit_excel → return_file.
+  أي ملف تُنشئه أو تعدّله يُرسل تلقائياً كمرفق في هذه المحادثة — لا تكتفِ بوصف الرابط.
+- عقل الشركة (Drive): search_knowledge_base / brain_open_document → عدّل → brain_save_document.
+- للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
   const instance = getTelegramBot()
@@ -45,10 +65,30 @@ async function ensureTelegramBotReady(): Promise<Bot> {
   return instance
 }
 
+async function ensureBotCommands(instance: Bot) {
+  if (commandsRegistered) return
+  try {
+    await instance.api.setMyCommands([
+      { command: 'link', description: 'ربط المجموعة/المحادثة بغرفة الموقع' },
+      { command: 'start', description: 'بدء الربط أو إظهار المعرّف' },
+      { command: 'help', description: 'شرح الاستخدام بدون أوامر' },
+      { command: 'status', description: 'حالة الربط' },
+      { command: 'rooms', description: 'المساحة المربوطة' },
+      { command: 'approve', description: 'الموافقات المعلّقة' },
+      { command: 'ask', description: 'اختياري — نفس الكتابة العادية' },
+    ])
+    commandsRegistered = true
+  } catch (e) {
+    console.error('[telegram] setMyCommands', e)
+  }
+}
+
 function resolveTelegramScope(opts: {
   chatId: string
   userId: string
   preferredScopeId?: string
+  /** Groups: false until /link creates a binding */
+  autoBind?: boolean
 }) {
   if (opts.preferredScopeId) {
     return Promise.resolve(
@@ -63,8 +103,10 @@ function resolveTelegramScope(opts: {
     channel: 'telegram',
     externalId: opts.chatId,
     fallbackUserId: opts.userId,
+    autoBind: opts.autoBind,
   }).then((scope) => {
     if (scope) return scope
+    if (opts.autoBind === false) return null
     return resolveActiveScope({
       userId: opts.userId,
       scopeId: process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo',
@@ -117,31 +159,59 @@ function commandForThisBot(
 }
 
 /**
- * Group Privacy Mode (BotFather default): bot only receives commands, @mentions,
- * and replies to its own messages. Plain chat text never hits the webhook.
+ * Linked group (after /link): every substantive message is an agent turn.
+ * Unlinked group: only @mention / reply-to-bot (to nudge /link) — not free chat.
+ * Privacy Mode ON: Telegram only delivers commands, mentions, replies anyway.
  */
 function shouldHandleGroupText(opts: {
   rawText: string
   botUsername: string
   isReplyToBot: boolean
   isCommand: boolean
-}): { handle: boolean; promptText: string; viaMention: boolean } {
+  isLinked: boolean
+}): { handle: boolean; promptText: string; viaMention: boolean; needLink: boolean } {
   const { mentioned, text: stripped } = stripBotMention(
     opts.rawText,
     opts.botUsername
   )
   if (opts.isCommand) {
-    return { handle: true, promptText: stripped || opts.rawText, viaMention: false }
+    return {
+      handle: true,
+      promptText: stripped || opts.rawText,
+      viaMention: false,
+      needLink: false,
+    }
   }
+  if (opts.isLinked) {
+    if (isTrivialGroupMessage(opts.rawText) && !mentioned && !opts.isReplyToBot) {
+      return { handle: false, promptText: '', viaMention: mentioned, needLink: false }
+    }
+    return {
+      handle: true,
+      promptText: stripped || opts.rawText.trim(),
+      viaMention: mentioned,
+      needLink: false,
+    }
+  }
+  // Unlinked: only when addressed
   if (mentioned || opts.isReplyToBot) {
     return {
       handle: true,
       promptText: stripped || opts.rawText.trim(),
       viaMention: mentioned,
+      needLink: true,
     }
   }
-  // Privacy off → Telegram delivers every message; answer it.
-  return { handle: true, promptText: opts.rawText.trim(), viaMention: false }
+  return { handle: false, promptText: '', viaMention: false, needLink: false }
+}
+
+function privacyHintAr(botUsername: string): string {
+  const tag = botUsername ? `@${botUsername}` : 'البوت'
+  return [
+    'مهم — ليرى البوت كل الرسائل العادية (بدون /ask):',
+    'BotFather → اختر البوت → Bot Settings → Group Privacy → Disable',
+    `بعدها اكتب بالعربية العادية في المجموعة — مثل الموقع. منشن ${tag} اختياري إذا بقيت الخصوصية مفعّلة.`,
+  ].join('\n')
 }
 
 /** Inline keyboard: ✅ موافقة / ❌ رفض with approve_/reject_ callback data. */
@@ -182,6 +252,7 @@ async function streamTelegramReply(opts: {
   text: string
   citations: RoomCitation[]
   pendingApprovalIds: string[]
+  attachmentsSent: string[]
 }> {
   await opts.ctx.replyWithChatAction('typing')
   const placeholder = await opts.ctx.reply('جاري التفكير…')
@@ -192,6 +263,7 @@ async function streamTelegramReply(opts: {
 
   const citations: RoomCitation[] = []
   const pendingApprovalIds: string[] = []
+  const attachmentBucket: TelegramAttachmentRef[] = []
   let assembled = ''
   let lastEdit = 0
 
@@ -200,7 +272,7 @@ async function streamTelegramReply(opts: {
     system: opts.system,
     prompt: opts.prompt,
     tools,
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(10),
   })
 
   try {
@@ -239,6 +311,11 @@ async function streamTelegramReply(opts: {
         }
         const aid = extractPausedApprovalId(out)
         if (aid && !pendingApprovalIds.includes(aid)) pendingApprovalIds.push(aid)
+        for (const a of extractAttachmentsFromToolOutput(out, opts.scopeId)) {
+          if (!attachmentBucket.some((x) => x.fileId === a.fileId)) {
+            attachmentBucket.push(a)
+          }
+        }
       }
     }
   } catch (e) {
@@ -252,6 +329,20 @@ async function streamTelegramReply(opts: {
   }
   for (const id of stepsExtract.pendingApprovalIds) {
     if (!pendingApprovalIds.includes(id)) pendingApprovalIds.push(id)
+  }
+  for (const step of await result.steps) {
+    const toolResults = (
+      step as { toolResults?: Array<{ result?: unknown; output?: unknown }> }
+    ).toolResults
+    if (!Array.isArray(toolResults)) continue
+    for (const tr of toolResults) {
+      const out = tr.result ?? tr.output
+      for (const a of extractAttachmentsFromToolOutput(out, opts.scopeId)) {
+        if (!attachmentBucket.some((x) => x.fileId === a.fileId)) {
+          attachmentBucket.push(a)
+        }
+      }
+    }
   }
 
   const body =
@@ -283,7 +374,45 @@ async function streamTelegramReply(opts: {
     })
   }
 
-  return { text: body, citations, pendingApprovalIds }
+  const attachmentsSent = await sendAttachmentsToTelegramChat({
+    ctx: opts.ctx,
+    attachments: attachmentBucket,
+  })
+
+  return { text: body, citations, pendingApprovalIds, attachmentsSent }
+}
+
+async function runTelegramAgentTurn(opts: {
+  ctx: Context
+  promptSource: string
+  chatId: string
+  userId: string
+  scope: NonNullable<Awaited<ReturnType<typeof resolveTelegramScope>>>
+}) {
+  const normalized = await normalizeArabicPrompt(opts.promptSource)
+  const modelSlug = process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
+  const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
+  const system = await buildScopedSystemPrompt(TELEGRAM_AGENT_SYSTEM, opts.scope)
+
+  const out = await streamTelegramReply({
+    ctx: opts.ctx,
+    prompt: normalized.normalizedPromptAr,
+    system,
+    modelSlug,
+    requesterId,
+    scopeId: opts.scope.scope.id,
+  })
+
+  void mirrorChannelTurnToRoom({
+    scopeId: opts.scope.scope.id,
+    channel: 'telegram',
+    externalId: opts.chatId,
+    userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+    userMessageAr: opts.promptSource,
+    agentReplyAr: out.text,
+  })
+
+  return out
 }
 
 export function getTelegramBot() {
@@ -292,6 +421,7 @@ export function getTelegramBot() {
   if (bot) return bot
 
   bot = new Bot(token)
+  void ensureBotCommands(bot)
 
   bot.on('my_chat_member', async (ctx) => {
     try {
@@ -307,16 +437,15 @@ export function getTelegramBot() {
           'مرحباً — بوت Arabic Buzz انضم للمجموعة.',
           `معرّف المجموعة: ${chatId}`,
           '',
-          'لربط الغرفة على الموقع، أرسل من هنا:',
+          '① اربط الغرفة مرة واحدة:',
           `/link@${ctx.me.username || 'bot'} scope_${defaultScope}`,
           'أو فقط: /link',
           '',
-          'للسؤال مع وضع الخصوصية الافتراضي:',
-          `/ask@${ctx.me.username || 'bot'} سؤالك هنا`,
-          `أو اذكر ${botTag} في الرسالة.`,
+          '② بعدها اكتب بالعربية العادية — بدون /ask.',
+          `من ينادي ${botTag} أو يكتب طلباً واضحاً يشتغل الوكيل مثل الموقع.`,
           '',
-          'إن أردت أن يرى البوت كل الرسائل: BotFather → Bot Settings → Group Privacy → Disable.',
-          'اجعل البوت مشرفاً إن مُنِع الأعضاء من الإرسال.',
+          privacyHintAr(ctx.me.username || ''),
+          'اجعل البوت مشرفاً إن مُنِع الأعضاء من الإرسال، واسمح بإرسال الوسائط.',
         ].join('\n')
       )
     } catch (e) {
@@ -365,7 +494,7 @@ export function getTelegramBot() {
     const isKnownCommand = Boolean(
       bindCmd || helpCmd || statusCmd || roomsCmd || approveCmd || askCmd
     )
-    // /start@OtherBot — not for us
+
     if (
       cmd.startsWith('/') &&
       (bindRaw || helpRaw || statusRaw || roomsRaw || approveRaw || askRaw) &&
@@ -374,46 +503,93 @@ export function getTelegramBot() {
       return
     }
 
+    const existingBinding = inGroup
+      ? await lookupChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+        })
+      : null
+    const isLinked = Boolean(existingBinding) || !inGroup
+
     if (inGroup && !isKnownCommand) {
       const gate = shouldHandleGroupText({
         rawText: cmd,
         botUsername,
         isReplyToBot,
         isCommand: cmd.startsWith('/'),
+        isLinked: Boolean(existingBinding),
       })
-      // Unknown /foo@otherbot — ignore. Bare /unknown with our tag → treat as ask later.
       if (cmd.startsWith('/') && !isKnownCommand) {
         const other = matchBotCommand(cmd, '\\w+')
-        if (other?.botTag && botUsername && other.botTag !== botUsername.toLowerCase()) {
+        if (
+          other?.botTag &&
+          botUsername &&
+          other.botTag !== botUsername.toLowerCase()
+        ) {
           return
         }
-        // Unknown command without our handler: ignore in groups (privacy noise).
         if (!gate.viaMention && !isReplyToBot) return
       }
       if (!gate.handle) return
+
+      if (gate.needLink) {
+        await ctx.reply(
+          [
+            'هذه المجموعة غير مربوطة بغرفة Arabic Buzz بعد.',
+            `أرسل: /link@${botUsername || 'bot'}`,
+            'بعد الربط اكتب بالعربية العادية — بدون /ask.',
+            '',
+            privacyHintAr(botUsername),
+          ].join('\n')
+        )
+        return
+      }
     }
 
     await ctx.replyWithChatAction('typing')
 
-    const scope = await resolveTelegramScope({ chatId, userId })
+    const scope = await resolveTelegramScope({
+      chatId,
+      userId,
+      autoBind: !inGroup || Boolean(bindCmd) || isLinked,
+    })
     if (!scope) {
-      await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+      if (inGroup) {
+        await ctx.reply(
+          [
+            'اربط المجموعة أولاً:',
+            `/link@${botUsername || 'bot'}`,
+            '',
+            privacyHintAr(botUsername),
+          ].join('\n')
+        )
+      } else {
+        await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+      }
       return
     }
 
-    void upsertChannelBinding({
-      channel: 'telegram',
-      externalId: chatId,
-      scopeId: scope.scope.id,
-      userId,
-    })
+    if (bindCmd || !inGroup) {
+      void upsertChannelBinding({
+        channel: 'telegram',
+        externalId: chatId,
+        scopeId: scope.scope.id,
+        userId,
+      })
+    } else if (existingBinding) {
+      void upsertChannelBinding({
+        channel: 'telegram',
+        externalId: chatId,
+        scopeId: existingBinding.scopeId,
+        userId,
+      })
+    }
 
     if (bindCmd) {
       const payload = bindCmd.args.split(/\s+/)[0] || ''
       let boundScopeId = scope.scope.id
       let boundName = scope.scope.nameAr
       if (payload) {
-        // Deep link: /start scope_<id> or /link scope_<id>__c_<committee>
         const {
           parseCommitteeStartPayload,
           upsertCommitteeChannel,
@@ -425,6 +601,7 @@ export function getTelegramBot() {
           chatId,
           userId,
           preferredScopeId: scopeId,
+          autoBind: true,
         }).catch(() => null)
         if (resolved?.scope?.id) {
           boundScopeId = resolved.scope.id
@@ -447,11 +624,9 @@ export function getTelegramBot() {
                 `رُبطت قناة «${COMMITTEE_LABELS_AR[parsed.committeeKey]}» بالغرفة: ${boundName}`,
                 `معرّف المحادثة: ${chatId}`,
                 inGroup
-                  ? 'هذه مجموعة — الرسائل هنا تُنسَخ لغرفة الموقع.'
+                  ? 'اكتب بالعربية العادية — بدون /ask. الصوت والملفات مدعومان.'
                   : 'الرسائل هنا تظهر في نفس الغرفة على الموقع.',
-                inGroup
-                  ? 'اسأل بـ /ask سؤالك أو اذكر البوت (@…) في الرسالة.'
-                  : '',
+                inGroup ? privacyHintAr(botUsername) : '',
               ]
                 .filter(Boolean)
                 .join('\n')
@@ -460,7 +635,6 @@ export function getTelegramBot() {
           }
         }
       } else {
-        // /link or /start without payload — bind this chat (group or DM) to current/default scope
         await upsertChannelBinding({
           channel: 'telegram',
           externalId: chatId,
@@ -478,12 +652,12 @@ export function getTelegramBot() {
           payload ? 'تم الربط عبر وسيط الدعوة.' : '',
           inGroup
             ? [
-                'المجموعة مربوطة — الردود تُنسَخ لنافذة تيليجرام في الموقع.',
-                'مع Group Privacy (الافتراضي): استخدم /ask أو اذكر البوت.',
-                'ليرى كل الرسائل: BotFather → Group Privacy → Disable.',
+                'الآن المجموعة مثل الموقع: اكتب طلبك بالعربي العادي — بدون /ask.',
+                'الصوت والملفات (Word/Excel/PDF/صور) تدخل وتُعدَّل وتُرجَع هنا.',
+                privacyHintAr(botUsername),
               ].join('\n')
             : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
-          'أوامر: /help · /ask · /rooms · /approve · /status',
+          'أوامر اختيارية: /help · /status · /rooms · /approve',
         ]
           .filter(Boolean)
           .join('\n')
@@ -495,27 +669,26 @@ export function getTelegramBot() {
       const tag = botUsername ? `@${botUsername}` : ''
       await ctx.reply(
         [
-          'بوت Arabic Buzz — بوت واحد يكفي (لا حاجة لبوت ثانٍ).',
+          'بوت Arabic Buzz — القروب المربوط = غرفة الموقع.',
           '',
-          'الأوامر:',
-          '/help — هذه القائمة',
-          '/start أو /link — ربط المحادثة/المجموعة بالغرفة + إظهار المعرّف',
-          '/ask نص السؤال — اسأل الوكيل (مهم في المجموعات)',
-          '/rooms — المساحة المربوطة حالياً',
-          '/approve — الموافقات المعلّقة',
-          '/status — حالة الربط',
+          'بعد /link:',
+          '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله',
+          '• أرسل رسالة صوتية → يفرّغها ويرد',
+          '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل ويرجع الملف',
           '',
-          'محادثة خاصة: أرسل أي نص أو /start.',
+          'لا حاجة لـ /ask. من ينادي البوت أو يكتب طلباً يعمل.',
+          '',
+          'أوامر اختيارية:',
+          '/link أو /start — الربط مرة واحدة',
+          '/help · /status · /rooms · /approve',
+          '',
           'مجموعة:',
-          `1) أضف البوت كمشرف (يمكنه الإرسال)`,
-          `2) أرسل /link${tag} أو /start${tag}`,
-          `3) اسأل: /ask${tag} سؤالك — أو اذكر ${tag || 'البوت'}`,
+          `1) أضف البوت كمشرف (إرسال رسائل + وسائط)`,
+          `2) /link${tag}`,
+          '3) عطّل Group Privacy من BotFather',
+          '4) اكتب طلبك عادي',
           '',
-          'خصوصية المجموعات (BotFather):',
-          '• مفعّلة (افتراضي): البوت يرى الأوامر والذكر فقط',
-          '• معطّلة: البوت يرى كل الرسائل ويرد عليها',
-          '',
-          'الرسائل تُنسَخ لغرفة الموقع / نافذة تيليجرام.',
+          privacyHintAr(botUsername),
         ].join('\n')
       )
       return
@@ -526,12 +699,15 @@ export function getTelegramBot() {
       await ctx.reply(
         [
           'حالة Arabic Buzz عبر تيليجرام:',
-          `المحادثة: ${chatId}${inGroup ? ' (مجموعة)' : ' (خاص)'}`,
+          `المحادثة: ${chatId}${inGroup ? ' (مجموعة مربوطة)' : ' (خاص)'}`,
           `المساحة: ${scope.scope.nameAr} (${scope.scope.id})`,
           `موافقات معلّقة: ${pending.length}`,
-          'الوكيل: جاهز لاستقبال النص والصوت',
+          'الوكيل: نص · صوت · ملفات — مثل الموقع',
           'الموقع: https://arabicbuzz.netlify.app/',
-        ].join('\n')
+          inGroup ? privacyHintAr(botUsername) : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
       )
       return
     }
@@ -542,9 +718,8 @@ export function getTelegramBot() {
           `المساحة النشطة: ${scope.scope.nameAr}`,
           `المعرّف: ${scope.scope.id}`,
           inGroup
-            ? `لربط مجموعة أخرى: /link@${botUsername || 'bot'} scope_<id>`
+            ? 'اكتب بالعربية العادية في المجموعة — بدون /ask.'
             : 'غيّر الربط من الموقع أو برابط الدعوة.',
-          'أوامر: /help · /ask · /approve · /status',
         ].join('\n')
       )
       return
@@ -572,17 +747,12 @@ export function getTelegramBot() {
       return
     }
 
-    // Agent turn: /ask …, @mention, reply-to-bot, or plain text (DM / privacy off)
+    // Agent turn: plain Arabic (linked group / DM), optional /ask, mention, reply
     let promptSource = rawText
     if (askCmd) {
       if (!askCmd.args) {
         await ctx.reply(
-          [
-            'استخدم: /ask نص السؤال',
-            botUsername ? `في المجموعة يُفضّل: /ask@${botUsername} سؤالك` : '',
-          ]
-            .filter(Boolean)
-            .join('\n')
+          'اكتب طلبك مباشرة بالعربية — لا حاجة لـ /ask. مثال: «لخّص آخر قرارات المجلس»'
         )
         return
       }
@@ -593,40 +763,22 @@ export function getTelegramBot() {
         botUsername,
         isReplyToBot,
         isCommand: false,
+        isLinked: Boolean(existingBinding),
       })
       promptSource = gate.promptText
       if (!promptSource.trim()) {
-        await ctx.reply('اذكر سؤالك بعد منشن البوت، أو استخدم /ask …')
+        await ctx.reply('اكتب طلبك بالعربية بعد منشن البوت، أو عطّل Group Privacy ليرى كل الرسائل.')
         return
       }
     }
 
     try {
-      const normalized = await normalizeArabicPrompt(promptSource)
-      const modelSlug =
-        process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro'
-      const requesterId = await resolveChannelOwnerUserIdAsync(userId)
-      const system = await buildScopedSystemPrompt(
-        'أنت وكيل Arabic Buzz عبر تيليجرام. أجب بالعربية الفصحى المهنية (MSA) بإيجاز. عند استخدام قاعدة المعرفة اذكر المصادر بصيغة [مصدر N: …]. للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.',
-        scope
-      )
-
-      const out = await streamTelegramReply({
+      await runTelegramAgentTurn({
         ctx,
-        prompt: normalized.normalizedPromptAr,
-        system,
-        modelSlug,
-        requesterId,
-        scopeId: scope.scope.id,
-      })
-
-      void mirrorChannelTurnToRoom({
-        scopeId: scope.scope.id,
-        channel: 'telegram',
-        externalId: chatId,
-        userLabelAr: ctx.from?.first_name || 'مستخدم تيليجرام',
-        userMessageAr: promptSource,
-        agentReplyAr: out.text,
+        promptSource,
+        chatId,
+        userId,
+        scope,
       })
     } catch (e) {
       console.error('[telegram] text handler', e)
@@ -644,17 +796,43 @@ export function getTelegramBot() {
 
   bot.on(['message:voice', 'message:audio'], async (ctx) => {
     if (ctx.from?.is_bot) return
-    const tokenLocal = process.env.TELEGRAM_BOT_TOKEN!
     const chatId = String(ctx.chat.id)
     const userId = String(ctx.from?.id || 'user-1')
     const inGroup = isGroupChat(ctx.chat)
-    // Group Privacy: voice only arrives if privacy is off or it's a reply context.
+    const botUsername = ctx.me.username || ''
+
     try {
+      if (inGroup) {
+        const binding = await lookupChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+        })
+        if (!binding) {
+          await ctx.reply(
+            [
+              'اربط المجموعة أولاً بـ /link ثم أرسل الصوت.',
+              privacyHintAr(botUsername),
+            ].join('\n')
+          )
+          return
+        }
+      }
+
       const file = await ctx.getFile()
-      const url = `https://api.telegram.org/file/bot${tokenLocal}/${file.file_path}`
+      if (!file.file_path) throw new Error('مسار الملف الصوتي غير متوفر')
+      const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`
       const res = await fetch(url)
       const buffer = Buffer.from(await res.arrayBuffer())
-      const scope = await resolveTelegramScope({ chatId, userId })
+      const mime =
+        ctx.message.voice || ctx.message.audio?.mime_type?.includes('ogg')
+          ? 'audio/ogg'
+          : ctx.message.audio?.mime_type || 'audio/ogg'
+
+      const scope = await resolveTelegramScope({
+        chatId,
+        userId,
+        autoBind: !inGroup,
+      })
       if (!scope) {
         await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
         return
@@ -665,26 +843,29 @@ export function getTelegramBot() {
         scopeId: scope.scope.id,
         userId,
       })
+
       await ctx.replyWithChatAction('typing')
-      const out = await handleInboundVoiceNote({
-        channel: 'telegram',
-        mediaBuffer: buffer,
-        mimeType: 'audio/ogg',
-        scopeCtx: scope,
-      })
-      await ctx.reply(`🎤 تم التحويل:\n${out.transcript}`)
-      if (out.replyText?.trim()) {
-        await ctx.reply(out.replyText.slice(0, 4000))
+      const transcript = await transcribeArabicAudioBuffer(buffer, mime)
+      if (!transcript?.trim()) {
+        await ctx.reply('لم أتمكن من تفريغ الصوت. أعد التسجيل أو اكتب النص.')
+        return
       }
-      await ctx.replyWithVoice(new InputFile(out.audioOut, 'reply.ogg'))
-      void mirrorChannelTurnToRoom({
-        scopeId: scope.scope.id,
-        channel: 'telegram',
-        externalId: chatId,
-        userLabelAr: ctx.from?.first_name || 'مستخدم تيليجرام',
-        userMessageAr: `🎤 ${out.transcript}`,
-        agentReplyAr: out.replyText || out.transcript,
+      await ctx.reply(`🎤 تم التحويل:\n${transcript.slice(0, 3500)}`)
+
+      const out = await runTelegramAgentTurn({
+        ctx,
+        promptSource: transcript,
+        chatId,
+        userId,
+        scope,
       })
+
+      try {
+        const audioOut = await generateArabicAudioBuffer(out.text.slice(0, 800))
+        await ctx.replyWithVoice(new InputFile(audioOut, 'reply.ogg'))
+      } catch {
+        /* TTS optional */
+      }
     } catch (e) {
       console.error('[telegram] voice', e)
       try {
@@ -692,11 +873,123 @@ export function getTelegramBot() {
           e instanceof Error
             ? e.message
             : inGroup
-              ? 'تعذر معالجة الصوت. تأكد أن البوت مشرف ويمكنه الإرسال.'
+              ? 'تعذر معالجة الصوت. تأكد أن البوت مشرف ويمكنه الإرسال، وأن Group Privacy معطّل.'
               : 'تعذر معالجة الصوت'
         )
       } catch {
         /* no send permission in group */
+      }
+    }
+  })
+
+  bot.on(['message:document', 'message:photo'], async (ctx) => {
+    if (ctx.from?.is_bot) return
+    const chatId = String(ctx.chat.id)
+    const userId = String(ctx.from?.id || 'user-1')
+    const inGroup = isGroupChat(ctx.chat)
+    const botUsername = ctx.me.username || ''
+    const caption = (ctx.message.caption || '').trim()
+    const isReplyToBot = Boolean(
+      ctx.message.reply_to_message?.from?.id &&
+        ctx.message.reply_to_message.from.id === ctx.me.id
+    )
+
+    try {
+      if (inGroup) {
+        const binding = await lookupChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+        })
+        if (!binding) {
+          const { mentioned } = stripBotMention(caption, botUsername)
+          if (!mentioned && !isReplyToBot) return
+          await ctx.reply(
+            [
+              'اربط المجموعة أولاً بـ /link ثم أرسل الملف.',
+              privacyHintAr(botUsername),
+            ].join('\n')
+          )
+          return
+        }
+      }
+
+      const scope = await resolveTelegramScope({
+        chatId,
+        userId,
+        autoBind: !inGroup,
+      })
+      if (!scope) {
+        await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+        return
+      }
+      void upsertChannelBinding({
+        channel: 'telegram',
+        externalId: chatId,
+        scopeId: scope.scope.id,
+        userId,
+      })
+
+      await ctx.replyWithChatAction('typing')
+      let ingested: { fileId: string; name: string; mimeType: string }
+
+      if (ctx.message.document) {
+        const doc = ctx.message.document
+        ingested = await ingestTelegramDocumentToWorkspace({
+          ctx,
+          scopeId: scope.scope.id,
+          fileId: doc.file_id,
+          fileName: doc.file_name || `telegram-doc-${Date.now()}`,
+          mimeType: doc.mime_type,
+        })
+      } else {
+        const photos = ctx.message.photo || []
+        const best = photos[photos.length - 1]
+        if (!best) {
+          await ctx.reply('لم أجد صورة صالحة.')
+          return
+        }
+        ingested = await ingestTelegramPhotoToWorkspace({
+          ctx,
+          scopeId: scope.scope.id,
+          fileId: best.file_id,
+        })
+      }
+
+      const { mentioned, text: captionStripped } = stripBotMention(
+        caption,
+        botUsername
+      )
+      const userAsk =
+        captionStripped ||
+        (mentioned
+          ? 'اقرأ هذا الملف ونفّذ المطلوب إن وُجد، وإلا لخّص المحتوى واقترح الخطوة التالية.'
+          : 'اقرأ هذا الملف المرفق. إن طلب المستخدم تعديلاً في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار.')
+
+      const promptSource = [
+        userAsk,
+        '',
+        `ملف مرفوع من تيليجرام: «${ingested.name}» (fileId=${ingested.fileId}, mime=${ingested.mimeType}).`,
+        'استخدم read_document أو read_excel أو أدوات الصور حسب النوع، ثم عدّل عند الحاجة بـ edit_document/edit_excel وأعد الملف عبر return_file.',
+      ].join('\n')
+
+      await ctx.reply(`📎 استلمت «${ingested.name}» — جاري المعالجة…`)
+      await runTelegramAgentTurn({
+        ctx,
+        promptSource,
+        chatId,
+        userId,
+        scope,
+      })
+    } catch (e) {
+      console.error('[telegram] document/photo', e)
+      try {
+        await ctx.reply(
+          e instanceof Error
+            ? `تعذّر معالجة الملف: ${e.message}`
+            : 'تعذّر معالجة الملف.'
+        )
+      } catch {
+        /* ignore */
       }
     }
   })
@@ -728,7 +1021,6 @@ export function getTelegramBot() {
       return
     }
 
-    // Answer immediately so Telegram stops the spinner even if execution is slow.
     try {
       await ctx.answerCallbackQuery({
         text:
@@ -747,7 +1039,6 @@ export function getTelegramBot() {
       process.env.TELEGRAM_DEFAULT_ORG_ID ||
       process.env.DEFAULT_ORG_ID ||
       'org-demo'
-    // Director email so high-risk approvals pass RBAC even if Prisma membership is down.
     const { DEFAULT_DIRECTOR_EMAIL } = await import('@/lib/auth/roles')
     const approverEmail =
       process.env.TELEGRAM_APPROVER_EMAIL?.trim() ||
@@ -816,6 +1107,7 @@ export function getTelegramBot() {
 /** Process a Telegram update payload directly (webhook + async workflow dispatch). */
 export async function processTelegramUpdatePayload(payload: unknown) {
   const instance = await ensureTelegramBotReady()
+  await ensureBotCommands(instance)
   const update = payload as Parameters<typeof instance.handleUpdate>[0]
   await instance.handleUpdate(update)
 }

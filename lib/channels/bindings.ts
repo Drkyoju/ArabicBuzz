@@ -4,12 +4,41 @@ import { prisma, withPrismaFallback } from '@/lib/db'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
 
-export async function resolveChannelScope(opts: {
+export type ChannelBindingRow = {
+  channel: string
+  externalId: string
+  scopeId: string
+  userId?: string | null
+}
+
+/** Lookup only — does not auto-create a binding (used for linked-group gates). */
+export async function lookupChannelBinding(opts: {
   channel: 'telegram' | 'whatsapp'
   externalId: string
-  fallbackUserId?: string
-}): Promise<ActiveScopeContext | null> {
-  const binding = await withPrismaFallback(
+}): Promise<ChannelBindingRow | null> {
+  try {
+    const sb = getSupabaseAdmin()
+    if (sb) {
+      const { data } = await sb
+        .from('channel_bindings')
+        .select('channel, external_id, scope_id, user_id')
+        .eq('channel', opts.channel)
+        .eq('external_id', opts.externalId)
+        .maybeSingle()
+      if (data?.scope_id) {
+        return {
+          channel: String(data.channel),
+          externalId: String(data.external_id),
+          scopeId: String(data.scope_id),
+          userId: data.user_id ? String(data.user_id) : null,
+        }
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const row = await withPrismaFallback(
     () =>
       prisma.channelBinding.findUnique({
         where: {
@@ -21,8 +50,29 @@ export async function resolveChannelScope(opts: {
       }),
     null
   )
+  if (!row) return null
+  return {
+    channel: row.channel,
+    externalId: row.externalId,
+    scopeId: row.scopeId,
+    userId: row.userId,
+  }
+}
+
+export async function resolveChannelScope(opts: {
+  channel: 'telegram' | 'whatsapp'
+  externalId: string
+  fallbackUserId?: string
+  /** When true (default), create a default binding if none exists. Groups should pass false and use /link. */
+  autoBind?: boolean
+}): Promise<ActiveScopeContext | null> {
+  const binding = await lookupChannelBinding({
+    channel: opts.channel,
+    externalId: opts.externalId,
+  })
 
   if (!binding) {
+    if (opts.autoBind === false) return null
     const scopeId =
       opts.channel === 'telegram'
         ? process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo'

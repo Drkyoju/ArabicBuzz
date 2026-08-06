@@ -261,7 +261,10 @@ export function TelegramHomePanel() {
                 مجموعة: أضف البوت ثم أرسل{' '}
                 <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code>
               </li>
-              <li>اسأل بـ <code dir="ltr">/ask@alhuda14bot …</code> — ثم ارجع هنا.</li>
+              <li>
+                بعد الربط اكتب بالعربي العادي (بدون{' '}
+                <code dir="ltr">/ask</code>) — ثم ارجع هنا.
+              </li>
             </ol>
             {deepLink && link?.botConfigured !== false && (
               <a

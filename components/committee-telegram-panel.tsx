@@ -97,8 +97,9 @@ export function CommitteeTelegramPanel() {
           معرّفات.
         </li>
         <li>
-          اسأل بـ <code dir="ltr">/ask@alhuda14bot …</code>. إن صمت البوت عن
-          الرسائل العادية: عطّل Group Privacy من BotFather.
+          بعد الربط اكتب بالعربية العادية — بدون{' '}
+          <code dir="ltr">/ask</code>. عطّل Group Privacy من BotFather ليرى كل
+          الرسائل.
         </li>
       </ol>
       <ul className="space-y-3">
