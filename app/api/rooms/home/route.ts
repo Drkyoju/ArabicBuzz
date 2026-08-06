@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
         to: weekEnd.endIso,
       }).catch(() => []),
       listRoomTasks(scopeId).catch(() => []),
-      listRoomActivity(scopeId, 50),
+      listRoomActivity(scopeId, 120),
       listZoomSessions(scopeId, 15),
       listRoomPosts(scopeId, 30).then((r) => r.posts).catch(() => []),
       getLiveZoomSnapshot({ scopeId }).catch(() => null),
@@ -165,6 +165,41 @@ export async function GET(req: NextRequest) {
       events.filter((e) => inRange(e.startsAt, d.start, d.end))
     ),
   }))
+
+  // باقي الشهر بعد غد — أيام فيها مواعيد فقط
+  const monthRestByYmd = new Map<
+    string,
+    ReturnType<typeof mapEv>
+  >()
+  for (const e of events) {
+    const ymd = e.startsAt
+      ? new Intl.DateTimeFormat('en-CA', {
+          timeZone: TZ,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(e.startsAt))
+      : ''
+    if (!ymd || ymd <= tomorrow.ymd) continue
+    if (ymd > monthEnd.ymd) continue
+    const mapped = mapEv([e])[0]
+    const list = monthRestByYmd.get(ymd) || []
+    list.push(mapped)
+    monthRestByYmd.set(ymd, list)
+  }
+  const monthRest = Array.from(monthRestByYmd.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ymd, list], i) => ({
+      offset: 2 + i,
+      ymd,
+      labelAr: weekdayAr(ymd),
+      weekdayAr: weekdayAr(ymd),
+      events: list,
+    }))
+
+  const beyondMonthCount = allRoomEvents.filter(
+    (e) => e.status !== 'cancelled'
+  ).length
 
   const lastZoom = await lastZoomLiveAt(scopeId)
   const liveZoom = (zoomSnap?.meetings || []).filter(
@@ -248,6 +283,9 @@ export async function GET(req: NextRequest) {
     },
     calendar: byDay,
     agenda,
+    monthRest,
+    beyondMonthCount,
+    monthYm: today.ymd.slice(0, 7),
     commitments: {
       count: commitments.length,
       items: commitments.slice(0, 20),
@@ -271,8 +309,14 @@ export async function GET(req: NextRequest) {
       messageAr: zoomSnap?.messageAr || '',
       configured: Boolean(zoomSnap?.configured),
     },
-    activity: meaningfulActivity.slice(0, 25).map((a) => ({
-      ...a,
+    activity: meaningfulActivity.slice(0, 80).map((a) => ({
+      id: a.id,
+      kind: a.kind,
+      actorAr: a.actorAr,
+      actorEmail: a.actorEmail,
+      actionAr: a.actionAr,
+      detailAr: a.detailAr,
+      createdAt: a.createdAt,
       atAr: fmtTime(a.createdAt),
     })),
     people: [...peopleMap.values()]
@@ -293,7 +337,7 @@ export async function GET(req: NextRequest) {
         assigneeAr: t.assigneeAr,
       })),
     },
-    recentPosts: posts.slice(-8).reverse().map((p) => ({
+    recentPosts: posts.slice(-24).reverse().map((p) => ({
       id: p.id,
       authorAr: p.authorNameAr,
       kind: p.authorKind,

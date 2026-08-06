@@ -99,6 +99,7 @@ export type DemoDigest = {
     detailAr?: string | null
     atAr: string
     kind: string
+    createdAt?: string
   }>
   people: Array<{
     nameAr: string
@@ -112,9 +113,11 @@ export type DemoDigest = {
     items: Array<{ id: string; titleAr: string; status: string }>
   }
   recentPosts: Array<{
+    id?: string
     authorAr: string
     content: string
     atAr: string
+    at?: number
     kind: string
   }>
   pendingApprovals: Array<{

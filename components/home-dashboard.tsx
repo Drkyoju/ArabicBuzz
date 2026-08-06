@@ -22,6 +22,10 @@ import { AssociationRecipes } from '@/components/association-recipes'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { DateDual } from '@/components/date-dual'
 import { TelegramHomePanel } from '@/components/telegram-home-panel'
+import {
+  ActivityHistoryDialog,
+  type ActivityFeedItem,
+} from '@/components/activity-history-dialog'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -42,6 +46,7 @@ type Activity = {
   detailAr?: string | null
   atAr: string
   kind: string
+  createdAt?: string
 }
 
 type Person = {
@@ -111,7 +116,14 @@ type Digest = {
   activity?: Activity[]
   people?: Person[]
   tasks?: { openCount: number; items: Array<{ id: string; titleAr: string; status: string }> }
-  recentPosts?: Array<{ authorAr: string; content: string; atAr: string; kind: string }>
+  recentPosts?: Array<{
+    id?: string
+    authorAr: string
+    content: string
+    atAr: string
+    at?: number
+    kind: string
+  }>
   messageAr?: string
 }
 
@@ -234,6 +246,7 @@ export function HomeDashboard({
   const [teamInbox, setTeamInbox] = useState<TeamInboxItem[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [activityOpen, setActivityOpen] = useState(false)
   const demo = useMemo(() => buildGuestDemoDigest(), [])
 
   const load = useCallback(async () => {
@@ -369,8 +382,59 @@ export function HomeDashboard({
               agentAr: a.actorAr,
               statusAr: a.actionAr,
               detailAr: a.detailAr || a.atAr,
+              atMs: a.createdAt ? new Date(a.createdAt).getTime() : Date.now(),
+              atAr: a.atAr,
+              id: a.id,
             })),
         ]
+
+  /** Full feed for the activity modal (home shows only a 5-item preview). */
+  const activityFeed: ActivityFeedItem[] = useMemo(() => {
+    if (isGuest || authPending) return []
+    const now = Date.now()
+    const liveIds = new Set(acts.map((a) => a.id).filter(Boolean))
+    const live: ActivityFeedItem[] = acts.map((a, i) => ({
+      id: a.id || `live-${i}`,
+      actorAr: a.agentAr,
+      actionAr: a.statusAr,
+      detailAr: a.detailAr,
+      atAr: a.atAr,
+      atMs: a.atMs || now,
+      badge: 'الآن' as const,
+    }))
+    const fromLog: ActivityFeedItem[] = (viewData.activity || [])
+      .filter((a) => !liveIds.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        actorAr: a.actorAr,
+        actionAr: a.actionAr,
+        detailAr: a.detailAr,
+        atAr: a.atAr,
+        atMs: a.createdAt ? new Date(a.createdAt).getTime() : 0,
+        badge: null,
+      }))
+    const fromPosts: ActivityFeedItem[] = (viewData.recentPosts || []).map(
+      (p, i) => ({
+        id: p.id || `post-${p.atAr}-${i}`,
+        actorAr: p.authorAr,
+        actionAr: p.content,
+        detailAr: null,
+        atAr: p.atAr,
+        atMs: typeof p.at === 'number' ? p.at : 0,
+        badge: 'رسالة' as const,
+      })
+    )
+    const seen = new Set<string>()
+    const merged: ActivityFeedItem[] = []
+    for (const item of [...live, ...fromLog, ...fromPosts]) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      merged.push(item)
+    }
+    return merged.sort((a, b) => (b.atMs || 0) - (a.atMs || 0))
+  }, [acts, authPending, isGuest, viewData.activity, viewData.recentPosts])
+
+  const activityPreview = activityFeed.slice(0, 5)
 
   const hasDayEvents =
     !authPending &&
@@ -418,10 +482,7 @@ export function HomeDashboard({
   const hasWeek =
     !authPending && !hasCommitments && (cal?.week || []).length > 0
   const hasPeople = !authPending && (viewData.people || []).length > 0
-  const hasActivity = !authPending && (viewData.activity || []).length > 0
-  const hasPosts = !authPending && (viewData.recentPosts || []).length > 0
-  const hasMergedPulse =
-    !authPending && (acts.length > 0 || hasActivity || hasPosts)
+  const hasMergedPulse = !authPending && activityFeed.length > 0
   const hasTasks = !authPending && (viewData.tasks?.items || []).length > 0
   const showZoomStrip = !authPending && Boolean(zoom?.liveNow)
   const showCockpit =
@@ -932,76 +993,67 @@ export function HomeDashboard({
               {hasMergedPulse && (
                 <div
                   className={cn(
-                    'rounded-xl border border-ab-border bg-white p-4',
+                    'rounded-xl border border-ab-border bg-white p-3',
                     !hasPeople && !hasTasks && 'lg:col-span-2'
                   )}
                 >
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                     <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
                       <History className="h-4 w-4 text-ab-accent" />
                       نشاط حديث
                     </h2>
                     <button
                       type="button"
-                      onClick={() => onNavigate?.('chats')}
-                      className="text-[11px] font-medium text-ab-accent underline"
+                      onClick={() => setActivityOpen(true)}
+                      className="text-[11px] font-semibold text-ab-accent underline"
                     >
-                      الغرف
+                      كل النشاط
                     </button>
                   </div>
-                  <ul className="max-h-80 space-y-2 overflow-auto">
-                    {acts.slice(0, 3).map((a, i) => (
+                  <ul className="space-y-1.5">
+                    {activityPreview.map((a) => (
                       <li
-                        key={`live-${a.agentAr}-${i}`}
+                        key={a.id}
                         className="text-[12px] leading-snug text-stone-600"
                       >
-                        <span className="me-1.5 rounded bg-ab-accent/10 px-1 py-px text-[10px] font-semibold text-ab-accent">
-                          الآن
-                        </span>
+                        {a.badge ? (
+                          <span
+                            className={cn(
+                              'me-1.5 rounded px-1 py-px text-[10px] font-semibold',
+                              a.badge === 'الآن'
+                                ? 'bg-ab-accent/10 text-ab-accent'
+                                : 'bg-stone-100 font-medium text-stone-500'
+                            )}
+                          >
+                            {a.badge}
+                          </span>
+                        ) : null}
                         <span className="font-semibold text-ab-ink">
-                          {a.agentAr}
+                          {a.actorAr}
                         </span>
                         {' · '}
-                        {a.statusAr}
+                        {a.actionAr}
                         {a.detailAr ? (
                           <span className="text-stone-400">
                             {' '}
                             — {a.detailAr}
                           </span>
                         ) : null}
-                      </li>
-                    ))}
-                    {(viewData.activity || []).slice(0, 10).map((a) => (
-                      <li
-                        key={a.id}
-                        className="text-[12px] leading-snug text-stone-600"
-                      >
-                        <span className="font-semibold text-ab-ink">
-                          {a.actorAr}
-                        </span>
-                        {' · '}
-                        {a.actionAr}
-                        {a.detailAr ? ` — ${a.detailAr}` : ''}
-                        <span className="text-stone-400"> · {a.atAr}</span>
-                      </li>
-                    ))}
-                    {(viewData.recentPosts || []).slice(0, 6).map((p, i) => (
-                      <li
-                        key={`post-${p.atAr}-${i}`}
-                        className="text-[12px] leading-snug text-stone-600"
-                      >
-                        <span className="me-1.5 rounded bg-stone-100 px-1 py-px text-[10px] font-medium text-stone-500">
-                          رسالة
-                        </span>
-                        <span className="font-semibold text-ab-ink">
-                          {p.authorAr}
-                        </span>
-                        {' · '}
-                        {p.content}
-                        <span className="text-stone-400"> · {p.atAr}</span>
+                        {a.atAr ? (
+                          <span className="text-stone-400"> · {a.atAr}</span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
+                  {activityFeed.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setActivityOpen(true)}
+                      className="mt-2 text-[11px] font-medium text-ab-accent underline"
+                    >
+                      عرض المزيد ({activityFeed.length - 5}+)
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1072,6 +1124,12 @@ export function HomeDashboard({
           )}
         </>
       )}
+
+      <ActivityHistoryDialog
+        open={activityOpen}
+        onClose={() => setActivityOpen(false)}
+        items={activityFeed}
+      />
     </section>
   )
 }
