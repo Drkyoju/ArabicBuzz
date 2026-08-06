@@ -1133,15 +1133,6 @@ export function HomeDashboard({
                       </li>
                     ))}
                   </ul>
-                  {activityFeed.length > 5 && (
-                    <button
-                      type="button"
-                      onClick={() => setActivityOpen(true)}
-                      className="mt-2 text-[11px] font-medium text-ab-accent underline"
-                    >
-                      عرض المزيد ({activityFeed.length - 5}+)
-                    </button>
-                  )}
                 </div>
               )}
 

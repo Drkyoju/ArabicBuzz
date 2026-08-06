@@ -117,7 +117,9 @@ function SidebarBody({
   const labelAr = useWorkspaceModeStore((s) => s.labelAr)
   const displayNameAr = useWorkspaceModeStore((s) => s.displayNameAr)
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const roleResolved = useWorkspaceModeStore((s) => s.roleResolved)
   const signedIn = useSignedIn()
+  const roleReady = signedIn === false || (signedIn === true && roleResolved)
 
   useEffect(() => {
     let cancelled = false
@@ -149,7 +151,10 @@ function SidebarBody({
         // Server already gates ops to ryodan71@gmail.com only.
         store.applyRoleAccess(Boolean(d.canAccessOpsUi || d.isWorkspaceOwner))
       } catch {
-        /* ignore */
+        // Resolve as member on failure so the shell does not stay gated forever.
+        if (!cancelled) {
+          useWorkspaceModeStore.getState().applyRoleAccess(false)
+        }
       }
     })()
     return () => {
@@ -158,6 +163,17 @@ function SidebarBody({
   }, [setMode, signedIn])
 
   const primaryNav = PRIMARY_NAV.filter((n) => {
+    // Until role/email resolves, only shared member sections — never flash
+    // owner-only items as missing for the owner, or admin chrome for members.
+    if (!roleReady) {
+      return (
+        n.id === 'home' ||
+        n.id === 'calendar' ||
+        n.id === 'chats' ||
+        n.id === 'files' ||
+        n.id === 'settings'
+      )
+    }
     if (!isEmployeeSection(n.id, mode)) return false
     // Members: hide approvals admin when HITL is off.
     if (
@@ -172,6 +188,7 @@ function SidebarBody({
   })
   const moreNav = MORE_NAV.filter(
     (n) =>
+      roleReady &&
       isEmployeeSection(n.id, mode) &&
       signedIn === true &&
       canAccessOpsUi &&
@@ -233,13 +250,20 @@ function SidebarBody({
             <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            {signedIn === true && canAccessOpsUi ? <SdaiaBadge compact /> : null}
+            {roleReady && signedIn === true && canAccessOpsUi ? (
+              <SdaiaBadge compact />
+            ) : null}
             {airGapped ? <AirGapBadge airGapped /> : null}
           </div>
         </div>
 
         <div className="mt-2.5">
-          {signedIn ? (
+          {signedIn === null || (signedIn === true && !roleReady) ? (
+            <div
+              className="h-14 animate-pulse rounded-md bg-stone-100"
+              aria-hidden
+            />
+          ) : signedIn ? (
             <>
               <div className="mb-1.5 flex items-center gap-1.5">
                 <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-ab-ink">

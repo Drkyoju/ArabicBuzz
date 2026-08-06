@@ -454,15 +454,15 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
               وmailto يعملان. تيليجرام يرسل الرابط للقناة المضبوطة إن وُجدت.
             </p>
             {linkUrl && (
-              <div className="relative z-10 space-y-1.5">
-                <div className="relative z-10 flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
+              <div className="relative z-40 isolate space-y-1.5">
+                <div className="relative z-40 flex items-center gap-1 rounded bg-stone-50 p-1.5" dir="ltr">
                   <code className="min-w-0 flex-1 truncate text-[10px]">
                     {linkUrl}
                   </code>
                   <button
                     type="button"
                     onClick={() => void copyLink(linkUrl)}
-                    className="relative z-10 inline-flex shrink-0 items-center gap-1 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-ink"
+                    className="relative z-40 inline-flex shrink-0 items-center gap-1 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-ink pointer-events-auto"
                     aria-label="نسخ الرابط"
                   >
                     <Copy className="h-3 w-3" />
@@ -477,13 +477,13 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
           </div>
 
           {invites.length > 0 && (
-            <div className="relative z-20">
+            <div className="relative z-40 isolate">
               <p className="mb-1 font-semibold">دعوات معلّقة</p>
               <ul className="space-y-1">
                 {invites.map((i) => (
                   <li
                     key={i.id}
-                    className="flex items-center justify-between gap-2 rounded border border-dashed border-ab-border px-2 py-1"
+                    className="relative z-40 flex items-center justify-between gap-2 rounded border border-dashed border-ab-border bg-stone-50 px-2 py-1"
                   >
                     <span className="truncate" dir="ltr">
                       {i.email || 'رابط'}
@@ -492,7 +492,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                       <button
                         type="button"
                         onClick={() => void copyLink(i.inviteUrl!)}
-                        className="relative z-20 text-[10px] font-medium text-ab-accent"
+                        className="relative z-40 shrink-0 rounded border border-ab-border bg-white px-2 py-1 text-[10px] font-medium text-ab-accent pointer-events-auto"
                       >
                         نسخ
                       </button>

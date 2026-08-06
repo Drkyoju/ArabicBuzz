@@ -185,7 +185,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const roleResolved = useWorkspaceModeStore((s) => s.roleResolved)
   const signedIn = useSignedIn()
+  const roleReady = signedIn === false || (signedIn === true && roleResolved)
   const [approvals, setApprovals] = useState<LiveApproval[]>([])
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [approvalsError, setApprovalsError] = useState('')
@@ -203,13 +205,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   }, [calendarTabs, calendarTab])
 
   useEffect(() => {
+    if (!roleReady) return
     if (!isEmployeeSection(section, mode)) {
       setSection('home')
     }
-  }, [mode, section])
+  }, [mode, roleReady, section])
 
   // Members: no audit/skills/keys/ops/memory even via deep-link.
+  // Wait for role/email so owners are not bounced during the first paint.
   useEffect(() => {
+    if (!roleReady) return
     if (canAccessOpsUi && mode === 'admin') return
     if (
       section === 'api-keys' ||
@@ -220,7 +225,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     ) {
       setSection('home')
     }
-  }, [canAccessOpsUi, mode, section])
+  }, [canAccessOpsUi, mode, roleReady, section])
 
   // Guests cannot open advanced sections via deep-link
   useEffect(() => {

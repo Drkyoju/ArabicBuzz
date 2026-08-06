@@ -1173,14 +1173,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           {showMore && shared && (
             <>
-              {/* Mobile: near-full bottom sheet */}
+              {/* Mobile: near-full bottom sheet — above sticky chat composer */}
               <div
-                className="fixed inset-0 z-[55] bg-black/35 md:hidden"
+                className="fixed inset-0 z-[65] bg-black/35 md:hidden"
                 aria-hidden
                 onClick={() => setShowMore(false)}
               />
               <div
-                className="fixed inset-x-0 bottom-0 z-[56] flex flex-col rounded-t-2xl border border-ab-border bg-stone-50 shadow-xl md:hidden"
+                className="fixed inset-x-0 bottom-0 z-[66] flex flex-col rounded-t-2xl border border-ab-border bg-stone-50 shadow-xl md:hidden"
                 style={{
                   height: membersPanePx,
                   maxHeight: '92dvh',
@@ -1252,15 +1252,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
 
-              {/* Desktop / tablet: inline resizable pane — z above feed so invite/copy stay clickable */}
+              {/* Desktop / tablet: inline pane above sticky composer so «نسخ» stays clickable */}
               <div
-                className="relative z-20 hidden shrink-0 flex-col overflow-hidden border-b border-ab-border bg-stone-50 md:flex"
+                className="relative z-30 hidden shrink-0 flex-col overflow-hidden border-b border-ab-border bg-stone-50 md:flex"
                 style={{
                   height: membersPanePx,
                   minHeight: MEMBERS_PANE_MIN,
                 }}
               >
-                <div className="relative z-20 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
+                <div className="relative z-30 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
                   <RoomTeamPanel scopeId={activeScopeId} />
                   <TelegramOutboundBlock
                     telegramReady={telegramReady}
@@ -1465,7 +1465,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           </div>
 
-          <footer className="sticky bottom-0 border-t border-ab-border bg-ab-surface/95 p-2.5 backdrop-blur">
+          <footer
+            className={cn(
+              'relative z-0 sticky bottom-0 border-t border-ab-border bg-ab-surface/95 p-2.5 backdrop-blur',
+              // Members sheet/pane owns the hit target for invite «نسخ»
+              showMore && shared && 'pointer-events-none max-md:invisible'
+            )}
+            aria-hidden={showMore && shared ? true : undefined}
+          >
             {mentionPreview && (
               <p className="mb-1.5 text-[11px] text-ab-accent">
                 سيتم توجيه الرد إلى {mentionPreview.nameAr}

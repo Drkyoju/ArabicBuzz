@@ -15,6 +15,11 @@ type State = {
   /** True only for ryodan71@gmail.com — never trust room-owner alone. */
   canAccessOpsUi: boolean
   /**
+   * False until /api/me/role (or guest path) settles — avoids flashing member
+   * chrome for the workspace owner on mobile reload.
+   */
+  roleResolved: boolean
+  /**
    * Owner's last toggle choice. null = default full admin.
    * Members ignore this (always employee).
    */
@@ -25,6 +30,7 @@ type State = {
   setDisplayNameAr: (name: string | null) => void
   setCanAccessOpsUi: (ok: boolean) => void
   applyRoleAccess: (ops: boolean) => void
+  setRoleResolved: (ready: boolean) => void
 }
 
 /**
@@ -39,6 +45,7 @@ export const useWorkspaceModeStore = create<State>()(
       labelAr: null,
       displayNameAr: null,
       canAccessOpsUi: false,
+      roleResolved: false,
       ownerUiPreference: null,
       setMode: (mode) =>
         set((s) => {
@@ -63,12 +70,14 @@ export const useWorkspaceModeStore = create<State>()(
       applyRoleAccess: (ops) =>
         set((s) => ({
           canAccessOpsUi: ops,
+          roleResolved: true,
           mode: ops
             ? s.ownerUiPreference === 'employee'
               ? 'employee'
               : 'admin'
             : 'employee',
         })),
+      setRoleResolved: (roleResolved) => set({ roleResolved }),
     }),
     {
       name: 'ab-workspace-ui-mode',
@@ -80,6 +89,8 @@ export const useWorkspaceModeStore = create<State>()(
         // Re-check ops from /api/me/role every session (email gate).
         canAccessOpsUi: false,
         mode: 'employee',
+        // Never persist — always wait for session/email before chrome choice.
+        roleResolved: false,
       }),
     }
   )
