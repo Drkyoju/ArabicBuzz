@@ -9,7 +9,23 @@ import {
   type DriveFileMeta,
 } from '@/lib/google/drive'
 import { prisma, withPrismaFallback } from '@/lib/db'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
+
+async function deleteKnowledgeBySource(sourceFileId: string): Promise<void> {
+  const viaPrisma = await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `DELETE FROM knowledge_documents WHERE source_file_id = $1`,
+        sourceFileId
+      ),
+    null as number | null
+  )
+  if (viaPrisma !== null) return
+  const sb = getSupabaseAdmin()
+  if (!sb) return
+  await sb.from('knowledge_documents').delete().eq('source_file_id', sourceFileId)
+}
 
 export type DriveSyncResult = {
   ok: boolean
@@ -49,14 +65,7 @@ async function ingestTextCloud(opts: {
   sourceFileId: string
   sourcePath: string
 }): Promise<number> {
-  await withPrismaFallback(
-    () =>
-      prisma.$executeRawUnsafe(
-        `DELETE FROM knowledge_documents WHERE source_file_id = $1`,
-        opts.sourceFileId
-      ),
-    0
-  )
+  await deleteKnowledgeBySource(opts.sourceFileId)
   const result = await ingestArabicDocument({
     scopeId: opts.scopeId,
     titleAr: opts.titleAr,
@@ -76,34 +85,43 @@ async function markDriveFileSkipped(opts: {
   sourcePath: string
   reasonAr: string
 }) {
-  await withPrismaFallback(
-    () =>
-      prisma.$executeRawUnsafe(
-        `DELETE FROM knowledge_documents WHERE source_file_id = $1`,
-        opts.sourceFileId
-      ),
-    0
-  )
+  await deleteKnowledgeBySource(opts.sourceFileId)
   // Tiny zero embedding stub — keeps source_file_id in the indexed set
   const zeros = `[${Array(1024).fill(0).join(',')}]`
-  await withPrismaFallback(
+  const id = randomUUID()
+  const titleAr = `تخطي · ${opts.titleAr}`
+  const content = `لم يُفهرس هذا الملف: ${opts.reasonAr}`
+  const viaPrisma = await withPrismaFallback(
     () =>
       prisma.$executeRawUnsafe(
         `INSERT INTO knowledge_documents
            (id, scope_id, title_ar, content, embedding, source_file_id, source_path)
          VALUES ($1::uuid, $2, $3, $4, $5::vector, $6, $7)`,
-        randomUUID(),
+        id,
         opts.scopeId,
-        `تخطي · ${opts.titleAr}`,
-        `لم يُفهرس هذا الملف: ${opts.reasonAr}`,
+        titleAr,
+        content,
         zeros,
         opts.sourceFileId,
         opts.sourcePath
       ),
-    0
+    null as number | null
   )
+  if (viaPrisma !== null) return
+  const sb = getSupabaseAdmin()
+  if (!sb) return
+  await sb.from('knowledge_documents').insert({
+    id,
+    scope_id: opts.scopeId,
+    title_ar: titleAr,
+    content,
+    embedding: zeros,
+    source_file_id: opts.sourceFileId,
+    source_path: opts.sourcePath,
+  })
 }
 
+/** Source ids already processed (indexed text or skip stub) so the queue advances. */
 async function alreadyIndexedIds(sourceIds: string[]): Promise<Set<string>> {
   if (sourceIds.length === 0) return new Set()
   const rows = await withPrismaFallback(
@@ -111,14 +129,32 @@ async function alreadyIndexedIds(sourceIds: string[]): Promise<Set<string>> {
       prisma.$queryRawUnsafe<Array<{ source_file_id: string }>>(
         `SELECT DISTINCT source_file_id
          FROM knowledge_documents
-         WHERE source_file_id = ANY($1::text[])
-           AND title_ar NOT LIKE 'تخطي · %'
-           AND content NOT LIKE 'لم يُفهرس هذا الملف:%'`,
+         WHERE source_file_id = ANY($1::text[])`,
         sourceIds
       ),
-    [] as Array<{ source_file_id: string }>
+    null as Array<{ source_file_id: string }> | null
   )
-  return new Set(rows.map((r) => r.source_file_id).filter(Boolean))
+  if (rows) {
+    return new Set(rows.map((r) => r.source_file_id).filter(Boolean))
+  }
+  // Prisma often unreachable from Netlify — same table via Supabase REST.
+  const sb = getSupabaseAdmin()
+  if (!sb) return new Set()
+  const found = new Set<string>()
+  const chunk = 80
+  for (let i = 0; i < sourceIds.length; i += chunk) {
+    const slice = sourceIds.slice(i, i + chunk)
+    const { data, error } = await sb
+      .from('knowledge_documents')
+      .select('source_file_id')
+      .in('source_file_id', slice)
+    if (error || !data) continue
+    for (const row of data) {
+      const id = row.source_file_id as string | null
+      if (id) found.add(id)
+    }
+  }
+  return found
 }
 
 /**
