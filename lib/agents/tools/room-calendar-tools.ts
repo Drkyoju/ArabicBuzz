@@ -7,8 +7,31 @@ import {
   cancelRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
 
+const TZ = 'Asia/Riyadh'
+
 function scopeOf(params: Record<string, unknown>) {
   return String(params.scopeId || 'shared-demo')
+}
+
+function formatRiyadhRange(
+  startsAt: string,
+  endsAt: string,
+  allDay?: boolean
+): string {
+  if (allDay) return 'طوال اليوم'
+  try {
+    const opts: Intl.DateTimeFormatOptions = {
+      timeZone: TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }
+    const s = new Date(startsAt).toLocaleTimeString('ar-SA', opts)
+    const e = new Date(endsAt).toLocaleTimeString('ar-SA', opts)
+    return `${s}–${e}`
+  } catch {
+    return ''
+  }
 }
 
 export async function executeRoomCalendarList(
@@ -20,16 +43,32 @@ export async function executeRoomCalendarList(
     scopeId,
     from: params.from ? String(params.from) : undefined,
     to: params.to ? String(params.to) : undefined,
+    hideTestTitles: params.hideTestTitles !== false,
   })
+  const formatted = events.map((e) => ({
+    id: e.id,
+    titleAr: e.titleAr,
+    whenAr: formatRiyadhRange(e.startsAt, e.endsAt, e.allDay),
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    allDay: e.allDay,
+    status: e.status,
+    timeZone: TZ,
+  }))
   return {
     ok: true,
     scopeId,
     count: events.length,
-    events,
+    timeZone: TZ,
+    events: formatted,
+    /** Pre-formatted lines for the model — use whenAr as-is; do not re-convert to UTC. */
+    linesAr: formatted.map((e) =>
+      e.whenAr ? `• ${e.whenAr} — ${e.titleAr}` : `• ${e.titleAr}`
+    ),
     messageAr:
       events.length === 0
         ? 'تقويم الغرفة فارغ — أضف مواعيد يدوياً أو اطلب من الوكيل دمج تواريخ الموظفين.'
-        : `تقويم الغرفة: ${events.length} موعداً مشتركاً للفريق.`,
+        : `تقويم الغرفة: ${events.length} موعداً مشتركاً للفريق (توقيت السعودية ${TZ}).`,
   }
 }
 

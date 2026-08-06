@@ -6,11 +6,13 @@
 
 const TEST_TITLE_PATTERNS: RegExp[] = [
   /^اختبار\s*تقويم/,
+  /^اختبار\s*دخان/,
   /^اختبار\s*بدون\s*موافقة/,
   /^اختبار\s*الموافقة/,
   /^اختبار\s*موعد(\s|$)/,
   /^qa[\s\-·–—]/i,
   /^test[\s\-·–—]*(calendar|event|meeting)/i,
+  /^smoke[\s\-·–—]*(calendar|event|test)/i,
 ]
 
 export function isTestCalendarTitle(titleAr: string | null | undefined): boolean {

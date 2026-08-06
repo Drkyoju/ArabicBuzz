@@ -97,6 +97,8 @@ export async function GET() {
       mcpDefault: process.env.TELEGRAM_INCLUDE_MCP === '1',
       voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY === '1',
       fastPath: ['greeting', 'calendar_count', 'tasks_count'],
+      updateDedupe: 'update_id_ttl_10m',
+      calendarDisplayTz: 'Asia/Riyadh',
     },
   })
 }

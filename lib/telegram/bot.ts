@@ -43,6 +43,7 @@ import {
   runTelegramFastPath,
   shouldNormalizeTelegramDialect,
 } from '@/lib/telegram/fast-path'
+import { claimTelegramUpdate } from '@/lib/telegram/update-dedupe'
 
 /** Chat turns: lean toolset (no Drive sync / browser RPA / sheets / MCP by default). */
 const TELEGRAM_CHAT_TOOL_NAMES = [
@@ -70,7 +71,7 @@ const TELEGRAM_CHAT_TOOL_NAMES = [
   'room_memory_add',
   'web_search',
   'web_fetch',
-  'calendar_list_events',
+  // Prefer room_calendar_* only — personal Google list caused mixed UTC/Riyadh replies.
 ] as const
 
 /** File/doc turns: fuller set still excluding slow/rare tools. */
@@ -123,6 +124,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة.
 - أجب بإيجاز. للأسئلة البسيطة أجب مباشرة دون أدوات إن أمكن.
 - أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
+- التقويم: مصدر الفريق هو room_calendar_list فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC ولا تحوّل لعدة مناطق زمنية في نفس الرد.
+- لسؤال «كم موعد» أو مواعيد اليوم: رد واحد قصير (العدد + عنوان كل موعد ووقته) بدون سؤال متابعة مثل «هل تود إضافة…».
 - الملفات: list_workspace_files → read_document / read_excel → edit_document / edit_excel → return_file.
   أي ملف تُنشئه أو تعدّله يُرسل تلقائياً كمرفق في هذه المحادثة — لا تكتفِ بوصف الرابط.
 - عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.
@@ -502,6 +505,12 @@ async function runTelegramAgentTurn(opts: {
       try {
         await opts.ctx.api.editMessageText(opts.ctx.chat!.id, ack.message_id, text)
       } catch {
+        // Avoid leaving «جاري…» + a second final — replace via delete+reply once.
+        try {
+          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
+        } catch {
+          /* ignore */
+        }
         await opts.ctx.reply(text)
       }
       void mirrorChannelTurnToRoom({
@@ -525,7 +534,7 @@ async function runTelegramAgentTurn(opts: {
       }
     } catch (e) {
       console.error('[telegram] fast-path', e)
-      /* fall through to agent */
+      /* fall through to agent — still one final via the same ack placeholder */
     }
   }
 
@@ -1286,6 +1295,12 @@ export function getTelegramBot() {
 
 /** Process a Telegram update payload directly (webhook + async workflow dispatch). */
 export async function processTelegramUpdatePayload(payload: unknown) {
+  const raw = payload as { update_id?: number }
+  const claimed = await claimTelegramUpdate(raw?.update_id)
+  if (!claimed) {
+    console.info('[telegram] skip duplicate update_id', raw?.update_id)
+    return
+  }
   const instance = await ensureTelegramBotReady()
   await ensureBotCommands(instance)
   const update = payload as Parameters<typeof instance.handleUpdate>[0]
