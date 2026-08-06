@@ -312,7 +312,9 @@ export function RoomCalendarBoard({
           ? 'استيراد'
           : 'يدوي'
 
-  const isGuest = signedIn === false || err === 'GUEST'
+  /** Only treat as signed-in when session is confirmed — never show add form while null. */
+  const isGuest = signedIn !== true || err === 'GUEST'
+  const sessionPending = signedIn === null && err !== 'GUEST'
 
   return (
     <section className="space-y-4" dir="rtl">
@@ -327,7 +329,11 @@ export function RoomCalendarBoard({
         </p>
       </div>
 
-      {isGuest ? (
+      {sessionPending ? (
+        <p className="rounded-xl border border-ab-border bg-white px-4 py-3 text-sm text-stone-500">
+          جاري التحقق من الحساب…
+        </p>
+      ) : isGuest ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-5 text-center">
           <p className="text-sm font-semibold text-ab-ink">
             سجّل الدخول لإضافة مواعيد للفريق
@@ -485,9 +491,9 @@ export function RoomCalendarBoard({
             </button>
           </div>
         </div>
-        {loading || signedIn === null ? (
+        {loading && signedIn === true ? (
           <p className="p-4 text-sm text-stone-500">جاري تحميل المواعيد…</p>
-        ) : isGuest ? (
+        ) : isGuest || sessionPending ? (
           <p className="p-6 text-center text-sm text-stone-500">
             مواعيد الغرفة المحفوظة تحتاج حساباً.{' '}
             <Link

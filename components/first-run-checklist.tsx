@@ -27,7 +27,6 @@ export function FirstRunChecklist({
   const [googleOk, setGoogleOk] = useState(false)
   const [driveCount, setDriveCount] = useState(0)
   const [keysOk, setKeysOk] = useState(false)
-  const [zoomOk, setZoomOk] = useState(false)
   const [telegramOk, setTelegramOk] = useState(false)
   const [loading, setLoading] = useState(true)
   const [chatted, setChatted] = useState(false)
@@ -68,7 +67,6 @@ export function FirstRunChecklist({
         setGoogleOk(Boolean(cal?.connected))
         setDriveCount(Number(drive?.count || 0))
         setKeysOk(Number(providers?.serviceableCount || 0) > 0)
-        setZoomOk(Boolean(integ?.zoomConfigured))
         setTelegramOk(Boolean(integ?.telegramConfigured))
       } catch {
         /* ignore */
@@ -84,60 +82,46 @@ export function FirstRunChecklist({
   const steps: Step[] = useMemo(
     () => [
       {
-        id: 'keys',
-        labelAr: 'فعّل نموذجاً (أضف مفتاح API)',
-        done: keysOk,
-        action: () => onNavigate?.('api-keys'),
-        actionLabelAr: 'المفاتيح',
-      },
-      {
         id: 'chat',
-        labelAr: 'أرسل أول رسالة في غرفة',
+        labelAr: 'أرسل أول رسالة في غرفة الفريق',
         done: chatted,
         action: () => onNavigate?.('chats'),
         actionLabelAr: 'الغرف',
       },
       {
         id: 'room-calendar',
-        labelAr: 'افتح تقويم ومهام الغرفة المشتركة',
+        labelAr: 'أضف موعداً على تقويم الفريق',
         done: roomCollabOk,
         action: () => onNavigate?.('calendar'),
-        actionLabelAr: 'تقويم الفريق',
+        actionLabelAr: 'التقويم',
       },
       {
         id: 'drive',
-        labelAr: 'أضف ملفاً لعقل الغرفة (اختياري)',
-        done: driveCount > 0,
-        action: () => onNavigate?.('settings'),
-        actionLabelAr: 'الإعدادات',
+        labelAr: 'ارفع ملفاً لعقل الشركة (اختياري)',
+        done: driveCount > 0 || keysOk,
+        action: () => onNavigate?.('files'),
+        actionLabelAr: 'الملفات',
       },
       {
         id: 'google',
-        labelAr: 'Google اختياري · دعوات خارجية',
+        labelAr: 'اربط Google للدعوات الخارجية (اختياري)',
         done: googleOk,
-        action: () => onNavigate?.('calendar'),
-        actionLabelAr: 'التقويم',
+        action: () => onNavigate?.('settings'),
+        actionLabelAr: 'الربط',
       },
       {
         id: 'telegram',
         labelAr: 'اربط تيليجرام للجوال (اختياري)',
         done: telegramOk,
         action: () => onNavigate?.('settings'),
-        actionLabelAr: 'الإعدادات',
-      },
-      {
-        id: 'zoom',
-        labelAr: 'Zoom للاجتماعات (اختياري)',
-        done: zoomOk,
-        action: () => onNavigate?.('settings'),
-        actionLabelAr: 'الإعدادات',
+        actionLabelAr: 'الربط',
       },
     ],
-    [keysOk, googleOk, driveCount, chatted, roomCollabOk, zoomOk, telegramOk, onNavigate]
+    [keysOk, googleOk, driveCount, chatted, roomCollabOk, telegramOk, onNavigate]
   )
 
   const doneCount = steps.filter((s) => s.done).length
-  const allCore = steps.slice(0, 3).every((s) => s.done)
+  const allCore = steps.slice(0, 2).every((s) => s.done)
 
   useEffect(() => {
     if (loading || !allCore) return

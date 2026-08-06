@@ -239,16 +239,23 @@ export function RoomWorkspace({ className }: { className?: string }) {
       }
       setDisplayName(String(name))
     })
-    try {
-      if (!localStorage.getItem('ab-onboarded')) setShowOnboarding(true)
-    } catch {
-      /* ignore */
-    }
     hydrateScopeMemories()
     return () => {
       cancelled = true
     }
   }, [setActiveScopeId])
+
+  useEffect(() => {
+    if (signedIn !== true) {
+      setShowOnboarding(false)
+      return
+    }
+    try {
+      if (!localStorage.getItem('ab-onboarded')) setShowOnboarding(true)
+    } catch {
+      /* ignore */
+    }
+  }, [signedIn])
 
   useEffect(() => {
     feedRef.current?.scrollTo({

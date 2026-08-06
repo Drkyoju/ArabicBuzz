@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Brain,
@@ -14,6 +15,7 @@ import { authHeaders } from '@/lib/supabase/browser'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useSignedIn } from '@/lib/supabase/use-signed-in'
 
 type ListedFile = {
   id?: string
@@ -38,6 +40,8 @@ export function FilesPanel() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
   const scopes = useWorkspaceStore((s) => s.scopes)
   const scope = scopes.find((s) => s.id === scopeId)
+  const signedIn = useSignedIn()
+  const isGuest = signedIn !== true
   const [files, setFiles] = useState<ListedFile[]>([])
   const [source, setSource] = useState<string>('none')
   const [error, setError] = useState('')
@@ -48,6 +52,12 @@ export function FilesPanel() {
   const replaceTargetId = useRef<string | null>(null)
 
   const load = useCallback(async () => {
+    if (signedIn !== true) {
+      setFiles([])
+      setSource('none')
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -76,7 +86,7 @@ export function FilesPanel() {
     } finally {
       setLoading(false)
     }
-  }, [scopeId])
+  }, [scopeId, signedIn])
 
   useEffect(() => {
     void load()
@@ -266,6 +276,28 @@ export function FilesPanel() {
     source === 'local' || source === 'mac'
       ? 'زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة مشتركة طالما وكيل المزامنة يعمل.'
       : 'على الموقع السحابي تُحفظ الملفات الصغيرة في التخزين السحابي. للملفات الكبيرة اربط وكيل مزامنة الماك من الإعدادات.'
+
+  if (isGuest) {
+    return (
+      <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
+        <h2 className="text-xl font-bold">ملفات المساحة</h2>
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-ab-ink">
+            سجّل الدخول لعرض ورفع ملفات الغرفة
+          </p>
+          <p className="mt-1 text-xs text-stone-600">
+            بعد الدخول تظهر ملفات المساحة وعقل الشركة الحقيقي — بلا محتوى وهمي.
+          </p>
+          <Link
+            href="/auth/login"
+            className="mt-3 inline-flex rounded-md bg-ab-accent px-4 py-2 text-xs font-semibold text-white"
+          >
+            سجّل الدخول
+          </Link>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">

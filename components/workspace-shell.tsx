@@ -103,9 +103,15 @@ function AccountStatus() {
     }
   }, [signedIn])
 
-  if (required === null || signedIn === null) {
+  if (required === null && signedIn === null) {
     return (
       <p className="text-[11px] text-stone-400">جاري فحص حالة الحساب…</p>
+    )
+  }
+
+  if (signedIn === null) {
+    return (
+      <p className="text-[11px] text-stone-400">جاري التحقق من الدخول…</p>
     )
   }
 
@@ -370,14 +376,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               {calendarTab === 'schedule' && (
                 <>
                   <RoomCalendarBoard />
-                  <details className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-4">
-                    <summary className="cursor-pointer text-sm font-semibold text-stone-600">
-                      استحقاقات نظامية (ترخيص · جمعية عمومية · تقرير)
-                    </summary>
-                    <div className="mt-3">
-                      <SystemDeadlinesPanel />
-                    </div>
-                  </details>
+                  {signedIn === true && (
+                    <details className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-4">
+                      <summary className="cursor-pointer text-sm font-semibold text-stone-600">
+                        استحقاقات نظامية (ترخيص · جمعية عمومية · تقرير)
+                      </summary>
+                      <div className="mt-3">
+                        <SystemDeadlinesPanel />
+                      </div>
+                    </details>
+                  )}
                 </>
               )}
 
