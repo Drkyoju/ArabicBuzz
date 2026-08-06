@@ -157,28 +157,58 @@ function DayBlock({
     >
       <p className="text-sm font-bold text-ab-ink">{title}</p>
       {subtitle && (
-        <p className="text-[10px] text-stone-400" dir="ltr">
-          {subtitle}
-        </p>
+        <p className="text-[10px] text-stone-400">{subtitle}</p>
       )}
-      <ul className="mt-2 space-y-2">
+      {events.length === 0 ? (
+        <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
+            >
+              <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
+              <p className="mt-0.5 text-[10px] text-stone-500">
+                {e.startsAtAr}
+                {e.hasZoom ? ' · Zoom' : ''}
+                {e.locationAr ? ` · ${e.locationAr}` : ''}
+              </p>
+              {e.source === 'google_sync' && (
+                <p className="mt-0.5 text-[10px] text-sky-800">
+                  من Google
+                  {e.createdByAr ? ` · ${e.createdByAr}` : ''}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** مواعيد أيام لاحقة — شريحة مضغوطة بتاريخ واحد */
+function FutureDayChip({
+  labelAr,
+  events,
+}: {
+  labelAr: string
+  events: CalEvent[]
+}) {
+  return (
+    <div className="min-w-[9.5rem] max-w-full flex-1 basis-[9.5rem] rounded-lg border border-ab-border/80 bg-white px-2.5 py-2 sm:flex-none">
+      <p className="text-[11px] font-semibold text-stone-600">{labelAr}</p>
+      <ul className="mt-1 space-y-1">
         {events.map((e) => (
-          <li
-            key={e.id}
-            className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
-          >
-            <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
-            <p className="mt-0.5 text-[10px] text-stone-500">
+          <li key={e.id}>
+            <p className="truncate text-[12px] font-medium text-ab-ink">
+              {e.titleAr}
+            </p>
+            <p className="text-[10px] text-stone-400">
               {e.startsAtAr}
               {e.hasZoom ? ' · Zoom' : ''}
-              {e.locationAr ? ` · ${e.locationAr}` : ''}
             </p>
-            {e.source === 'google_sync' && (
-              <p className="mt-0.5 text-[10px] text-sky-800">
-                من Google
-                {e.createdByAr ? ` · ${e.createdByAr}` : ''}
-              </p>
-            )}
           </li>
         ))}
       </ul>
@@ -396,7 +426,11 @@ export function HomeDashboard({
   const showZoomStrip = !authPending && Boolean(zoom?.liveNow)
   const showCockpit =
     !isGuest && !authPending && (livePending > 0 || deadlines.length > 0)
-  const filledAgendaDays = agendaDays.filter((d) => d.events.length > 0)
+  // اليوم + غداً — لوحات كبيرة دائماً؛ الباقي مضغوط عند وجود مواعيد فقط
+  const focusAgendaDays = agendaDays.filter((d) => d.offset === 0 || d.offset === 1)
+  const futureAgendaDays = agendaDays.filter(
+    (d) => d.offset >= 2 && d.events.length > 0
+  )
 
   // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
   if (authPending) {
@@ -580,9 +614,9 @@ export function HomeDashboard({
               فتح تقويم الفريق
             </button>
           </div>
-          {filledAgendaDays.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filledAgendaDays.map((d) => (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {focusAgendaDays.map((d) => (
                 <DayBlock
                   key={`${d.offset}-${d.ymd}`}
                   title={d.labelAr}
@@ -594,18 +628,35 @@ export function HomeDashboard({
                 />
               ))}
             </div>
-          ) : (
-            <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-2.5 text-[12px] text-stone-500">
-              لا مواعيد في الأيام القادمة —{' '}
-              <button
-                type="button"
-                onClick={() => onNavigate?.('calendar')}
-                className="font-semibold text-ab-accent underline"
-              >
-                أضف موعداً
-              </button>
-            </p>
-          )}
+            {futureAgendaDays.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold text-stone-500">
+                  لاحقاً
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {futureAgendaDays.map((d) => (
+                    <FutureDayChip
+                      key={`${d.offset}-${d.ymd}`}
+                      labelAr={d.weekdayAr || d.labelAr || d.ymd}
+                      events={d.events}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {!hasDayEvents && futureAgendaDays.length === 0 && (
+              <p className="text-[11px] text-stone-400">
+                لا مواعيد قادمة —{' '}
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('calendar')}
+                  className="font-semibold text-ab-accent underline"
+                >
+                  أضف موعداً
+                </button>
+              </p>
+            )}
+          </div>
         </div>
       )}
 
