@@ -6,7 +6,6 @@ import {
   verifyTelegramWebhookSecret,
 } from '@/lib/telegram/webhook-auth'
 import { enforceWebhookRateLimit } from '@/lib/reliability/rate-limit'
-import { dispatchChannelWorkflow } from '@/lib/workflows/channel-dispatch'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -21,8 +20,8 @@ export const maxDuration = 30
  * was registered without secret_token — outbound approve buttons work, clicks
  * silently no-op. We verify mismatch only; missing header is allowed (compat).
  *
- * Callback queries (Approve/Reject) always run inline so answerCallbackQuery
- * is guaranteed; text/voice may optionally queue via workflow dispatch.
+ * Always process inline (including group /ask and HITL callbacks). Queuing to
+ * Trigger.dev / self-dispatch has caused silent no-replies in groups.
  */
 export async function POST(req: Request) {
   try {
@@ -51,19 +50,6 @@ export async function POST(req: Request) {
     }
 
     const isCallback = telegramUpdateHasCallback(payload)
-
-    // HITL approve/reject must run in this request — async dispatch often
-    // "succeeds" without answering the callback, which looks like a no-op.
-    if (!isCallback) {
-      const queued = await dispatchChannelWorkflow({
-        kind: 'telegram_webhook',
-        payload,
-      })
-      if (queued.queued) {
-        return Response.json({ ok: true, queued: true }, { status: 202 })
-      }
-    }
-
     await processTelegramUpdatePayload(payload)
     return Response.json({ ok: true, processed: isCallback ? 'callback' : 'update' })
   } catch (e) {
