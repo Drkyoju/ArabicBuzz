@@ -119,7 +119,7 @@ Do **not** set fake keys on Netlify. Firecrawl MCP auto-connects only when a key
 
 ## G. Integrations status
 
-`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, **Cua bridge** (`cuaBridgeConfigured`, `cuaBridgeOnline`, `cuaStatusAr`), Steel, browser RPA, TokenRouter (tombstoned `tokenrouterAvailable: false`).
+`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, **Cua bridge** (`cuaBridgeConfigured`, `cuaBridgeOnline`, `cuaStatusAr`), Steel, browser RPA. TokenRouter/Kimi is retired (`tokenrouterAvailable: false`).
 
 UI labels: **مجاني مدمج** vs **اختياري بمفتاح** — search/crawl are ready without Brave/Firecrawl.
 

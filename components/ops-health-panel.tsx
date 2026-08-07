@@ -12,7 +12,6 @@ type Snapshot = {
   telegramOutboundReady?: boolean
   telegramOwnerConfigured?: boolean
   telegramDetailAr?: string
-  kimiDetailAr?: string
   macOnline?: boolean
   macConfigured?: boolean
   cuaOnline?: boolean
@@ -96,11 +95,6 @@ export function OpsHealthPanel() {
         throw new Error('تعذّر تحميل حالة الربط — أعد المحاولة')
       }
 
-      const tokenrouterStatusAr =
-        typeof integ?.tokenrouterStatusAr === 'string'
-          ? integ.tokenrouterStatusAr
-          : null
-
       const aq = integ?.arabicQuality as
         | { badgeAr?: string; detailAr?: string }
         | undefined
@@ -113,7 +107,6 @@ export function OpsHealthPanel() {
         telegramOutboundReady: Boolean(integ?.telegramOutboundReady),
         telegramOwnerConfigured: Boolean(integ?.telegramOwnerConfigured),
         telegramDetailAr: telegramDetailAr(integ),
-        kimiDetailAr: tokenrouterStatusAr || undefined,
         macOnline: Boolean(mac?.online),
         macConfigured: Boolean(mac?.configured || integ?.macSyncConfigured),
         cuaOnline: Boolean(cua?.online ?? integ?.cuaBridgeOnline),
@@ -186,17 +179,6 @@ export function OpsHealthPanel() {
             (snap.modelsReady || 0) > 0
               ? `${snap.modelsReady} جاهز`
               : 'غير متصل',
-        },
-        {
-          label: 'Kimi Free',
-          ok: Boolean(
-            snap.kimiDetailAr?.includes('جاهز') ||
-              snap.kimiDetailAr?.includes('مفعّل')
-          ),
-          detail: /رصيد|منته|quota/i.test(snap.kimiDetailAr || '')
-            ? 'رصيد منتهٍ'
-            : snap.kimiDetailAr || 'غير مضبوط',
-          soft: true,
         },
         {
           label: 'البحث على الويب',

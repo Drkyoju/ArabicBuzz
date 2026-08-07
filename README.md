@@ -7,8 +7,9 @@
 - Next.js 15 App Router + TypeScript + Tailwind CSS v3 (`tailwindcss-rtl`)
 - Prisma + PostgreSQL
 - Vercel AI SDK multi-harness router:
-  - **Direct:** OpenAI GPT-4o / Mini, Gemini 2.0 Flash / 2.5 Pro, Ollama, Perplexity
-  - **Via OpenRouter:** Claude, DeepSeek, Kimi, GLM, Qwen, Hermes
+  - **Cloud (picker):** Gemini, GLM (Z.AI), AgentRouter (Opus / GPT)
+  - **Air-gap:** Ollama only
+  - **Retired:** Kimi/TokenRouter, Perplexity, OpenAI, OpenRouter UI keys
 - OpenClaw `SKILL.md` registry + Hermes skill distillation
 - Grammy (Telegram) + WhatsApp Cloud API
 - Whisper STT + OpenAI TTS
@@ -149,7 +150,7 @@ npm run storage:sync                # Mac agent: /health /task /markitdown
 npm run ops:health                  # probe MAC_SYNC_URL / Toolbox
 ```
 
-Free path (no keys): `web_search` (DuckDuckGo / Wikipedia / gov.sa) and URL ingest (Jina Reader / fetch). Optional: `LANGFUSE_*` (free hobby), `BRAVE_API_KEY` (free tier), `FIRECRAWL_API_KEY` (upgrade). Also: `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `CUA_BRIDGE_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`. TokenRouter stays tombstoned until a paid key works.
+Free path (no keys): `web_search` (DuckDuckGo / Wikipedia / gov.sa) and URL ingest (Jina Reader / fetch). Optional: `LANGFUSE_*` (free hobby), `BRAVE_API_KEY` (free tier), `FIRECRAWL_API_KEY` (upgrade). Also: `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `CUA_BRIDGE_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`. Kimi/TokenRouter and Perplexity are retired from the picker.
 
 ## Multi-tenant RBAC + RLS
 

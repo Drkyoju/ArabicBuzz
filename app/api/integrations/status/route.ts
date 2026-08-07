@@ -13,8 +13,6 @@ import {
 } from '@/lib/tools/cua-bridge'
 import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
 import { ensurePooledDatabaseUrl } from '@/lib/db-url'
-import { getProvidersSnapshot } from '@/lib/ai/provider-availability'
-import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import {
   resolveWhatsAppTransport,
   whatsappTransportStatusAr,
@@ -66,30 +64,10 @@ export async function GET() {
     }
   }
 
-  let tokenrouterConfigured = Boolean(process.env.TOKENROUTER_API_KEY?.trim())
-  let tokenrouterAvailable = false
-  let tokenrouterStatusAr =
-    'لم يُضبط TOKENROUTER_API_KEY بعد — أضفه من مفاتيح API لفتح Kimi Free'
-  try {
-    const snap = await getProvidersSnapshot(Boolean(IS_AIR_GAPPED_MODE))
-    const tr = snap.providers.find((p) => p.envName === 'TOKENROUTER_API_KEY')
-    const kimi = snap.models.find((m) => m.slug === 'moonshotai/kimi-k3-free')
-    tokenrouterConfigured = Boolean(tr?.configured)
-    tokenrouterAvailable = Boolean(kimi?.available)
-    if (!tokenrouterConfigured) {
-      tokenrouterStatusAr =
-        'لم يُضبط TOKENROUTER_API_KEY بعد — أضفه من مفاتيح API لفتح Kimi Free'
-    } else if (tokenrouterAvailable) {
-      tokenrouterStatusAr = 'مفعّل · Kimi K3 Free جاهز'
-    } else {
-      tokenrouterStatusAr =
-        tr?.liveDetail ||
-        kimi?.blockedReasonAr ||
-        'المفتاح موجود لكن الرصيد منتهٍ أو مرفوض'
-    }
-  } catch {
-    /* keep defaults */
-  }
+  // TokenRouter / Kimi retired from product UI (quota-dead); fields kept for API stability.
+  const tokenrouterConfigured = false
+  const tokenrouterAvailable = false
+  const tokenrouterStatusAr = 'مُزال — Kimi/TokenRouter لم يعد في الكتالوج'
 
   return Response.json({
     embeddingProvider,
