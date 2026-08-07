@@ -62,4 +62,9 @@ docker build -t arabicbuzz .
 docker run --rm -p 3000:3000 --env-file .env.local arabicbuzz
 ```
 
-Do not use localhost for product QA — use the CranL URL only.
+## QA (agents)
+
+- **Only** live URL for product QA: https://arabicbuzz-fooc9h.cranl.net/
+- App ID: `bf8cff03-49ac-4a80-bb93-298305e6617e`
+- Do not use localhost, Netlify, or local preview for product QA.
+

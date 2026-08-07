@@ -19,7 +19,7 @@ Already present: `web-design-guidelines` (Vercel), `accessibility`, `ux-writing-
 ```
 
 ```
-use the redesign-existing-projects skill + arabicbuzz-taste to fix empty gutters and attach menus on https://arabicbuzz.netlify.app/
+use the redesign-existing-projects skill + arabicbuzz-taste to fix empty gutters and attach menus on https://arabicbuzz-fooc9h.cranl.net/
 ```
 
 ```
@@ -28,5 +28,5 @@ use the taste skill (design-taste-frontend) only for marketing pages — keep --
 
 ## Visual QA
 
-- Live only: https://arabicbuzz.netlify.app/
+- Live only: https://arabicbuzz-fooc9h.cranl.net/
 - Browser MCP / Playwright already configured in `.cursor/mcp.json` — no paid taste MCP added.

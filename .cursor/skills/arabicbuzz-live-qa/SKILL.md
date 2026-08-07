@@ -8,13 +8,14 @@ description: Verify ArabicBuzz only on the live CranL site. Use when QA, smoke t
 ## Rule
 
 - The only verification URL is **https://arabicbuzz-fooc9h.cranl.net/**
+- App ID: `bf8cff03-49ac-4a80-bb93-298305e6617e`
 - Never use localhost, `127.0.0.1`, `next dev`, or local preview for QA.
 - After code changes: commit → push to `main` → wait for CranL → verify live.
 - Netlify is fallback only; prefer CranL for all post-cutover checks.
 
 ## Checklist
 
-1. Confirm deploy finished on CranL (`cranl apps deployments list <app-id>`).
+1. Confirm deploy finished on CranL (`cranl apps deployments list bf8cff03-49ac-4a80-bb93-298305e6617e`).
 2. Hard-refresh the live URL.
 3. Check ~375px (drawer closed) and ~1280px (sidebar + content both readable).
 4. Smoke: `GET /api/health/free` and `GET /api/webhooks/telegram`.

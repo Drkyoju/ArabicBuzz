@@ -1,6 +1,6 @@
 # Skills & MCP — Arabic Buzz
 
-دليل سريع لما أُضيف وكيف يُفعَّل. المسار الحي للتحقق: https://arabicbuzz.netlify.app/
+دليل سريع لما أُضيف وكيف يُفعَّل. المسار الحي للتحقق: https://arabicbuzz-fooc9h.cranl.net/
 
 ## طبقات المهارات
 

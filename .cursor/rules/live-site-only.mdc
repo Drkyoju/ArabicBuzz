@@ -6,6 +6,7 @@ alwaysApply: true
 # Live site only
 
 - The only environment for QA, browser checks, smoke tests, and “does it work?” verification is **https://arabicbuzz-fooc9h.cranl.net/**
+- App ID: `bf8cff03-49ac-4a80-bb93-298305e6617e`
 - **Never** use localhost, `127.0.0.1`, `next dev`, or local preview URLs for verification
 - After code changes: commit → push to `main` → wait for CranL deploy → verify on the live URL
 - Do not start local servers to “check the UI”

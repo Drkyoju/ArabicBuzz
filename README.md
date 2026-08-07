@@ -99,14 +99,14 @@ npx tsx scripts/verify-env.ts --offline
 
 ## Production site
 
-Live app: [https://arabicbuzz.netlify.app](https://arabicbuzz.netlify.app)
+Live app (CranL): [https://arabicbuzz-fooc9h.cranl.net/](https://arabicbuzz-fooc9h.cranl.net/)
 
-Set `NEXT_PUBLIC_APP_URL=https://arabicbuzz.netlify.app` on Netlify. Invites, auth, and emails always use this origin (never a local URL).
+Set `NEXT_PUBLIC_APP_URL=https://arabicbuzz-fooc9h.cranl.net` on CranL (see `docs/cranl-deploy.md`). Invites, auth, and emails always use this origin (never a local URL). Netlify remains a fallback only while credits allow — not the QA target.
 
 وجّه Telegram / Meta إلى:
 
-- `https://arabicbuzz.netlify.app/api/webhooks/telegram`
-- `https://arabicbuzz.netlify.app/api/webhooks/whatsapp`
+- `https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram`
+- `https://arabicbuzz-fooc9h.cranl.net/api/webhooks/whatsapp`
 
 لتسجيل webhook تيليجرام مع `secret_token` (موصى به إن وُجد `TELEGRAM_WEBHOOK_SECRET`):
 
@@ -129,11 +129,11 @@ npm run test:multiplayer
 ```bash
 # كل ساعة: نبضات + مهام مجدولة + ملخص المدير يوم الخميس (توقيت الرياض)
 # + تنظيف شات الغرف الأقدم من ROOM_CHAT_RETENTION_DAYS (افتراضي 4)
-curl -X POST https://arabicbuzz.netlify.app/api/crons/runner \
+curl -X POST https://arabicbuzz-fooc9h.cranl.net/api/crons/runner \
   -H "Authorization: Bearer $CRON_SECRET"
 
 # ملخص «ما ينتظر قرارك» فقط (الخميس؛ أو force=1)
-curl -X POST "https://arabicbuzz.netlify.app/api/crons/director-digest?force=1" \
+curl -X POST "https://arabicbuzz-fooc9h.cranl.net/api/crons/director-digest?force=1" \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{}'
@@ -209,10 +209,10 @@ Project Cursor MCP + skills inventory: [`docs/skills-and-mcp.md`](docs/skills-an
 
 ```bash
 # List connected servers + tools
-curl https://arabicbuzz.netlify.app/api/mcp/servers
+curl https://arabicbuzz-fooc9h.cranl.net/api/mcp/servers
 
 # Connect GitHub MCP (stdio example)
-curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
+curl -X POST https://arabicbuzz-fooc9h.cranl.net/api/mcp/servers \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "github",
@@ -225,7 +225,7 @@ curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
 
 # Connect PostgreSQL via MCP Toolbox (googleapis/mcp-toolbox)
 # NOTE: @modelcontextprotocol/server-postgres was removed upstream — do not use it.
-curl -X POST https://arabicbuzz.netlify.app/api/mcp/servers \
+curl -X POST https://arabicbuzz-fooc9h.cranl.net/api/mcp/servers \
   -H 'Content-Type: application/json' \
   -d '{
     "id": "postgres",

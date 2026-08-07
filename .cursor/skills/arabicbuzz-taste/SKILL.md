@@ -22,7 +22,7 @@ Skills guide the agent. They do **not** magically redesign the site. Ask for an 
 1. **Stack:** Next.js App Router, Tailwind, forest green `--ab-*` tokens in `app/globals.css`.
 2. **Language:** UI copy = Modern Standard Arabic. `lang="ar"` `dir="rtl"`. Code/JSON/URLs: `dir="ltr"`.
 3. **Shell:** Fixed sidebar + `md:ms-[var(--ab-sidebar-width)]` — see `arabicbuzz-rtl-shell`.
-4. **Verify only on** https://arabicbuzz.netlify.app/ (never localhost).
+4. **Verify only on** https://arabicbuzz-fooc9h.cranl.net/ (never localhost).
 5. Prefer existing components (`ab-btn-*`, `ab-section`, `ab-empty`, `coordsForAnchoredFloating`) over new purple/cream AI aesthetics.
 
 ## Redesign dials (product UI)

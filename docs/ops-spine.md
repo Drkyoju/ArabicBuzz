@@ -1,6 +1,6 @@
 # Ops spine — Arabic Buzz (Netlify + private bridges)
 
-Live site only for QA: **https://arabicbuzz.netlify.app/**
+Live site only for QA: **https://arabicbuzz-fooc9h.cranl.net/**
 
 This doc covers in-repo wiring for observability, remote MCP, Mac/VPS bridges, and browser RPA. Skipped / tombstoned: Moyasar, WhatsApp product UI, Qoyod, NVG, Signit, TokenRouter revival, self-hosted Langfuse on Netlify, fabricated demo data.
 
