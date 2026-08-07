@@ -128,6 +128,7 @@ npm run test:multiplayer
 
 ```bash
 # كل ساعة: نبضات + مهام مجدولة + ملخص المدير يوم الخميس (توقيت الرياض)
+# + تنظيف شات الغرف الأقدم من ROOM_CHAT_RETENTION_DAYS (افتراضي 4)
 curl -X POST https://arabicbuzz.netlify.app/api/crons/runner \
   -H "Authorization: Bearer $CRON_SECRET"
 
@@ -139,6 +140,13 @@ curl -X POST "https://arabicbuzz.netlify.app/api/crons/director-digest?force=1" 
 ```
 
 متغيرات Netlify للملخص: `DIRECTOR_EMAIL` أو `DIGEST_EMAIL`، `RESEND_API_KEY`، `RESEND_FROM`، واختياري `DIGEST_NAME_AR` + تيليجرام.
+
+### احتفاظ شات الغرفة
+
+- الرسائل في `room_posts` تُحذف تلقائياً بعد **4 أيام** (قابل للتعديل عبر `ROOM_CHAT_RETENTION_DAYS`).
+- التنظيف يعمل عبر `/api/crons/runner` وعند جلب قائمة الرسائل (`GET /api/rooms/posts`).
+- زر «حذف شات اليوم» يحذف رسائل يوم اليوم فقط (تقويم السعودية `Asia/Riyadh`).
+- **لا يُحذف** أرشيف `workspace_files` (ملفات الفريق) — فقط صفوف الرسائل.
 
 ## Evaluation benchmark
 

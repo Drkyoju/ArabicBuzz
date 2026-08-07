@@ -7,14 +7,21 @@ import {
   insertRoomPost,
   listRoomPosts,
   assertRoomCanPost,
+  assertRoomCanEdit,
   updateRoomPostKind,
   listRoomMembers,
+  deleteRoomPostsInRange,
+  pruneExpiredRoomPosts,
 } from '@/lib/rooms/persist'
 import {
   extractMemberMentions,
   toMentionableMembers,
 } from '@/lib/rooms/member-mentions'
 import { findAgentByMention } from '@/lib/rooms/agents'
+import {
+  roomChatRetentionDays,
+  riyadhTodayPostBoundsIso,
+} from '@/lib/rooms/chat-retention'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +39,12 @@ export async function GET(req: Request) {
   if (!gate.ok) {
     return Response.json({ error: gate.error, posts: [] }, { status: 403 })
   }
+  // On-read prune: drop messages older than retention (files archive untouched).
+  try {
+    await pruneExpiredRoomPosts({ scopeId })
+  } catch {
+    /* best-effort */
+  }
   const result = await listRoomPosts(scopeId)
   if (!result.ok) {
     return Response.json(
@@ -39,7 +52,10 @@ export async function GET(req: Request) {
       { status: 200 }
     )
   }
-  return Response.json({ posts: result.posts })
+  return Response.json({
+    posts: result.posts,
+    retentionDays: roomChatRetentionDays(),
+  })
 }
 
 export async function POST(req: Request) {
@@ -73,6 +89,54 @@ export async function POST(req: Request) {
     id?: string
   }
   const scopeId = body.scopeId || 'shared-demo'
+
+  if (body.action === 'delete_today') {
+    const editGate = await assertRoomCanEdit(
+      scopeId,
+      auth.user.id,
+      auth.user.email
+    )
+    if (!editGate.ok) {
+      return Response.json({ error: editGate.error }, { status: 403 })
+    }
+    const { from, to, ymd } = riyadhTodayPostBoundsIso()
+    const deleted = await deleteRoomPostsInRange({
+      scopeId,
+      fromIso: from,
+      toIso: to,
+    })
+    if (!deleted.ok) {
+      return Response.json({ error: deleted.error }, { status: 500 })
+    }
+    const name =
+      auth.user.user_metadata?.full_name ||
+      auth.user.email ||
+      'عضو'
+    try {
+      const { logRoomActivity } = await import('@/lib/rooms/home-log')
+      await logRoomActivity({
+        scopeId,
+        kind: 'message',
+        actorAr: String(name),
+        actorEmail: auth.user.email || null,
+        actionAr: 'حذف شات اليوم',
+        detailAr: `حُذف ${deleted.deleted} رسالة ليوم ${ymd} (توقيت السعودية). أرشيف الملفات لم يُمس.`,
+      })
+    } catch {
+      /* ignore */
+    }
+    return Response.json({
+      ok: true,
+      deleted: deleted.deleted,
+      day: ymd,
+      timezone: 'Asia/Riyadh',
+      messageAr:
+        deleted.deleted === 0
+          ? 'لا رسائل ليوم اليوم في هذه الغرفة.'
+          : `حُذف ${deleted.deleted} رسالة من شات اليوم (${ymd}، توقيت السعودية). أرشيف «ملفات الفريق» لم يُحذف.`,
+    })
+  }
+
   const gate = await assertRoomCanPost(scopeId, auth.user.id, auth.user.email)
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: 403 })

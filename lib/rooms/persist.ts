@@ -150,6 +150,79 @@ export async function updateRoomPostKind(opts: {
   return { ok: true, post: rowToRoomPost(data as DbRoomPost) }
 }
 
+/**
+ * Delete room_posts in an inclusive created_at range.
+ * Does not delete workspace_files (team file archive stays).
+ */
+export async function deleteRoomPostsInRange(opts: {
+  scopeId: string
+  fromIso: string
+  toIso: string
+}): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return { ok: false, deleted: 0, error: 'no supabase' }
+  const { data, error } = await sb
+    .from('room_posts')
+    .delete()
+    .eq('scope_id', opts.scopeId)
+    .gte('created_at', opts.fromIso)
+    .lte('created_at', opts.toIso)
+    .select('id')
+  if (error) return { ok: false, deleted: 0, error: error.message }
+  return { ok: true, deleted: Array.isArray(data) ? data.length : 0 }
+}
+
+/**
+ * Prune posts older than cutoff. Scope optional — omit for global cleanup.
+ * Does not touch workspace_files.
+ */
+export async function deleteRoomPostsOlderThan(opts: {
+  beforeIso: string
+  scopeId?: string
+  /** Safety cap per call (Supabase/PostgREST). */
+  limit?: number
+}): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const sb = getSupabaseAdmin()
+  if (!sb) return { ok: false, deleted: 0, error: 'no supabase' }
+  const limit = Math.min(Math.max(opts.limit ?? 2000, 1), 5000)
+  // Select ids first so we can limit batch size, then delete by id.
+  let q = sb
+    .from('room_posts')
+    .select('id')
+    .lt('created_at', opts.beforeIso)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+  if (opts.scopeId) q = q.eq('scope_id', opts.scopeId)
+  const { data: rows, error: selErr } = await q
+  if (selErr) return { ok: false, deleted: 0, error: selErr.message }
+  const ids = (rows || []).map((r) => String((r as { id: string }).id))
+  if (!ids.length) return { ok: true, deleted: 0 }
+  const { data, error } = await sb
+    .from('room_posts')
+    .delete()
+    .in('id', ids)
+    .select('id')
+  if (error) return { ok: false, deleted: 0, error: error.message }
+  return { ok: true, deleted: Array.isArray(data) ? data.length : 0 }
+}
+
+/** Best-effort retention prune (messages only). Safe to call on list / cron. */
+export async function pruneExpiredRoomPosts(opts?: {
+  scopeId?: string
+  days?: number
+}): Promise<{ ok: boolean; deleted: number; days: number; error?: string }> {
+  const { roomChatRetentionDays, roomChatRetentionCutoffIso } = await import(
+    '@/lib/rooms/chat-retention'
+  )
+  const days = roomChatRetentionDays(opts?.days)
+  const beforeIso = roomChatRetentionCutoffIso(days)
+  const result = await deleteRoomPostsOlderThan({
+    beforeIso,
+    scopeId: opts?.scopeId,
+  })
+  return { ...result, days }
+}
+
 export async function upsertCanvasArtifact(opts: {
   id: string
   scopeId: string

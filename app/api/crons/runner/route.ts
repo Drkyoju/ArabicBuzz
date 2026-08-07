@@ -289,6 +289,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Room chat retention: delete room_posts older than N days (default 4).
+  // Does not delete workspace_files (ملفات الفريق archive).
+  let roomChatRetention: unknown = null
+  try {
+    const { pruneExpiredRoomPosts } = await import('@/lib/rooms/persist')
+    roomChatRetention = await pruneExpiredRoomPosts()
+  } catch (e) {
+    roomChatRetention = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'room chat retention error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -299,5 +312,6 @@ export async function POST(req: NextRequest) {
     googleRoomCalendarSync,
     imapMailSync,
     autoWire,
+    roomChatRetention,
   })
 }

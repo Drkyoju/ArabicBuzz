@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { PanelRightOpen, MessageSquare, MessageCircle, Eye, X } from 'lucide-react'
+import {
+  PanelRightOpen,
+  MessageSquare,
+  MessageCircle,
+  Eye,
+  X,
+  Trash2,
+} from 'lucide-react'
+import {
+  isPostInRiyadhToday,
+  roomChatRetentionDays,
+} from '@/lib/rooms/chat-retention'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { FilePreviewPane } from '@/components/file-preview-pane'
@@ -214,6 +225,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
     Array<{ kind: 'agent' | 'member'; labelAr: string; insert: string }>
   >([])
   const [mentionHighlight, setMentionHighlight] = useState(0)
+  const [confirmDeleteToday, setConfirmDeleteToday] = useState(false)
+  const [deletingToday, setDeletingToday] = useState(false)
+  const [deleteTodayNote, setDeleteTodayNote] = useState('')
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -476,9 +490,54 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     setInput('')
     setComposerFiles([])
+    setConfirmDeleteToday(false)
+    setDeleteTodayNote('')
     // Canvas store is global — hide cross-room artifacts when switching desks
     useCanvasStore.setState({ artifacts: [], activeId: null })
   }, [activeScopeId])
+
+  async function deleteTodayChat() {
+    if (!confirmDeleteToday) {
+      setConfirmDeleteToday(true)
+      setDeleteTodayNote(
+        'سيُحذف كل رسائل هذه الغرفة ليوم اليوم فقط (توقيت السعودية)، بما فيها رسائل الأعضاء والوكلاء والقنوات في الشات. أرشيف «ملفات الفريق» لا يُحذف. لا يمكن التراجع.'
+      )
+      return
+    }
+    setDeletingToday(true)
+    setDeleteTodayNote('')
+    try {
+      const res = await fetch('/api/rooms/posts', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'delete_today',
+          scopeId: activeScopeId,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        deleted?: number
+      }
+      if (!res.ok) {
+        setDeleteTodayNote(data.error || 'تعذّر حذف شات اليوم.')
+        setConfirmDeleteToday(false)
+        return
+      }
+      const kept = (postsByScope[activeScopeId] || []).filter(
+        (p) => !isPostInRiyadhToday(p.createdAt)
+      )
+      setPostsForScope(activeScopeId, kept)
+      setDeleteTodayNote(data.messageAr || 'تم حذف شات اليوم.')
+      setConfirmDeleteToday(false)
+    } catch {
+      setDeleteTodayNote('تعذّر الاتصال — حاول مرة أخرى.')
+      setConfirmDeleteToday(false)
+    } finally {
+      setDeletingToday(false)
+    }
+  }
 
   // Hydrate + realtime
   useEffect(() => {
@@ -492,7 +551,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       )
       if (!res.ok || cancelled) return
       const data = (await res.json()) as { posts?: RoomPost[] }
-      if (data.posts && data.posts.length > 0) {
+      if (Array.isArray(data.posts)) {
         const cleaned = data.posts.filter((p) => !isNoiseRoomPost(p.content || ''))
         setPostsForScope(activeScopeId, cleaned)
       }
@@ -567,6 +626,25 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 ? row.post_kind
                 : 'chat',
           })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'room_posts',
+          filter: `scope_id=eq.${activeScopeId}`,
+        },
+        (payload) => {
+          const row = payload.old as { id?: string } | null
+          const id = row?.id
+          if (!id) return
+          const list = useWorkspaceStore.getState().postsByScope[activeScopeId] || []
+          setPostsForScope(
+            activeScopeId,
+            list.filter((p) => p.id !== id)
+          )
         }
       )
       .on(
@@ -1361,6 +1439,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   {shared
                     ? 'كل رسالة يطّلع عليها وكيل جاهز فوراً — بلا @ · اضغط المقعد: شغال/طافي'
                     : `${PERSONAL_DESK_COPY.taglineAr} — الوكلاء والبريد والملفات هنا لا يراها أحد غيرك`}
+                  {' · '}
+                  يُحذف الشات تلقائياً بعد {roomChatRetentionDays()} أيام
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
@@ -1381,6 +1461,38 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
               <div className="ab-toolbar shrink-0 justify-end">
+                <button
+                  type="button"
+                  onClick={() => void deleteTodayChat()}
+                  disabled={deletingToday}
+                  className={
+                    confirmDeleteToday
+                      ? 'ab-btn-secondary !border-ab-warn !py-1 !text-ab-warn text-[11px]'
+                      : 'ab-btn-secondary !py-1 text-[11px]'
+                  }
+                  aria-label="حذف شات اليوم"
+                  title="حذف رسائل يوم اليوم فقط (توقيت السعودية) — أرشيف الملفات يبقى"
+                >
+                  <Trash2 className="h-3 w-3" aria-hidden />
+                  {deletingToday
+                    ? 'جاري الحذف…'
+                    : confirmDeleteToday
+                      ? 'تأكيد حذف شات اليوم'
+                      : 'حذف شات اليوم'}
+                </button>
+                {confirmDeleteToday && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmDeleteToday(false)
+                      setDeleteTodayNote('')
+                    }}
+                    className="ab-btn-secondary !py-1 text-[11px]"
+                    aria-label="إلغاء حذف شات اليوم"
+                  >
+                    إلغاء
+                  </button>
+                )}
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
                 <ModelPicker compact scopeId={activeScopeId} />
                 <EffortPicker compact scopeId={activeScopeId} />
@@ -1501,6 +1613,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
               </div>
             </div>
           </header>
+
+          {deleteTodayNote ? (
+            <div
+              className="border-b border-ab-warn/30 bg-ab-warn/10 px-3 py-2 text-[12px] leading-relaxed text-ab-warn"
+              role="status"
+            >
+              {deleteTodayNote}
+            </div>
+          ) : null}
 
           {showMore && shared && (
             <>
