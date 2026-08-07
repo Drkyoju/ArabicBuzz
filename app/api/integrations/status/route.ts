@@ -23,6 +23,7 @@ import {
   cloudConvertConfigured,
   cloudConvertStatusAr,
 } from '@/lib/documents/cloudconvert'
+import { googleDriveConvertStatusAr } from '@/lib/documents/google-drive-convert'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,10 +138,14 @@ export async function GET() {
     firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY?.trim()),
     cloudConvertConfigured: cloudConvertConfigured(),
     cloudConvertStatusAr: cloudConvertStatusAr(),
+    /** Hint for UI — actual convert uses the signed-in user's Google token. */
+    googleDriveConvertHintAr: googleDriveConvertStatusAr(false),
+    googleDriveConvertBestFreeAr:
+      'الأفضل مجاناً: اربط Google من الإعدادات — تحويل Drive عالي الجودة دون دفع',
     /** Free built-in paths work without Brave / Firecrawl keys. */
     webSearchFreePath: true,
     webCrawlFreePath: true,
-    /** Free Office edit path always works; CloudConvert is optional paid fidelity. */
+    /** Free Office edit + Google Drive convert when linked; CloudConvert optional paid. */
     officeEditFreePath: true,
     /** Director-facing Arabic labels — not red “broken” when free path works. */
     braveStatusAr: process.env.BRAVE_API_KEY?.trim()

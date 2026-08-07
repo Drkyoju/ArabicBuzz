@@ -200,7 +200,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_document: tool({
       description:
-        'تحويل صيغ المستندات. مجاني: PDF↔Word/txt/md بإعادة بناء نصية عربية. مع CLOUDCONVERT_API_KEY (اختياري مدفوع): تحويل عالي الدقة يشمل xlsx/pptx/doc. النتيجة للتنزيل في الشات.',
+        'تحويل صيغ المستندات. الأفضل مجاناً: Google Drive عند ربط Google (pdf↔docx، xlsx↔pdf، pptx↔pdf…). احتياطي: CloudConvert إن وُجد المفتاح (مدفوع). أخيراً: إعادة بناء نصية pdf↔docx/txt/md. النتيجة للتنزيل في الشات.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -209,18 +209,52 @@ export function getNativeAiTools(opts?: {
         outputName: z.string().optional(),
         title: z.string().optional(),
         engine: z
-          .enum(['auto', 'free', 'cloudconvert'])
+          .enum(['auto', 'google', 'free', 'cloudconvert'])
           .optional()
-          .describe('auto يستخدم CloudConvert إن وُجد المفتاح'),
+          .describe(
+            'auto: Google إن مربوط ثم CloudConvert ثم نصّي؛ google يفرض Drive'
+          ),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'convert_document',
-          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
           mode,
           requesterId,
           scopeId,
           execute: getToolExecutor('convert_document'),
+        }),
+    }),
+    convert_file: tool({
+      description:
+        'Alias لـ convert_document — تحويل ملف الغرفة إلى صيغة أخرى (Google Drive مجاناً إن مربوط، ثم CloudConvert، ثم نصّي).',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
+        toFormat: z
+          .enum(['docx', 'pdf', 'txt', 'md', 'xlsx', 'pptx', 'doc', 'ppt', 'xls'])
+          .describe('الصيغة الهدف'),
+        outputName: z.string().optional(),
+        title: z.string().optional(),
+        engine: z
+          .enum(['auto', 'google', 'free', 'cloudconvert'])
+          .optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'convert_file',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('convert_file'),
         }),
     }),
     return_file: tool({

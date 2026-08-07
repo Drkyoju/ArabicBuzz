@@ -5,6 +5,7 @@ import {
   Inbox,
   CalendarDays,
   FolderSearch,
+  FilePenLine,
   Send,
   Sparkles,
   Loader2,
@@ -33,6 +34,7 @@ const ICONS: Record<AssistantId, LucideIcon> = {
   'inbox-zero': Inbox,
   'daily-brief': CalendarDays,
   'file-search': FolderSearch,
+  'file-office': FilePenLine,
   'telegram-captain': Send,
   general: Sparkles,
 }

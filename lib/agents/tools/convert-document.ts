@@ -1,7 +1,9 @@
 /**
  * Convert between Office/PDF formats.
- * 1) Optional CloudConvert (paid, high fidelity) when CLOUDCONVERT_API_KEY is set
- * 2) Free Arabic-aware text rebuild (layout/images not preserved)
+ * Chain (engine=auto):
+ *  1) Google Drive import/export — best free quality when Google is linked
+ *  2) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
+ *  3) Free Arabic text rebuild (pdf/docx/txt/md only)
  */
 import { extractDocumentText } from '@/lib/rag/extract'
 import {
@@ -21,6 +23,11 @@ import {
   cloudConvertConfigured,
   convertViaCloudConvert,
 } from '@/lib/documents/cloudconvert'
+import {
+  canConvertViaGoogleDrive,
+  convertViaGoogleDrive,
+  googleDriveConvertAvailable,
+} from '@/lib/documents/google-drive-convert'
 
 const FREE_ALLOWED: DocFormat[] = ['docx', 'pdf', 'txt', 'md']
 const CLOUD_ALLOWED = [
@@ -36,11 +43,55 @@ const CLOUD_ALLOWED = [
   'rtf',
 ] as const
 
+function resolveUserId(params: Record<string, unknown>): string {
+  return String(params.userId || params._userId || '').trim()
+}
+
+function attachmentResult(opts: {
+  saved: { file: { id: string; originalName: string; mimeType: string } }
+  scopeId: string
+  fromFormat: string
+  toFormat: string
+  engine: string
+  sourceFileId: string
+  sourceName: string
+  messageAr: string
+  noteAr: string
+  extra?: Record<string, unknown>
+}) {
+  const downloadPath = `/api/storage/file?id=${encodeURIComponent(opts.saved.file.id)}&scopeId=${encodeURIComponent(opts.scopeId)}`
+  return {
+    ok: true,
+    fileId: opts.saved.file.id,
+    name: opts.saved.file.originalName,
+    mimeType: opts.saved.file.mimeType,
+    fromFormat: opts.fromFormat,
+    toFormat: opts.toFormat,
+    engine: opts.engine,
+    sourceFileId: opts.sourceFileId,
+    sourceName: opts.sourceName,
+    downloadPath,
+    attachments: [
+      {
+        fileId: opts.saved.file.id,
+        name: opts.saved.file.originalName,
+        mimeType: opts.saved.file.mimeType,
+        scopeId: opts.scopeId,
+        downloadPath,
+      },
+    ],
+    messageAr: opts.messageAr,
+    noteAr: opts.noteAr,
+    ...(opts.extra || {}),
+  }
+}
+
 export async function executeConvertDocument(
   _name: string,
   params: Record<string, unknown>
 ) {
   const scopeId = String(params.scopeId || 'shared-demo')
+  const userId = resolveUserId(params)
   const ref = String(params.fileId || params.path || params.name || '').trim()
   if (!ref) {
     throw new Error('مرّر fileId للملف المراد تحويله.')
@@ -50,12 +101,17 @@ export async function executeConvertDocument(
     .toLowerCase()
     .trim()
   const toFormat = (toRaw === 'word' ? 'docx' : toRaw) as DocFormat
-  const preferCloud =
-    params.engine === 'cloudconvert' ||
-    params.preferCloud === true ||
-    (cloudConvertConfigured() &&
-      params.engine !== 'free' &&
-      params.preferCloud !== false)
+  const engineRaw = String(params.engine || 'auto')
+    .toLowerCase()
+    .trim()
+  const engine =
+    engineRaw === 'google' || engineRaw === 'google-drive'
+      ? 'google'
+      : engineRaw === 'cloudconvert'
+        ? 'cloudconvert'
+        : engineRaw === 'free'
+          ? 'free'
+          : 'auto'
 
   const found = await findWorkspaceFile(scopeId, ref)
   if (!found) {
@@ -83,9 +139,74 @@ export async function executeConvertDocument(
     outputName = next.fileName
   }
 
-  // ── Paid high-fidelity path ──
+  const googleLinked =
+    engine !== 'free' &&
+    engine !== 'cloudconvert' &&
+    (await googleDriveConvertAvailable(userId))
+  const googleOk =
+    googleLinked && canConvertViaGoogleDrive(fromFormat, toFormat)
+  const wantGoogle =
+    engine === 'google' || (engine === 'auto' && googleOk)
+
+  // ── 1) Best free: Google Drive import/export ──
+  if (wantGoogle) {
+    if (!googleLinked) {
+      throw new Error(
+        'تحويل Google يحتاج ربط الحساب من الإعدادات → «ربط Google (Drive)». لا يلزم دفع.'
+      )
+    }
+    if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
+      if (engine === 'google') {
+        throw new Error(
+          `تحويل Google لا يدعم ${fromFormat} → ${toFormat}. جرّب CloudConvert (اختياري مدفوع) أو صيغة ضمن نفس العائلة (مثل pdf↔docx أو xlsx↔pdf).`
+        )
+      }
+    } else {
+      try {
+        const filename = ensureFilename(outputName, toFormat as DocFormat)
+        const converted = await convertViaGoogleDrive({
+          userId,
+          buffer: hit.buffer,
+          filename: hit.meta.originalName,
+          inputFormat: fromFormat,
+          outputFormat: toFormat,
+        })
+        const saved = await saveWorkspaceFile({
+          scopeId,
+          buffer: converted.buffer,
+          originalName: converted.filename || filename,
+          mimeType: converted.mimeType,
+        })
+        return attachmentResult({
+          saved,
+          scopeId,
+          fromFormat,
+          toFormat,
+          engine: 'google-drive',
+          sourceFileId: hit.meta.id,
+          sourceName: hit.meta.originalName,
+          messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). الملف جاهز للتنزيل.`,
+          noteAr:
+            'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل مجاناً عند ربط Google.',
+        })
+      } catch (e) {
+        if (engine === 'google') {
+          throw e instanceof Error ? e : new Error(String(e))
+        }
+        // fall through to CloudConvert / free
+      }
+    }
+  }
+
+  // ── 2) Optional paid: CloudConvert ──
+  const wantCloud =
+    engine === 'cloudconvert' ||
+    (engine === 'auto' &&
+      cloudConvertConfigured() &&
+      params.preferCloud !== false)
+
   if (
-    preferCloud &&
+    wantCloud &&
     cloudConvertConfigured() &&
     (CLOUD_ALLOWED as readonly string[]).includes(toFormat)
   ) {
@@ -103,48 +224,52 @@ export async function executeConvertDocument(
         originalName: converted.filename || filename,
         mimeType: converted.mimeType,
       })
-      const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
-      return {
-        ok: true,
-        fileId: saved.file.id,
-        name: saved.file.originalName,
-        mimeType: saved.file.mimeType,
+      return attachmentResult({
+        saved,
+        scopeId,
         fromFormat,
         toFormat,
         engine: 'cloudconvert',
         sourceFileId: hit.meta.id,
         sourceName: hit.meta.originalName,
-        downloadPath,
-        attachments: [
-          {
-            fileId: saved.file.id,
-            name: saved.file.originalName,
-            mimeType: saved.file.mimeType,
-            scopeId,
-            downloadPath,
-          },
-        ],
-        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر CloudConvert (اختياري مدفوع — دقة أعلى للتخطيط). الملف جاهز للتنزيل.`,
-        noteAr: 'محرّك: CloudConvert. بدون المفتاح يُستخدم المسار المجاني (إعادة بناء نصية).',
-      }
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر CloudConvert (اختياري مدفوع). الملف جاهز للتنزيل.`,
+        noteAr:
+          'محرّك: CloudConvert. الأفضل مجاناً: اربط Google لاستخدام تحويل Drive.',
+      })
     } catch (e) {
-      // Fall through to free rebuild unless caller forced cloud
-      if (params.engine === 'cloudconvert') {
+      if (engine === 'cloudconvert') {
         throw e instanceof Error ? e : new Error(String(e))
       }
-      // continue to free path
+      // fall through to free rebuild
     }
   }
 
+  if (engine === 'cloudconvert' && !cloudConvertConfigured()) {
+    throw new Error(
+      'CloudConvert غير مضبوط. الأفضل مجاناً: اربط Google من الإعدادات، أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع).'
+    )
+  }
+
+  // ── 3) Free text rebuild ──
   if (!FREE_ALLOWED.includes(toFormat)) {
-    if (!cloudConvertConfigured()) {
-      throw new Error(
-        `التحويل المجاني: pdf ↔ docx (و txt/md). للـ xlsx/pptx/doc قديم أضف CLOUDCONVERT_API_KEY (اختياري مدفوع). طُلب: ${toRaw || '—'}`
+    const tips: string[] = []
+    if (!googleLinked) {
+      tips.push('اربط Google من الإعدادات (مجاني · الأفضل لجودة التحويل)')
+    } else if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
+      tips.push(
+        `زوج ${fromFormat}→${toFormat} خارج عائلات Google (Docs/Sheets/Slides)`
       )
     }
+    if (!cloudConvertConfigured()) {
+      tips.push('أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع) لـ xlsx/pptx/doc')
+    }
     throw new Error(
-      `صيغة غير مدعومة: ${toRaw || '—'}. المدعوم مع CloudConvert: ${CLOUD_ALLOWED.join(', ')}`
+      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf ↔ docx (و txt/md). ${tips.join(' · ')}`
     )
+  }
+
+  if (engine === 'google' || engine === 'cloudconvert') {
+    // Forced engines already threw above; reach here only if free formats remain
   }
 
   const extracted = await extractDocumentText({
@@ -156,7 +281,7 @@ export async function executeConvertDocument(
   const text = (extracted.text || '').trim()
   if (!text) {
     throw new Error(
-      'تعذّر استخراج نص عربي/لاتيني صالح للتحويل. جرّب arabic_ocr أولاً للملفات الممسوحة.'
+      'تعذّر استخراج نص عربي/لاتيني صالح للتحويل. جرّب arabic_ocr أولاً للملفات الممسوحة، أو اربط Google لتحويل Drive.'
     )
   }
 
@@ -181,34 +306,26 @@ export async function executeConvertDocument(
     mimeType: built.mimeType,
   })
 
-  const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
-
-  return {
-    ok: true,
-    fileId: saved.file.id,
-    name: saved.file.originalName,
-    mimeType: saved.file.mimeType,
+  return attachmentResult({
+    saved,
+    scopeId,
     fromFormat,
     toFormat,
     engine: 'free-rebuild',
     sourceFileId: hit.meta.id,
     sourceName: hit.meta.originalName,
-    charCount: text.length,
-    paragraphCount: paragraphs.length,
-    extractMethod: extracted.method,
-    ocrUsed: extracted.ocrUsed,
-    downloadPath,
-    attachments: [
-      {
-        fileId: saved.file.id,
-        name: saved.file.originalName,
-        mimeType: saved.file.mimeType,
-        scopeId,
-        downloadPath,
-      },
-    ],
-    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} مع الحفاظ على النص العربي (إعادة بناء نصية — بدون صور/تخطيط أصلي). الملف جاهز للتنزيل في الشات.`,
-    noteAr:
-      'التحويل نصّي مجاني. للجودة أعلى (صور/تخطيط) اضبط CLOUDCONVERT_API_KEY — اختياري مدفوع.',
-  }
+    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} بإعادة بناء نصية عربية (بدون صور/تخطيط أصلي). الملف جاهز للتنزيل.`,
+    noteAr: googleLinked
+      ? 'محرّك: إعادة بناء نصية. إن فشل Google/CloudConvert يُستخدم هذا المسار.'
+      : 'الأفضل مجاناً: اربط Google من الإعدادات لتحويل عالي الجودة (تخطيط أفضل). CloudConvert اختياري مدفوع.',
+    extra: {
+      charCount: text.length,
+      paragraphCount: paragraphs.length,
+      extractMethod: extracted.method,
+      ocrUsed: extracted.ocrUsed,
+    },
+  })
 }
+
+/** Alias used by agents / prompts as convert_file. */
+export const executeConvertFile = executeConvertDocument

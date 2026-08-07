@@ -26,4 +26,4 @@ export const GOOGLE_WORKSPACE_SCOPES = GOOGLE_CALENDAR_SCOPES
 
 /** Short tags stored on google_oauth_tokens.scopes after calendar link. */
 export const GOOGLE_WORKSPACE_SCOPE_TAGS =
-  'calendar,gmail.readonly,gmail.send,spreadsheets,drive.readonly'
+  'calendar,gmail.readonly,gmail.send,spreadsheets,drive.readonly,drive.file'

@@ -25,6 +25,7 @@ const LOW_RISK_TOOLS = new Set([
   'list_workspace_files',
   'read_document',
   'convert_document',
+  'convert_file',
   'brain_open_document',
   'query_db_readonly',
   'memory_search',
@@ -111,6 +112,7 @@ export function evaluateActionRisk(
     (toolName === 'edit_image' && !params.replaceSource) ||
     (toolName === 'generate_image_edit' && !params.replaceSource) ||
     toolName === 'convert_document' ||
+    toolName === 'convert_file' ||
     toolName === 'return_file' ||
     toolName === 'read_excel'
   ) {

@@ -72,7 +72,7 @@ npx ngrok http 7420
 - **Word/PPT موجود:** `edit_document(replacements)` يحافظ على التنسيق (JSZip OOXML) · قوالب `{tag}` عبر docxtemplater
 - **Excel:** `edit_excel(cells)` عبر exceljs
 - **PDF:** pdf-lib (`pdf_stamp` / دمج / نماذج) + إنشاء عربي
-- **تحويل:** `convert_document` نصّي مجاني؛ أو **CloudConvert** اختياري مدفوع (`CLOUDCONVERT_API_KEY`)
+- **تحويل:** `convert_document` / `convert_file` — **الأفضل مجاناً: Google Drive** (اربط Google)؛ ثم CloudConvert اختياري مدفوع؛ ثم إعادة بناء نصية pdf↔docx
 
 التفاصيل: [`docs/file-edit-engines.md`](docs/file-edit-engines.md).
 

@@ -8,6 +8,7 @@ export type AssistantId =
   | 'inbox-zero'
   | 'daily-brief'
   | 'file-search'
+  | 'file-office'
   | 'telegram-captain'
   | 'general'
 

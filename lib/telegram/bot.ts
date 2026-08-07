@@ -82,6 +82,7 @@ const TELEGRAM_CHAT_TOOL_NAMES = [
 const TELEGRAM_HEAVY_TOOL_NAMES = [
   ...TELEGRAM_CHAT_TOOL_NAMES,
   'convert_document',
+  'convert_file',
   'pdf_create',
   'pdf_stamp',
   'pdf_merge',

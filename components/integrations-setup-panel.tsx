@@ -23,6 +23,9 @@ export function IntegrationsSetupPanel() {
   const [cloudConvertStatusAr, setCloudConvertStatusAr] = useState<string | null>(
     null
   )
+  const [googleConvertHintAr, setGoogleConvertHintAr] = useState<string | null>(
+    null
+  )
   const [tg, setTg] = useState<boolean | null>(null)
   const [waStatusAr, setWaStatusAr] = useState<string | null>(null)
   const [waBridge, setWaBridge] = useState(false)
@@ -48,6 +51,13 @@ export function IntegrationsSetupPanel() {
             typeof z.cloudConvertStatusAr === 'string'
               ? z.cloudConvertStatusAr
               : null
+          )
+          setGoogleConvertHintAr(
+            typeof z.googleDriveConvertBestFreeAr === 'string'
+              ? z.googleDriveConvertBestFreeAr
+              : typeof z.googleDriveConvertHintAr === 'string'
+                ? z.googleDriveConvertHintAr
+                : null
           )
           if (!c) {
             setCuaConfigured(Boolean(z.cuaBridgeConfigured))
@@ -82,8 +92,38 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua · CloudConvert)
+        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua · تحويل الملفات)
       </h3>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3">
+        <p className="mb-1 font-semibold text-ab-ink">
+          تحويل الملفات{' '}
+          <span className="font-normal text-stone-400">
+            · الأفضل مجاناً عبر Google
+          </span>
+        </p>
+        <p className="mb-1 text-[11px]">
+          {googleConvertHintAr ||
+            'الأفضل مجاناً: اربط Google من تبويب «عقل الشركة / Drive» لتحويل PDF وWord وExcel وPowerPoint بجودة عالية دون دفع.'}
+        </p>
+        <ol className="mb-2 list-decimal space-y-1 pe-4 text-[11px]">
+          <li>
+            اربط Google (Drive) — مجاني · محرّك التحويل الأساسي
+          </li>
+          <li>
+            التعديل الموضعي لـ Word/Excel/PPT يعمل دائماً مجاناً بدون تحويل
+          </li>
+          <li>
+            CloudConvert أدناه اختياري مدفوع كاحتياطي فقط
+          </li>
+        </ol>
+        <p className="text-[11px] text-stone-500">
+          دليل:{' '}
+          <span dir="ltr" className="font-mono">
+            docs/file-edit-engines.md
+          </span>
+        </p>
+      </div>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
@@ -272,8 +312,8 @@ export function IntegrationsSetupPanel() {
           </span>
         </p>
         <p className="mb-1 text-[11px]">
-          اختياري مدفوع — تحويل PDF/Word/Excel/PowerPoint بدقة أعلى. بدون المفتاح
-          يعمل المسار المجاني (تعديل OOXML + إعادة بناء نصية).
+          اختياري مدفوع — احتياطي بعد Google. بدون المفتاح لا ينكسر شيء: اربط
+          Google أولاً (مجاني) أو استخدم التعديل الموضعي / إعادة البناء النصّية.
         </p>
         <DevDisclosure summaryAr="مفتاح CloudConvert (مسؤول)">
           <ol className="list-decimal space-y-1 pe-4">
@@ -294,8 +334,9 @@ export function IntegrationsSetupPanel() {
             </li>
             <li>
               الأداة:{' '}
-              <code dir="ltr">convert_document</code> تستخدمه تلقائياً عند
-              التوفر؛ التعديل الموضعي لـ Word/PPT يعمل مجاناً عبر{' '}
+              <code dir="ltr">convert_document</code> /{' '}
+              <code dir="ltr">convert_file</code> تستخدم Google أولاً ثم
+              CloudConvert؛ التعديل الموضعي مجاني عبر{' '}
               <code dir="ltr">edit_document(replacements)</code>
             </li>
           </ol>

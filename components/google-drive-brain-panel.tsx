@@ -164,6 +164,10 @@ export function GoogleDriveBrainPanel() {
             <strong>ملفات الجمعية</strong> على Google Drive — فهرسة في السحابة
             بدون ماك. سجّل الدخول، اربط Google، ثم زامن.
           </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-stone-500">
+            الأفضل مجاناً لتحويل الملفات: بعد الربط يستخدم الشات Google Drive
+            (استيراد/تصدير) لجودة عالية دون دفع — لا يلزم CloudConvert.
+          </p>
         </div>
         <button
           type="button"

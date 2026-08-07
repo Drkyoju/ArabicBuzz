@@ -160,7 +160,10 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'list_files',
       'read_file',
       'read_document',
+      'read_excel',
       'brain_open_document',
+      'convert_document',
+      'convert_file',
       'memory_search',
     ],
     requires: 'none',
@@ -171,9 +174,65 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'دور في الملفات',
       'قاعدة المعرفة',
       'file search',
+      'حوّل الملف',
+      'تحويل',
     ],
     maxSteps: 10,
-    ownerHintAr: 'ملفات الغرفة + RAG · Drive إن زُامن مسبقاً',
+    ownerHintAr:
+      'ملفات الغرفة + RAG · convert عبر Google إن مربوط · Drive إن زُامن',
+  },
+  {
+    id: 'file-office',
+    nameAr: 'مكتب الملفات',
+    taglineAr: 'تعديل وتحويل Word/Excel/PDF/PPT',
+    descriptionAr:
+      'يعدّل مستندات الغرفة موضعياً (حفظ التنسيق) ويحوّل الصيغ — الأفضل مجاناً عبر Google Drive إن مربوط.',
+    starterPromptAr:
+      'عدّل أو حوّل الملف المرفق: (صف التعديل أو الصيغة الهدف مثل PDF أو Word).',
+    systemPromptAr: `${MSA_CORE}
+
+دورك: «مكتب الملفات».
+يجب:
+1) list_workspace_files أو استخدم fileId المرفق؛ ثم read_document / read_excel حسب النوع.
+2) تعديل موضعي: edit_document(replacements) أو edit_excel(cells) أو pdf_* — لا تحوّل إن لم يُطلب.
+3) تحويل صيغة: convert_document / convert_file (engine=auto يفضّل Google إن مربوط).
+4) أظهر زر تنزيل عبر نتيجة الأداة. لا تكتفِ بالوصف.
+5) إن فشل التحويل: اطلب ربط Google (مجاني) أو وضّح الحد النصّي.`,
+    allowedTools: [
+      'list_workspace_files',
+      'list_files',
+      'read_file',
+      'read_document',
+      'read_excel',
+      'edit_document',
+      'edit_excel',
+      'convert_document',
+      'convert_file',
+      'return_file',
+      'pdf_create',
+      'pdf_stamp',
+      'pdf_merge',
+      'pdf_list_fields',
+      'pdf_fill_form',
+      'arabic_ocr',
+      'brain_open_document',
+      'brain_save_document',
+      'search_knowledge_base',
+    ],
+    requires: 'none',
+    emptyStateAr: '',
+    keywordsAr: [
+      'مكتب الملفات',
+      'عدّل الملف',
+      'حول الملف',
+      'حوّل إلى',
+      'تحويل ورد',
+      'تحويل بي دي اف',
+      'file office',
+      'edit document',
+    ],
+    maxSteps: 12,
+    ownerHintAr: 'edit_* + convert_* · Google Drive مجاني إن مربوط',
   },
   {
     id: 'telegram-captain',
@@ -234,6 +293,12 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'list_files',
       'read_file',
       'read_document',
+      'read_excel',
+      'edit_document',
+      'edit_excel',
+      'convert_document',
+      'convert_file',
+      'return_file',
       'brain_open_document',
       'room_calendar_list',
       'room_calendar_create',
@@ -253,7 +318,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     emptyStateAr: '',
     keywordsAr: ['مساعد عام', 'نواة عامة', 'نواة العمل'],
     maxSteps: 12,
-    ownerHintAr: 'بريد · تقويم · تيليجرام · cua اختياري',
+    ownerHintAr: 'بريد · تقويم · ملفات/تحويل · تيليجرام · cua اختياري',
   },
 ] as const
 

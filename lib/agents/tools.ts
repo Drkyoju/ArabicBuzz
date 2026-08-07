@@ -213,6 +213,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   read_document: executeReadDocument,
   edit_document: executeEditDocument,
   convert_document: executeConvertDocument,
+  convert_file: executeConvertDocument,
   return_file: executeReturnFile,
   edit_excel: executeEditExcel,
   read_excel: executeReadExcel,

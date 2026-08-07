@@ -642,6 +642,7 @@ export function HomeDashboard({
               ['day-captain', 'كابتن اليوم'],
               ['inbox-zero', 'صفر البريد'],
               ['daily-brief', 'ملخص يومي'],
+              ['file-office', 'مكتب الملفات'],
               ['telegram-captain', 'كابتن تيليجرام'],
             ] as const
           ).map(([id, label]) => (

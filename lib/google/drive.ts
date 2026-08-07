@@ -123,12 +123,14 @@ export async function listDriveFolderFiles(
 }
 
 /**
- * Download / export file bytes for text extraction.
- * Google Docs → plain text; Sheets → CSV; others → media / PDF export.
+ * Download / export file bytes.
+ * Google Docs → DOCX; Sheets → XLSX; Slides → PPTX (Office edit loop).
+ * Pass `asText: true` for plain text / CSV (RAG / quick preview).
  */
 export async function downloadDriveFile(
   userId: string,
-  file: DriveFileMeta
+  file: DriveFileMeta,
+  opts?: { asText?: boolean }
 ): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
   const tok = await getValidGoogleAccessToken(userId)
   if (!tok.ok) throw new Error(tok.error)
@@ -139,16 +141,34 @@ export async function downloadDriveFile(
   let mimeType = file.mimeType
 
   if (googleNative) {
-    let exportMime = 'text/plain'
+    let exportMime = 'application/pdf'
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
-      exportMime = 'text/csv'
-      if (!filename.endsWith('.csv')) filename = `${filename}.csv`
-    } else if (
-      file.mimeType === 'application/vnd.google-apps.presentation' ||
-      file.mimeType === 'application/vnd.google-apps.document'
-    ) {
-      exportMime = 'text/plain'
-      if (!filename.endsWith('.txt')) filename = `${filename}.txt`
+      if (opts?.asText) {
+        exportMime = 'text/csv'
+        if (!filename.endsWith('.csv')) filename = `${filename}.csv`
+      } else {
+        exportMime =
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        if (!/\.xlsx$/i.test(filename)) filename = `${filename}.xlsx`
+      }
+    } else if (file.mimeType === 'application/vnd.google-apps.document') {
+      if (opts?.asText) {
+        exportMime = 'text/plain'
+        if (!filename.endsWith('.txt')) filename = `${filename}.txt`
+      } else {
+        exportMime =
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        if (!/\.docx$/i.test(filename)) filename = `${filename}.docx`
+      }
+    } else if (file.mimeType === 'application/vnd.google-apps.presentation') {
+      if (opts?.asText) {
+        exportMime = 'text/plain'
+        if (!filename.endsWith('.txt')) filename = `${filename}.txt`
+      } else {
+        exportMime =
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        if (!/\.pptx$/i.test(filename)) filename = `${filename}.pptx`
+      }
     } else {
       exportMime = 'application/pdf'
       if (!filename.endsWith('.pdf')) filename = `${filename}.pdf`
