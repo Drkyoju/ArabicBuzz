@@ -50,58 +50,18 @@ import {
   routeAssistantIntent,
   runAssistant,
 } from '@/lib/assistants'
-
-/** Chat turns: lean toolset (no Drive sync / browser RPA / sheets / MCP by default). */
-const TELEGRAM_CHAT_TOOL_NAMES = [
-  'search_knowledge_base',
-  'memory_search',
-  'list_workspace_files',
-  'list_files',
-  'read_file',
-  'read_document',
-  'read_excel',
-  'return_file',
-  'edit_document',
-  'edit_excel',
-  'write_file',
-  'brain_open_document',
-  'brain_save_document',
-  'room_calendar_list',
-  'room_calendar_create',
-  'room_calendar_update',
-  'room_calendar_cancel',
-  'room_tasks_list',
-  'room_tasks_create',
-  'room_tasks_update',
-  'room_memory_list',
-  'room_memory_add',
-  'web_search',
-  'web_fetch',
-  // Prefer room_calendar_* only — personal Google list caused mixed UTC/Riyadh replies.
-] as const
-
-/** File/doc turns: fuller set still excluding slow/rare tools. */
-const TELEGRAM_HEAVY_TOOL_NAMES = [
-  ...TELEGRAM_CHAT_TOOL_NAMES,
-  'convert_document',
-  'convert_file',
-  'pdf_create',
-  'pdf_stamp',
-  'pdf_merge',
-  'pdf_list_fields',
-  'pdf_fill_form',
-  'arabic_ocr',
-  'edit_image',
-  'generate_image_edit',
-  'brain_create_document',
-  'fill_policy_audit',
-  'read_decision_document',
-  'gmail_search',
-  'gmail_read',
-  'mail_search',
-  'mail_read',
-  'mail_sync',
-] as const
+import {
+  TELEGRAM_SITE_CHAT_TOOLS,
+  TELEGRAM_SITE_HEAVY_TOOLS,
+  TELEGRAM_LIMITS_SYSTEM_AR,
+  buildTelegramPowerPrompt,
+  classifyTelegramWorkIntent,
+  markTelegramSeatBusy,
+  markTelegramSeatFree,
+  telegramEffortMaxSteps,
+  telegramGoogleLinkedHintAr,
+} from '@/lib/telegram/power-path'
+import { effortToRunParams } from '@/lib/ai/run-effort'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -111,7 +71,11 @@ function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   return out
 }
 
-function resolveTelegramModelSlug(heavy: boolean): string {
+function resolveTelegramModelSlug(
+  heavy: boolean,
+  preferred?: string | null
+): string {
+  if (preferred?.trim()) return preferred.trim()
   if (heavy) {
     return (
       process.env.TELEGRAM_HEAVY_MODEL?.trim() ||
@@ -133,16 +97,18 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - افهم العربية الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة.
 - أجب بإيجاز. للأسئلة البسيطة أجب مباشرة دون أدوات إن أمكن.
-- أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
-- التقويم: مصدر الفريق هو room_calendar_list فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC ولا تحوّل لعدة مناطق زمنية في نفس الرد.
+- أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اسحب من Drive (إن مربوط)، اقرأ/عدّل/حوّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا مع ملخص «ما نُفّذ».
+- التقويم: مصدر الفريق هو room_calendar_* فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC ولا تحوّل لعدة مناطق زمنية في نفس الرد.
 - لسؤال «كم موعد» أو مواعيد اليوم: رد واحد قصير (العدد + عنوان كل موعد ووقته) بدون سؤال متابعة مثل «هل تود إضافة…».
-- الملفات: list_workspace_files → read_document / read_excel → edit_document(replacements للحفاظ على تنسيق Word/PPT) / edit_excel → convert_document (PDF↔Word: Google أولاً إن مربوط؛ تجنّب المسار النصّي لـ PDF عربي معطوب) → return_file.
+- لطلب موعد جديد: room_calendar_create فوراً ثم أكّد.
+- الملفات: list_workspace_files / search_knowledge_base → brain_open_document (Drive) → read_document / read_excel → edit_document(replacements) / edit_excel → convert_document → return_file.
   أي ملف تُنشئه أو تعدّله أو تحوّله يُرسل تلقائياً كمرفق في هذه المحادثة (معاينة+تنزيل) — لا تكتفِ بوصف الرابط أو ملفات الفريق.
 - صور / PDF ممسوح (نص غير قابل للنسخ) أو طلب «اقرأ» / «ابحث عن…»: استخدم arabic_ocr مع fileId (يحفظ النص في ذاكرة الغرفة وملف .txt). للبحث داخل الصورة مرّر searchQuery. لاحقاً: memory_search.
   لقرارات طويلة ممسوحة: read_decision_document. للمستندات النصية العادية: read_document كافٍ.
 - عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.
-  لا تستدعِ مزامنة Drive كاملة من تيليجرام (تبطئ الرد) — ابحث فقط.
-- للإجراءات عالية المخاطر اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.`
+  لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف») — البحث يكفي عادة.
+- للإجراءات عالية المخاطر (الحذف فقط) اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.
+${TELEGRAM_LIMITS_SYSTEM_AR}`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
   const instance = getTelegramBot()
@@ -325,7 +291,7 @@ async function bindTelegramTools(opts: {
     scopeId: opts.scopeId,
     mode: parsePosture('DANGEROUS'),
   })
-  const names = opts.heavy ? TELEGRAM_HEAVY_TOOL_NAMES : TELEGRAM_CHAT_TOOL_NAMES
+  const names = opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
   const subset = pickToolSubset(native, names)
 
   // MCP env connect is slow on cold start — opt-in only for Telegram.
@@ -497,16 +463,40 @@ async function runTelegramAgentTurn(opts: {
   scope: NonNullable<Awaited<ReturnType<typeof resolveTelegramScope>>>
   /** Document/photo path — use heavier model + more tools/steps. */
   forceHeavy?: boolean
+  /** Optional label shown after STT (موعد/مهمة/ملف…). */
+  workLabelAr?: string
 }) {
   const t0 = Date.now()
   const scopeId = opts.scope.scope.id
+  const classified = classifyTelegramWorkIntent(opts.promptSource)
+  const work = {
+    ...classified,
+    forceHeavy: Boolean(opts.forceHeavy) || classified.forceHeavy,
+    preferFullAgent: Boolean(opts.forceHeavy) || classified.preferFullAgent,
+  }
+
+  const powered = buildTelegramPowerPrompt({
+    raw: opts.promptSource,
+    scopeId,
+    work,
+  })
+  const seatId = powered.wakeAgent?.id
 
   // Ack immediately so group UX feels responsive while we prep.
   void opts.ctx.replyWithChatAction('typing').catch(() => undefined)
-  const ack = await opts.ctx.reply('جاري…')
+  const ackBits = ['جاري…']
+  if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
+  else if (powered.wakeAgent) ackBits.push(`أُيقظ ${powered.wakeAgent.nameAr}`)
+  if (opts.workLabelAr || work.kind !== 'casual') {
+    ackBits.push(`القصد: ${opts.workLabelAr || work.labelAr}`)
+  }
+  const ack = await opts.ctx.reply(ackBits.join('\n'))
 
+  if (seatId) markTelegramSeatBusy(scopeId, seatId)
+
+  try {
   const fastKind = classifyTelegramFastPath(opts.promptSource)
-  if (fastKind && !opts.forceHeavy) {
+  if (fastKind && !opts.forceHeavy && work.kind !== 'appointment' && work.kind !== 'file') {
     try {
       const text = await runTelegramFastPath({
         kind: fastKind,
@@ -550,25 +540,37 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
-  // نواة عامة: free text → intent router (keyword/heuristic; not default chat)
-  const routed = !opts.forceHeavy
-    ? routeAssistantIntent(opts.promptSource)
-    : null
-  if (routed && routed.matchedBy !== 'default') {
+  // Specialized assistants (mail / day-captain) — skip for file/appointment/task
+  // so we keep room tools + Telegram file attachments.
+  const routed =
+    !opts.forceHeavy && !work.preferFullAgent
+      ? routeAssistantIntent(opts.promptSource)
+      : null
+  if (
+    routed &&
+    routed.matchedBy !== 'default' &&
+    routed.assistantId !== 'file-office' &&
+    routed.assistantId !== 'file-search'
+  ) {
     try {
       const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
       const run = await runAssistant({
         assistantId: routed.assistantId,
-        message: opts.promptSource,
+        message: powered.prompt,
         scopeId,
         requesterId,
-        // Soft for telegram captain; hard Google gate still applies inside runAssistant
         skipRequirementCheck: false,
+        effortLevel: powered.adapt.effort,
+        modelSlug: powered.adapt.modelSlug,
       })
-      const text =
+      let text =
         run.blocked?.messageAr ||
         run.text ||
         'لم يُرجع المساعد نصاً.'
+      const driveHint = await telegramGoogleLinkedHintAr(requesterId)
+      if (driveHint && /drive|درايف|عقل|brain|google/i.test(opts.promptSource)) {
+        text = `${text}\n\n${driveHint}`
+      }
       try {
         await opts.ctx.api.editMessageText(
           opts.ctx.chat!.id,
@@ -582,6 +584,23 @@ async function runTelegramAgentTurn(opts: {
           /* ignore */
         }
         await opts.ctx.reply(text.slice(0, 4000))
+      }
+      const attachmentsSent = await sendAttachmentsToTelegramChat({
+        ctx: opts.ctx,
+        attachments: (run.attachments || []).map((a) => ({
+          fileId: a.fileId,
+          name: a.name,
+          mimeType: a.mimeType,
+          scopeId: a.scopeId || scopeId,
+        })),
+        captionAr: '📎 ناتج العمل',
+      })
+      if (run.pendingApprovalIds?.length) {
+        for (const id of run.pendingApprovalIds.slice(0, 3)) {
+          await opts.ctx.reply(`موافقة حذف مطلوبة (#${id.slice(0, 8)})`, {
+            reply_markup: buildApprovalKeyboard(id),
+          })
+        }
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -600,7 +619,7 @@ async function runTelegramAgentTurn(opts: {
         text,
         citations: run.citations || [],
         pendingApprovalIds: run.pendingApprovalIds || [],
-        attachmentsSent: [] as string[],
+        attachmentsSent,
       }
     } catch (e) {
       console.error('[telegram] assistant-path', e)
@@ -608,22 +627,33 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
-  const heavy = Boolean(opts.forceHeavy) || isHeavyTelegramPrompt(opts.promptSource)
-  const modelSlug = resolveTelegramModelSlug(heavy)
-  const maxSteps = heavy ? 6 : 4
+  const heavy =
+    Boolean(opts.forceHeavy) ||
+    work.forceHeavy ||
+    isHeavyTelegramPrompt(opts.promptSource)
+  const modelSlug = resolveTelegramModelSlug(heavy, powered.adapt.modelSlug)
+  const maxSteps = telegramEffortMaxSteps(powered.adapt.effort, heavy)
   const needDialect = shouldNormalizeTelegramDialect(opts.promptSource)
+  const effortHint = effortToRunParams(powered.adapt.effort).systemHintAr
 
   const tPrep = Date.now()
-  const [normalized, requesterId, system] = await Promise.all([
-    normalizeArabicPrompt(opts.promptSource, {
+  const [normalized, requesterId, systemBase] = await Promise.all([
+    normalizeArabicPrompt(powered.prompt, {
       skip: !needDialect,
       modelSlug: needDialect
         ? process.env.TELEGRAM_DIALECT_MODEL?.trim() || 'gemini-2.5-flash'
         : undefined,
     }),
     resolveChannelOwnerUserIdAsync(opts.userId),
-    buildScopedSystemPrompt(TELEGRAM_AGENT_SYSTEM, opts.scope),
+    buildScopedSystemPrompt(
+      `${TELEGRAM_AGENT_SYSTEM}\n\n${effortHint}`,
+      opts.scope
+    ),
   ])
+  const driveHint = await telegramGoogleLinkedHintAr(requesterId)
+  const system = driveHint
+    ? `${systemBase}\n\n${driveHint}`
+    : systemBase
   const tools = await bindTelegramTools({
     requesterId,
     scopeId,
@@ -647,6 +677,8 @@ async function runTelegramAgentTurn(opts: {
   console.info('[telegram] timing', {
     path: 'agent',
     heavy,
+    work: work.kind,
+    seat: powered.wakeAgent?.slug,
     model: modelSlug,
     dialect: needDialect,
     maxSteps,
@@ -666,6 +698,9 @@ async function runTelegramAgentTurn(opts: {
   })
 
   return out
+  } finally {
+    if (seatId) markTelegramSeatFree(scopeId, seatId)
+  }
 }
 
 export function getTelegramBot() {
@@ -925,12 +960,15 @@ export function getTelegramBot() {
           'بوت Arabic Buzz — القروب المربوط = غرفة الموقع.',
           '',
           'بعد /link:',
-          '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله',
-          '• أرسل رسالة صوتية → يفرّغها ويرد',
-          '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل ويرجع الملف',
-          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → يستخرج النص (OCR) ويحفظه للغرفة',
+          '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله مثل غرفة الموقع',
+          '• أرسل رسالة صوتية → تفريغ عربي → قصد (موعد/مهمة/ملف/سؤال) → تنفيذ',
+          '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل/يحوّل ويرجع الملف',
+          '• اطلب ملفاً من Drive أو خزنة الغرفة → يفتح/يعدّل ويرسل النتيجة هنا',
+          '• موعد بالصوت أو النص → يُضاف لتقويم الغرفة',
+          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → OCR (جودة أعلى مع جسر ماك إن وُجد)',
           '',
-          'لا حاجة لـ /ask. من ينادي البوت أو يكتب طلباً يعمل.',
+          'لا حاجة لـ /ask. الموافقة البشرية للحذف فقط.',
+          'إيقاظ الوكلاء: وكيل١ أولاً، ثم ٢ إن كان الأول مشغولاً (مثل الموقع).',
           '',
           'أوامر اختيارية:',
           '/link أو /start — الربط مرة واحدة',
@@ -1111,6 +1149,14 @@ export function getTelegramBot() {
         return
       }
 
+      const voiceWork = classifyTelegramWorkIntent(transcript)
+
+      // If STT returned mostly Latin (rare), ask the agent to translate → MSA then act.
+      const arabicChars = (transcript.match(/[\u0600-\u06FF]/g) || []).length
+      const latinChars = (transcript.match(/[A-Za-z]/g) || []).length
+      const needsTranslate =
+        latinChars > 12 && latinChars > arabicChars * 2
+
       const voiceName = `telegram-voice-${Date.now()}.ogg`
       let voiceMarker = ''
       try {
@@ -1130,11 +1176,21 @@ export function getTelegramBot() {
       }
 
       await ctx.reply(
-        `🎤 تم التحويل (${stt.providerLabelAr}):\n${transcript.slice(0, 3500)}`
+        `🎤 تم التحويل (${stt.providerLabelAr}) · القصد: ${voiceWork.labelAr}:\n${transcript.slice(0, 3400)}`
       )
 
       const promptSource = [
         transcript,
+        needsTranslate
+          ? '\n[الصوت يبدو بغير العربية — ترجم القصد إلى فصحى ثم نفّذ]'
+          : '',
+        voiceWork.kind === 'appointment'
+          ? '\n[صوت: موعد — أنشئ في تقويم الغرفة بعد استخراج التاريخ/الوقت]'
+          : voiceWork.kind === 'task'
+            ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
+            : voiceWork.kind === 'file'
+              ? '\n[صوت: ملف — ابحث/عدّل/حوّل وأعد المرفق]'
+              : '',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',
@@ -1148,6 +1204,8 @@ export function getTelegramBot() {
         chatId,
         userId,
         scope,
+        forceHeavy: voiceWork.forceHeavy,
+        workLabelAr: voiceWork.labelAr,
       })
 
       // TTS adds 1–3s — opt-in only (TELEGRAM_VOICE_REPLY=1).

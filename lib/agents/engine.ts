@@ -1615,6 +1615,7 @@ export type AgentEngineResult = {
   steps: number
   citations: import('@/lib/scopes/types').RoomCitation[]
   pendingApprovalIds: string[]
+  attachments: import('@/lib/agents/citation-events').StepAttachmentRef[]
 }
 
 /**
@@ -1694,6 +1695,7 @@ export async function runAgentEngine(
       steps: result.steps?.length ?? 1,
       citations: extracted.citations,
       pendingApprovalIds: extracted.pendingApprovalIds,
+      attachments: extracted.attachments,
     }
   } finally {
     // Serverless (Telegram / workflows): flush OTel → Langfuse before freeze.

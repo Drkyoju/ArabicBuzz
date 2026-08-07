@@ -79,12 +79,17 @@ export async function GET() {
         '@mention',
         'reply_to_bot',
         '/ask_optional',
-        'voice',
+        'voice_stt_intent_router',
         'document',
         'photo',
+        'drive_brain_search',
+        'room_calendar_create',
+        'wake_cascade_agent1',
       ],
       privacyNoteAr:
         'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل العادية بدون /ask. الخصوصية الافتراضية = أوامر ومنشن فقط.',
+      limitsAr:
+        'Drive يحتاج ربط Google من الموقع. OCR الممسوح أدق مع جسر ماك. الحذف فقط بموافقة.',
     },
     latency: {
       chatModelDefault: process.env.TELEGRAM_HARNESS_MODEL || 'gemini-2.5-flash',
@@ -99,6 +104,8 @@ export async function GET() {
       fastPath: ['greeting', 'calendar_count', 'tasks_count'],
       updateDedupe: 'update_id_ttl_10m',
       calendarDisplayTz: 'Asia/Riyadh',
+      wakePolicy: 'agent1_cascade',
+      workIntents: ['appointment', 'task', 'file', 'question'],
     },
   })
 }

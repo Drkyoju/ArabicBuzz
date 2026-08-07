@@ -67,6 +67,13 @@ export type AssistantRunResult = {
   steps: number
   citations: import('@/lib/scopes/types').RoomCitation[]
   pendingApprovalIds: string[]
+  /** Workspace files produced by tools (for Telegram / download). */
+  attachments?: Array<{
+    fileId: string
+    name: string
+    mimeType?: string
+    scopeId?: string
+  }>
   blocked?: {
     reason: 'google' | 'telegram' | 'mail' | 'auth'
     messageAr: string

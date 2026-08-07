@@ -125,12 +125,15 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 دورك: «ملخص يومي».
 يجب:
 1) room_calendar_list لليوم (Asia/Riyadh) — اعرض الوقت مرة واحدة بدون UTC.
-2) إن توفّر تقويم Google: calendar_list_events. للبريد: mail_search أو gmail_search سريع للعاجل.
-3) room_tasks_list للمهام العالقة.
-4) أعد: فقرة قصيرة + قائمة مواعيد + بريد عاجل (إن وُجد) + مهام.
-5) ممنوع جواب بدون استدعاء أدوات.`,
+2) إن طلب المستخدم إضافة موعد/اجتماع: room_calendar_create فوراً (توقيت السعودية) ثم أكّد.
+3) إن توفّر تقويم Google: calendar_list_events. للبريد: mail_search أو gmail_search سريع للعاجل.
+4) room_tasks_list للمهام العالقة.
+5) أعد: فقرة قصيرة + قائمة مواعيد + بريد عاجل (إن وُجد) + مهام.
+6) ممنوع جواب بدون استدعاء أدوات.`,
     allowedTools: [
       'room_calendar_list',
+      'room_calendar_create',
+      'room_calendar_update',
       'room_tasks_list',
       'calendar_list_events',
       'mail_search',
@@ -148,6 +151,9 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'موجز اليوم',
       'daily brief',
       'وش عندي اليوم',
+      'أضف موعد',
+      'سجل موعد',
+      'احجز موعد',
     ],
     maxSteps: 12,
     ownerHintAr: 'تقويم الغرفة دائماً · IMAP/Gmail اختياري',

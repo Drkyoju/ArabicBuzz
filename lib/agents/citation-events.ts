@@ -133,17 +133,56 @@ export type UsedToolCall = {
   summaryAr: string
 }
 
+export type StepAttachmentRef = {
+  fileId: string
+  name: string
+  mimeType?: string
+  scopeId?: string
+}
+
+function pushStepAttachment(
+  bucket: StepAttachmentRef[],
+  out: unknown
+) {
+  if (!out || typeof out !== 'object') return
+  const o = out as Record<string, unknown>
+  const add = (raw: Record<string, unknown>) => {
+    const fileId = String(raw.fileId || raw.id || '').trim()
+    const name = String(
+      raw.name || raw.originalName || raw.filename || ''
+    ).trim()
+    if (!fileId || !name) return
+    if (bucket.some((x) => x.fileId === fileId)) return
+    bucket.push({
+      fileId,
+      name,
+      mimeType: raw.mimeType ? String(raw.mimeType) : undefined,
+      scopeId: raw.scopeId ? String(raw.scopeId) : undefined,
+    })
+  }
+  if (Array.isArray(o.attachments)) {
+    for (const a of o.attachments) {
+      if (a && typeof a === 'object') add(a as Record<string, unknown>)
+    }
+  }
+  if (o.fileId && (o.name || o.originalName || o.downloadPath)) {
+    add(o)
+  }
+}
+
 /** Walk generateText / streamText step tool results. */
 export function extractFromAgentSteps(steps: unknown): {
   citations: RoomCitation[]
   pendingApprovalIds: string[]
   usedTools: UsedToolCall[]
+  attachments: StepAttachmentRef[]
 } {
   const citations: RoomCitation[] = []
   const pendingApprovalIds: string[] = []
   const usedTools: UsedToolCall[] = []
+  const attachments: StepAttachmentRef[] = []
   if (!Array.isArray(steps)) {
-    return { citations, pendingApprovalIds, usedTools }
+    return { citations, pendingApprovalIds, usedTools, attachments }
   }
 
   for (const step of steps) {
@@ -173,6 +212,7 @@ export function extractFromAgentSteps(steps: unknown): {
       }
       const aid = extractPausedApprovalId(out)
       if (aid && !pendingApprovalIds.includes(aid)) pendingApprovalIds.push(aid)
+      pushStepAttachment(attachments, out)
     }
 
     // Fallback: toolCalls without paired results still count as used
@@ -198,7 +238,7 @@ export function extractFromAgentSteps(steps: unknown): {
       }
     }
   }
-  return { citations, pendingApprovalIds, usedTools }
+  return { citations, pendingApprovalIds, usedTools, attachments }
 }
 
 /** Format citations as Telegram / plain-text footer. */

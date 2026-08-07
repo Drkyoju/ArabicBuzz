@@ -27,7 +27,7 @@ const TASKS_COUNT_RE =
 
 /** Heavy work that should keep a fuller toolset + stronger model. */
 const HEAVY_WORK_RE =
-  /(?:عدّل|عدل|عدلي|عدّلي|أنشئ|انشئ|اكتب|أكتب|حرّر|حرر|استبدل|احذف|امسح|ارفع|لخّص|لخص|حوّل|pdf|docx|xlsx|word|excel|باور|ملف|مستند|قرار|محضر|drive|drive_sync|ocr)/iu
+  /(?:عدّل|عدل|عدلي|عدّلي|أنشئ|انشئ|اكتب|أكتب|حرّر|حرر|استبدل|احذف|امسح|ارفع|لخّص|لخص|حوّل|pdf|docx|xlsx|word|excel|باور|ملف|مستند|قرار|محضر|drive|drive_sync|ocr|لائح|عقد|درايف)/iu
 
 const TODAY_HINT_RE = /(?:اليوم|الليلة|هذا\s*اليوم|لهالיום)/iu
 

@@ -168,5 +168,6 @@ export async function runAssistant(
     steps: result.steps,
     citations: result.citations,
     pendingApprovalIds: result.pendingApprovalIds,
+    attachments: result.attachments || [],
   }
 }
