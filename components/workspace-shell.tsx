@@ -439,13 +439,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       {/* Offset must be on the inline-start side and match the aside width in
           components/sidebar.tsx, otherwise the fixed sidebar covers content. */}
       <div className="min-h-dvh pt-11 md:ms-[15.5rem] md:pt-0">
-        {pendingCount > 0 && section !== 'approvals' && signedIn !== false && (
+        {pendingCount > 0 &&
+          section !== 'approvals' &&
+          signedIn !== false &&
+          hitlDisabled !== true && (
           <button
             type="button"
             onClick={() => setSection('approvals')}
             className="sticky top-0 z-20 w-full border-b border-ab-warn/30 bg-ab-warn/10 px-4 py-2 text-right text-xs font-medium text-ab-warn md:top-0"
           >
-            {pendingCount} موافقة معلّقة — اضغط للمراجعة قبل تنفيذ الأدوات
+            {pendingCount} طلب حذف بانتظار موافقتك — اضغط للمراجعة
           </button>
         )}
         {section === 'home' && (

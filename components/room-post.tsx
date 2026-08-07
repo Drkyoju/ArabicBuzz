@@ -557,7 +557,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       )}
       {post.pendingApprovalId && (
         <p className="mt-2 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-2 py-1.5 text-[11px] text-ab-warn">
-          إجراء معلّق بانتظار موافقة بشرية — راجع قسم «الموافقات».
+          إجراء معلّق بانتظار موافقة بشرية — سيظهر تنبيه أعلى الصفحة عند الحاجة.
         </p>
       )}
       <QualityFlagBanner show={Boolean(post.qualityWarning)} />

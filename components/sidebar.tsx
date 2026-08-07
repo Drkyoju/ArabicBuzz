@@ -223,14 +223,10 @@ function SidebarBody({
       )
     }
     if (!isEmployeeSection(n.id, mode)) return false
-    // Members: hide approvals admin when HITL is off.
-    if (
-      n.id === 'approvals' &&
-      hitlDisabled &&
-      !canAccessOpsUi &&
-      mode !== 'admin'
-    ) {
-      return false
+    // Never keep an empty «الموافقات» nav item — only when a delete is pending.
+    // Deep link / home banner / sticky bar still open the inbox.
+    if (n.id === 'approvals') {
+      return pendingApprovals > 0 && !hitlDisabled
     }
     return true
   })
@@ -668,7 +664,7 @@ export function Sidebar({
   activeSection?: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
   pendingApprovals?: number
-  /** When HITL is off, hide approvals chrome for non-owners. */
+  /** When HITL is off, never show approvals in the main nav. */
   hitlDisabled?: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)

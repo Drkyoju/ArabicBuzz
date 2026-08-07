@@ -845,7 +845,7 @@ export function HomeDashboard({
                 onClick={() => onNavigate?.('approvals')}
                 className="mt-2.5 w-full rounded-lg border border-amber-200 bg-white/80 px-3 py-3 text-right text-[12px] font-semibold text-amber-950 hover:bg-white"
               >
-                {livePending} موافقة معلّقة — افتح صندوق الموافقات للاعتماد أو
+                {livePending} طلب حذف معلّق — افتح صندوق الموافقات للاعتماد أو
                 الرفض
               </button>
             </div>

@@ -879,7 +879,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const finalContent =
       (assembled ||
         (pendingApprovalId
-          ? 'الإجراء معلّق بانتظار موافقتك في قسم الموافقات.'
+          ? 'الإجراء معلّق بانتظار موافقتك — سيظهر تنبيه أعلى الصفحة وصندوق الموافقات.'
           : 'تعذّر بث الرد. تحقق من مفاتيح النماذج في الإعدادات.')) +
       (assembled ? fileFooter : '')
 

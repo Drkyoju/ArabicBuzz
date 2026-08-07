@@ -208,7 +208,7 @@ export async function buildTeamInbox(opts: {
         titleAr: 'موافقة الحذف معطّلة',
         detailAr:
           'كل شيء بما فيه الحذف فوري — عيّن HITL_DISABLED=0 لموافقة الحذف فقط',
-        hrefHint: 'approvals',
+        hrefHint: 'settings',
       })
     }
     if (process.env.TELEGRAM_BOT_TOKEN?.trim()) {
