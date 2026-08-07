@@ -1,5 +1,7 @@
 'use client'
 
+import { createDenoisedMicStream } from '@/lib/audio/denoise'
+
 const MIME_CANDIDATES = [
   'audio/webm;codecs=opus',
   'audio/webm',
@@ -33,8 +35,7 @@ export function checkBrowserRecordSupport(): BrowserRecordSupport {
   if (!window.isSecureContext) {
     return {
       ok: false,
-      reasonAr:
-        'الميكروفون يتطلب اتصالًا آمنًا (HTTPS).',
+      reasonAr: 'الميكروفون يتطلب اتصالًا آمنًا (HTTPS).',
     }
   }
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -77,7 +78,7 @@ function mapGetUserMediaError(err: unknown): string {
 }
 
 /**
- * Start a browser MediaRecorder session (Claude/Gemini-style click-to-talk).
+ * Start a browser MediaRecorder session with local denoise (high-pass + mild gain).
  */
 export async function startBrowserRecording(): Promise<ActiveRecording> {
   const support = checkBrowserRecordSupport()
@@ -85,18 +86,22 @@ export async function startBrowserRecording(): Promise<ActiveRecording> {
     throw new Error(support.reasonAr || 'التسجيل غير متاح')
   }
 
-  let stream: MediaStream
+  let raw: MediaStream
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
+    raw = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
+        autoGainControl: true,
         channelCount: 1,
       },
     })
   } catch (e) {
     throw new Error(mapGetUserMediaError(e))
   }
+
+  const cleaned = await createDenoisedMicStream(raw)
+  const stream = cleaned.recordStream
 
   const mimeType = support.mimeType
   const recorder = mimeType
@@ -117,7 +122,7 @@ export async function startBrowserRecording(): Promise<ActiveRecording> {
     stop: () =>
       new Promise((resolve, reject) => {
         const finish = () => {
-          stream.getTracks().forEach((t) => t.stop())
+          cleaned.cleanup()
           const blob = new Blob(chunks, { type: usedMime })
           if (blob.size < 64) {
             reject(new Error('التسجيل قصير جداً — حاول مجدداً'))
@@ -127,14 +132,14 @@ export async function startBrowserRecording(): Promise<ActiveRecording> {
         }
         recorder.onstop = finish
         recorder.onerror = () => {
-          stream.getTracks().forEach((t) => t.stop())
+          cleaned.cleanup()
           reject(new Error('فشل التسجيل'))
         }
         try {
           if (recorder.state !== 'inactive') recorder.stop()
           else finish()
         } catch (e) {
-          stream.getTracks().forEach((t) => t.stop())
+          cleaned.cleanup()
           reject(e instanceof Error ? e : new Error('فشل إيقاف التسجيل'))
         }
       }),

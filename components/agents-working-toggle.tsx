@@ -40,7 +40,7 @@ export function AgentsWorkingToggle({
             compact ? 'py-0.5 text-[10px]' : 'py-1 text-[11px]'
           )}
           role="status"
-          title="الوكلاء متواجدون دائماً — عند @mention أو طلب واضح يبدأون فوراً"
+          title="الوكلاء متواجدون دائماً — كل رسالة يطّلع عليها وكيل جاهز فوراً (بلا @)"
         >
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
@@ -51,8 +51,7 @@ export function AgentsWorkingToggle({
         </div>
         {!compact && (
           <p className="text-[10px] leading-snug text-ab-muted">
-            اكتب @اسم_الوكيل أو اضغط مقعده — يبدأ العمل فوراً (بدون انتظار
-            تشغيل منفصل).
+            أي رسالة في الغرفة يراجعها وكيل شغال فوراً. اضغط المقعد: شغال ↔ طافي.
           </p>
         )}
       </div>

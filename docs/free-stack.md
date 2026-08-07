@@ -22,7 +22,9 @@ Arabic Buzz is wired for **free tiers + open GitHub** — no paid SaaS required.
 
 Leave `EMBEDDING_PROVIDER` empty. Cascade: **HF → Gemini → BGE → hash**.
 
-Mic STT cascade: **Willow (if URL) → Gemini → HF Arabic → Groq Whisper**.
+Mic STT cascade: **Willow (if URL) → Gemini → HF Arabic → Groq Whisper** (+ local mic high-pass denoise in browser).
+
+See also: [voice-room-agents.md](./voice-room-agents.md) — shared room auto-watch, «أبغا…», seat شغال/طافي.
 
 ## Health check
 

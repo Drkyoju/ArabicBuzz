@@ -687,7 +687,8 @@ export const LocalUploadPanel = forwardRef<
       </div>
       <p className="text-[10px] leading-relaxed text-stone-500">
         لا يُرفع الملف حتى تضغط «حفظ». إن فشل النسخ يمكنك حفظ الصوت فقط أو كتابة
-        النص يدوياً.
+        النص يدوياً. قل طلبك («أبغا اللائحة…») ثم راجع النص — في الغرفة الوكيل
+        الجاهز ينفّذ بعد الإرسال.
       </p>
     </div>
   ) : null

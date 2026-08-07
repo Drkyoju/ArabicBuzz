@@ -31,6 +31,7 @@ export function useRosterCloudSync() {
   const addedToScope = useAgentRosterStore((s) => s.addedToScope)
   const collabModeByScope = useAgentRosterStore((s) => s.collabModeByScope)
   const agentsEnabledByScope = useAgentRosterStore((s) => s.agentsEnabledByScope)
+  const agentOnlineByScope = useAgentRosterStore((s) => s.agentOnlineByScope)
   const agentOverrides = useAgentRosterStore((s) => s.agentOverrides)
 
   const readyRef = useRef(false)
@@ -70,7 +71,8 @@ export function useRosterCloudSync() {
             Object.keys(data.payload.addedToScope || {}).length > 0 ||
             Object.keys(data.payload.agentOverrides || {}).length > 0 ||
             Object.keys(data.payload.collabModeByScope || {}).length > 0 ||
-            Object.keys(data.payload.agentsEnabledByScope || {}).length > 0
+            Object.keys(data.payload.agentsEnabledByScope || {}).length > 0 ||
+            Object.keys(data.payload.agentOnlineByScope || {}).length > 0
           const localSlice = shared
             ? exportScopeRosterSlice(scopeId, local)
             : local
@@ -79,7 +81,8 @@ export function useRosterCloudSync() {
             Object.keys(localSlice.addedToScope).length > 0 ||
             Object.keys(localSlice.agentOverrides).length > 0 ||
             Object.keys(localSlice.collabModeByScope).length > 0 ||
-            Object.keys(localSlice.agentsEnabledByScope || {}).length > 0
+            Object.keys(localSlice.agentsEnabledByScope || {}).length > 0 ||
+            Object.keys(localSlice.agentOnlineByScope || {}).length > 0
 
           if (cloudHasData) {
             skipPushRef.current = true
@@ -188,6 +191,7 @@ export function useRosterCloudSync() {
     addedToScope,
     collabModeByScope,
     agentsEnabledByScope,
+    agentOnlineByScope,
     agentOverrides,
     activeScopeId,
     exportPayload,

@@ -47,6 +47,7 @@ export function exportScopeRosterSlice(
   const enabled = agentsAlwaysPresentInRoom(scopeId)
     ? true
     : full.agentsEnabledByScope?.[scopeId]
+  const onlineMap = full.agentOnlineByScope?.[scopeId]
   return {
     customAgents,
     removedFromScope: { [scopeId]: removed },
@@ -54,6 +55,7 @@ export function exportScopeRosterSlice(
     collabModeByScope: collab ? { [scopeId]: collab } : {},
     agentsEnabledByScope:
       enabled === undefined ? {} : { [scopeId]: enabled },
+    agentOnlineByScope: onlineMap ? { [scopeId]: onlineMap } : {},
     agentOverrides: overrides,
   }
 }
@@ -88,6 +90,17 @@ export function mergeScopeRosterSlice(
       ...current.agentsEnabledByScope,
       ...(slice.agentsEnabledByScope?.[scopeId] !== undefined
         ? { [scopeId]: Boolean(slice.agentsEnabledByScope[scopeId]) }
+        : {}),
+    },
+    agentOnlineByScope: {
+      ...current.agentOnlineByScope,
+      ...(slice.agentOnlineByScope?.[scopeId]
+        ? {
+            [scopeId]: {
+              ...(current.agentOnlineByScope?.[scopeId] || {}),
+              ...slice.agentOnlineByScope[scopeId],
+            },
+          }
         : {}),
     },
     agentOverrides: {

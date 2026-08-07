@@ -175,14 +175,22 @@ function attachedFilesBlock(
     .map((f) => {
       const name = f.name || f.fileId
       const mime = f.mimeType ? ` (${f.mimeType})` : ''
-      return `• «${name}»${mime} — fileId=${f.fileId}`
+      const isAudio = (f.mimeType || '').startsWith('audio/')
+      return isAudio
+        ? `• «${name}»${mime} — fileId=${f.fileId} (ملاحظة صوتية: النص المنسوخ موجود في رسالة المستخدم إن وُجد — نفّذ الطلبات المستخرجة؛ يمكنك read_document/list إن لزم)`
+        : `• «${name}»${mime} — fileId=${f.fileId}`
     })
   if (!lines.length) return ''
+  const hasAudio = files.some((f) => (f.mimeType || '').startsWith('audio/'))
   return `
 
 ملفات مرفقة من جهاز المستخدم / معاينة الغرفة (ليست بالضرورة من Drive):
 ${lines.join('\n')}
-أمر إلزامي: اقرأ وعدّل هذه الملفات بالأدوات المناسبة (read_document / edit_document / read_excel / edit_excel / edit_image / convert_document / pdf_* حسب النوع) ثم أظهر النتيجة بزر تنزيل عبر edit_* أو return_file. لا تكتفِ بالوصف.`
+أمر إلزامي: اقرأ وعدّل هذه الملفات بالأدوات المناسبة (read_document / edit_document / read_excel / edit_excel / edit_image / convert_document / pdf_* حسب النوع) ثم أظهر النتيجة بزر تنزيل عبر edit_* أو return_file. لا تكتفِ بالوصف.${
+    hasAudio
+      ? '\nالصوت المرفق: اعتمد النص المنسوخ في الرسالة كمصدر أساسي للطلب؛ حلّل واستخرج المهام ونفّذها.'
+      : ''
+  }`
 }
 
 export async function POST(req: Request) {

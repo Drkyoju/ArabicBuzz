@@ -56,6 +56,10 @@ function normalizePayload(raw: unknown): AgentRosterPayload {
       o.agentsEnabledByScope && typeof o.agentsEnabledByScope === 'object'
         ? o.agentsEnabledByScope
         : {},
+    agentOnlineByScope:
+      o.agentOnlineByScope && typeof o.agentOnlineByScope === 'object'
+        ? o.agentOnlineByScope
+        : {},
     agentOverrides:
       o.agentOverrides && typeof o.agentOverrides === 'object'
         ? o.agentOverrides

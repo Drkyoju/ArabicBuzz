@@ -8,6 +8,7 @@ import {
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
 import { transcribeVoiceBlob } from '@/lib/audio/client-transcribe'
+import { VOICE_MIC_HINT_AR } from '@/lib/rooms/voice-intent'
 import { cn } from '@/lib/utils'
 
 type MicState = 'idle' | 'recording' | 'transcribing'
@@ -26,6 +27,7 @@ export function ComposerMicButton({
   onStatus,
   disabled,
   className,
+  showHint = true,
 }: {
   /** Current composer text — kept as prefix while dictating. */
   composerValue?: string
@@ -36,6 +38,8 @@ export function ComposerMicButton({
   onStatus?: (message: string) => void
   disabled?: boolean
   className?: string
+  /** Short Arabic cue under the mic. */
+  showHint?: boolean
 }) {
   const [state, setState] = useState<MicState>('idle')
   const activeRef = useRef<ActiveRecording | null>(null)
@@ -106,7 +110,7 @@ export function ComposerMicButton({
       activeRef.current = active
       setState('recording')
       setHint(
-        'جاري التسجيل… اضغط للإيقاف — سيظهر النص العربي في المربع للمراجعة قبل الإرسال'
+        'جاري التسجيل (تنظيف محلي)… اضغط للإيقاف — سيظهر النص للمراجعة قبل الإرسال'
       )
     } catch (e) {
       setHint(e instanceof Error ? e.message : 'تعذّر بدء التسجيل')
@@ -116,7 +120,7 @@ export function ComposerMicButton({
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative flex flex-col items-center gap-0.5', className)}>
       <button
         type="button"
         disabled={disabled || state === 'transcribing'}
@@ -125,7 +129,7 @@ export function ComposerMicButton({
         title={
           state === 'recording'
             ? 'إيقاف ثم نسخ عربي دقيق للمراجعة'
-            : 'إملاء عربي — Willow / Gemini / Whisper — راجع قبل الإرسال'
+            : VOICE_MIC_HINT_AR
         }
         className={cn(
           'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40',
@@ -144,6 +148,11 @@ export function ComposerMicButton({
           <Mic className="h-4 w-4" />
         )}
       </button>
+      {showHint && state === 'idle' && (
+        <span className="max-w-[7.5rem] text-center text-[9px] leading-tight text-stone-500">
+          قل: أبغا…
+        </span>
+      )}
     </div>
   )
 }

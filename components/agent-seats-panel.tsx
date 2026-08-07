@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils'
 function shortCapability(slug?: string) {
   if (!slug) return ''
   const label = agentModelLabelAr(slug)
-  // Keep seat chip short: "Gemini · …" → first provider token
   return label.split('·')[0]?.trim() || label
 }
 
@@ -32,7 +31,8 @@ export function AgentSeatsPanel({
   activeAgentId?: string | null
   /** Agent currently streaming a reply */
   answeringAgentId?: string | null
-  onSeatClick?: (agent: RoomAgent) => void
+  /** Optional: after power toggle (e.g. status toast). */
+  onSeatClick?: (agent: RoomAgent, online: boolean) => void
   className?: string
 }) {
   const agentsForScope = useAgentRosterStore((s) => s.agentsForScope)
@@ -46,6 +46,9 @@ export function AgentSeatsPanel({
   const agentsEnabled = useAgentRosterStore((s) =>
     s.agentsEnabledFor(scopeId)
   )
+  const agentOnlineByScope = useAgentRosterStore((s) => s.agentOnlineByScope)
+  const toggleAgentOnline = useAgentRosterStore((s) => s.toggleAgentOnline)
+  const isAgentOnline = useAgentRosterStore((s) => s.isAgentOnline)
   const [profileAgent, setProfileAgent] = useState<RoomAgent | null>(null)
   const signedIn = useSignedIn()
   const [liveActions, setLiveActions] = useState<string[]>([])
@@ -95,6 +98,8 @@ export function AgentSeatsPanel({
   }, [scopeId, signedIn, answeringAgentId])
 
   const recentPool = signedIn && liveActions.length > 0 ? liveActions : []
+  // Subscribe so seats re-render on toggle
+  void agentOnlineByScope
 
   return (
     <div className={cn('space-y-1', className)} dir="rtl">
@@ -104,12 +109,14 @@ export function AgentSeatsPanel({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </span>
-          متواجدون
+          متواجدون ٢٤س
           {agents.length > 0 ? (
             <span className="text-stone-400">· {agents.length}</span>
           ) : null}
         </span>
         {agents.map((agent) => {
+          const online =
+            agentsEnabled && isAgentOnline(scopeId, agent.id)
           const active = activeAgentId === agent.id
           const answering = answeringAgentId === agent.id
           const model = shortCapability(agent.preferredModel)
@@ -117,16 +124,20 @@ export function AgentSeatsPanel({
             RUN_EFFORT_LABELS_AR[parseRunEffort(agent.preferredEffort)]
           const statusAr = !agentsEnabled
             ? 'طافي'
-            : answering
-              ? 'يعمل'
-              : 'جاهز'
+            : !online
+              ? 'طافي'
+              : answering
+                ? 'يعمل'
+                : 'شغال'
           const tip = [
-            `اضغط للإشارة بـ @${agent.slug} — يبدأ فوراً`,
+            online
+              ? 'اضغط لإيقاف الوكيل (طافي)'
+              : 'اضغط لتشغيل الوكيل (شغال)',
+            'نقرة مزدوجة للإعدادات',
             model ? `نموذج: ${model}` : null,
             `قوة: ${power}`,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
             statusAr,
-            signedIn ? 'حضور حي' : 'معاينة',
           ]
             .filter(Boolean)
             .join(' · ')
@@ -135,13 +146,20 @@ export function AgentSeatsPanel({
               key={agent.id}
               type="button"
               title={tip}
+              aria-pressed={online}
+              aria-label={`${agent.nameAr} — ${statusAr}`}
               onClick={() => {
+                if (!agentsEnabled) return
+                const next = toggleAgentOnline(scopeId, agent.id)
+                onSeatClick?.(agent, next)
+              }}
+              onDoubleClick={(e) => {
+                e.preventDefault()
                 setProfileAgent(agent)
-                onSeatClick?.(agent)
               }}
               className={cn(
                 'inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors',
-                !agentsEnabled
+                !online
                   ? 'border-stone-200 bg-stone-50 text-stone-400'
                   : answering
                     ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
@@ -155,6 +173,7 @@ export function AgentSeatsPanel({
                   className="flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-white"
                   style={{
                     backgroundColor: `hsl(${agent.avatarHue} 55% 42%)`,
+                    opacity: online ? 1 : 0.45,
                   }}
                   aria-hidden
                 >
@@ -163,7 +182,7 @@ export function AgentSeatsPanel({
                 <span
                   className={cn(
                     'absolute -bottom-0.5 -start-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white',
-                    !agentsEnabled
+                    !online
                       ? 'bg-stone-400'
                       : answering
                         ? 'bg-ab-accent'
@@ -172,17 +191,19 @@ export function AgentSeatsPanel({
                   aria-hidden
                 />
               </span>
-              <span className="truncate">{agent.nameAr}</span>
+              <span className={cn('truncate', !online && 'line-through')}>
+                {agent.nameAr}
+              </span>
               <span
                 className={cn(
                   'shrink-0 text-[9px]',
-                  !agentsEnabled && 'text-stone-400',
-                  agentsEnabled && answering && 'text-ab-accent',
-                  agentsEnabled && !answering && 'text-emerald-600'
+                  !online && 'text-stone-400',
+                  online && answering && 'text-ab-accent',
+                  online && !answering && 'text-emerald-600'
                 )}
               >
                 {statusAr}
-                {agentsEnabled && !answering && model ? ` · ${model}` : ''}
+                {online && !answering && model ? ` · ${model}` : ''}
               </span>
             </button>
           )
@@ -198,9 +219,8 @@ export function AgentSeatsPanel({
       )}
       {!answeringAgentId && agents.length > 0 && (
         <p className="truncate text-[10px] text-stone-400">
-          اضغط مقعد وكيل لـ @mention — يبدأ العمل فوراً ·{' '}
+          اضغط المقعد: شغال ↔ طافي · كل رسالة يطّلع عليها وكيل جاهز فوراً ·{' '}
           {collabMode === 'team' ? 'تعاون نشط' : 'منفصل'}
-          {signedIn ? ' · حضور حي' : ''}
         </p>
       )}
 

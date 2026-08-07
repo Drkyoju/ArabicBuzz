@@ -68,6 +68,11 @@ import {
   ROOM_TEAM_RUN_CAP,
 } from '@/lib/assistants/parallel'
 import { agentsAlwaysPresentInRoom, usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
+import {
+  agentsForSharedRoomMessage,
+  resolveRoomMessageIntent,
+  roomIntentPromptNudge,
+} from '@/lib/rooms/voice-intent'
 import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import type {
   RoomCitation,
@@ -247,9 +252,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
       agentsAlwaysPresentInRoom(activeScopeId) ||
       s.agentsEnabledByScope[activeScopeId] !== false
   )
+  const readyAgentsForScope = useAgentRosterStore((s) => s.readyAgentsForScope)
+  const agentOnlineByScope = useAgentRosterStore((s) => s.agentOnlineByScope)
   const roomAgents = useMemo(
     () => agentsForScopeFn(activeScopeId),
     [agentsForScopeFn, activeScopeId]
+  )
+  const readyAgents = useMemo(
+    () => readyAgentsForScope(activeScopeId),
+    [readyAgentsForScope, activeScopeId, agentOnlineByScope]
   )
   const agentCatalog = useMemo(() => allAgentsFn(), [allAgentsFn])
 
@@ -1038,27 +1049,64 @@ export function RoomWorkspace({ className }: { className?: string }) {
       : prompt
     const handoff = resolveMentionHandoff(promptAfterTeam, agentCatalog)
     const multiMentioned = handoff.agents
+    const sharedRoom = usesSharedRoomRoster(activeScopeId)
+    const intent = resolveRoomMessageIntent(
+      handoff.cleanPrompt || promptAfterTeam,
+      readyAgents.length ? readyAgents : roomAgents
+    )
+    const runTeamCollab =
+      collabMode === 'team' &&
+      multiMentioned.length === 0 &&
+      intent.kind !== 'directed'
+    // Shared room: one watcher by default (no 40-agent hello spam).
+    // Fan-out only for @الجميع / «أبغا للجميع» / multi-@ / explicit broadcast.
     const runTeam =
-      (collabMode === 'team' && multiMentioned.length === 0) || wantsAll
+      wantsAll || intent.kind === 'broadcast'
     const runMultiMentions = !runTeam && multiMentioned.length > 1
-    const teamAgents = roomAgents.slice(0, ROOM_TEAM_RUN_CAP)
-    const agentsToRun: RoomAgent[] = agentsWorking
-      ? runTeam
-        ? teamAgents.length
-          ? teamAgents
-          : roomAgents[0]
-            ? [roomAgents[0]]
-            : []
-        : multiMentioned.length
-          ? multiMentioned.slice(0, ROOM_TEAM_RUN_CAP)
-          : ([roomAgents[0]].filter(Boolean) as RoomAgent[])
-      : []
+
+    // Shared team room: every message is glanced by ≥1 ready agent (no @ needed).
+    // Personal desk: keep prior behavior (mention / team / first seat).
+    let agentsToRun: RoomAgent[] = []
+    if (agentsWorking) {
+      if (sharedRoom) {
+        agentsToRun = agentsForSharedRoomMessage({
+          intent,
+          readyAgents,
+          mentioned: multiMentioned,
+          wantsAll,
+          teamCap: ROOM_TEAM_RUN_CAP,
+          runTeamCollab: false,
+        })
+        // If all seats طافي — no watcher (user turned everyone off).
+      } else {
+        const teamAgents = readyAgents.slice(0, ROOM_TEAM_RUN_CAP)
+        agentsToRun =
+          (runTeamCollab || wantsAll)
+            ? teamAgents.length
+              ? teamAgents
+              : readyAgents[0]
+                ? [readyAgents[0]]
+                : []
+            : multiMentioned.length
+              ? multiMentioned
+                  .filter((a) => readyAgents.some((r) => r.id === a.id))
+                  .slice(0, ROOM_TEAM_RUN_CAP)
+              : ([readyAgents[0] || roomAgents[0]].filter(
+                  Boolean
+                ) as RoomAgent[])
+      }
+    }
     const teamParallel = Math.min(
       ASSISTANT_PARALLEL_DEFAULT,
       agentsToRun.length || 1
     )
 
-    const cleanPrompt = handoff.cleanPrompt || prompt
+    const cleanPrompt =
+      (handoff.cleanPrompt || intent.cleanPrompt || prompt).trim() || prompt
+    const promptForAgents =
+      sharedRoom && agentsToRun.length
+        ? `${cleanPrompt}${roomIntentPromptNudge(intent)}`
+        : cleanPrompt
     const humanId = `h-${Date.now()}`
     const fileNote =
       filesForSend.length > 0
@@ -1150,8 +1198,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
         authorKind: 'system',
         authorId: 'system',
         authorNameAr: 'النظام',
-        content:
-          'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
+        content: sharedRoom
+          ? readyAgents.length === 0 && roomAgents.length > 0
+            ? 'كل مقاعد الوكلاء طافية — اضغط مقعداً لتشغيله (شغال) ليطّلع على الرسائل.'
+            : 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».'
+          : 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
         createdAt: Date.now(),
       })
       return
@@ -1199,7 +1250,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               streaming: true,
             })
             await streamOneAgent({
-              prompt: cleanPrompt,
+              prompt: promptForAgents,
               agent,
               peerContextAr:
                 runTeam || runMultiMentions ? peerContextAr : undefined,
@@ -1298,7 +1349,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </h2>
                 <p className="mt-0.5 truncate text-[11px] text-stone-500">
                   {shared
-                    ? 'الوكلاء متواجدون دائماً — @mention أو اطلب فيبدأون فوراً'
+                    ? 'كل رسالة يطّلع عليها وكيل جاهز فوراً — بلا @ · اضغط المقعد: شغال/طافي'
                     : `${PERSONAL_DESK_COPY.taglineAr} — الوكلاء والبريد والملفات هنا لا يراها أحد غيرك`}
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -1649,11 +1700,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   scopeId={activeScopeId}
                   activeAgentId={mentionPreview?.id}
                   answeringAgentId={answeringAgentId}
-                  onSeatClick={(a) =>
-                    setInput((v) =>
-                      v.startsWith('@') ? v : `@${a.slug} ${v}`
+                  onSeatClick={(a, online) => {
+                    setMicNote(
+                      online
+                        ? `${a.nameAr} شغال — يطّلع على الرسائل فوراً`
+                        : `${a.nameAr} طافي — لن يرد حتى تشغّله`
                     )
-                  }
+                  }}
                 />
               </div>
             )}
@@ -1797,10 +1850,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
               collabMode === 'team' &&
               roomAgents.length > 1 && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                الوكلاء متواجدون: اكتب <span dir="ltr">@</span> واسم الوكيل (مثل{' '}
-                <span dir="ltr">@reports</span>) أو اضغط مقعده — يبدأ فوراً. حتى{' '}
-                {Math.min(ASSISTANT_PARALLEL_DEFAULT, roomAgents.length)}{' '}
-                وكيل/مهمة معاً. عدة إشارات في رسالة واحدة تعمل معاً.
+                كل رسالة يراجعها وكيل جاهز فوراً. قل «أبغا…» أو اكتب طلباً — بلا @.
+                للجميع: «أبغا للجميع» أو <span dir="ltr">@الجميع</span>. حتى{' '}
+                {Math.min(
+                  ASSISTANT_PARALLEL_DEFAULT,
+                  readyAgents.length || roomAgents.length
+                )}{' '}
+                وكيل. اضغط المقعد: شغال ↔ طافي.
               </p>
             )}
             {!mentionPreview &&
@@ -1809,10 +1865,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
               usesSharedRoomRoster(activeScopeId) &&
               collabMode !== 'team' && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                الوكلاء متواجدون دائماً — اكتب <span dir="ltr">@</span> واسم
-                الوكيل أو أرسل طلباً واضحاً فيبدأ فوراً (حتى{' '}
-                {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة). يمكنك الإشارة لعدة
-                وكلاء في رسالة واحدة.
+                وكيل جاهز يطّلع على كل رسالة فوراً (بدون @). أمثلة: «أبغا اللائحة»
+                · «عدّل الملف». اضغط المقعد لإيقافه (طافي).
               </p>
             )}
             {!isGuest && !agentsWorking && (
@@ -2002,8 +2056,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   setInput(text)
                   setMicNote(
                     meta?.providerLabelAr
-                      ? `نُسخ عبر ${meta.providerLabelAr} — راجع وصحّح في المربع ثم أرسل`
-                      : 'النص في المربع — راجع وصحّح إن لزم ثم أرسل'
+                      ? `نُسخ عبر ${meta.providerLabelAr} — راجع وصحّح ثم أرسل (الوكيل يطّلع فوراً)`
+                      : 'النص في المربع — راجع ثم أرسل؛ الوكيل الجاهز يرد مباشرة'
                   )
                   requestAnimationFrame(() => {
                     composerRef.current?.focus()
