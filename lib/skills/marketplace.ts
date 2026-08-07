@@ -607,6 +607,68 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
     ),
   },
   {
+    id: 'arabic_contract_review',
+    nameAr: 'مراجعة العقود',
+    descriptionAr:
+      'قائمة تحقق لمخاطر ونواقص عقود الجمعية بالفصحى — مفعّلة تلقائياً (ليست استشارة قانونية).',
+    category: 'أنظمة وشؤون قانونية',
+    author: 'Arabic Buzz (GitHub: claude-office-skills contract-review)',
+    iconName: 'scale',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من claude-office-skills/skills contract-review لسياق الجمعيات',
+    skillMarkdownContent: shippedOrInline(
+      'arabic_contract_review',
+      skillMd({
+        id: 'arabic_contract_review',
+        name: 'مراجعة العقود',
+        description: 'مراجعة عقود الجمعية بالفصحى',
+        body: 'لخّص العقد، أبرز النواقص والمخاطر، واطرح أسئلة قبل التوقيع — دون استشارة قانونية ملزِمة.',
+      })
+    ),
+  },
+  {
+    id: 'association_bookkeeping_lite',
+    nameAr: 'محاسبة مبسطة للجمعيات',
+    descriptionAr:
+      'إيرادات/مصروفات وتبرعات ومطابقة من الجداول — مفعّلة تلقائياً (ليست استشارة محاسبية).',
+    category: 'مالية',
+    author: 'Arabic Buzz',
+    iconName: 'receipt',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'أنماط محاسبة مبسطة مجانية مكيَّفة للجمعيات',
+    skillMarkdownContent: shippedOrInline(
+      'association_bookkeeping_lite',
+      skillMd({
+        id: 'association_bookkeeping_lite',
+        name: 'محاسبة مبسطة للجمعيات',
+        description: 'محاسبة تشغيلية مبسطة من الجداول',
+        body: 'لخّص الحركات من Excel دون اختلاق أرصدة؛ اقترح مطابقة ونواقص مستندية.',
+      })
+    ),
+  },
+  {
+    id: 'whatsapp_ops_drafter',
+    nameAr: 'صياغة تشغيل واتساب',
+    descriptionAr:
+      'رسائل واتساب تشغيلية مختصرة بالفصحى — مفعّلة تلقائياً (بدون Cloud API).',
+    category: 'تشغيل',
+    author: 'Arabic Buzz',
+    iconName: 'message-circle',
+    packId: 'core-auto',
+    autoActive: true,
+    skillMarkdownContent: shippedOrInline(
+      'whatsapp_ops_drafter',
+      skillMd({
+        id: 'whatsapp_ops_drafter',
+        name: 'صياغة تشغيل واتساب',
+        description: 'صياغة رسائل واتساب تشغيلية',
+        body: 'صِغ رسالة قصيرة للمجموعة؛ أرسل عبر القناة المربوطة فقط بعد موافقة أو اعرض للنسخ.',
+      })
+    ),
+  },
+  {
     id: 'zatca_e_invoicing_checker',
     nameAr: 'مدقق الفوترة الإلكترونية (ZATCA)',
     descriptionAr: 'التحقق من هياكل XML/QR للفوترة الإلكترونية - المرحلة الثانية.',
@@ -624,17 +686,22 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
   {
     id: 'ncnp_governance_auditor',
     nameAr: 'مدقق حوكمة الجمعيات (NCNP)',
-    descriptionAr: 'تدقيق محاضر مجالس الإدارة وفق معايير المركز الوطني.',
+    descriptionAr:
+      'تدقيق محاضر المجالس وفق قائمة تحقق تشغيلية للمركز الوطني — مفعّلة تلقائياً.',
     category: 'حوكمة',
     author: 'Arabic Buzz / KSA Pack',
     iconName: 'shield',
-    packId: 'ksa-core',
-    skillMarkdownContent: skillMd({
-      id: 'ncnp_governance_auditor',
-      name: 'مدقق حوكمة NCNP',
-      description: 'تدقيق محاضر مجالس الجمعيات وفق معايير المركز الوطني لتنمية القطاع غير الربحي',
-      body: 'راجع محاضر الاجتماعات مقابل متطلبات الإفصاح والنصاب والتصويت. أشر إلى البنود الناقصة دون اختراع وقائع.',
-    }),
+    packId: 'core-auto',
+    autoActive: true,
+    skillMarkdownContent: shippedOrInline(
+      'ncnp_governance_auditor',
+      skillMd({
+        id: 'ncnp_governance_auditor',
+        name: 'مدقق حوكمة NCNP',
+        description: 'تدقيق محاضر مجالس الجمعيات',
+        body: 'راجع المحاضر مقابل النصاب والقرارات والتكليفات دون اختراع وقائع.',
+      })
+    ),
   },
   {
     id: 'qiwa_saudization_calc',

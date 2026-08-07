@@ -16,6 +16,9 @@
  * - email→task / attachments: googleworkspace gws-workflow-email-to-task + recipe-save-email-attachments
  * - presentations: sultanalsafran/agent-skills arabic-presentations
  * - gov research: mattpocock research + free web_search path
+ * - contracts: claude-office-skills contract-review → arabic_contract_review
+ * - bookkeeping: free bookkeeping patterns → association_bookkeeping_lite (NGO MSA)
+ * - NCNP governance + WhatsApp drafting: in-repo association ops
  */
 
 export const CORE_AUTO_SKILL_IDS = [
@@ -48,6 +51,11 @@ export const CORE_AUTO_SKILL_IDS = [
   'gov_web_research',
   'pdf_document_ops',
   'calendar_email_ingest',
+  // Wave 4 — contracts / NGO books / NCNP / WhatsApp drafting
+  'arabic_contract_review',
+  'association_bookkeeping_lite',
+  'ncnp_governance_auditor',
+  'whatsapp_ops_drafter',
 ] as const
 
 export type CoreAutoSkillId = (typeof CORE_AUTO_SKILL_IDS)[number]

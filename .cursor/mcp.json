@@ -58,6 +58,24 @@
       "env": {
         "BRAVE_API_KEY": "${env:BRAVE_API_KEY}"
       }
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.supabase.com/mcp?read_only=true"
+      ]
+    },
+    "imap": {
+      "command": "npx",
+      "args": ["-y", "@aiwerk/mcp-server-imap"],
+      "env": {
+        "IMAP_HOST": "${env:IMAP_HOST}",
+        "IMAP_USER": "${env:IMAP_USER}",
+        "IMAP_PASS": "${env:IMAP_PASS}",
+        "SMTP_SEND_ENABLED": "false"
+      }
     }
   }
 }

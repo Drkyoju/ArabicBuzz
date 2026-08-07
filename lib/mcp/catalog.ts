@@ -383,6 +383,22 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     setupHintAr: 'npx -y @modelcontextprotocol/server-time',
     docsUrl: 'https://github.com/modelcontextprotocol/servers',
   },
+  {
+    id: 'imap',
+    nameAr: 'بريد IMAP (Cursor / ماك)',
+    nameEn: 'IMAP (local Cursor)',
+    descriptionAr:
+      'قراءة صناديق بريد عامة عبر IMAP على الجهاز المحلي — مكمّل لأدوات Gmail الأصلية في المنتج، وليس بديلاً عنها على Netlify.',
+    benefitsAr: 'تشخيص بريد الجمعية من Cursor عند الحاجة لـ IMAP/App Password.',
+    categoryAr: 'مساحة عمل',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr:
+      'محلي فقط في .cursor/mcp.json (@aiwerk/mcp-server-imap). عيّن IMAP_HOST / IMAP_USER / IMAP_PASS (App Password). الإرسال معطّل افتراضياً (SMTP_SEND_ENABLED=false). لا stdio داخل دوال Netlify — المنتج يعتمد Gmail OAuth المدمج.',
+    envKeys: ['IMAP_HOST', 'IMAP_USER', 'IMAP_PASS', 'SMTP_SEND_ENABLED'],
+    docsUrl: 'https://github.com/aiwerk/mcp-server-imap',
+    recommended: false,
+  },
 ]
 
 export function getMcpCatalogItem(id: string) {
