@@ -1,8 +1,10 @@
 'use client'
 
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
@@ -45,6 +47,11 @@ export type UploadedRoomFile = {
   scopeId: string
 }
 
+/** Imperative API so the room composer can accept OS file drops on the textarea. */
+export type LocalUploadHandle = {
+  uploadDeviceFile: (file: File | Blob, filename?: string) => Promise<void>
+}
+
 type PendingVoice = {
   blob: Blob
   mimeType: string
@@ -55,21 +62,24 @@ type PendingVoice = {
   providerLabelAr?: string
 }
 
-/**
- * Room file attach toolbar: drag-drop / pick → room vault, then auto Drive «عقل الشركة».
- */
-export function LocalUploadPanel({
-  scopeId,
-  onUploaded,
-  onFileReady,
-  compact,
-}: {
+type LocalUploadPanelProps = {
   scopeId: string
   onUploaded?: () => void
   /** Fired when a file is saved to the room vault — attach to chat for the agent. */
   onFileReady?: (file: UploadedRoomFile) => void
   compact?: boolean
-}) {
+}
+
+/**
+ * Room file attach toolbar: pick / drop-on-composer → room vault, then auto Drive «عقل الشركة».
+ */
+export const LocalUploadPanel = forwardRef<
+  LocalUploadHandle,
+  LocalUploadPanelProps
+>(function LocalUploadPanel(
+  { scopeId, onUploaded, onFileReady, compact },
+  ref
+) {
   const mediaRef = useRef<ActiveRecording | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -132,8 +142,8 @@ export function LocalUploadPanel({
     if (!el) return
     setPanelCoords(
       coordsForAnchoredFloating(el.getBoundingClientRect(), {
-        width: 320,
-        estimatedHeight: panelRef.current?.offsetHeight || 300,
+        width: 280,
+        estimatedHeight: panelRef.current?.offsetHeight || 200,
         gap: 8,
         padding: 12,
       })
@@ -425,8 +435,17 @@ export function LocalUploadPanel({
     }
   }
 
+  useImperativeHandle(ref, () => ({
+    uploadDeviceFile: async (file, filename) => {
+      const name =
+        filename ||
+        (file instanceof File ? file.name : `upload-${Date.now()}`)
+      await uploadBlob(file, name)
+    },
+  }))
+
   async function pickAndUpload() {
-    setMessage('اختر ملفاً أو اسحبه إلى المنطقة — يُحفظ في الغرفة ثم عقل الشركة.')
+    setMessage('اختر ملفاً — يُحفظ في الغرفة ثم عقل الشركة.')
     const picked = await pickDeviceFile()
     if (!picked) {
       setMessage('')
@@ -692,13 +711,6 @@ export function LocalUploadPanel({
     </div>
   ) : null
 
-  const dropZoneClass = cn(
-    'ab-dropzone',
-    dragOver && 'data-[active=true]',
-    dragOver && '!border-ab-accent !bg-ab-accent/15',
-    busy && 'pointer-events-none opacity-50'
-  )
-
   if (compact) {
     const panel =
       open && panelCoords
@@ -706,7 +718,7 @@ export function LocalUploadPanel({
             <div
               ref={panelRef}
               role="dialog"
-              aria-label="رفع ملف من جهازك"
+              aria-label="إرفاق ملف"
               dir="rtl"
               className="fixed z-[80] overflow-y-auto rounded-xl border border-ab-border bg-white p-2 shadow-lg"
               style={{
@@ -717,48 +729,39 @@ export function LocalUploadPanel({
               }}
             >
               <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-500">
-                اسحب الملف هنا أو اضغط للاختيار — يُحفظ في الغرفة ويُرفع تلقائياً إلى
-                عقل الشركة (Drive).
+                اختر ملفاً أو سجّل صوتاً — أو اسحب الملف مباشرة إلى مربع الرسالة.
               </p>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void pickAndUpload()}
-                onDragOver={onDropZoneDragOver}
-                onDragLeave={onDropZoneDragLeave}
-                onDrop={onDropZoneDrop}
-                className={cn(dropZoneClass, 'w-full py-5')}
-              >
-                <FileUp className="h-6 w-6 text-ab-accent" aria-hidden />
-                <span className="text-xs font-semibold text-ab-ink">
-                  اسحب الملف هنا
-                </span>
-                <span className="text-[10px] text-stone-500">
-                  أو اضغط للاختيار من جهازك
-                </span>
-              </button>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                disabled={busy || Boolean(pendingVoice?.sttBusy)}
-                onClick={() => void toggleMacRecord()}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
-                  recording
-                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
-                    : 'border-ab-border'
-                )}
-              >
-                <Mic className="h-3 w-3" />
-                {recording
-                  ? 'إيقاف'
-                  : macConfigured
-                    ? 'تسجيل للماك'
-                    : 'ملف صوتي'}
-              </button>
-            </div>
-            {voiceReviewBox}
-            {progress != null && (
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void pickAndUpload()}
+                  className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-[11px] font-medium text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+                >
+                  <FileUp className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+                  اختر ملفاً
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || Boolean(pendingVoice?.sttBusy)}
+                  onClick={() => void toggleMacRecord()}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
+                    recording
+                      ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+                      : 'border-ab-border'
+                  )}
+                >
+                  <Mic className="h-3 w-3" />
+                  {recording
+                    ? 'إيقاف'
+                    : macConfigured
+                      ? 'تسجيل للماك'
+                      : 'ملف صوتي'}
+                </button>
+              </div>
+              {voiceReviewBox}
+              {progress != null && (
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
                   <div
                     className="h-full rounded-full bg-ab-accent transition-all"
@@ -829,10 +832,10 @@ export function LocalUploadPanel({
             setOpen((v) => !v)
           }}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
-          aria-label="ارفع من جهازك"
+          aria-label="إرفاق ملف"
           aria-expanded={open}
           aria-haspopup="dialog"
-          title="ارفع من جهازك — اسحب الملف أو اختر"
+          title="إرفاق ملف أو تسجيل صوتي"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -842,32 +845,33 @@ export function LocalUploadPanel({
   }
 
   return (
-    <div className="rounded-md border border-ab-border bg-stone-50 p-2" dir="rtl">
+    <div
+      className={cn(
+        'rounded-md border border-ab-border bg-stone-50 p-2 transition-colors',
+        dragOver && 'border-ab-accent bg-ab-accent/10 ring-2 ring-ab-accent/30',
+        busy && 'opacity-60'
+      )}
+      dir="rtl"
+      onDragOver={onDropZoneDragOver}
+      onDragLeave={onDropZoneDragLeave}
+      onDrop={onDropZoneDrop}
+    >
       <p className="mb-2 text-[11px] leading-relaxed text-stone-600">
         <span className="font-semibold text-ab-ink">ارفع من جهازك</span>
         {' — '}
         Word / Excel / PDF / صور. يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة
         (Drive).
       </p>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void pickAndUpload()}
-        onDragOver={onDropZoneDragOver}
-        onDragLeave={onDropZoneDragLeave}
-        onDrop={onDropZoneDrop}
-        className={cn(dropZoneClass, 'mb-2 w-full min-h-[7.5rem]')}
-        aria-label="اسحب الملف هنا أو اضغط للاختيار"
-      >
-        <FileUp className="h-8 w-8 text-ab-accent" aria-hidden />
-        <span className="text-sm font-semibold text-ab-ink">
-          اسحب الملف وأفلته هنا
-        </span>
-        <span className="text-[11px] text-stone-500">
-          أو اضغط لاختيار ملف من جهازك — ثم يُرفع لعقل الشركة تلقائياً
-        </span>
-      </button>
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void pickAndUpload()}
+          className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs font-medium text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+        >
+          <FileUp className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+          اختر ملفاً
+        </button>
         <button
           type="button"
           disabled={busy || Boolean(pendingVoice?.sttBusy)}
@@ -900,4 +904,4 @@ export function LocalUploadPanel({
       {googleBanner}
     </div>
   )
-}
+})

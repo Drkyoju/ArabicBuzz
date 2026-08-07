@@ -35,8 +35,10 @@ import {
   hydrateScopeMemories,
   useWorkspaceStore,
 } from '@/lib/scopes/workspace-store'
+import { fileFromDataTransfer } from '@/lib/files/pick-device-file'
 import {
   LocalUploadPanel,
+  type LocalUploadHandle,
   type UploadedRoomFile,
 } from '@/components/local-upload-panel'
 import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
@@ -207,6 +209,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const localUploadRef = useRef<LocalUploadHandle>(null)
   const runAbortRef = useRef<AbortController | null>(null)
 
   function attachComposerFile(file: UploadedRoomFile) {
@@ -1941,8 +1944,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
               </div>
             )}
             <form
-              className={`flex items-end gap-1.5 rounded-xl ${
-                composerDrag ? 'ring-2 ring-ab-accent/40' : ''
+              className={`flex items-end gap-1.5 rounded-xl transition-shadow ${
+                composerDrag
+                  ? 'bg-ab-accent/5 ring-2 ring-ab-accent/40'
+                  : ''
               }`}
               onSubmit={(e) => {
                 e.preventDefault()
@@ -1958,7 +1963,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   setComposerDrag(true)
                 }
               }}
-              onDragLeave={() => setComposerDrag(false)}
+              onDragLeave={(e) => {
+                const next = e.relatedTarget as Node | null
+                if (next && e.currentTarget.contains(next)) return
+                setComposerDrag(false)
+              }}
               onDrop={(e) => {
                 e.preventDefault()
                 setComposerDrag(false)
@@ -1970,10 +1979,16 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     mimeType: bridge.mimeType,
                     scopeId: bridge.scopeId || activeScopeId,
                   })
+                  return
+                }
+                const file = fileFromDataTransfer(e.dataTransfer)
+                if (file) {
+                  void localUploadRef.current?.uploadDeviceFile(file)
                 }
               }}
             >
               <LocalUploadPanel
+                ref={localUploadRef}
                 scopeId={activeScopeId}
                 compact
                 onFileReady={attachComposerFile}
