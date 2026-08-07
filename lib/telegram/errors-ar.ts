@@ -54,6 +54,21 @@ export function formatTelegramErrorAr(
     return '⏱️ انتهت مهلة المعالجة. أعد الطلب بجملة أقصر أو قسّمه إلى خطوتين.'
   }
 
+  if (
+    /network|fetch failed|econnreset|enotfound|socket|econnrefused/i.test(
+      lower
+    )
+  ) {
+    return '📡 انقطاع شبكة مؤقت. أعد المحاولة خلال ثوانٍ — أو /ping للتأكد أن البوت يستجيب.'
+  }
+
+  if (/model|provider|openrouter|gemini|quota|insufficient/i.test(lower)) {
+    return [
+      '🧠 تعذّر الوصول لنموذج الذكاء مؤقتاً.',
+      'أعد الطلب بعد قليل. إن استمر: /status ثم راجع مزوّد AI من إعدادات الموقع.',
+    ].join('\n')
+  }
+
   if (/whisper|transcri|stt|تفريغ|صوت/i.test(lower + raw)) {
     return [
       '🎤 تعذّر تفريغ الصوت بوضوح.',

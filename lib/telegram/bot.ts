@@ -82,6 +82,11 @@ import {
   rememberTelegramPeer,
 } from '@/lib/telegram/peer-directory'
 import { formatTelegramErrorAr } from '@/lib/telegram/errors-ar'
+import {
+  buildTelegramHelpAr,
+  buildTelegramStatusLinesAr,
+  TELEGRAM_PING_OK_AR,
+} from '@/lib/telegram/help-copy'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -148,9 +153,10 @@ async function ensureBotCommands(instance: Bot) {
       { command: 'link', description: 'ربط المجموعة/اللجنة بغرفة الموقع' },
       { command: 'start', description: 'بدء الربط أو إظهار المعرّف' },
       { command: 'help', description: 'شرح الاستخدام بدون أوامر' },
-      { command: 'status', description: 'حالة الربط' },
+      { command: 'status', description: 'حالة الربط والوكيل' },
       { command: 'rooms', description: 'المساحة المربوطة' },
       { command: 'approve', description: 'الموافقات المعلّقة' },
+      { command: 'ping', description: 'فحص سريع أن البوت يستجيب' },
       { command: 'ask', description: 'اختياري — نفس الكتابة العادية' },
     ])
     commandsRegistered = true
@@ -307,6 +313,46 @@ async function maybeSendTelegramVoiceReply(ctx: Context, text: string) {
   }
 }
 
+/**
+ * Replace the «جاري…» ack with the final text.
+ * Never call deleteMessage — Telegram shows a scary delete animation and users
+ * report «التليجرام يحذف». Only HITL-approved destructive tools may delete
+ * workspace/Drive content; we do not delete chat messages on Telegram.
+ */
+async function finalizeTelegramAck(opts: {
+  ctx: Context
+  chatId: number | string
+  messageId: number
+  text: string
+  replyMarkup?: InlineKeyboard
+}) {
+  const body = opts.text.slice(0, 4000)
+  try {
+    await opts.ctx.api.editMessageText(
+      opts.chatId,
+      opts.messageId,
+      body,
+      opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
+    )
+    return
+  } catch {
+    /* message not modified / race / transient — do not delete */
+  }
+  try {
+    await opts.ctx.api.editMessageText(
+      opts.chatId,
+      opts.messageId,
+      '✅ تم — الرد بالأسفل'
+    )
+  } catch {
+    /* leave ack visible */
+  }
+  await opts.ctx.reply(
+    body,
+    opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
+  )
+}
+
 async function bindTelegramTools(opts: {
   requesterId: string
   scopeId: string
@@ -457,23 +503,15 @@ async function streamTelegramReply(opts: {
     formatCitationsFooterAr(citations)
 
   const firstApproval = pendingApprovalIds[0]
-  try {
-    await opts.ctx.api.editMessageText(
-      opts.ctx.chat!.id,
-      placeholderId,
-      body.slice(0, 4000),
-      firstApproval
-        ? { reply_markup: buildApprovalKeyboard(firstApproval) }
-        : undefined
-    )
-  } catch {
-    await opts.ctx.reply(
-      body.slice(0, 4000),
-      firstApproval
-        ? { reply_markup: buildApprovalKeyboard(firstApproval) }
-        : undefined
-    )
-  }
+  await finalizeTelegramAck({
+    ctx: opts.ctx,
+    chatId: opts.ctx.chat!.id,
+    messageId: placeholderId,
+    text: body,
+    replyMarkup: firstApproval
+      ? buildApprovalKeyboard(firstApproval)
+      : undefined,
+  })
 
   for (const id of pendingApprovalIds.slice(1, 4)) {
     await opts.ctx.reply(`موافقة مطلوبة أيضاً (#${id.slice(0, 8)})`, {
@@ -563,20 +601,12 @@ async function runTelegramAgentTurn(opts: {
               fromLabelAr,
             })
       const text = [result.messageAr, result.limitsAr].filter(Boolean).join('\n')
-      try {
-        await opts.ctx.api.editMessageText(
-          opts.ctx.chat!.id,
-          ack.message_id,
-          text.slice(0, 4000)
-        )
-      } catch {
-        try {
-          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
-        } catch {
-          /* ignore */
-        }
-        await opts.ctx.reply(text.slice(0, 4000))
-      }
+      await finalizeTelegramAck({
+        ctx: opts.ctx,
+        chatId: opts.ctx.chat!.id,
+        messageId: ack.message_id,
+        text,
+      })
       void mirrorChannelTurnToRoom({
         scopeId,
         channel: 'telegram',
@@ -614,17 +644,12 @@ async function runTelegramAgentTurn(opts: {
         userFirstName: opts.ctx.from?.first_name,
         rawPrompt: opts.promptSource,
       })
-      try {
-        await opts.ctx.api.editMessageText(opts.ctx.chat!.id, ack.message_id, text)
-      } catch {
-        // Avoid leaving «جاري…» + a second final — replace via delete+reply once.
-        try {
-          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
-        } catch {
-          /* ignore */
-        }
-        await opts.ctx.reply(text)
-      }
+      await finalizeTelegramAck({
+        ctx: opts.ctx,
+        chatId: opts.ctx.chat!.id,
+        messageId: ack.message_id,
+        text,
+      })
       void mirrorChannelTurnToRoom({
         scopeId,
         channel: 'telegram',
@@ -682,20 +707,12 @@ async function runTelegramAgentTurn(opts: {
       if (driveHint && /drive|درايف|عقل|brain|google/i.test(opts.promptSource)) {
         text = `${text}\n\n${driveHint}`
       }
-      try {
-        await opts.ctx.api.editMessageText(
-          opts.ctx.chat!.id,
-          ack.message_id,
-          text.slice(0, 4000)
-        )
-      } catch {
-        try {
-          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
-        } catch {
-          /* ignore */
-        }
-        await opts.ctx.reply(text.slice(0, 4000))
-      }
+      await finalizeTelegramAck({
+        ctx: opts.ctx,
+        chatId: opts.ctx.chat!.id,
+        messageId: ack.message_id,
+        text,
+      })
       const attachmentsSent = await sendAttachmentsToTelegramChat({
         ctx: opts.ctx,
         attachments: (run.attachments || []).map((a) => ({
@@ -881,6 +898,7 @@ export function getTelegramBot() {
     const statusRaw = matchBotCommand(cmd, 'status')
     const roomsRaw = matchBotCommand(cmd, 'rooms')
     const approveRaw = matchBotCommand(cmd, 'approve')
+    const pingRaw = matchBotCommand(cmd, 'ping')
     const askRaw = matchBotCommand(cmd, 'ask')
     const bindCmd =
       bindRaw && commandForThisBot(bindRaw.botTag, botUsername) ? bindRaw : null
@@ -898,15 +916,29 @@ export function getTelegramBot() {
       approveRaw && commandForThisBot(approveRaw.botTag, botUsername)
         ? approveRaw
         : null
+    const pingCmd =
+      pingRaw && commandForThisBot(pingRaw.botTag, botUsername) ? pingRaw : null
     const askCmd =
       askRaw && commandForThisBot(askRaw.botTag, botUsername) ? askRaw : null
     const isKnownCommand = Boolean(
-      bindCmd || helpCmd || statusCmd || roomsCmd || approveCmd || askCmd
+      bindCmd ||
+        helpCmd ||
+        statusCmd ||
+        roomsCmd ||
+        approveCmd ||
+        pingCmd ||
+        askCmd
     )
 
     if (
       cmd.startsWith('/') &&
-      (bindRaw || helpRaw || statusRaw || roomsRaw || approveRaw || askRaw) &&
+      (bindRaw ||
+        helpRaw ||
+        statusRaw ||
+        roomsRaw ||
+        approveRaw ||
+        pingRaw ||
+        askRaw) &&
       !isKnownCommand
     ) {
       return
@@ -957,6 +989,21 @@ export function getTelegramBot() {
 
     await ctx.replyWithChatAction('typing')
 
+    // /help and /ping work even before /link (onboarding).
+    if (pingCmd) {
+      await ctx.reply(TELEGRAM_PING_OK_AR)
+      return
+    }
+    if (helpCmd) {
+      const privacy = privacyHintAr(botUsername)
+      await ctx.reply(
+        [buildTelegramHelpAr({ botUsername }), privacy]
+          .filter(Boolean)
+          .join('\n\n')
+      )
+      return
+    }
+
     const scope = await resolveTelegramScope({
       chatId,
       userId,
@@ -968,6 +1015,7 @@ export function getTelegramBot() {
           [
             'اربط المجموعة أولاً:',
             `/link@${botUsername || 'bot'}`,
+            'أو /help لشرح الاستخدام.',
             '',
             privacyHintAr(botUsername),
           ].join('\n')
@@ -1116,70 +1164,32 @@ export function getTelegramBot() {
                 privacyHintAr(botUsername),
               ].join('\n')
             : 'أضِف TELEGRAM_OWNER_CHAT_ID على CranL إن أردت تثبيت مالك التنبيهات.',
-          'أوامر اختيارية: /help · /status · /rooms · /approve',
+          'أوامر اختيارية: /help · /status · /rooms · /approve · /ping',
         ]
           .filter(Boolean)
           .join('\n')
-      )
-      return
-    }
-
-    if (helpCmd) {
-      const tag = botUsername ? `@${botUsername}` : ''
-      await ctx.reply(
-        [
-          '🤖 بوت Arabic Buzz — القروب المربوط = غرفة الفريق على الموقع',
-          'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
-          '',
-          '📌 بعد /link اكتب عادي (بدون /ask):',
-          '• موعد / اجتماع → يُضاف لتقويم الغرفة (توقيت السعودية)',
-          '• مهمة / طلب → لوحة مهام الغرفة',
-          '• ملف / لائحة / حوّل / عدّل → خزنة الغرفة + Drive إن مربوط',
-          '• سؤال / لخّص / ابحث → وكيل١ (+ وكيل٢ عند الانشغال)',
-          '• أرسل لأحمد: … → خاص إن بدأ البوت، وإلا منشور في المجموعة',
-          '• بلّغ المجموعة: … → تنبيه للجميع في القروب',
-          '• نسّق مع سارة: … → تبليغ/تنسيق',
-          '',
-          '🎤 صوت: تفريغ عربي → ملخص القصد → أزرار سريعة + تنفيذ تلقائي',
-          '📎 ملفات: Word / Excel / PDF / صور (+ OCR للممسوح)',
-          '✉️ بريد: إن رُبط Google/صندوق البريد من الموقع',
-          '',
-          'حدود صادقة:',
-          '• Drive يحتاج ربط Google من الموقع',
-          '• لا رسالة خاصة لمن لم يضغط Start على البوت',
-          '• الحذف فقط بموافقة بشرية (أزرار)',
-          '',
-          'أوامر:',
-          `/link${tag} — ربط المجموعة بالغرفة`,
-          '/help · /status · /rooms · /approve',
-          '',
-          'إعداد المجموعة:',
-          '1) أضف البوت كمشرف (رسائل + وسائط)',
-          `2) /link${tag}`,
-          '3) BotFather → Group Privacy → Disable',
-          '4) اكتب طلبك',
-          '',
-          privacyHintAr(botUsername),
-        ].join('\n')
       )
       return
     }
 
     if (statusCmd) {
       const pending = await listPendingApprovals().catch(() => [])
-      await ctx.reply(
-        [
-          'حالة Arabic Buzz عبر تيليجرام:',
-          `المحادثة: ${chatId}${inGroup ? ' (مجموعة مربوطة)' : ' (خاص)'}`,
-          `المساحة: ${scope.scope.nameAr} (${scope.scope.id})`,
-          `موافقات معلّقة: ${pending.length}`,
-          'الوكيل: نص · صوت · ملفات — مثل الموقع',
-          'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
-          inGroup ? privacyHintAr(botUsername) : '',
-        ]
-          .filter(Boolean)
-          .join('\n')
+      const googleHint = await telegramGoogleLinkedHintAr(userId).catch(
+        () => null
       )
+      const lines = buildTelegramStatusLinesAr({
+        chatId,
+        inGroup,
+        scopeNameAr: scope.scope.nameAr,
+        scopeId: scope.scope.id,
+        pendingCount: pending.length,
+        googleHintAr: googleHint,
+      })
+      if (inGroup) {
+        const privacy = privacyHintAr(botUsername)
+        if (privacy) lines.push(privacy)
+      }
+      await ctx.reply(lines.join('\n'))
       return
     }
 

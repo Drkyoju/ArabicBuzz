@@ -50,6 +50,10 @@ const FILE_RE =
 const QUESTION_RE =
   /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف)/u
 
+/** Explicit seat wake / agent mention — prefer full room agent turn. */
+const WAKE_RE =
+  /(?:أيقظ|ايقاظ|وق[ّ]?ظ|wake)\s*(?:ال)?(?:وكيل|agent)|@(?:وكيل|agent)[\u0600-\u06FF0-9a-z_\-]*|وك[ّ]?ل\s+(?:ال)?وكيل|شغ[ّ]?ل\s+(?:ال)?وكيل/iu
+
 /** Chat turns — same core surface as room (no slow Drive full-sync / RPA by default). */
 export const TELEGRAM_SITE_CHAT_TOOLS = [
   'search_knowledge_base',
@@ -164,6 +168,14 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
+  if (WAKE_RE.test(t)) {
+    return {
+      kind: 'question',
+      labelAr: 'إيقاظ وكيل',
+      forceHeavy: t.length > 180 || FILE_RE.test(t),
+      preferFullAgent: true,
+    }
+  }
   if (APPOINTMENT_RE.test(t) && !/كم\s*(?:موعد|مواعيد)/i.test(t)) {
     return {
       kind: 'appointment',
@@ -240,8 +252,10 @@ function workKindNudge(kind: TelegramWorkKind): string {
       ].join(' ')
     case 'question':
       return [
-        '[قصد تيليجرام: سؤال]',
+        '[قصد تيليجرام: سؤال / إيقاظ وكيل]',
+        'أنت مقعد غرفة الموقع — نفّذ فوراً دون انتظار أوامر إضافية.',
         'أجب مباشرة؛ استخدم أدوات البحث/التقويم/الملفات عند الحاجة ثم لخّص ما نُفّذ.',
+        'إن ذُكر وكيل٢ أو انشغل وكيل١ اتبع سياسة الإيقاظ في الغرفة.',
       ].join(' ')
     default:
       return ''

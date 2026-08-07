@@ -1,15 +1,40 @@
 'use client'
 
 import { useMemo, useRef, useState, type ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import { FileText, LayoutGrid, PenLine } from 'lucide-react'
 import { CanvasViewer } from '@/components/canvas/artifact-viewer'
-import { DocumentEditor } from '@/components/canvas/document-editor'
-import {
-  VisualWhiteboard,
-  parseAgentDiagramJson,
-} from '@/components/canvas/visual-whiteboard'
 import { useCanvasStore, type CanvasArtifact } from '@/lib/canvas/store'
+import { parseAgentDiagramJson } from '@/lib/canvas/agent-diagram'
 import { cn } from '@/lib/utils'
+
+const DocumentEditor = dynamic(
+  () =>
+    import('@/components/canvas/document-editor').then((m) => m.DocumentEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-stone-500">
+        جاري تحميل المحرر…
+      </div>
+    ),
+  }
+)
+
+const VisualWhiteboard = dynamic(
+  () =>
+    import('@/components/canvas/visual-whiteboard').then(
+      (m) => m.VisualWhiteboard
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-stone-500">
+        جاري تحميل اللوحة…
+      </div>
+    ),
+  }
+)
 
 type Tab = 'artifact' | 'document' | 'whiteboard'
 

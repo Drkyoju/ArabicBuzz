@@ -19,8 +19,13 @@
     "supabase:link": "supabase link --project-ref vqhbgujxhyodxcneexss",
     "supabase:push": "supabase db push",
     "test:multiplayer": "tsx scripts/test-multiplayer-loop.ts",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "PLAYWRIGHT_BASE_URL=https://arabicbuzz-fooc9h.cranl.net playwright test",
+    "test:live-smoke": "tsx scripts/live-smoke.ts",
     "test:evals": "tsx scripts/run-evals.ts",
     "test:evals:arabic-fc": "tsx scripts/run-arabic-fc-evals.ts",
+    "test:promptfoo": "npx --yes promptfoo@0.118.14 eval -c promptfooconfig.yaml --no-cache",
     "evals:fetch-arabic-fc": "tsx scripts/fetch-arabic-fc-subset.ts",
     "ops:bridge": "node packages/ops-bridge/bin/ab-ops-bridge.mjs",
     "ops:health": "node packages/ops-bridge/bin/healthcheck.mjs"
@@ -74,20 +79,24 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "autoprefixer": "^10.5.4",
     "eslint": "^9",
     "eslint-config-next": "^16.3.0",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.25",
     "prisma": "^5.22.0",
     "supabase": "^2.111.0",
     "tailwindcss": "^3.4.19",
     "tailwindcss-rtl": "^0.9.0",
     "tsx": "^4.23.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "sharp": "^0.35.0",

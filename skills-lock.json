@@ -61,6 +61,12 @@
       "skillPath": "skills/pdf/SKILL.md",
       "computedHash": "cfbc539377088ca7e44a813b30c306327385bbd973cd7a721e1743f60837dd62"
     },
+    "playwright-core": {
+      "source": "testdino-hq/playwright-skill",
+      "sourceType": "github",
+      "skillPath": "core/SKILL.md",
+      "computedHash": "30c421ae32c0110e00f86410a785403e37f690a6f278b96a29ada2156bfbf993"
+    },
     "prisma-cli": {
       "source": "prisma/skills",
       "sourceType": "github",

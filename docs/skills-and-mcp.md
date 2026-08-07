@@ -33,23 +33,36 @@
 
 ### مهارات Cursor المنسوخة من GitHub (مجانية)
 
-`accessibility`, `arabic-presentations`, `docx`, `pdf`, `xlsx`, `netlify-deploy`, `netlify-functions`, `ux-writing-arabic`, `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines`, `hebrew-rtl-best-practices`, `gws-workflow-email-to-task`, `recipe-save-email-attachments`, `meeting-notes`, `research` + مهارات عربيةBuzz (`arabicbuzz-live-qa`, `arabicbuzz-rtl-shell`, `arabicbuzz-netlify-api`).
+`accessibility`, `arabic-presentations`, `docx`, `pdf`, `xlsx`, `netlify-deploy`, `netlify-functions`, `ux-writing-arabic`, `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines`, `hebrew-rtl-best-practices`, `gws-workflow-email-to-task`, `recipe-save-email-attachments`, `meeting-notes`, `research`, `playwright-core` (TestDino), `arabicbuzz-testing` + مهارات عربيةBuzz (`arabicbuzz-live-qa`, `arabicbuzz-rtl-shell`, `arabicbuzz-netlify-api`, `arabicbuzz-taste`).
 
 استعادة الكاش المحلي:
 
 ```bash
 npx skills check
-# أو إعادة التثبيت من skills-lock / الأوامر في تاريخ الالتزام
+npx skills add testdino-hq/playwright-skill/core -y
 npx skills add anthropics/skills@pdf -y
 npx skills add anthropics/skills@docx -y
 npx skills add anthropics/skills@xlsx -y
 npx skills add vercel-labs/agent-skills@vercel-react-best-practices -y
+npx skills add vercel-labs/agent-skills@web-design-guidelines -y
 npx skills add netlify/context-and-tools@netlify-deploy -y
 npx skills add netlify/context-and-tools@netlify-functions -y
 npx skills add addyosmani/web-quality-skills@accessibility -y
 npx skills add sultanalsafran/agent-skills@arabic-presentations -y
 npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 ```
+
+## اختبارات (مجانية / خفيفة)
+
+| الأمر | الغرض |
+|-------|--------|
+| `npm run test:unit` | Vitest — intents تيليجرام، أخطاء عربية، dedupe |
+| `npm run test:live-smoke` | فحص API/HTML ضد CranL (بدون متصفح — يعمل على Monterey) |
+| `npm run test:e2e:smoke` | Playwright ضد CranL (يحتاج Chromium أحدث من macOS 12) |
+| `npm run test:evals -- --offline` | مقاييس الوكيل العربية/الأمان (موجودة) |
+| `npm run test:promptfoo` | بوابات نصية خفيفة عبر `npx promptfoo` (بدون تثبيت ثقيل) |
+
+لا تستخدم localhost لـ QA المنتج.
 
 ## MCP
 
@@ -72,20 +85,20 @@ npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 | Brave Search | `BRAVE_API_KEY` (طبقة مجانية) |
 | IMAP | `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS` |
 
-**تخطّينا عمداً (تكرار / مفتاح / غير مناسب لـ Netlify):** Notion (مفتاح)، Google Workspace MCP منفصل (الأصلي في المنتج يكفي)، Telegram userbot (مفاتيح my.telegram.org؛ البوت المدمج يكفي)، Puppeteer (مكرر لـ Playwright)، WhatsApp Cloud API مدفوع/Meta.
+**تخطّينا عمداً (تكرار / مفتاح / غير مناسب لـ CranL Docker):** Notion (مفتاح)، Google Workspace MCP منفصل (الأصلي في المنتج يكفي)، Telegram userbot (مفاتيح my.telegram.org؛ البوت المدمج يكفي)، Puppeteer (مكرر لـ Playwright)، WhatsApp Cloud API مدفوع/Meta، Apify مدفوع.
 
 بعد التعديل: Settings → Tools & MCP → Refresh، أو أعد فتح Cursor.
 
-### المنتج على Netlify — كتالوج `lib/mcp/catalog.ts`
+### المنتج على CranL / Netlify — كتالوج `lib/mcp/catalog.ts`
 
-- لا stdio داخل دوال Netlify.
+- لا stdio داخل دوال السحابة.
 - Remote: `MCP_REMOTE_SERVERS`, `MCP_GITHUB_URL`, `MCP_TOOLBOX_URL`, `MCP_MARKITDOWN_URL`, …
 - جسر الماك: `node packages/ops-bridge/bin/ab-ops-bridge.mjs list`
 - إعدادات الواجهة: إعدادات → أدوات MCP
 
 إضافات الكتالوج: `fetch`, `git`, `google-workspace-mcp` (اختياري), `telegram-mcp` (ماك فقط), `time`, `imap` (محلي/Cursor فقط).
 
-### مفاتيح شائعة (اختياري — لا تخترع قيماً على Netlify)
+### مفاتيح شائعة (اختياري — لا تخترع قيماً على CranL)
 
 ```
 GITHUB_PERSONAL_ACCESS_TOKEN=
