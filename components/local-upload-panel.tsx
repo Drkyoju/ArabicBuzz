@@ -135,7 +135,7 @@ export function LocalUploadPanel({
         width: 320,
         estimatedHeight: panelRef.current?.offsetHeight || 300,
         gap: 8,
-        padding: 8,
+        padding: 12,
       })
     )
   }, [])

@@ -1699,9 +1699,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           <div
             ref={feedRef}
-            className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-3 md:px-4"
+            className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2.5 py-3 sm:px-3 lg:px-4"
           >
-            <div className="mx-auto w-full max-w-6xl">
+            {/* Full column width — avoid hollow side gutters on wide desktops */}
+            <div className="mx-auto w-full max-w-none">
               {posts.length === 0 ? (
                 <div className="ab-empty mx-auto my-4 max-w-md !py-8">
                   <MessageSquare

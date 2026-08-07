@@ -181,7 +181,9 @@ function DayBlock({
         <p className="text-[10px] text-ab-muted-soft">{subtitle}</p>
       )}
       {events.length === 0 ? (
-        <p className="mt-3 text-[12px] text-ab-muted">لا مواعيد — أضف من التقويم</p>
+        <p className="mt-2 rounded-lg border border-dashed border-ab-border/80 bg-stone-50/70 px-2.5 py-2 text-[11px] leading-snug text-ab-muted">
+          لا مواعيد لهذا اليوم — أضف من التقويم
+        </p>
       ) : (
         <ul className="mt-2 space-y-2">
           {events.map((e) => (
@@ -772,7 +774,7 @@ export function HomeDashboard({
               <button
                 type="button"
                 onClick={() => onNavigate?.('calendar:full')}
-                className="shrink-0 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
+                className="shrink-0 rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-semibold text-white hover:brightness-95"
               >
                 التقويم الكامل
               </button>

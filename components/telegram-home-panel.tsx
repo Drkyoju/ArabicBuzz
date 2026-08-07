@@ -42,13 +42,17 @@ export function TelegramHomePanel() {
 
   if (signedIn !== true || !hydrated) return null
 
-  /* Physical left (not logical start) so RTL sidebar stays clear. */
+  /* Physical left (not logical start) so RTL sidebar stays clear.
+   * Keep inset ≥0.75rem on both sides so the panel never clips the viewport. */
+  const dock =
+    'pointer-events-auto fixed z-[70] bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-[max(0.75rem,env(safe-area-inset-left))]'
+
   if (!open) {
     return (
       <button
         type="button"
         onClick={() => setOpenPersist(true)}
-        className="pointer-events-auto fixed bottom-3 left-3 z-[70] inline-flex items-center gap-1.5 rounded-full border border-ab-border bg-white px-3.5 py-2.5 text-[12px] font-semibold text-ab-ink shadow-ab transition hover:bg-stone-50 md:bottom-4 md:left-4"
+        className={`${dock} inline-flex items-center gap-1.5 rounded-full border border-ab-border bg-white px-3.5 py-2.5 text-[12px] font-semibold text-ab-ink shadow-ab transition hover:bg-stone-50`}
         aria-label="فتح تيليجرام"
         aria-expanded={false}
         data-telegram-fab="1"
@@ -60,16 +64,18 @@ export function TelegramHomePanel() {
   }
 
   return (
-    <div className="pointer-events-auto fixed bottom-3 left-3 z-[70] h-[min(22rem,62vh)] w-[min(20rem,calc(100vw-1.5rem))] md:bottom-4 md:left-4">
+    <div
+      className={`${dock} flex h-[min(22rem,min(62vh,calc(100dvh-1.5rem)))] w-[min(20rem,calc(100dvw-1.5rem))] max-w-[calc(100dvw-1.5rem)] flex-col overflow-hidden`}
+    >
       <TelegramMirrorChat
         variant="panel"
         active={open}
-        className="h-full"
+        className="h-full min-h-0"
         headerExtra={
           <button
             type="button"
             onClick={() => setOpenPersist(false)}
-            className="ab-btn-secondary !h-8 gap-1 !px-2.5 text-[12px] hover:!border-ab-danger hover:!bg-red-50 hover:!text-ab-danger"
+            className="ab-btn-secondary !h-8 shrink-0 gap-1 !px-2.5 text-[12px] hover:!border-ab-danger hover:!bg-red-50 hover:!text-ab-danger"
             aria-label="إغلاق نافذة تيليجرام"
             title="إغلاق"
             data-telegram-close="1"

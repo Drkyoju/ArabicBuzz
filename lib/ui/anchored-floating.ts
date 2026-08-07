@@ -27,7 +27,7 @@ export function coordsForAnchoredFloating(
   const preferredW = opts?.width ?? 320
   const estimatedH = opts?.estimatedHeight ?? 280
   const gap = opts?.gap ?? 8
-  const pad = opts?.padding ?? 8
+  const pad = opts?.padding ?? 12
   const vw = typeof window !== 'undefined' ? window.innerWidth : preferredW
   const vh = typeof window !== 'undefined' ? window.innerHeight : estimatedH
 

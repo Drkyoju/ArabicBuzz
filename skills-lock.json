@@ -13,6 +13,12 @@
       "skillPath": "arabic-presentations/SKILL.md",
       "computedHash": "10111938e9d59c22d2db64161b433b5a086749bdbbf9669ce02df2a5b65e6872"
     },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "6d838b246d0e35d0b53f4f23f98ba7a1dd561937e64f7d0c7553b0928e376c3e"
+    },
     "docx": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -114,6 +120,12 @@
       "sourceType": "github",
       "skillPath": "skills/recipe-save-email-attachments/SKILL.md",
       "computedHash": "da0db4fdfe3fc215a777110aa3c4cc05f575388217a9688ae0292ee03dda6762"
+    },
+    "redesign-existing-projects": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/redesign-skill/SKILL.md",
+      "computedHash": "b405eee0e0e80fc243f731d9aa368bca307e356db7e6157d27101d369dac6726"
     },
     "research": {
       "source": "mattpocock/skills",
