@@ -53,6 +53,12 @@ export async function POST(req: Request) {
     }
 
     const result = await transcribeArabicSpeech(buffer, mimeType)
+    if (!result.text?.trim()) {
+      return Response.json(
+        { error: 'لم يُرصد نص عربي واضح — أعد التسجيل أو اكتب يدوياً' },
+        { status: 422 }
+      )
+    }
     return Response.json({
       ok: true,
       text: result.text,

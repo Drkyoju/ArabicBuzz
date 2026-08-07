@@ -174,6 +174,10 @@ export async function POST(req: Request) {
     const form = await req.formData()
     const file = form.get('file')
     const scopeId = String(form.get('scopeId') || 'shared-demo')
+    const transcript = String(form.get('transcript') || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000)
     const { assertRoomCanPost } = await import('@/lib/rooms/persist')
     const gate = await assertRoomCanPost(
       scopeId,
@@ -353,7 +357,13 @@ export async function POST(req: Request) {
         'مستخدم',
       content:
         meta!.kind === 'audio'
-          ? `🎤 رسالة صوتية: ${meta!.originalName} (id:${meta!.id})\nتم حفظ ملاحظة صوتية (${Math.round(Number(meta!.size) / 1024)} ك.ب)`
+          ? [
+              `🎤 رسالة صوتية: ${meta!.originalName} (id:${meta!.id})`,
+              `تم حفظ ملاحظة صوتية (${Math.round(Number(meta!.size) / 1024)} ك.ب)`,
+              transcript ? `النص: ${transcript}` : null,
+            ]
+              .filter(Boolean)
+              .join('\n')
           : `📎 ملف جاهز للتنزيل: ${meta!.originalName} (id:${meta!.id})\nتم حفظ ${kindAr}: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)`,
     })
 

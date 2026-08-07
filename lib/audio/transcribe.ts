@@ -19,6 +19,34 @@ export function cleanTranscript(text: string): string {
   return text.replace(NOISE_RE, ' ').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * Reject Latin/Franco / random-script “طلاسم” that some models return when
+ * language is wrong or audio is misdecoded. Short numeric replies are OK.
+ */
+export function isPlausibleArabicTranscript(text: string): boolean {
+  const t = cleanTranscript(text)
+  if (!t) return false
+  if (t.length < 2) return false
+  const arabic = (t.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || [])
+    .length
+  const letters = (t.match(/\p{L}/gu) || []).length
+  if (letters === 0) {
+    // digits / punctuation only — allow short confirmations
+    return t.length <= 24
+  }
+  // Prefer Arabic script; allow short mixed if any Arabic letters exist
+  if (arabic >= 2 && arabic / letters >= 0.35) return true
+  if (arabic >= 4) return true
+  return false
+}
+
+function acceptArabicOrNull(text: string | null | undefined): string | null {
+  const cleaned = cleanTranscript(text || '')
+  if (!cleaned) return null
+  if (!isPlausibleArabicTranscript(cleaned)) return null
+  return cleaned
+}
+
 export type ArabicSttProvider =
   | 'willow'
   | 'gemini'
@@ -143,11 +171,11 @@ async function transcribeViaHuggingFace(
       body: new Uint8Array(buffer),
     })
     if (!retry.ok) return null
-    return cleanTranscript(extractHfText(await retry.json()))
+    return acceptArabicOrNull(extractHfText(await retry.json()))
   }
 
   if (!res.ok) return null
-  return cleanTranscript(extractHfText(await res.json()))
+  return acceptArabicOrNull(extractHfText(await res.json()))
 }
 
 async function transcribeViaGroq(
@@ -185,7 +213,7 @@ async function transcribeViaGroq(
   )
   if (!res.ok) return null
   const data = (await res.json()) as { text?: string }
-  return cleanTranscript(data.text || '')
+  return acceptArabicOrNull(data.text || '')
 }
 
 async function transcribeViaDeepgram(
@@ -216,7 +244,7 @@ async function transcribeViaDeepgram(
   }
   const text =
     data.results?.channels?.[0]?.alternatives?.[0]?.transcript || ''
-  return cleanTranscript(text) || null
+  return acceptArabicOrNull(text)
 }
 
 /**
@@ -267,9 +295,9 @@ async function transcribeViaWillow(
     | { text?: string; transcript?: string; result?: string }
     | string
     | null
-  if (typeof data === 'string') return cleanTranscript(data) || null
+  if (typeof data === 'string') return acceptArabicOrNull(data)
   const text = data?.text || data?.transcript || data?.result || ''
-  return cleanTranscript(text) || null
+  return acceptArabicOrNull(text)
 }
 
 /**
@@ -308,7 +336,7 @@ async function transcribeViaGemini(
           parts: [
             {
               text:
-                'انسخ الكلام المنطوق في هذا التسجيل إلى نص عربي فقط بدقة عالية (فصحى أو لهجة خليجية/سعودية حسب المتحدث). لا تلخّص ولا ترجم ولا تضف تعليقات. أعد النص المنطوق فقط.',
+                'انسخ الكلام المنطوق في هذا التسجيل إلى نص عربي بالحروف العربية فقط (فصحى أو لهجة خليجية/سعودية حسب المتحدث). ممنوع الترجمة للإنجليزية أو الكتابة بحروف لاتينية (Franco-Arab). لا تلخّص ولا تضف تعليقات أو علامات. أعد النص العربي المنطوق فقط.',
             },
             {
               inlineData: {
@@ -335,7 +363,7 @@ async function transcribeViaGemini(
   const text =
     json.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join(' ') ||
     ''
-  return cleanTranscript(text) || null
+  return acceptArabicOrNull(text)
 }
 
 /**
@@ -368,13 +396,13 @@ export async function transcribeArabicAudioBuffer(
       language: 'ar',
       prompt: 'نسخ عربي فصيح ولهجات سعودية وخليجية.',
     })
-    const cleaned = cleanTranscript(result.text || '')
+    const cleaned = acceptArabicOrNull(result.text || '')
     if (!cleaned) {
-      throw new Error('لم يتم رصد كلام واضح في الملاحظة الصوتية')
+      throw new Error('لم يتم رصد كلام عربي واضح في الملاحظة الصوتية')
     }
     return cleaned
   } catch (e) {
-    if (e instanceof Error && /ملاحظة|OPENAI|مغلق|واضح/.test(e.message)) {
+    if (e instanceof Error && /ملاحظة|OPENAI|مغلق|واضح|عربي/.test(e.message)) {
       throw e
     }
     throw new Error('تعذر قراءة الملاحظة الصوتية عبر Whisper')

@@ -1978,16 +1978,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 disabled={streaming || isGuest}
                 composerValue={input}
                 onStatus={(msg) => setMicNote(msg)}
-                onPartial={(draft) => {
-                  setInput(draft)
-                  setMicNote('يكتب من الصوت… النص يظهر في المربع — اضغط للإيقاف ثم راجع')
-                }}
+                onRestore={(text) => setInput(text)}
                 onTranscript={(text, meta) => {
                   setInput(text)
                   setMicNote(
                     meta?.providerLabelAr
-                      ? `نُسخ عبر ${meta.providerLabelAr} — صحّح في المربع إن لزم ثم أرسل`
-                      : 'النص في المربع — صحّح إن لزم ثم أرسل'
+                      ? `نُسخ عبر ${meta.providerLabelAr} — راجع وصحّح في المربع ثم أرسل`
+                      : 'النص في المربع — راجع وصحّح إن لزم ثم أرسل'
                   )
                   requestAnimationFrame(() => {
                     composerRef.current?.focus()

@@ -9,13 +9,14 @@ import {
   type DragEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { FileUp, Mic, Paperclip, Link2 } from 'lucide-react'
+import { FileUp, Mic, Paperclip, Link2, Loader2 } from 'lucide-react'
 import {
   checkBrowserRecordSupport,
   extForAudioMime,
   startBrowserRecording,
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
+import { transcribeVoiceBlob } from '@/lib/audio/client-transcribe'
 import { authHeaders, connectGoogleCalendar } from '@/lib/supabase/browser'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
 import {
@@ -44,6 +45,16 @@ export type UploadedRoomFile = {
   scopeId: string
 }
 
+type PendingVoice = {
+  blob: Blob
+  mimeType: string
+  objectUrl: string
+  transcript: string
+  sttBusy: boolean
+  sttError: string | null
+  providerLabelAr?: string
+}
+
 /**
  * Room file attach toolbar: drag-drop / pick → room vault, then auto Drive «عقل الشركة».
  */
@@ -62,6 +73,7 @@ export function LocalUploadPanel({
   const mediaRef = useRef<ActiveRecording | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const pendingUrlRef = useRef<string | null>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
@@ -75,6 +87,7 @@ export function LocalUploadPanel({
   const [needsGoogle, setNeedsGoogle] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [connectingGoogle, setConnectingGoogle] = useState(false)
+  const [pendingVoice, setPendingVoice] = useState<PendingVoice | null>(null)
 
   const refresh = useCallback(async () => {
     const headers = await authHeaders()
@@ -107,6 +120,10 @@ export function LocalUploadPanel({
   useEffect(() => {
     return () => {
       mediaRef.current?.stream.getTracks().forEach((t) => t.stop())
+      if (pendingUrlRef.current) {
+        URL.revokeObjectURL(pendingUrlRef.current)
+        pendingUrlRef.current = null
+      }
     }
   }, [])
 
@@ -138,14 +155,18 @@ export function LocalUploadPanel({
       window.removeEventListener('resize', repositionPanel)
       window.removeEventListener('scroll', repositionPanel, true)
     }
-  }, [open, repositionPanel, files.length, message, needsGoogle, progress])
+  }, [open, repositionPanel, files.length, message, needsGoogle, progress, pendingVoice])
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        if (pendingVoice) return
+        setOpen(false)
+      }
     }
     const onPointer = (e: MouseEvent | PointerEvent) => {
+      if (pendingVoice) return
       const t = e.target as Node | null
       if (!t) return
       if (triggerRef.current?.contains(t)) return
@@ -158,7 +179,7 @@ export function LocalUploadPanel({
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('pointerdown', onPointer, true)
     }
-  }, [open])
+  }, [open, pendingVoice])
 
   function notifyReady(
     meta: {
@@ -279,7 +300,11 @@ export function LocalUploadPanel({
     return data
   }
 
-  async function uploadBlob(file: File | Blob, filename: string) {
+  async function uploadBlob(
+    file: File | Blob,
+    filename: string,
+    opts?: { transcript?: string }
+  ) {
     setBusy(true)
     setMessage('')
     setProgress(0)
@@ -308,6 +333,7 @@ export function LocalUploadPanel({
 
       let roomFileId: string | undefined
       let roomMessage = ''
+      const transcript = opts?.transcript?.trim() || ''
 
       if (asFile.size > hopMax && status.directUpload?.uploadUrl) {
         setProgress(40)
@@ -325,6 +351,7 @@ export function LocalUploadPanel({
         const body = new FormData()
         body.append('scopeId', scopeId)
         body.append('file', asFile)
+        if (transcript) body.append('transcript', transcript)
         const res = await fetch('/api/storage/upload', {
           method: 'POST',
           headers: await authHeaders(),
@@ -456,19 +483,78 @@ export function LocalUploadPanel({
     }
   }
 
+  function clearPendingVoice() {
+    if (pendingUrlRef.current) {
+      URL.revokeObjectURL(pendingUrlRef.current)
+      pendingUrlRef.current = null
+    }
+    setPendingVoice(null)
+  }
+
+  async function runSttOnPending(
+    blob: Blob,
+    mimeType: string,
+    objectUrl: string
+  ) {
+    setPendingVoice({
+      blob,
+      mimeType,
+      objectUrl,
+      transcript: '',
+      sttBusy: true,
+      sttError: null,
+    })
+    setMessage('جاري النسخ العربي… راجع النص قبل الحفظ')
+    const result = await transcribeVoiceBlob(blob, mimeType)
+    setPendingVoice((prev) => {
+      if (!prev || prev.objectUrl !== objectUrl) return prev
+      if (!result.ok) {
+        return {
+          ...prev,
+          sttBusy: false,
+          sttError: result.error,
+          transcript: '',
+        }
+      }
+      return {
+        ...prev,
+        sttBusy: false,
+        sttError: null,
+        transcript: result.text,
+        providerLabelAr: result.providerLabelAr,
+      }
+    })
+    if (!result.ok) {
+      setMessage(
+        `${result.error} — يمكنك حفظ الصوت فقط، أو إعادة النسخ، أو الإلغاء`
+      )
+    } else {
+      setMessage(
+        `نُسخ عبر ${result.providerLabelAr || 'النموذج'} — راجع النص وعدّله ثم اضغط حفظ`
+      )
+    }
+  }
+
   async function toggleMacRecord() {
     if (recording && mediaRef.current) {
       try {
         const { blob, mimeType } = await mediaRef.current.stop()
         mediaRef.current = null
         setRecording(false)
-        await uploadBlob(blob, `voice-${Date.now()}.${extForAudioMime(mimeType)}`)
+        if (pendingUrlRef.current) {
+          URL.revokeObjectURL(pendingUrlRef.current)
+        }
+        const objectUrl = URL.createObjectURL(blob)
+        pendingUrlRef.current = objectUrl
+        if (compact) setOpen(true)
+        await runSttOnPending(blob, mimeType, objectUrl)
       } catch (e) {
         setRecording(false)
         setMessage(e instanceof Error ? e.message : 'فشل حفظ التسجيل')
       }
       return
     }
+    if (pendingVoice || busy) return
     const support = checkBrowserRecordSupport()
     if (!support.ok) {
       setMessage(support.reasonAr || 'التسجيل غير متاح')
@@ -478,15 +564,114 @@ export function LocalUploadPanel({
       const active = await startBrowserRecording()
       mediaRef.current = active
       setRecording(true)
-      setMessage(
-        macConfigured
-          ? 'جاري التسجيل للحفظ على الماك… اضغط مجدداً للإيقاف'
-          : 'جاري التسجيل لحفظ ملف صوتي… اضغط مجدداً للإيقاف'
-      )
+      setMessage('جاري التسجيل… اضغط مجدداً للإيقاف ثم راجع النص قبل الحفظ')
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'تعذّر الوصول للميكروفون')
     }
   }
+
+  async function savePendingVoice() {
+    const pending = pendingVoice
+    if (!pending || busy || pending.sttBusy) return
+    const name = `voice-${Date.now()}.${extForAudioMime(pending.mimeType)}`
+    const transcript = pending.transcript.trim()
+    clearPendingVoice()
+    await uploadBlob(pending.blob, name, {
+      transcript: transcript || undefined,
+    })
+  }
+
+  async function retryPendingStt() {
+    const pending = pendingVoice
+    if (!pending || pending.sttBusy || busy) return
+    await runSttOnPending(pending.blob, pending.mimeType, pending.objectUrl)
+  }
+
+  function cancelPendingVoice() {
+    clearPendingVoice()
+    setMessage('أُلغي التسجيل — لم يُحفظ شيء')
+  }
+
+  const voiceReviewBox = pendingVoice ? (
+    <div className="mt-2 space-y-2 rounded-lg border border-ab-border bg-white p-2">
+      <p className="text-[10px] font-semibold text-ab-ink">
+        مراجعة التسجيل قبل الحفظ
+      </p>
+      <audio
+        controls
+        src={pendingVoice.objectUrl}
+        className="h-8 w-full"
+        preload="metadata"
+      />
+      <label className="block space-y-1">
+        <span className="text-[10px] text-stone-600">
+          النص المنسوخ (عدّله إن لزم)
+          {pendingVoice.providerLabelAr
+            ? ` · ${pendingVoice.providerLabelAr}`
+            : ''}
+        </span>
+        {pendingVoice.sttBusy ? (
+          <div className="flex items-center gap-1.5 rounded-md border border-dashed border-ab-border px-2 py-2 text-[11px] text-stone-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            جاري النسخ العربي…
+          </div>
+        ) : (
+          <textarea
+            dir="rtl"
+            rows={3}
+            value={pendingVoice.transcript}
+            onChange={(e) =>
+              setPendingVoice((prev) =>
+                prev ? { ...prev, transcript: e.target.value } : prev
+              )
+            }
+            placeholder={
+              pendingVoice.sttError
+                ? 'تعذّر النسخ — اكتب النص يدوياً أو احفظ الصوت فقط'
+                : 'سيظهر النص هنا للمراجعة'
+            }
+            className="w-full resize-y rounded-md border border-ab-border bg-stone-50 px-2 py-1.5 text-xs text-ab-ink outline-none focus:border-ab-accent"
+          />
+        )}
+      </label>
+      {pendingVoice.sttError && !pendingVoice.sttBusy && (
+        <p className="text-[10px] text-ab-warn">{pendingVoice.sttError}</p>
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy || pendingVoice.sttBusy}
+          onClick={() => void savePendingVoice()}
+          className="inline-flex items-center rounded-md bg-ab-accent px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
+        >
+          حفظ
+        </button>
+        <button
+          type="button"
+          disabled={busy || pendingVoice.sttBusy}
+          onClick={cancelPendingVoice}
+          className="inline-flex items-center rounded-md border border-ab-border px-2.5 py-1.5 text-[11px] disabled:opacity-40"
+        >
+          إلغاء
+        </button>
+        {(pendingVoice.sttError || !pendingVoice.transcript) &&
+          !pendingVoice.sttBusy && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void retryPendingStt()}
+              className="inline-flex items-center rounded-md border border-ab-border px-2.5 py-1.5 text-[11px] text-ab-accent disabled:opacity-40"
+            >
+              إعادة النسخ
+            </button>
+          )}
+      </div>
+      <p className="text-[10px] leading-relaxed text-stone-500">
+        لا يُرفع الملف حتى تضغط «حفظ». إن فشل النسخ يمكنك حفظ الصوت فقط أو كتابة
+        النص يدوياً.
+      </p>
+    </div>
+  ) : null
 
   const googleBanner = needsGoogle ? (
     <div className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-950">
@@ -552,27 +737,28 @@ export function LocalUploadPanel({
                   أو اضغط للاختيار من جهازك
                 </span>
               </button>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void toggleMacRecord()}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
-                    recording
-                      ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
-                      : 'border-ab-border'
-                  )}
-                >
-                  <Mic className="h-3 w-3" />
-                  {recording
-                    ? 'إيقاف'
-                    : macConfigured
-                      ? 'تسجيل للماك'
-                      : 'ملف صوتي'}
-                </button>
-              </div>
-              {progress != null && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                disabled={busy || Boolean(pendingVoice?.sttBusy)}
+                onClick={() => void toggleMacRecord()}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
+                  recording
+                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+                    : 'border-ab-border'
+                )}
+              >
+                <Mic className="h-3 w-3" />
+                {recording
+                  ? 'إيقاف'
+                  : macConfigured
+                    ? 'تسجيل للماك'
+                    : 'ملف صوتي'}
+              </button>
+            </div>
+            {voiceReviewBox}
+            {progress != null && (
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
                   <div
                     className="h-full rounded-full bg-ab-accent transition-all"
@@ -638,7 +824,10 @@ export function LocalUploadPanel({
           ref={triggerRef}
           type="button"
           disabled={busy}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            if (pendingVoice && open) return
+            setOpen((v) => !v)
+          }}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
           aria-label="ارفع من جهازك"
           aria-expanded={open}
@@ -681,7 +870,7 @@ export function LocalUploadPanel({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || Boolean(pendingVoice?.sttBusy)}
           onClick={() => void toggleMacRecord()}
           className={cn(
             'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs disabled:opacity-40',
@@ -692,12 +881,13 @@ export function LocalUploadPanel({
         >
           <Mic className="h-3.5 w-3.5" />
           {recording
-            ? 'إيقاف وحفظ'
+            ? 'إيقاف للمراجعة'
             : macConfigured
-              ? 'حفظ صوتي للماك'
+              ? 'تسجيل صوتي للماك'
               : 'ملف صوتي'}
         </button>
       </div>
+      {voiceReviewBox}
       {progress != null && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
           <div
