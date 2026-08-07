@@ -1433,7 +1433,10 @@ export type AgentEngineInput = {
 export type AgentEngineResult = {
   text: string
   modelSlug: string
+  /** Tools bound for this run. */
   toolNames: string[]
+  /** Tools actually invoked (from step toolResults). */
+  usedTools: import('@/lib/agents/citation-events').UsedToolCall[]
   steps: number
   citations: import('@/lib/scopes/types').RoomCitation[]
   pendingApprovalIds: string[]
@@ -1509,6 +1512,7 @@ export async function runAgentEngine(
       text: result.text,
       modelSlug,
       toolNames,
+      usedTools: extracted.usedTools,
       steps: result.steps?.length ?? 1,
       citations: extracted.citations,
       pendingApprovalIds: extracted.pendingApprovalIds,
