@@ -23,7 +23,11 @@ type SpeechRecognitionEventLike = {
   }>
 }
 
-export type LiveCaptionMode = 'webspeech' | 'chunk-poll' | 'listening-only'
+export type LiveCaptionMode =
+  | 'webspeech'
+  | 'chunk-poll'
+  | 'hybrid'
+  | 'listening-only'
 
 export type LiveCaptionHandle = {
   mode: LiveCaptionMode
@@ -41,7 +45,9 @@ export function looksLikeArabicDraft(text: string): boolean {
     .length
   const letters = (t.match(/\p{L}/gu) || []).length
   if (letters === 0) return t.length <= 24
-  if (arabic >= 1 && arabic / letters >= 0.25) return true
+  // Allow short MSA words early («أبغا», «نعم»)
+  if (arabic >= 2 && arabic / letters >= 0.2) return true
+  if (arabic >= 1 && arabic / letters >= 0.35) return true
   if (arabic >= 3) return true
   return false
 }
@@ -59,10 +65,121 @@ export function browserSupportsLiveSpeech(): boolean {
   return Boolean(getSpeechRecognitionCtor())
 }
 
+function startWebSpeechCaptions(opts: {
+  lang: string
+  onPartial: (spoken: string) => void
+  onStatus?: (message: string) => void
+}): (() => void) | null {
+  const Ctor = getSpeechRecognitionCtor()
+  if (!Ctor) return null
+
+  let listening = true
+  const finalChunks: string[] = []
+  let lastGood = ''
+  let rec: SpeechRec | null = null
+
+  try {
+    rec = new Ctor()
+    rec.lang = opts.lang
+    rec.continuous = true
+    rec.interimResults = true
+    rec.maxAlternatives = 1
+
+    rec.onresult = (ev) => {
+      if (!listening) return
+      let interim = ''
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const row = ev.results[i]
+        const piece = (row[0]?.transcript || '').trim()
+        if (!piece) continue
+        if (row.isFinal) finalChunks.push(piece)
+        else interim += `${piece} `
+      }
+      const spoken = [finalChunks.join(' '), interim.trim()]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (!spoken) return
+      if (looksLikeArabicDraft(spoken)) {
+        lastGood = spoken
+        opts.onPartial(spoken)
+      } else if (lastGood) {
+        opts.onPartial(lastGood)
+      }
+    }
+
+    rec.onerror = () => {
+      /* best-effort; chunk-poll may still fill the box */
+    }
+
+    rec.onend = () => {
+      if (!listening || !rec) return
+      try {
+        rec.start()
+      } catch {
+        /* ignore restart races */
+      }
+    }
+
+    rec.start()
+    return () => {
+      listening = false
+      try {
+        rec?.abort()
+      } catch {
+        try {
+          rec?.stop()
+        } catch {
+          /* ignore */
+        }
+      }
+      rec = null
+    }
+  } catch {
+    return null
+  }
+}
+
+function startChunkPollCaptions(opts: {
+  getPartialBlob: () => { blob: Blob; mimeType: string } | null
+  onPartial: (spoken: string) => void
+}): () => void {
+  let active = true
+  let inflight = false
+
+  const tick = async () => {
+    if (!active || inflight) return
+    const snap = opts.getPartialBlob()
+    if (!snap || snap.blob.size < 1800) return
+    inflight = true
+    try {
+      const result = await transcribeVoiceBlob(snap.blob, snap.mimeType)
+      if (!active) return
+      if (result.ok && looksLikeArabicDraft(result.text)) {
+        opts.onPartial(result.text)
+      }
+    } catch {
+      /* ignore poll errors */
+    } finally {
+      inflight = false
+    }
+  }
+
+  const id = window.setInterval(() => void tick(), 2200)
+  void tick()
+
+  return () => {
+    active = false
+    window.clearInterval(id)
+  }
+}
+
 /**
  * Live interim captions while MediaRecorder runs.
- * - Prefer Web Speech `ar-SA` for display only (never the send/save source of truth).
- * - Else poll short recorder snapshots through the free Arabic STT cascade.
+ * - Prefer Web Speech `ar-SA` for fast display (never the send/save source of truth).
+ * - Always poll recorder snapshots through Arabic STT when available — Web Speech
+ *   often stays silent while MediaRecorder holds the mic.
  * - Else emit listening-only status («جاري الاستماع…»).
  */
 export function startLiveCaptions(opts: {
@@ -73,126 +190,78 @@ export function startLiveCaptions(opts: {
   lang?: string
 }): LiveCaptionHandle {
   const lang = opts.lang || 'ar-SA'
-  const Ctor = getSpeechRecognitionCtor()
+  const stops: Array<() => void> = []
+  let lastSpoken = ''
 
-  if (Ctor) {
-    let listening = true
-    const finalChunks: string[] = []
-    let lastGood = ''
-    let rec: SpeechRec | null = null
+  const emit = (spoken: string) => {
+    const t = spoken.replace(/\s+/g, ' ').trim()
+    if (!t || t === lastSpoken) return
+    // Prefer growing transcripts; allow shorter only if much more Arabic-looking
+    if (
+      t.length + 8 < lastSpoken.length &&
+      looksLikeArabicDraft(lastSpoken)
+    ) {
+      return
+    }
+    lastSpoken = t
+    opts.onPartial(t)
+  }
 
-    try {
-      rec = new Ctor()
-      rec.lang = lang
-      rec.continuous = true
-      rec.interimResults = true
-      rec.maxAlternatives = 1
+  const stopWeb = startWebSpeechCaptions({
+    lang,
+    onPartial: emit,
+    onStatus: opts.onStatus,
+  })
+  if (stopWeb) stops.push(stopWeb)
 
-      rec.onresult = (ev) => {
-        if (!listening) return
-        let interim = ''
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          const row = ev.results[i]
-          const piece = (row[0]?.transcript || '').trim()
-          if (!piece) continue
-          if (row.isFinal) finalChunks.push(piece)
-          else interim += `${piece} `
-        }
-        const spoken = [finalChunks.join(' '), interim.trim()]
-          .filter(Boolean)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-        if (!spoken) return
-        if (looksLikeArabicDraft(spoken)) {
-          lastGood = spoken
-          opts.onPartial(spoken)
-        } else if (lastGood) {
-          // Keep last Arabic draft; ignore Latin/garbage interim
-          opts.onPartial(lastGood)
-        }
-      }
+  if (opts.getPartialBlob) {
+    stops.push(
+      startChunkPollCaptions({
+        getPartialBlob: opts.getPartialBlob,
+        onPartial: emit,
+      })
+    )
+  }
 
-      rec.onerror = () => {
-        /* best-effort live captions */
-      }
-
-      rec.onend = () => {
-        if (!listening || !rec) return
-        try {
-          rec.start()
-        } catch {
-          /* ignore restart races */
-        }
-      }
-
-      rec.start()
-      opts.onStatus?.(
-        'الكلام يظهر أثناء الحديث (مسودة) — بعد الإيقاف نُسخ عربي دقيق للمراجعة'
-      )
-      return {
-        mode: 'webspeech',
-        stop: () => {
-          listening = false
-          try {
-            rec?.abort()
-          } catch {
-            try {
-              rec?.stop()
-            } catch {
-              /* ignore */
-            }
-          }
-          rec = null
-        },
-      }
-    } catch {
-      /* fall through to chunk poll */
+  if (stops.length === 0) {
+    opts.onStatus?.(
+      'جاري الاستماع… النص العربي الدقيق يظهر بعد الإيقاف للمراجعة'
+    )
+    return {
+      mode: 'listening-only',
+      stop: () => {},
     }
   }
 
-  if (opts.getPartialBlob) {
-    let active = true
-    let inflight = false
-    let lastText = ''
-    opts.onStatus?.('جاري الاستماع… سيظهر نص تقريبي أثناء الحديث')
-    opts.onPartial('')
-
-    const tick = async () => {
-      if (!active || inflight) return
-      const snap = opts.getPartialBlob?.()
-      if (!snap || snap.blob.size < 2500) return
-      inflight = true
-      try {
-        const result = await transcribeVoiceBlob(snap.blob, snap.mimeType)
-        if (!active) return
-        if (result.ok && looksLikeArabicDraft(result.text)) {
-          lastText = result.text
-          opts.onPartial(result.text)
-        }
-      } catch {
-        /* ignore poll errors */
-      } finally {
-        inflight = false
-      }
-    }
-
-    const id = window.setInterval(() => void tick(), 3200)
-    void tick()
-
+  if (stopWeb && opts.getPartialBlob) {
+    opts.onStatus?.(
+      'الكلام يظهر أثناء الحديث في المربع — بعد الإيقاف نُسخ أدق؛ أرسل يدوياً'
+    )
     return {
-      mode: 'chunk-poll',
+      mode: 'hybrid',
       stop: () => {
-        active = false
-        window.clearInterval(id)
-        void lastText
+        for (const s of stops) s()
       },
     }
   }
 
-  opts.onStatus?.('جاري الاستماع… النص العربي الدقيق يظهر بعد الإيقاف للمراجعة')
+  if (stopWeb) {
+    opts.onStatus?.(
+      'الكلام يظهر أثناء الحديث (مسودة) — بعد الإيقاف نُسخ عربي دقيق للمراجعة'
+    )
+    return {
+      mode: 'webspeech',
+      stop: () => {
+        for (const s of stops) s()
+      },
+    }
+  }
+
+  opts.onStatus?.('جاري الاستماع… سيظهر نص تقريبي أثناء الحديث في المربع')
   return {
-    mode: 'listening-only',
-    stop: () => {},
+    mode: 'chunk-poll',
+    stop: () => {
+      for (const s of stops) s()
+    },
   }
 }

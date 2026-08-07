@@ -15,10 +15,8 @@ import { cn } from '@/lib/utils'
 type MicState = 'idle' | 'recording' | 'transcribing'
 
 /**
- * Mic → live interim draft (Web Speech ar-SA or chunk STT) + final Arabic STT.
- *
- * Live captions are display-only. On stop they are cleared and replaced by the
- * server Arabic cascade; the user always reviews/edits before send.
+ * Mic → live interim draft into the composer (Web Speech + chunk STT) + final
+ * Arabic STT into the same box. Never auto-sends — user reviews and presses Enter.
  */
 export function ComposerMicButton({
   composerValue = '',
@@ -33,9 +31,9 @@ export function ComposerMicButton({
   /** Current composer text — kept as prefix while dictating. */
   composerValue?: string
   onTranscript: (text: string, meta?: { providerLabelAr?: string }) => void
-  /** Live interim draft while recording (prefix + spoken). Cleared on stop. */
+  /** Live interim draft while recording (prefix + spoken). Stays until final STT. */
   onPartial?: (text: string) => void
-  /** Restore composer if STT fails (clears any accidental draft). */
+  /** Optional: reset composer only when recording fails to start / aborts empty. */
   onRestore?: (text: string) => void
   /** Status line above the composer (avoids clipped tooltips). */
   onStatus?: (message: string) => void
@@ -48,6 +46,7 @@ export function ComposerMicButton({
   const activeRef = useRef<ActiveRecording | null>(null)
   const liveRef = useRef<LiveCaptionHandle | null>(null)
   const prefixRef = useRef('')
+  const liveDraftRef = useRef('')
 
   function setHint(message: string) {
     onStatus?.(message)
@@ -79,34 +78,38 @@ export function ComposerMicButton({
         setState('idle')
         setHint('انقطع التسجيل — حاول مرة ثانية')
         onRestore?.(prefixRef.current)
+        liveDraftRef.current = ''
         return
       }
 
       setState('transcribing')
       stopLiveCaptions()
-      // Drop live draft immediately — final text comes only from Arabic STT.
-      onRestore?.(prefixRef.current)
-      setHint('جاري النسخ العربي الدقيق… راجع النص في المربع قبل الإرسال')
+      // Keep live draft in the box while refining — do not wipe.
+      setHint('جاري النسخ العربي الدقيق… النص يبقى في المربع — راجع ثم أرسل Enter')
       try {
         const { blob, mimeType } = await activeRef.current.stop()
         activeRef.current = null
         const result = await transcribeVoiceBlob(blob, mimeType)
         if (!result.ok) {
-          onRestore?.(prefixRef.current)
-          setHint(result.error)
+          // Keep whatever live draft the user already sees so they can edit/send.
+          setHint(
+            `${result.error} — عدّل المسودة في المربع أو أعد التسجيل. لا يُرسل تلقائياً`
+          )
           return
         }
         const full = [prefixRef.current, result.text]
           .filter(Boolean)
           .join(' ')
           .trim()
+        liveDraftRef.current = full
         onTranscript(full, { providerLabelAr: result.providerLabelAr })
         setHint(
-          `نسخ عربي عبر ${result.providerLabelAr || 'النموذج'} — صحّح في المربع ثم أرسل`
+          `نسخ عربي عبر ${result.providerLabelAr || 'النموذج'} — صحّح في المربع ثم اضغط Enter للإرسال`
         )
       } catch (e) {
-        onRestore?.(prefixRef.current)
-        setHint(e instanceof Error ? e.message : 'فشل النسخ الصوتي')
+        setHint(
+          `${e instanceof Error ? e.message : 'فشل النسخ الصوتي'} — المسودة باقية في المربع`
+        )
       } finally {
         setState('idle')
       }
@@ -124,6 +127,7 @@ export function ComposerMicButton({
     try {
       setHint('يُطلب إذن الميكروفون…')
       prefixRef.current = composerValue.trim()
+      liveDraftRef.current = prefixRef.current
       const active = await startBrowserRecording()
       activeRef.current = active
       setState('recording')
@@ -136,13 +140,14 @@ export function ComposerMicButton({
             .filter(Boolean)
             .join(' ')
             .trim()
-          onPartial?.(combined || prefixRef.current)
+          liveDraftRef.current = combined || prefixRef.current
+          onPartial?.(liveDraftRef.current)
         },
       })
 
       if (liveRef.current.mode === 'listening-only') {
         setHint(
-          'جاري الاستماع… الكلام يظهر أثناء الحديث إن دعم المتصفح؛ والنسخ العربي الدقيق بعد الإيقاف'
+          'جاري الاستماع… الكلام يظهر في المربع إن أمكن؛ والنسخ العربي الدقيق بعد الإيقاف — أرسل يدوياً'
         )
       }
     } catch (e) {
@@ -184,12 +189,12 @@ export function ComposerMicButton({
       </button>
       {showHint && state === 'idle' && (
         <span className="max-w-[7.5rem] text-center text-[9px] leading-tight text-stone-500">
-          الكلام يظهر أثناء الحديث
+          كلام حي في المربع · Enter للإرسال
         </span>
       )}
       {showHint && state === 'recording' && (
         <span className="max-w-[7.5rem] text-center text-[9px] leading-tight text-ab-warn">
-          مسودة حية…
+          يُكتب في المربع…
         </span>
       )}
     </div>

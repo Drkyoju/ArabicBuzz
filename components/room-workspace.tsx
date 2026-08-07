@@ -2197,7 +2197,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             )}
             <details className="mb-1.5 rounded-md border border-ab-border/70 bg-stone-50/80 px-2.5 py-1.5 text-[10px] text-stone-600">
               <summary className="cursor-pointer select-none font-medium text-stone-700">
-                كيف يعمل الصوت؟ الكلام يظهر أثناء الحديث
+                كيف يعمل الصوت؟ كلام حي في المربع ثم Enter
               </summary>
               <p className="mt-1.5 whitespace-pre-line leading-relaxed">
                 {VOICE_HOW_TO_AR}
@@ -2344,8 +2344,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   setInput(text)
                   setMicNote(
                     meta?.providerLabelAr
-                      ? `نُسخ عبر ${meta.providerLabelAr} — راجع وصحّح ثم أرسل (الوكيل يطّلع فوراً)`
-                      : 'النص في المربع — راجع ثم أرسل؛ الوكيل الجاهز يرد مباشرة'
+                      ? `نُسخ عبر ${meta.providerLabelAr} — راجع ثم Enter للإرسال (لا تلقائي)`
+                      : 'النص في المربع — راجع ثم Enter؛ الوكيل الجاهز يرد بعد الإرسال'
                   )
                   requestAnimationFrame(() => {
                     composerRef.current?.focus()

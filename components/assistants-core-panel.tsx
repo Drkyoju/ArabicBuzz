@@ -38,6 +38,7 @@ import type {
 } from '@/lib/assistants/types'
 import { TelegramMirrorChat } from '@/components/telegram-mirror-chat'
 import { AssistantsOpsSeatsStrip } from '@/components/assistants-ops-seats'
+import { ComposerMicButton } from '@/components/composer-mic-button'
 import {
   AB_ATTACH_ASSISTANTS,
   AB_FILE_DND,
@@ -370,6 +371,7 @@ export function AssistantsCorePanel({
   const [tick, setTick] = useState(0)
   const [pendingFiles, setPendingFiles] = useState<BridgeFilePayload[]>([])
   const [composerDrag, setComposerDrag] = useState(false)
+  const [micNote, setMicNote] = useState('')
   const [tgMobileOpen, setTgMobileOpen] = useState(false)
   const inFlight = useRef(new Set<string>())
   const drainLock = useRef(false)
@@ -752,24 +754,50 @@ export function AssistantsCorePanel({
           if (file) attachPendingFile(file)
         }}
       >
+        {micNote ? (
+          <p
+            className="mb-2 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] leading-snug text-stone-700"
+            role="status"
+          >
+            {micNote}
+          </p>
+        ) : null}
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-ab-ink">
             ماذا تريد تنفيذه؟
           </span>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={4}
-            dir="rtl"
-            placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF — أو اسحب صوتاً من تيليجرام"
-            className="ab-input resize-y !py-3"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                void enqueue()
-              }
-            }}
-          />
+          <div className="flex items-end gap-2">
+            <ComposerMicButton
+              disabled={enqueueBusy || signedIn !== true}
+              composerValue={message}
+              showHint
+              onStatus={setMicNote}
+              onPartial={(text) => setMessage(text)}
+              onRestore={(text) => setMessage(text)}
+              onTranscript={(text, meta) => {
+                setMessage(text)
+                setMicNote(
+                  meta?.providerLabelAr
+                    ? `نُسخ عبر ${meta.providerLabelAr} — راجع ثم أرسل يدوياً (لا تلقائي)`
+                    : 'النص في المربع — راجع ثم أرسل أو ⌘/Ctrl+Enter'
+                )
+              }}
+            />
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              dir="rtl"
+              placeholder="مثال: فرّز بريدي اليوم… أو تكلم بالميكروفون — النص يظهر هنا ثم أرسل يدوياً"
+              className="ab-input min-w-0 flex-1 resize-y !py-3"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  void enqueue()
+                }
+              }}
+            />
+          </div>
         </label>
 
         {pendingFiles.length > 0 ? (
