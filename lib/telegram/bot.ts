@@ -87,6 +87,7 @@ import {
   buildTelegramStatusLinesAr,
   TELEGRAM_PING_OK_AR,
 } from '@/lib/telegram/help-copy'
+import { installTelegramNeverDeleteGuard } from '@/lib/telegram/never-delete'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -129,7 +130,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - الملفات: list_workspace_files / search_knowledge_base → brain_open_document → read/edit/convert → return_file (يُرسل كمرفق هنا).
 - صور / PDF ممسوح: arabic_ocr. عقل الشركة: search_knowledge_base / brain_* — لا drive_sync_brain إلا بطلب مزامنة صريح.
 - «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم البوت؛ وإلا المجموعة المربوطة — اشرح بصراحة.
-- للإجراءات عالية المخاطر (الحذف فقط) اطلب موافقة بشرية. لا تختلق لوائح أو قرارات.
+- للإجراءات عالية المخاطر (الحذف فقط على ملفات الغرفة/Drive) اطلب موافقة بشرية. لا تختلق لوائح أو قرارات.
+- ممنوع نهائياً حذف رسائل أو وسائط أو محادثات تيليجرام — عدّل رسالة التقدّم أو اتركها وأرسل رداً جديداً فقط.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
@@ -315,9 +317,9 @@ async function maybeSendTelegramVoiceReply(ctx: Context, text: string) {
 
 /**
  * Replace the «جاري…» ack with the final text.
- * Never call deleteMessage — Telegram shows a scary delete animation and users
- * report «التليجرام يحذف». Only HITL-approved destructive tools may delete
- * workspace/Drive content; we do not delete chat messages on Telegram.
+ * HARD BAN: never deleteMessage / deleteMessages — edit only, or leave ack
+ * + new reply. HITL file deletes on the site must not cascade here.
+ * Guard: installTelegramNeverDeleteGuard on the Bot instance.
  */
 async function finalizeTelegramAck(opts: {
   ctx: Context
@@ -336,7 +338,7 @@ async function finalizeTelegramAck(opts: {
     )
     return
   } catch {
-    /* message not modified / race / transient — do not delete */
+    /* message not modified / race / transient — never delete */
   }
   try {
     await opts.ctx.api.editMessageText(
@@ -345,7 +347,7 @@ async function finalizeTelegramAck(opts: {
       '✅ تم — الرد بالأسفل'
     )
   } catch {
-    /* leave ack visible */
+    /* leave ack visible — never delete */
   }
   await opts.ctx.reply(
     body,
@@ -847,6 +849,7 @@ export function getTelegramBot() {
   if (bot) return bot
 
   bot = new Bot(token)
+  installTelegramNeverDeleteGuard(bot)
   void ensureBotCommands(bot)
 
   bot.on('my_chat_member', async (ctx) => {

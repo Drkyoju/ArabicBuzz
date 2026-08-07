@@ -1,3 +1,5 @@
+import { telegramBotApiFetch } from '@/lib/telegram/never-delete'
+
 export type ApprovalNotificationPayload = {
   approvalId: string
   actionName: string
@@ -102,14 +104,17 @@ export async function emitNotification(opts: {
     const chatId = opts.to || (await resolveTelegramTarget(opts.meta))
     if (!token || !chatId) return { ok: false }
     try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: opts.textAr.slice(0, 4000),
-        }),
-      })
+      const res = await telegramBotApiFetch(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: opts.textAr.slice(0, 4000),
+          }),
+        }
+      )
       if (!res.ok) {
         const errBody = await res.text().catch(() => '')
         console.warn(
@@ -170,7 +175,7 @@ export async function emitTelegramDocument(opts: {
       type: 'application/octet-stream',
     })
     form.append('document', blob, opts.filename || 'file.bin')
-    const res = await fetch(
+    const res = await telegramBotApiFetch(
       `https://api.telegram.org/bot${token}/sendDocument`,
       { method: 'POST', body: form }
     )
@@ -195,28 +200,31 @@ async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const chatId = await resolveTelegramTarget({ scopeId: payload.scopeId })
   if (!token || !chatId) return
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: `${payload.messageAr}\n\nالإجراء: ${payload.actionName}\nالنوع: حذف — يلزم موافقة\nالمستوى: ${payload.riskLevel}`,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '✅ موافقة على الحذف',
-                callback_data: 'approve_' + payload.approvalId,
-              },
-              {
-                text: '❌ رفض الحذف',
-                callback_data: 'reject_' + payload.approvalId,
-              },
+    await telegramBotApiFetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `${payload.messageAr}\n\nالإجراء: ${payload.actionName}\nالنوع: حذف — يلزم موافقة\nالمستوى: ${payload.riskLevel}`,
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '✅ موافقة على الحذف',
+                  callback_data: 'approve_' + payload.approvalId,
+                },
+                {
+                  text: '❌ رفض الحذف',
+                  callback_data: 'reject_' + payload.approvalId,
+                },
+              ],
             ],
-          ],
-        },
-      }),
-    })
+          },
+        }),
+      }
+    )
   } catch (e) {
     console.warn('Telegram notify failed', e)
   }

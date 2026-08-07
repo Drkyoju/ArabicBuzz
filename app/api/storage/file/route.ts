@@ -141,7 +141,10 @@ export async function PATCH(req: Request) {
   }
 }
 
-/** Delete: ?scopeId=&id= */
+/**
+ * Delete workspace/Mac vault file only.
+ * Never cascades to Telegram — chat messages/media must remain (never-delete policy).
+ */
 export async function DELETE(req: Request) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response

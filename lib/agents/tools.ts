@@ -338,6 +338,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
     }
   },
   delete_file: async (_n, params) => {
+    // Workspace vault only — never delete Telegram messages/media.
     const scopeId = String(params.scopeId || 'shared-demo')
     const ref = String(params.fileId || params.id || params.name || '').trim()
     if (!ref) throw new Error('يلزم fileId أو اسم الملف للحذف.')
@@ -349,7 +350,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       ...result,
       fileId: found.id,
       name: found.originalName,
-      messageAr: `حُذف الملف «${found.originalName}» من مساحة الغرفة.`,
+      messageAr: `حُذف الملف «${found.originalName}» من مساحة الغرفة (بدون حذف على تيليجرام).`,
     }
   },
   send_message: async (_n, params) => {
