@@ -12,6 +12,9 @@ import {
   ListTodo,
   X,
   Maximize2,
+  FileText,
+  MessageCircle,
+  Paperclip,
 } from 'lucide-react'
 import {
   authHeaders,
@@ -33,6 +36,18 @@ import type {
   AssistantCatalogItem,
   AssistantJob,
 } from '@/lib/assistants/types'
+import { TelegramMirrorChat } from '@/components/telegram-mirror-chat'
+import {
+  AB_ATTACH_ASSISTANTS,
+  AB_FILE_DND,
+  composerHintForFile,
+  dispatchAttachRoom,
+  getBridgeDragData,
+  parseFileMarkersFromText,
+  sendWorkspaceFileToTelegram,
+  setBridgeDragData,
+  type BridgeFilePayload,
+} from '@/lib/files/workspace-bridge'
 
 const LS_KEY = 'ab-assistant-queue-v1'
 
@@ -138,6 +153,33 @@ function TaskPane({
       : null
   const model = modelLabelAr(job.modelSlug)
   const effort = effortLabelAr(job.effortLevel)
+  const resultFiles = useMemo(
+    () =>
+      job.resultText
+        ? parseFileMarkersFromText(job.resultText, job.scopeId)
+        : [],
+    [job.resultText, job.scopeId]
+  )
+  const [tgBusyId, setTgBusyId] = useState<string | null>(null)
+  const [tgNote, setTgNote] = useState('')
+
+  async function sendFileToTelegram(f: BridgeFilePayload) {
+    setTgBusyId(f.fileId)
+    setTgNote('')
+    try {
+      const sent = await sendWorkspaceFileToTelegram({
+        ...f,
+        kind: f.kind || 'edited',
+        edited: true,
+      })
+      if (!sent.ok) throw new Error(sent.error || 'تعذّر الإرسال')
+      setTgNote(`أُرسل «${f.name}» لتيليجرام`)
+    } catch (e) {
+      setTgNote(e instanceof Error ? e.message : 'خطأ')
+    } finally {
+      setTgBusyId(null)
+    }
+  }
 
   return (
     <article
@@ -221,6 +263,46 @@ function TaskPane({
         ) : null}
       </div>
 
+      {resultFiles.length > 0 ? (
+        <ul className="mt-2 space-y-1 border-t border-black/5 pt-2">
+          {resultFiles.map((f) => (
+            <li
+              key={f.fileId}
+              draggable
+              onDragStart={(e) => {
+                setBridgeDragData(e.dataTransfer, {
+                  ...f,
+                  kind: f.kind || 'edited',
+                  edited: true,
+                })
+              }}
+              className="flex flex-wrap items-center gap-1 rounded-md border border-ab-border/70 bg-white/80 px-1.5 py-1"
+              title="اسحب إلى لوحة تيليجرام لإرسال للمجموعة"
+            >
+              <FileText
+                className="h-3 w-3 shrink-0 text-ab-accent"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">
+                {f.name}
+              </span>
+              <button
+                type="button"
+                disabled={tgBusyId === f.fileId}
+                onClick={() => void sendFileToTelegram(f)}
+                className="inline-flex items-center gap-0.5 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-900"
+              >
+                <MessageCircle className="h-2.5 w-2.5" aria-hidden />
+                {tgBusyId === f.fileId ? '…' : 'أرسل لتيليجرام'}
+              </button>
+            </li>
+          ))}
+          {tgNote ? (
+            <li className="text-[10px] text-emerald-800">{tgNote}</li>
+          ) : null}
+        </ul>
+      ) : null}
+
       <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-black/5 pt-2">
         {(job.resultText && job.resultText.length > 160) ||
         (job.usedTools && job.usedTools.length > 0) ? (
@@ -285,8 +367,27 @@ export function AssistantsCorePanel({
   const [barOpen, setBarOpen] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  const [pendingFiles, setPendingFiles] = useState<BridgeFilePayload[]>([])
+  const [composerDrag, setComposerDrag] = useState(false)
+  const [tgMobileOpen, setTgMobileOpen] = useState(false)
   const inFlight = useRef(new Set<string>())
   const drainLock = useRef(false)
+
+  const attachPendingFile = useCallback((file: BridgeFilePayload) => {
+    setPendingFiles((prev) => {
+      if (prev.some((p) => p.fileId === file.fileId)) return prev
+      return [...prev, { ...file, scopeId: file.scopeId || scopeId }]
+    })
+  }, [scopeId])
+
+  useEffect(() => {
+    const onAttach = (e: Event) => {
+      const detail = (e as CustomEvent<BridgeFilePayload>).detail
+      if (detail?.fileId) attachPendingFile(detail)
+    }
+    window.addEventListener(AB_ATTACH_ASSISTANTS, onAttach)
+    return () => window.removeEventListener(AB_ATTACH_ASSISTANTS, onAttach)
+  }, [attachPendingFile])
 
   const applyLimits = useCallback(
     (data: { maxParallel?: number; maxPerUser?: number; hintAr?: string }) => {
@@ -534,11 +635,13 @@ export function AssistantsCorePanel({
       setError('سجّل الدخول لإرسال المهام.')
       return
     }
-    const text = message.trim()
-    if (!text) {
-      setError('اكتب ما تريده في خانة الطلب.')
+    const base = message.trim()
+    if (!base && pendingFiles.length === 0) {
+      setError('اكتب ما تريده في خانة الطلب أو أرفق ملفاً من تيليجرام.')
       return
     }
+    const fileHints = pendingFiles.map((f) => composerHintForFile(f)).join('\n')
+    const text = [base, fileHints].filter(Boolean).join('\n\n')
     setEnqueueBusy(true)
     try {
       const prefs = resolvePrefs(scopeId)
@@ -571,6 +674,7 @@ export function AssistantsCorePanel({
       applyLimits(data)
       setJobs((prev) => mergeJobs(prev, [data.job!]))
       setMessage('')
+      setPendingFiles([])
       setBarOpen(true)
     } catch {
       setError('تعذّر الاتصال بالخادم.')
@@ -601,8 +705,25 @@ export function AssistantsCorePanel({
 
   void tick
 
+  const telegramPane = (
+    <TelegramMirrorChat
+      variant="embedded"
+      className="min-h-[28rem] lg:min-h-0 lg:sticky lg:top-3 lg:h-[min(36rem,calc(100dvh-5rem))]"
+      onSendToAssistants={attachPendingFile}
+      onSendToRoom={(file) => {
+        dispatchAttachRoom(file)
+        onNavigate?.('chats')
+      }}
+    />
+  )
+
   return (
-    <section className="ab-page-narrow relative pb-36" dir="rtl">
+    <section
+      className="relative mx-auto w-full max-w-6xl space-y-5 px-4 py-5 pb-36 md:px-6"
+      dir="rtl"
+    >
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1 space-y-5">
       <div>
         <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
         <p className="ab-subtitle">
@@ -622,7 +743,19 @@ export function AssistantsCorePanel({
             ) : null}
           </span>
           <span className="text-[11px] text-ab-muted">{hintAr}</span>
+          <button
+            type="button"
+            className="ab-btn-secondary gap-1 lg:hidden"
+            onClick={() => setTgMobileOpen((o) => !o)}
+          >
+            <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+            {tgMobileOpen ? 'إخفاء تيليجرام' : 'تيليجرام مباشر'}
+          </button>
         </div>
+        <p className="mt-2 text-[11px] leading-snug text-ab-muted">
+          اسحب صوتاً/ملفاً من تيليجرام إلى خانة الطلب أو اضغط «للمساعدين». اسحب
+          ملفاً معدَّلاً من بطاقة المهمة إلى لوحة تيليجرام لإرساله للمجموعة فوراً.
+        </p>
         {canAccessOpsUi && cuaStatusAr !== null ? (
           <p className="mt-2 text-[12px] text-ab-muted">
             جسر Cua:{' '}
@@ -636,6 +769,10 @@ export function AssistantsCorePanel({
           </p>
         ) : null}
       </div>
+
+      {tgMobileOpen ? (
+        <div className="lg:hidden">{telegramPane}</div>
+      ) : null}
 
       {signedIn !== true && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
@@ -694,7 +831,25 @@ export function AssistantsCorePanel({
           </p>
         )}
 
-      <div className="ab-composer">
+      <div
+        className={cn(
+          'ab-composer',
+          composerDrag && 'ring-2 ring-ab-accent/40'
+        )}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (e.dataTransfer.types.includes(AB_FILE_DND)) {
+            setComposerDrag(true)
+          }
+        }}
+        onDragLeave={() => setComposerDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setComposerDrag(false)
+          const file = getBridgeDragData(e.dataTransfer)
+          if (file) attachPendingFile(file)
+        }}
+      >
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-ab-ink">
             ماذا تريد تنفيذه؟
@@ -704,7 +859,7 @@ export function AssistantsCorePanel({
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
             dir="rtl"
-            placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF"
+            placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF — أو اسحب صوتاً من تيليجرام"
             className="ab-input resize-y !py-3"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -714,6 +869,32 @@ export function AssistantsCorePanel({
             }}
           />
         </label>
+
+        {pendingFiles.length > 0 ? (
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {pendingFiles.map((f) => (
+              <li
+                key={f.fileId}
+                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2 py-1 text-[11px] font-semibold text-ab-accent"
+              >
+                <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{f.name}</span>
+                <button
+                  type="button"
+                  className="rounded p-0.5 hover:bg-ab-accent/20"
+                  aria-label="إزالة المرفق"
+                  onClick={() =>
+                    setPendingFiles((prev) =>
+                      prev.filter((p) => p.fileId !== f.fileId)
+                    )
+                  }
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="ab-toolbar mt-3 flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap items-end gap-3">
@@ -760,7 +941,7 @@ export function AssistantsCorePanel({
               نشط {running.length}/{drainCap} · انتظار {waiting.length}
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {gridJobs.map((j) => (
               <TaskPane
                 key={j.id}
@@ -780,9 +961,15 @@ export function AssistantsCorePanel({
           تظهر كورقة صغيرة هنا.
         </p>
       )}
+        </div>
+
+        <aside className="hidden w-full shrink-0 lg:block lg:w-[min(20rem,30%)]">
+          {telegramPane}
+        </aside>
+      </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ab-border bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md md:ms-[15.5rem]">
-        <div className="mx-auto max-w-3xl px-4 py-2" dir="rtl">
+        <div className="mx-auto max-w-6xl px-4 py-2" dir="rtl">
           <button
             type="button"
             onClick={() => setBarOpen((o) => !o)}

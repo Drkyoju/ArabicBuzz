@@ -9,6 +9,10 @@ import { FilePreviewPane } from '@/components/file-preview-pane'
 import { ComposerMicButton } from '@/components/composer-mic-button'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useFilePreviewStore } from '@/lib/files/preview-store'
+import {
+  AB_ATTACH_ROOM,
+  consumePendingRoomAttach,
+} from '@/lib/files/workspace-bridge'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import {
   createBrowserSupabaseClient,
@@ -376,6 +380,32 @@ export function RoomWorkspace({ className }: { className?: string }) {
     }
     window.addEventListener('ab-file-preview', onPreview)
     return () => window.removeEventListener('ab-file-preview', onPreview)
+  }, [activeScopeId])
+
+  // Telegram / assistants bridge → attach to room composer
+  useEffect(() => {
+    function applyBridge(detail: {
+      fileId: string
+      name?: string
+      mimeType?: string
+      scopeId?: string
+    }) {
+      if (!detail?.fileId) return
+      if (detail.scopeId && detail.scopeId !== activeScopeId) return
+      attachComposerFile({
+        fileId: detail.fileId,
+        name: detail.name || detail.fileId,
+        mimeType: detail.mimeType,
+        scopeId: detail.scopeId || activeScopeId,
+      })
+    }
+    function onRoomAttach(e: Event) {
+      applyBridge((e as CustomEvent).detail || {})
+    }
+    window.addEventListener(AB_ATTACH_ROOM, onRoomAttach)
+    const pending = consumePendingRoomAttach()
+    if (pending) applyBridge(pending)
+    return () => window.removeEventListener(AB_ATTACH_ROOM, onRoomAttach)
   }, [activeScopeId])
 
   useEffect(() => {

@@ -37,6 +37,8 @@ import {
   sendAttachmentsToTelegramChat,
   type TelegramAttachmentRef,
 } from '@/lib/telegram/media'
+import { saveWorkspaceFile } from '@/lib/documents/workspace'
+import { formatDownloadMarker } from '@/lib/files/file-markers'
 import {
   classifyTelegramFastPath,
   isHeavyTelegramPrompt,
@@ -1108,13 +1110,41 @@ export function getTelegramBot() {
         await ctx.reply('لم أتمكن من تفريغ الصوت. أعد التسجيل أو اكتب النص.')
         return
       }
+
+      const voiceName = `telegram-voice-${Date.now()}.ogg`
+      let voiceMarker = ''
+      try {
+        const saved = await saveWorkspaceFile({
+          scopeId: scope.scope.id,
+          buffer,
+          originalName: voiceName,
+          mimeType: mime,
+        })
+        voiceMarker = formatDownloadMarker({
+          name: saved.file.originalName,
+          fileId: saved.file.id,
+          kind: 'voice',
+        })
+      } catch (saveErr) {
+        console.error('[telegram] voice save', saveErr)
+      }
+
       await ctx.reply(
         `🎤 تم التحويل (${stt.providerLabelAr}):\n${transcript.slice(0, 3500)}`
       )
 
+      const promptSource = [
+        transcript,
+        voiceMarker
+          ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+
       const out = await runTelegramAgentTurn({
         ctx,
-        promptSource: transcript,
+        promptSource,
         chatId,
         userId,
         scope,
@@ -1260,6 +1290,11 @@ export function getTelegramBot() {
         userAsk,
         '',
         `ملف مرفوع من تيليجرام: «${ingested.name}» (fileId=${ingested.fileId}, mime=${ingested.mimeType}).`,
+        formatDownloadMarker({
+          name: ingested.name,
+          fileId: ingested.fileId,
+          kind: ingested.mimeType.startsWith('audio/') ? 'voice' : 'file',
+        }),
         ocrHint,
       ].join('\n')
 

@@ -1,8 +1,14 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import type { DbRoomPost } from '@/lib/rooms/persist'
+import {
+  parseFileMarkersFromText,
+  type BridgeFilePayload,
+} from '@/lib/files/file-markers'
 
 export type TelegramFeedSource = 'site' | 'telegram' | 'bot'
+
+export type TelegramFeedAttachment = BridgeFilePayload
 
 export type TelegramFeedItem = {
   id: string
@@ -12,6 +18,8 @@ export type TelegramFeedItem = {
   senderAr: string
   atIso: string
   atAr: string
+  /** Workspace files / voice notes mirrored from the group. */
+  attachments?: TelegramFeedAttachment[]
 }
 
 const SOURCE_LABEL: Record<TelegramFeedSource, string> = {
@@ -68,6 +76,7 @@ function rowToFeedItem(row: DbRoomPost): TelegramFeedItem | null {
   const textAr = unwrapOutboundTelegramContent(row.content)
   if (isNoiseRoomPost(textAr)) return null
   const source = classifyTelegramFeedSource(row)
+  const attachments = parseFileMarkersFromText(textAr, row.scope_id)
   return {
     id: row.id,
     textAr,
@@ -76,6 +85,7 @@ function rowToFeedItem(row: DbRoomPost): TelegramFeedItem | null {
     senderAr: row.author_name_ar,
     atIso: row.created_at,
     atAr: fmtAt(row.created_at),
+    ...(attachments.length ? { attachments } : {}),
   }
 }
 
