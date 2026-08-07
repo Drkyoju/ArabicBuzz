@@ -8,21 +8,22 @@ import {
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
 import { transcribeVoiceBlob } from '@/lib/audio/client-transcribe'
+import { startLiveCaptions, type LiveCaptionHandle } from '@/lib/audio/live-captions'
 import { VOICE_MIC_HINT_AR } from '@/lib/rooms/voice-intent'
 import { cn } from '@/lib/utils'
 
 type MicState = 'idle' | 'recording' | 'transcribing'
 
 /**
- * Mic → high-quality Arabic STT in the composer (Whisper/Gemini/Willow cascade).
+ * Mic → live interim draft (Web Speech ar-SA or chunk STT) + final Arabic STT.
  *
- * Live browser SpeechRecognition is NOT injected into the composer — it often
- * produces Latin/garbage for Arabic. Final text comes only from the server STT
- * cascade and lands in an editable field for the user to review before send.
+ * Live captions are display-only. On stop they are cleared and replaced by the
+ * server Arabic cascade; the user always reviews/edits before send.
  */
 export function ComposerMicButton({
   composerValue = '',
   onTranscript,
+  onPartial,
   onRestore,
   onStatus,
   disabled,
@@ -32,6 +33,8 @@ export function ComposerMicButton({
   /** Current composer text — kept as prefix while dictating. */
   composerValue?: string
   onTranscript: (text: string, meta?: { providerLabelAr?: string }) => void
+  /** Live interim draft while recording (prefix + spoken). Cleared on stop. */
+  onPartial?: (text: string) => void
   /** Restore composer if STT fails (clears any accidental draft). */
   onRestore?: (text: string) => void
   /** Status line above the composer (avoids clipped tooltips). */
@@ -43,14 +46,25 @@ export function ComposerMicButton({
 }) {
   const [state, setState] = useState<MicState>('idle')
   const activeRef = useRef<ActiveRecording | null>(null)
+  const liveRef = useRef<LiveCaptionHandle | null>(null)
   const prefixRef = useRef('')
 
   function setHint(message: string) {
     onStatus?.(message)
   }
 
+  function stopLiveCaptions() {
+    try {
+      liveRef.current?.stop()
+    } catch {
+      /* ignore */
+    }
+    liveRef.current = null
+  }
+
   useEffect(() => {
     return () => {
+      stopLiveCaptions()
       activeRef.current?.stream.getTracks().forEach((t) => t.stop())
       activeRef.current = null
     }
@@ -61,6 +75,7 @@ export function ComposerMicButton({
 
     if (state === 'recording') {
       if (!activeRef.current) {
+        stopLiveCaptions()
         setState('idle')
         setHint('انقطع التسجيل — حاول مرة ثانية')
         onRestore?.(prefixRef.current)
@@ -68,6 +83,9 @@ export function ComposerMicButton({
       }
 
       setState('transcribing')
+      stopLiveCaptions()
+      // Drop live draft immediately — final text comes only from Arabic STT.
+      onRestore?.(prefixRef.current)
       setHint('جاري النسخ العربي الدقيق… راجع النص في المربع قبل الإرسال')
       try {
         const { blob, mimeType } = await activeRef.current.stop()
@@ -109,10 +127,26 @@ export function ComposerMicButton({
       const active = await startBrowserRecording()
       activeRef.current = active
       setState('recording')
-      setHint(
-        'جاري التسجيل (تنظيف محلي)… اضغط للإيقاف — سيظهر النص للمراجعة قبل الإرسال'
-      )
+
+      liveRef.current = startLiveCaptions({
+        getPartialBlob: () => active.snapshot(),
+        onStatus: setHint,
+        onPartial: (spoken) => {
+          const combined = [prefixRef.current, spoken]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+          onPartial?.(combined || prefixRef.current)
+        },
+      })
+
+      if (liveRef.current.mode === 'listening-only') {
+        setHint(
+          'جاري الاستماع… الكلام يظهر أثناء الحديث إن دعم المتصفح؛ والنسخ العربي الدقيق بعد الإيقاف'
+        )
+      }
     } catch (e) {
+      stopLiveCaptions()
       setHint(e instanceof Error ? e.message : 'تعذّر بدء التسجيل')
       setState('idle')
       activeRef.current = null
@@ -150,7 +184,12 @@ export function ComposerMicButton({
       </button>
       {showHint && state === 'idle' && (
         <span className="max-w-[7.5rem] text-center text-[9px] leading-tight text-stone-500">
-          قل: أبغا…
+          الكلام يظهر أثناء الحديث
+        </span>
+      )}
+      {showHint && state === 'recording' && (
+        <span className="max-w-[7.5rem] text-center text-[9px] leading-tight text-ab-warn">
+          مسودة حية…
         </span>
       )}
     </div>

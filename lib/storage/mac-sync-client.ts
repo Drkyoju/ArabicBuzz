@@ -271,3 +271,50 @@ export function directMacReplaceInfo(id: string) {
     replaceUrl: `${publicUploadUrl}/files/${encodeURIComponent(id)}`,
   }
 }
+
+/**
+ * PDF↔DOCX via Mac agent (LibreOffice / pdf2docx / visual page images).
+ * Prefer mode=visual when Arabic ToUnicode is broken.
+ */
+export async function macConvertPdfDocx(opts: {
+  buffer: Buffer
+  filename: string
+  toFormat: 'docx' | 'pdf'
+  mode?: 'auto' | 'soffice' | 'pdf2docx' | 'visual'
+}): Promise<{
+  buffer: Buffer
+  filename: string
+  log: string
+}> {
+  const res = await macFetch('/pdf-docx-convert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: opts.filename,
+      contentBase64: opts.buffer.toString('base64'),
+      toFormat: opts.toFormat,
+      mode: opts.mode || 'auto',
+    }),
+    timeoutMs: 320_000,
+  })
+  const data = (await res.json()) as {
+    ok?: boolean
+    filename?: string
+    contentBase64?: string
+    log?: string
+    error?: string
+    hintAr?: string
+  }
+  if (!res.ok || !data.contentBase64) {
+    throw new Error(
+      data.error ||
+        data.hintAr ||
+        `فشل تحويل الماك (HTTP ${res.status}). شغّل npm run storage:sync.`
+    )
+  }
+  return {
+    buffer: Buffer.from(data.contentBase64, 'base64'),
+    filename: data.filename || opts.filename.replace(/\.[^.]+$/, '') + `.${opts.toFormat}`,
+    log: String(data.log || ''),
+  }
+}

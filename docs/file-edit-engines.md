@@ -78,6 +78,8 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 
 بعض لوائح Word→PDF (Sakkal Majalla وغيرها) تبدو صحيحة بصرياً لكن استخراج Unicode يعطي حروفاً مكسورة (مثل «املادة» بدل «المادة»). المسار النصّي و`pdf2docx` المحلي يرثان العطب → طلاسم في Word. **فضّل Google Drive أو CloudConvert**؛ ولا تستخدم pdf-lib كمحرّك تحويل.
 
+عند فشل Google/CloudConvert ووجود `MAC_SYNC_URL`: `convert_document` ينتج **Word مرئي** (صورة لكل صفحة عبر `POST /pdf-docx-convert` mode=visual) — تخطيط مطابق 100%، غير قابل للتحرير النصي. للتحرير النصي: Drive OCR/تصدير.
+
 ## اختياري مدفوع: CloudConvert
 
 | المتغير | الوصف |

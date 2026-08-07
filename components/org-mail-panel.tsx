@@ -660,6 +660,33 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         </p>
       )}
 
+      {configured && mailbox && (
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-ab-border/80 bg-stone-50/90 px-3 py-2 text-[11px] leading-snug text-stone-600"
+          role="status"
+        >
+          <span className="inline-flex items-center gap-1.5 font-semibold text-ab-ink">
+            <Mail className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+            حالة SMTP/IMAP
+          </span>
+          <span dir="ltr" className="font-mono text-[10px] text-stone-500">
+            {mailbox.emailAddress}
+          </span>
+          {mailbox.lastErrorAr ? (
+            <span className="text-amber-800">آخر خطأ: {mailbox.lastErrorAr}</span>
+          ) : (
+            <span className="text-emerald-800">
+              الربط محفوظ — الإرسال = قبول خادم SMTP فقط (ليس إيصال تسليم)
+            </span>
+          )}
+          {mailbox.lastSyncAt && (
+            <span className="text-stone-400">
+              مزامنة {new Date(mailbox.lastSyncAt).toLocaleString('ar-SA')}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 text-xs text-stone-500">
         <Inbox className="h-3.5 w-3.5" aria-hidden />
         {loading
@@ -848,7 +875,9 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       ) : (
                         <p className="mt-1 text-amber-800">
                           {a.extractNoteAr ||
-                            'لا نص مستخرج — قد يلزم جسر Mac لـ PDF الممسوح.'}
+                            (a.ocrUsed
+                              ? 'OCR لم يُرجع نصاً صالحاً.'
+                              : 'لا نص مستخرج — لـ PDF الممسوح شغّل جسر الماك (npm run storage:sync + MAC_SYNC_URL) أو arabic_ocr.')}
                         </p>
                       )}
                     </div>
@@ -980,9 +1009,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       إغلاق
                     </button>
                   </div>
-                  <p className="text-[10px] leading-relaxed text-stone-400">
-                    بعد الإرسال نعرض قبول خادم SMTP فقط — ليس تأكيد وصول إلى صندوق
-                    المستلم (لا إيصال تسليم متاح حالياً).
+                  <p className="rounded-md bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-500">
+                    <span className="font-semibold text-stone-700">حالة التسليم:</span>{' '}
+                    نجاح الزر يعني «smtp_accepted» (قبل الخادم الرسالة). لا يوجد
+                    DSN/إيصال قراءة في إعداد الجمعية الحالي — راقب صندوق الوارد
+                    أو ارفض SMTP في رسالة الخطأ.
                   </p>
                 </div>
               )}

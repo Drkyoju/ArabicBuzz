@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { PanelRightOpen, MessageSquare, Eye } from 'lucide-react'
+import { PanelRightOpen, MessageSquare, MessageCircle, Eye, X } from 'lucide-react'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { FilePreviewPane } from '@/components/file-preview-pane'
@@ -200,6 +200,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  /** Integrated Telegram live pane (side split) — not a floating mini widget. */
+  const [showTelegram, setShowTelegram] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
@@ -281,6 +283,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   // Shared rooms: keep activity collapsed by default so chat stays primary
   useEffect(() => {
     setShowMore(false)
+    setShowTelegram(false)
     setMembersPanePx(readMembersPanePx(activeScopeId))
     setSeatsMaxPx(readSeatsPx(activeScopeId))
     // Mobile: seats always start collapsed so they don't eat the chat.
@@ -1318,7 +1321,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         <section
           ref={chatColumnRef}
           className={cn(
-            'relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
+            'relative flex min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
+            showTelegram && shared ? 'flex-col md:flex-row' : 'flex-col',
             sidePanelOpen ? 'md:shrink-0' : 'w-full flex-1'
           )}
           style={
@@ -1332,6 +1336,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           aria-label="غرفة العمل"
           onFocusCapture={() => setPresenceSurface('feed')}
         >
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {showOnboarding && (
             <div className="space-y-3 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
@@ -1428,9 +1433,44 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <button
                     type="button"
                     onClick={() => {
+                      setShowTelegram((v) => {
+                        const next = !v
+                        if (next) {
+                          setShowMore(false)
+                          if (
+                            typeof window !== 'undefined' &&
+                            window.matchMedia('(max-width: 767px)').matches
+                          ) {
+                            setSeatsCollapsed(true)
+                          }
+                        }
+                        return next
+                      })
+                    }}
+                    className={cn(
+                      '!py-1 text-[11px]',
+                      showTelegram ? 'ab-btn-accent-soft' : 'ab-btn-secondary'
+                    )}
+                    aria-label={
+                      showTelegram
+                        ? 'إخفاء نافذة تيليجرام المباشرة'
+                        : 'فتح نافذة تيليجرام المباشرة للمجموعة'
+                    }
+                    aria-expanded={showTelegram}
+                    aria-controls="room-telegram-live-pane"
+                  >
+                    <MessageCircle className="h-3 w-3" aria-hidden />
+                    {showTelegram ? 'إخفاء تيليجرام' : 'تيليجرام'}
+                  </button>
+                )}
+                {shared && (
+                  <button
+                    type="button"
+                    onClick={() => {
                       setShowMore((v) => {
                         const next = !v
                         if (next) {
+                          setShowTelegram(false)
                           const mobile =
                             typeof window !== 'undefined' &&
                             window.matchMedia('(max-width: 767px)').matches
@@ -1534,25 +1574,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-1">
                   {shared ? (
-                    <>
-                      <RoomTeamPanel scopeId={activeScopeId} />
-                      <TelegramMirrorChat
-                        variant="embedded"
-                        className="min-h-[14rem] max-h-[22rem]"
-                        onSendToRoom={(file) =>
-                          attachComposerFile({
-                            fileId: file.fileId,
-                            name: file.name,
-                            mimeType: file.mimeType,
-                            scopeId: file.scopeId || activeScopeId,
-                          })
-                        }
-                      />
-                      <p className="text-[10px] leading-snug text-stone-500">
-                        اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
-                        مربع الكتابة هنا.
-                      </p>
-                    </>
+                    <RoomTeamPanel scopeId={activeScopeId} />
                   ) : (
                     <>
                       <p className="text-[11px] leading-relaxed text-stone-600">
@@ -1574,25 +1596,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               >
                 <div className="relative z-30 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
                   {shared ? (
-                    <>
-                      <RoomTeamPanel scopeId={activeScopeId} />
-                      <TelegramMirrorChat
-                        variant="embedded"
-                        className="min-h-[14rem] max-h-[22rem]"
-                        onSendToRoom={(file) =>
-                          attachComposerFile({
-                            fileId: file.fileId,
-                            name: file.name,
-                            mimeType: file.mimeType,
-                            scopeId: file.scopeId || activeScopeId,
-                          })
-                        }
-                      />
-                      <p className="text-[10px] leading-snug text-stone-500">
-                        اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
-                        مربع الكتابة هنا.
-                      </p>
-                    </>
+                    <RoomTeamPanel scopeId={activeScopeId} />
                   ) : (
                     <>
                       <p className="text-[11px] leading-relaxed text-stone-600">
@@ -1831,8 +1835,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
           <footer
             className={cn(
               'relative z-0 sticky bottom-0 border-t border-ab-border bg-ab-surface/95 p-2.5 backdrop-blur',
-              // Members sheet/pane owns the hit target for invite «نسخ»
-              showMore && shared && 'pointer-events-none max-md:invisible'
+              // Members sheet owns the hit target for invite «نسخ»
+              showMore && shared && 'pointer-events-none max-md:invisible',
+              // Telegram mobile sheet only — desktop keeps composer for DnD
+              showTelegram &&
+                shared &&
+                'max-md:pointer-events-none max-md:invisible'
             )}
             aria-hidden={showMore && shared ? true : undefined}
           >
@@ -1851,26 +1859,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
             {!mentionPreview &&
               !isGuest &&
               agentsWorking &&
-              collabMode === 'team' &&
-              roomAgents.length > 1 && (
-              <p className="mb-1.5 text-[11px] text-stone-500">
-                كل رسالة يراجعها وكيل جاهز فوراً. قل «أبغا…» أو اكتب طلباً — بلا @.
-                للجميع: «أبغا للجميع» أو <span dir="ltr">@الجميع</span>. حتى{' '}
-                {Math.min(
-                  ASSISTANT_PARALLEL_DEFAULT,
-                  readyAgents.length || roomAgents.length
-                )}{' '}
-                وكيل. اضغط المقعد: شغال ↔ طافي.
-              </p>
-            )}
-            {!mentionPreview &&
-              !isGuest &&
-              agentsWorking &&
-              usesSharedRoomRoster(activeScopeId) &&
-              collabMode !== 'team' && (
-              <p className="mb-1.5 text-[11px] text-stone-500">
-                وكيل جاهز يطّلع على كل رسالة فوراً (بدون @). أمثلة: «أبغا اللائحة»
-                · «عدّل الملف». اضغط المقعد لإيقافه (طافي).
+              ((collabMode === 'team' && roomAgents.length > 1) ||
+                usesSharedRoomRoster(activeScopeId)) && (
+              <p className="mb-1.5 text-[11px] leading-snug text-stone-500">
+                {collabMode === 'team' && roomAgents.length > 1
+                  ? `كل رسالة يراجعها وكيل فوراً (بلا @). للجميع: «أبغا للجميع» أو @الجميع. حتى ${Math.min(
+                      ASSISTANT_PARALLEL_DEFAULT,
+                      readyAgents.length || roomAgents.length
+                    )} وكيل — اضغط المقعد: شغال ↔ طافي.`
+                  : 'الوكلاء يطّلعون فوراً (بلا @). أمثلة: «حوّل إلى Word» · «عدّل الملف». اضغط المقعد لإيقاف وكيل.'}
               </p>
             )}
             {!isGuest && !agentsWorking && (
@@ -2055,6 +2052,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 disabled={streaming || isGuest}
                 composerValue={input}
                 onStatus={(msg) => setMicNote(msg)}
+                onPartial={(text) => setInput(text)}
                 onRestore={(text) => setInput(text)}
                 onTranscript={(text, meta) => {
                   setInput(text)
@@ -2166,6 +2164,65 @@ export function RoomWorkspace({ className }: { className?: string }) {
               )}
             </form>
           </footer>
+          </div>
+
+          {showTelegram && shared ? (
+            <>
+              <div
+                className="fixed inset-0 z-[65] bg-black/35 md:hidden"
+                aria-hidden
+                onClick={() => setShowTelegram(false)}
+              />
+              <aside
+                id="room-telegram-live-pane"
+                className="fixed inset-x-0 bottom-0 z-[66] flex h-[min(88dvh,42rem)] max-h-[92dvh] flex-col overflow-hidden rounded-t-2xl border border-ab-border bg-white shadow-xl md:relative md:inset-auto md:z-20 md:h-full md:max-h-none md:w-[min(26rem,44%)] md:shrink-0 md:rounded-none md:border-0 md:border-s md:border-ab-border md:shadow-none"
+                aria-label="تيليجرام مباشر — مجموعة الغرفة"
+              >
+                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-ab-border bg-ab-stage/80 px-3 py-2 md:hidden">
+                  <p className="text-[12px] font-semibold text-ab-ink">
+                    تيليجرام مباشر · المجموعة
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowTelegram(false)}
+                    className="rounded-md border border-ab-border bg-white px-2 py-1 text-[11px]"
+                  >
+                    إغلاق
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <TelegramMirrorChat
+                    variant="embedded"
+                    active={showTelegram}
+                    className="h-full min-h-[20rem] rounded-none border-0 shadow-none md:min-h-0"
+                    onSendToRoom={(file) =>
+                      attachComposerFile({
+                        fileId: file.fileId,
+                        name: file.name,
+                        mimeType: file.mimeType,
+                        scopeId: file.scopeId || activeScopeId,
+                      })
+                    }
+                    headerExtra={
+                      <button
+                        type="button"
+                        onClick={() => setShowTelegram(false)}
+                        className="ab-btn-ghost !hidden !h-8 !w-8 !px-0 md:!inline-flex"
+                        aria-label="إخفاء تيليجرام"
+                        title="إخفاء"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    }
+                  />
+                </div>
+                <p className="shrink-0 border-t border-ab-border bg-stone-50 px-3 py-1.5 text-[10px] leading-snug text-stone-600">
+                  اسحب ملفاً/صوتاً من رسائل الغرفة أو المرفقات إلى هذه اللوحة — أو
+                  من هنا إلى مربع الكتابة في الغرفة.
+                </p>
+              </aside>
+            </>
+          ) : null}
         </section>
       )}
 

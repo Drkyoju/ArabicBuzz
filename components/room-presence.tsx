@@ -569,7 +569,7 @@ export function RoomPresenceBar({
             ref={panelRef}
             role="dialog"
             aria-label="من في الغرفة الآن"
-            className="fixed z-[80] overflow-y-auto rounded-xl border border-ab-border bg-white p-3 shadow-lg"
+            className="fixed z-[80] flex flex-col overflow-hidden rounded-xl border border-ab-border bg-white p-3 shadow-lg"
             style={{
               top: panelCoords.top,
               left: panelCoords.left,
@@ -578,11 +578,11 @@ export function RoomPresenceBar({
             }}
             dir="rtl"
           >
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ab-ink">
+            <p className="mb-2 flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ab-ink">
               <Users className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
               من في الغرفة الآن
             </p>
-            <ul className="max-h-48 space-y-2 overflow-auto">
+            <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto">
               {online.map((p) => (
                 <li
                   key={p.key}

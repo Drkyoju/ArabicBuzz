@@ -55,7 +55,7 @@ export type TelegramMirrorChatProps = {
 
 /**
  * Live Telegram mirror: messages + send + attachment chips + drop zone.
- * Used by home FAB dock and assistants side pane.
+ * Used by home FAB, assistants side pane, and team-room chrome.
  */
 export function TelegramMirrorChat({
   variant = 'embedded',
@@ -373,7 +373,11 @@ export function TelegramMirrorChat({
               ? 'جاري الإرسال للمجموعة…'
               : dragOver
                 ? 'أفلت هنا لإرسال الملف لتيليجرام'
-                : 'اسحب ملفاً معدَّلاً من المهام إلى هنا · أو اسحب صوتاً/ملفاً من الرسالة إلى المساعدين'}
+                : onSendToRoom && !onSendToAssistants
+                  ? 'اسحب ملفاً/صوتاً من رسائل الغرفة أو المرفقات إلى هنا — أو اسحب من هنا إلى مربع الكتابة'
+                  : onSendToAssistants && !onSendToRoom
+                    ? 'اسحب ملفاً معدَّلاً من المهام إلى هنا · أو اسحب صوتاً/ملفاً من الرسالة إلى المساعدين'
+                    : 'اسحب ملفاً/صوتاً من الغرفة أو المهام إلى هنا — وبالعكس إلى مربع الكتابة'}
           </p>
         )}
 

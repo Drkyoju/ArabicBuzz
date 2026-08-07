@@ -19,6 +19,10 @@ import {
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
 import { transcribeVoiceBlob } from '@/lib/audio/client-transcribe'
+import {
+  startLiveCaptions,
+  type LiveCaptionHandle,
+} from '@/lib/audio/live-captions'
 import { authHeaders, connectGoogleCalendar } from '@/lib/supabase/browser'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
 import {
@@ -81,10 +85,12 @@ export const LocalUploadPanel = forwardRef<
   ref
 ) {
   const mediaRef = useRef<ActiveRecording | null>(null)
+  const liveCaptionRef = useRef<LiveCaptionHandle | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const pendingUrlRef = useRef<string | null>(null)
   const [recording, setRecording] = useState(false)
+  const [liveCaption, setLiveCaption] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [message, setMessage] = useState('')
@@ -190,6 +196,29 @@ export const LocalUploadPanel = forwardRef<
       window.removeEventListener('pointerdown', onPointer, true)
     }
   }, [open, pendingVoice])
+
+  useEffect(() => {
+    return () => {
+      try {
+        liveCaptionRef.current?.stop()
+      } catch {
+        /* ignore */
+      }
+      liveCaptionRef.current = null
+      mediaRef.current?.stream.getTracks().forEach((t) => t.stop())
+      mediaRef.current = null
+    }
+  }, [])
+
+  function stopLiveCaption() {
+    try {
+      liveCaptionRef.current?.stop()
+    } catch {
+      /* ignore */
+    }
+    liveCaptionRef.current = null
+    setLiveCaption('')
+  }
 
   function notifyReady(
     meta: {
@@ -557,6 +586,7 @@ export const LocalUploadPanel = forwardRef<
   async function toggleMacRecord() {
     if (recording && mediaRef.current) {
       try {
+        stopLiveCaption()
         const { blob, mimeType } = await mediaRef.current.stop()
         mediaRef.current = null
         setRecording(false)
@@ -568,6 +598,7 @@ export const LocalUploadPanel = forwardRef<
         if (compact) setOpen(true)
         await runSttOnPending(blob, mimeType, objectUrl)
       } catch (e) {
+        stopLiveCaption()
         setRecording(false)
         setMessage(e instanceof Error ? e.message : 'فشل حفظ التسجيل')
       }
@@ -583,8 +614,19 @@ export const LocalUploadPanel = forwardRef<
       const active = await startBrowserRecording()
       mediaRef.current = active
       setRecording(true)
-      setMessage('جاري التسجيل… اضغط مجدداً للإيقاف ثم راجع النص قبل الحفظ')
+      setLiveCaption('')
+      liveCaptionRef.current = startLiveCaptions({
+        getPartialBlob: () => active.snapshot(),
+        onStatus: setMessage,
+        onPartial: (spoken) => setLiveCaption(spoken),
+      })
+      if (liveCaptionRef.current.mode === 'listening-only') {
+        setMessage(
+          'جاري الاستماع… الكلام يظهر أثناء الحديث إن أمكن؛ بعد الإيقاف راجع النص قبل الحفظ'
+        )
+      }
     } catch (e) {
+      stopLiveCaption()
       setMessage(e instanceof Error ? e.message : 'تعذّر الوصول للميكروفون')
     }
   }
@@ -610,6 +652,21 @@ export const LocalUploadPanel = forwardRef<
     clearPendingVoice()
     setMessage('أُلغي التسجيل — لم يُحفظ شيء')
   }
+
+  const liveCaptionBox =
+    recording && !pendingVoice ? (
+      <div className="mt-2 space-y-1 rounded-lg border border-dashed border-ab-warn/50 bg-ab-warn/5 p-2">
+        <p className="text-[10px] font-semibold text-ab-warn">
+          الكلام يظهر أثناء الحديث (مسودة)
+        </p>
+        <p className="min-h-[2.5rem] whitespace-pre-wrap text-xs leading-relaxed text-ab-ink">
+          {liveCaption.trim() || 'جاري الاستماع…'}
+        </p>
+        <p className="text-[10px] text-stone-500">
+          بعد الإيقاف يُستبدل بنسخ عربي أدق — راجع ثم احفظ. لا يُرفع تلقائياً.
+        </p>
+      </div>
+    ) : null
 
   const voiceReviewBox = pendingVoice ? (
     <div className="mt-2 space-y-2 rounded-lg border border-ab-border bg-white p-2">
@@ -761,6 +818,7 @@ export const LocalUploadPanel = forwardRef<
                       : 'ملف صوتي'}
                 </button>
               </div>
+              {liveCaptionBox}
               {voiceReviewBox}
               {progress != null && (
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
@@ -830,13 +888,26 @@ export const LocalUploadPanel = forwardRef<
           disabled={busy}
           onClick={() => {
             if (pendingVoice && open) return
+            if (recording) {
+              void toggleMacRecord()
+              return
+            }
             setOpen((v) => !v)
           }}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
-          aria-label="إرفاق ملف"
+          className={cn(
+            'inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40',
+            recording
+              ? 'border-ab-warn text-ab-warn animate-pulse'
+              : 'border-ab-border'
+          )}
+          aria-label={recording ? 'إيقاف التسجيل' : 'إرفاق ملف'}
           aria-expanded={open}
           aria-haspopup="dialog"
-          title="إرفاق ملف أو تسجيل صوتي"
+          title={
+            recording
+              ? 'إيقاف ثم مراجعة النص'
+              : 'إرفاق ملف أو تسجيل صوتي — الكلام يظهر أثناء الحديث'
+          }
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -892,6 +963,7 @@ export const LocalUploadPanel = forwardRef<
               : 'ملف صوتي'}
         </button>
       </div>
+      {liveCaptionBox}
       {voiceReviewBox}
       {progress != null && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">

@@ -58,6 +58,8 @@ export type ActiveRecording = {
   stop: () => Promise<{ blob: Blob; mimeType: string }>
   stream: MediaStream
   mimeType: string
+  /** Audio recorded so far (for near-live STT when Web Speech is unavailable). */
+  snapshot: () => { blob: Blob; mimeType: string } | null
 }
 
 function mapGetUserMediaError(err: unknown): string {
@@ -119,6 +121,12 @@ export async function startBrowserRecording(): Promise<ActiveRecording> {
   return {
     stream,
     mimeType: usedMime,
+    snapshot: () => {
+      if (!chunks.length) return null
+      const blob = new Blob(chunks, { type: usedMime })
+      if (blob.size < 64) return null
+      return { blob, mimeType: usedMime }
+    },
     stop: () =>
       new Promise((resolve, reject) => {
         const finish = () => {

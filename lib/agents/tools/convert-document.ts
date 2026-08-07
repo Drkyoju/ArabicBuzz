@@ -28,6 +28,10 @@ import {
   convertViaGoogleDrive,
   googleDriveConvertAvailable,
 } from '@/lib/documents/google-drive-convert'
+import {
+  macConvertPdfDocx,
+  macSyncConfigured,
+} from '@/lib/storage/mac-sync-client'
 
 const FREE_ALLOWED: DocFormat[] = ['docx', 'pdf', 'txt', 'md']
 const CLOUD_ALLOWED = [
@@ -294,9 +298,58 @@ export async function executeConvertDocument(
     toFormat === 'docx' &&
     (brokenHits >= 2 || (badLig > goodLig * 1.5 && badLig > 8))
 
+  // Broken ToUnicode: prefer Mac visual page-image DOCX (layout 100%) over gibberish text rebuild
+  if (
+    arabicBroken &&
+    engine === 'auto' &&
+    fromFormat === 'pdf' &&
+    toFormat === 'docx' &&
+    macSyncConfigured()
+  ) {
+    try {
+      const converted = await macConvertPdfDocx({
+        buffer: hit.buffer,
+        filename: hit.meta.originalName,
+        toFormat: 'docx',
+        mode: 'visual',
+      })
+      const filename = ensureFilename(
+        outputName.replace(/\.docx$/i, '') + '_مرئي.docx',
+        'docx'
+      )
+      const saved = await saveWorkspaceFile({
+        scopeId,
+        buffer: converted.buffer,
+        originalName: filename,
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        markEdited: true,
+      })
+      return attachmentResult({
+        saved,
+        scopeId,
+        fromFormat,
+        toFormat,
+        engine: 'mac-visual',
+        sourceFileId: hit.meta.id,
+        sourceName: hit.meta.originalName,
+        messageAr: `حُوّل «${hit.meta.originalName}» إلى Word مرئي (صورة لكل صفحة · تخطيط مطابق 100%) عبر جسر الماك — بلا طلاسم. نزّل أو عاين من فقاعة الشات — تم التعديل.`,
+        noteAr:
+          'محرّك: مرئي عبر جسر الماك. الطبقة النصية في PDF معطوبة (ToUnicode) — للتحرير النصي اربط Google Drive (OCR/تصدير). النتيجة مرفق شات (معاينة+تنزيل).',
+        extra: {
+          visualLayoutMatch: true,
+          textEditable: false,
+          macLog: converted.log.slice(0, 400),
+        },
+      })
+    } catch {
+      // fall through to honest error / free rebuild if forced
+    }
+  }
+
   if (arabicBroken && engine === 'auto') {
     throw new Error(
-      'طبقة النص في PDF العربي تبدو معطوبة (ToUnicode) — إعادة البناء النصية ستُنتج طلاسم. اربط Google من الإعدادات لاستخدام تحويل Drive، أو أضف CLOUDCONVERT_API_KEY، أو مرّر engine=free فقط إن قبلت جودة منخفضة.'
+      'طبقة النص في PDF العربي تبدو معطوبة (ToUnicode) — إعادة البناء النصية ستُنتج طلاسم. الأفضل: اربط Google من الإعدادات (Drive) أو أضف CLOUDCONVERT_API_KEY، أو شغّل جسر الماك (MAC_SYNC_URL + npm run storage:sync) للنسخة المرئية المطابقة للتخطيط. مرّر engine=free فقط إن قبلت جودة منخفضة.'
     )
   }
 
