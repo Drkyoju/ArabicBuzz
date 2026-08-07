@@ -55,19 +55,46 @@ export function FirstRunChecklist({
     void (async () => {
       try {
         const h = await authHeaders()
-        const [cal, drive, providers, integ] = await Promise.all([
+        const [cal, drive, providers, integ, home] = await Promise.all([
           fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
             r.json()
           ),
           fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
           fetch('/api/settings/providers').then((r) => r.json()),
           fetch('/api/integrations/status').then((r) => r.json()),
+          fetch('/api/rooms/home', { headers: h }).then((r) => r.json()),
         ])
         if (cancelled) return
         setGoogleOk(Boolean(cal?.connected))
         setDriveCount(Number(drive?.count || 0))
         setKeysOk(Number(providers?.serviceableCount || 0) > 0)
         setTelegramOk(Boolean(integ?.telegramConfigured))
+
+        // Returning users already have room history — don't keep the checklist stuck
+        // on localStorage flags that only flip from this browser's future clicks.
+        const hasPosts = Array.isArray(home?.recentPosts)
+          ? home.recentPosts.length > 0
+          : false
+        const hasCalendar =
+          (Array.isArray(home?.agenda) && home.agenda.length > 0) ||
+          Number(home?.beyondMonthCount || 0) > 0 ||
+          (Array.isArray(home?.calendar?.week) && home.calendar.week.length > 0)
+        if (hasPosts) {
+          setChatted(true)
+          try {
+            localStorage.setItem('ab-first-chat', '1')
+          } catch {
+            /* ignore */
+          }
+        }
+        if (hasCalendar) {
+          setRoomCollabOk(true)
+          try {
+            localStorage.setItem('ab-room-collab-seen', '1')
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         /* ignore */
       } finally {
