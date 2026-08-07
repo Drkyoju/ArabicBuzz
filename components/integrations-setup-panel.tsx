@@ -275,11 +275,13 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 font-semibold text-ab-ink">
           خزنة الماك{' '}
           <span className="font-normal text-stone-400">
-            {macConfigured === false
-              ? '· غير مضبوطة'
-              : macOnline
-                ? '· متصلة'
-                : '· مضبوطة · غير متصلة'}
+            {macConfigured === null
+              ? '· جاري الفحص…'
+              : macConfigured === false
+                ? '· غير مضبوطة'
+                : macOnline
+                  ? '· متصلة'
+                  : '· مضبوطة · غير متصلة'}
           </span>
         </p>
         <p className="mb-1 text-[11px]">

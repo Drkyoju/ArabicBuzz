@@ -39,12 +39,26 @@ Bottles الحديثة لـ Homebrew قد تستغرق طويلاً أو تفش�
    ```
 3. **بدون ماك:** اربط Google Drive للتحويل النظيف، أو اعتمد OCR السحابي (Gemini) — يعمل لكن ليس مجانياً بالكامل على الحجم الكبير.
 
+### حالة تم التحقق منها (macOS 12.7 Monterey · آب 2026)
+
+على جهاز التطوير الحالي **لم يُحظر brew**: `tesseract 5.5.3` + `tesseract-lang 4.1.0` مثبتان عبر Homebrew، و`tesseract --list-langs` يظهر **ara** و **eng**. venv: `scripts/pdf-tools-venv` مع `pytesseract` + `pymupdf`. الوكيل: `npm run storage:sync` على المنفذ 7420.
+
+النفق العام قد يفشل حسب الشبكة:
+
+| النفق | ملاحظة |
+|--------|---------|
+| `cloudflared` quick tunnel | قد يفشل إن حُظر QUIC/TCP إلى Cloudflare (منفذ 7844) |
+| `npx localtunnel --port 7420` | يعمل غالباً؛ انسخ الرابط إلى `MAC_SYNC_URL` + نفس `MAC_SYNC_SECRET` على Netlify ثم Redeploy |
+| `npx ngrok http 7420` | يحتاج حساب/توكن ngrok إن طُلب |
+
 تحقق سريع:
 
 ```bash
 which tesseract
 tesseract --list-langs | grep -E 'ara|eng'
-echo 'test' | tesseract stdin stdout -l eng
+# صورة اختبار عبر Python (stdin النصي لـ tesseract غير موثوق على كل الإصدارات):
+scripts/pdf-tools-venv/bin/python -c "from PIL import Image,ImageDraw; import pytesseract; i=Image.new('RGB',(120,40),'white'); ImageDraw.Draw(i).text((5,10),'hi'); print(pytesseract.image_to_string(i, lang='eng'))"
+curl -sS http://127.0.0.1:7420/health | grep -o '"tesseract":true'
 ```
 
 ---
