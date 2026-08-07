@@ -138,7 +138,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'remote',
     transport: 'sse',
     setupHintAr:
-      'اربط Google من الإعدادات (يشمل gmail.readonly و gmail.send و spreadsheets). فعّل Gmail API و Google Sheets API في Google Cloud. من ربطوا سابقاً: أعد «ربط تقويم Google» لمنح gmail.send. اختياري: MCP بعيد مثل taylorwilsdon/google_workspace_mcp عبر MCP_REMOTE_SERVERS.',
+      'اربط Google من تقويم الفريق → «Google / Gmail» (يشمل gmail.readonly و gmail.send و spreadsheets). فعّل Gmail API و Google Sheets API في Google Cloud. من ربطوا سابقاً: أعد «ربط بريد Google (Gmail)» لمنح gmail.send. اختياري: MCP بعيد مثل taylorwilsdon/google_workspace_mcp عبر MCP_REMOTE_SERVERS.',
     envKeys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
     docsUrl: 'https://developers.google.com/workspace',
     recommended: true,

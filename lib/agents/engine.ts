@@ -778,10 +778,16 @@ export function getNativeAiTools(opts?: {
     }),
     gmail_search: tool({
       description:
-        'بحث في Gmail باستعلام Gmail (مثل newer_than:7d from:x أو كلمات عربية). قراءة فقط — لا إرسال.',
+        'بحث في Gmail باستعلام Gmail (مثل newer_than:7d from:x أو كلمات عربية). قراءة فقط — لا إرسال. إن رُبط أكثر من حساب، مرّر accountEmail لبريد الجمعية (مثل info@…).',
       inputSchema: z.object({
         query: z.string().describe('استعلام Gmail'),
         maxResults: z.number().optional().describe('حد أقصى 25'),
+        accountEmail: z
+          .string()
+          .optional()
+          .describe(
+            'بريد Google المرتبط المطلوب (مثلاً بريد الجمعية Workspace)'
+          ),
       }),
       execute: async (params) =>
         interceptToolExecution({
@@ -795,9 +801,13 @@ export function getNativeAiTools(opts?: {
     }),
     gmail_read: tool({
       description:
-        'قراءة نص رسالة Gmail كاملة بالمعرّف (بعد gmail_search). قراءة فقط.',
+        'قراءة نص رسالة Gmail كاملة بالمعرّف (بعد gmail_search). قراءة فقط. مرّر accountEmail إن رُبط أكثر من حساب.',
       inputSchema: z.object({
         messageId: z.string().describe('معرّف الرسالة من gmail_search'),
+        accountEmail: z
+          .string()
+          .optional()
+          .describe('بريد Google المرتبط المطلوب'),
       }),
       execute: async (params) =>
         interceptToolExecution({
@@ -811,7 +821,7 @@ export function getNativeAiTools(opts?: {
     }),
     gmail_send: tool({
       description:
-        'إرسال بريد عبر Gmail المرتبط (إلى، موضوع، نص أو HTML). يتطلب موافقة بشرية (HITL) قبل الإرسال الفعلي. لا تختلق عناوين.',
+        'إرسال بريد عبر Gmail المرتبط (إلى، موضوع، نص أو HTML). يتطلب موافقة بشرية (HITL) قبل الإرسال الفعلي. لا تختلق عناوين. للإرسال من بريد الجمعية مرّر accountEmail.',
       inputSchema: z.object({
         to: z.string().describe('عنوان المستلم (بريد حقيقي يحدده المستخدم)'),
         subject: z.string().describe('موضوع الرسالة'),
@@ -825,6 +835,10 @@ export function getNativeAiTools(opts?: {
           .describe('نسخة HTML اختيارية'),
         cc: z.string().optional().describe('نسخة كربونية اختيارية'),
         bcc: z.string().optional().describe('نسخة مخفية اختيارية'),
+        accountEmail: z
+          .string()
+          .optional()
+          .describe('من أي بريد مرتبط يُرسل (بريد الجمعية إن وُجد)'),
       }),
       execute: async (params) =>
         interceptToolExecution({
