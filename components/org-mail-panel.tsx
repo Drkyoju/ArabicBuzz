@@ -116,8 +116,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setLoading(true)
     setError('')
     try {
-      await loadSettings()
-      await loadMessages()
+      // Parallel: don't block the inbox list on settings latency.
+      const results = await Promise.allSettled([loadSettings(), loadMessages()])
+      const firstErr = results.find((r) => r.status === 'rejected')
+      if (firstErr && firstErr.status === 'rejected') {
+        setError(
+          firstErr.reason instanceof Error
+            ? firstErr.reason.message
+            : 'خطأ'
+        )
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطأ')
     } finally {
@@ -129,10 +137,12 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     void refresh()
   }, [refresh])
 
-  // Auto-sync inbox in background when already configured — no «زامن» primary UX.
+  // Soft background IMAP sync — abort if Netlify/IMAP hangs past budget.
   useEffect(() => {
     if (!configured) return
     let cancelled = false
+    const ac = new AbortController()
+    const kill = window.setTimeout(() => ac.abort(), 20_000)
     void (async () => {
       try {
         const headers = await authHeaders()
@@ -140,14 +150,19 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           method: 'POST',
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: '{}',
+          signal: ac.signal,
         })
         if (!cancelled && res.ok) await loadMessages()
       } catch {
-        /* ignore */
+        /* ignore timeout / network */
+      } finally {
+        window.clearTimeout(kill)
       }
     })()
     return () => {
       cancelled = true
+      ac.abort()
+      window.clearTimeout(kill)
     }
   }, [configured, loadMessages])
 

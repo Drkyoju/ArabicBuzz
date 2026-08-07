@@ -80,6 +80,10 @@ export function TelegramHomePanel() {
         await new Promise((r) => setTimeout(r, 400))
         res = await attempt()
       }
+      if (res.status === 401) {
+        await new Promise((r) => setTimeout(r, 700))
+        res = await attempt()
+      }
       const json = (await res.json()) as {
         items?: TelegramFeedItem[]
         link?: TelegramLinkStatus
@@ -89,8 +93,20 @@ export function TelegramHomePanel() {
       }
       if (!res.ok) {
         if (res.status === 401) {
-          // Keep prior link if we had one; otherwise stay in "checking" (link null).
+          // Exit perpetual "جاري التحقق…" — keep prior link if known.
           setErr('')
+          setLink((prev) =>
+            prev ?? {
+              linked: false,
+              hasScopeBinding: false,
+              hasOwnerFallback: false,
+              botConfigured: true,
+              deepLink: '',
+              botUrl: '',
+              hintAr:
+                'تعذّر التحقق من الجلسة — حدّث الصفحة أو أعد تسجيل الدخول.',
+            }
+          )
           return
         }
         throw new Error(json.error || 'فشل تحميل نافذة تيليجرام')
@@ -100,6 +116,17 @@ export function TelegramHomePanel() {
       setErr('')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
+      setLink((prev) =>
+        prev ?? {
+          linked: false,
+          hasScopeBinding: false,
+          hasOwnerFallback: false,
+          botConfigured: true,
+          deepLink: '',
+          botUrl: '',
+          hintAr: 'تعذّر تحميل حالة تيليجرام — حاول التحديث.',
+        }
+      )
     } finally {
       setBusy(false)
     }

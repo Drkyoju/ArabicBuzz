@@ -61,6 +61,10 @@ async function withClient<T>(
     },
     logger: false,
     emitLogs: false,
+    // Netlify functions die hard on hung IMAP — fail fast instead of hanging.
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 25_000,
   })
   try {
     await client.connect()

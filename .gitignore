@@ -25,6 +25,9 @@
 .DS_Store
 *.pem
 
+# local scratch / PDF experiments (never commit)
+/tmp/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

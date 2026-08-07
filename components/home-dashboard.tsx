@@ -314,13 +314,23 @@ export function HomeDashboard({
       } else {
         setMailUnread(null)
       }
-      // Soft Google→room sync when the member opted in (no error surfacing).
-      void fetch('/api/rooms/calendar/sync', {
-        method: 'POST',
-        headers: await authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ action: 'sync_now', scopeId }),
-      })
-        .then(async (syncRes) => {
+      // Soft Google→room sync only when the member opted in (avoids SYNC_DISABLED 400 noise).
+      void (async () => {
+        try {
+          const prefRes = await fetch(
+            `/api/rooms/calendar/sync?scopeId=${encodeURIComponent(scopeId)}`,
+            { headers: await authHeaders() }
+          )
+          if (!prefRes.ok) return
+          const pref = (await prefRes.json()) as {
+            calendarSyncEnabled?: boolean
+          }
+          if (!pref.calendarSyncEnabled) return
+          const syncRes = await fetch('/api/rooms/calendar/sync', {
+            method: 'POST',
+            headers: await authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ action: 'sync_now', scopeId }),
+          })
           if (!syncRes.ok) return
           const syncJson = (await syncRes.json()) as {
             created?: number
@@ -332,17 +342,18 @@ export function HomeDashboard({
               (syncJson.updated || 0) +
               (syncJson.cancelled || 0) >
             0
-          if (changed) {
-            const again = await fetch(
-              `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
-              { headers: await authHeaders() }
-            )
-            if (again.ok) {
-              setLiveData((await again.json()) as Digest)
-            }
+          if (!changed) return
+          const again = await fetch(
+            `/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`,
+            { headers: await authHeaders() }
+          )
+          if (again.ok) {
+            setLiveData((await again.json()) as Digest)
           }
-        })
-        .catch(() => undefined)
+        } catch {
+          /* soft fail */
+        }
+      })()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'خطأ')
     } finally {
