@@ -33,11 +33,16 @@ import { RoomTasksBoard } from '@/components/room-tasks-board'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import {
+  PRIMARY_TEAM_SCOPE_ID,
+  shouldRedirectToPrimary,
+} from '@/lib/scopes/primary-room'
+import {
   isEmployeeSection,
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { HomeDashboard } from '@/components/home-dashboard'
 import { AssistantsCorePanel } from '@/components/assistants-core-panel'
+import { OrgMailPanel } from '@/components/org-mail-panel'
 import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { RoleBadge } from '@/components/role-badge'
@@ -243,6 +248,14 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [hitlDisabled, canAccessOpsUi, section])
 
+  // Migrate old clutter demo rooms → primary team room.
+  useEffect(() => {
+    const current = useWorkspaceStore.getState().activeScopeId
+    if (shouldRedirectToPrimary(current)) {
+      useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+    }
+  }, [])
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
@@ -250,6 +263,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       if (
         q === 'home' ||
         q === 'assistants' ||
+        q === 'mail' ||
         q === 'calendar' ||
         q === 'chats' ||
         q === 'settings' ||
@@ -261,6 +275,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         q === 'api-keys' ||
         q === 'ops'
       ) {
+        if (q === 'chats') {
+          useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+        }
         setSection(q)
       }
       const tab = params.get('calTab') || params.get('tab')
@@ -365,6 +382,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     if (
       target === 'home' ||
       target === 'assistants' ||
+      target === 'mail' ||
       target === 'calendar' ||
       target === 'chats' ||
       target === 'settings' ||
@@ -376,6 +394,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       target === 'api-keys' ||
       target === 'ops'
     ) {
+      if (target === 'chats') {
+        useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+      }
       setSection(target)
     }
   }, [])
@@ -420,6 +441,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'assistants' && (
           <AssistantsCorePanel onNavigate={goToSection} />
+        )}
+
+        {section === 'mail' && (
+          <OrgMailPanel isOwner={canAccessOpsUi && mode === 'admin'} />
         )}
 
         {section === 'chats' && <RoomWorkspace />}

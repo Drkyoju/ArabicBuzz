@@ -177,6 +177,14 @@ export async function GET() {
       process.env.BRAIN_OWNER_USER_ID?.trim() ||
         process.env.DRIVE_BRAIN_OWNER_USER_ID?.trim()
     ),
+    imapMailConfigured: await (async () => {
+      try {
+        const { isImapConfigured } = await import('@/lib/email/imap-store')
+        return await isImapConfigured()
+      } catch {
+        return false
+      }
+    })(),
     mcpCatalogCount: MCP_CATALOG.length,
     mcpConnectedServers: mcpServers,
     mcpConnectedTools: mcpTools,

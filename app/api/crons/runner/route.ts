@@ -256,6 +256,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let imapMailSync: unknown = null
+  try {
+    const { isImapConfigured } = await import('@/lib/email/imap-store')
+    if (await isImapConfigured()) {
+      const { syncImapInbox } = await import('@/lib/email/imap-sync')
+      imapMailSync = await syncImapInbox({
+        maxMessages: 50,
+        notifyTelegram: true,
+      })
+    } else {
+      imapMailSync = { skipped: true, reason: 'imap_not_configured' }
+    }
+  } catch (e) {
+    imapMailSync = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'imap sync error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -264,5 +283,6 @@ export async function POST(req: NextRequest) {
     driveBrainSync,
     morningDigest,
     googleRoomCalendarSync,
+    imapMailSync,
   })
 }

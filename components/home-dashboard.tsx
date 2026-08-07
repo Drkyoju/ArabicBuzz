@@ -252,16 +252,18 @@ export function HomeDashboard({
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [liveData, setLiveData] = useState<Digest | null>(null)
   const [teamInbox, setTeamInbox] = useState<TeamInboxItem[]>([])
+  const [mailUnread, setMailUnread] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [activityOpen, setActivityOpen] = useState(false)
   const demo = useMemo(() => buildGuestDemoDigest(), [])
 
   const load = useCallback(async () => {
-    if (signedIn !== true) {
+      if (signedIn !== true) {
       setBusy(false)
       setLiveData(null)
       setTeamInbox([])
+      setMailUnread(null)
       setErr('')
       return
     }
@@ -269,13 +271,14 @@ export function HomeDashboard({
     setErr('')
     try {
       const headers = await authHeaders()
-      const [res, inboxRes] = await Promise.all([
+      const [res, inboxRes, mailRes] = await Promise.all([
         fetch(`/api/rooms/home?scopeId=${encodeURIComponent(scopeId)}`, {
           headers,
         }),
         fetch(`/api/rooms/inbox?scopeId=${encodeURIComponent(scopeId)}`, {
           headers,
         }).catch(() => null),
+        fetch('/api/mail/messages?limit=1', { headers }).catch(() => null),
       ])
       const json = (await res.json()) as Digest & {
         error?: string
@@ -285,6 +288,7 @@ export function HomeDashboard({
         if (res.status === 401 || json.code === 'AUTH_REQUIRED') {
           setLiveData(null)
           setTeamInbox([])
+          setMailUnread(null)
           setErr('')
           return
         }
@@ -298,6 +302,17 @@ export function HomeDashboard({
         setTeamInbox(inboxJson.items || [])
       } else {
         setTeamInbox([])
+      }
+      if (mailRes?.ok) {
+        const mailJson = (await mailRes.json()) as {
+          unread?: number
+          configured?: boolean
+        }
+        setMailUnread(
+          mailJson.configured ? Number(mailJson.unread || 0) : null
+        )
+      } else {
+        setMailUnread(null)
       }
       // Soft Google→room sync when the member opted in (no error surfacing).
       void fetch('/api/rooms/calendar/sync', {
@@ -566,6 +581,23 @@ export function HomeDashboard({
           <DateDual className="mt-2" />
         </div>
         <div className="flex flex-wrap gap-2">
+          {mailUnread != null && (
+            <button
+              type="button"
+              onClick={() => onNavigate?.('mail')}
+              className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+            >
+              <Inbox className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+              البريد
+              {mailUnread > 0 ? (
+                <span className="rounded-full bg-ab-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {mailUnread}
+                </span>
+              ) : (
+                <span className="text-stone-400">٠</span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
@@ -937,16 +969,18 @@ export function HomeDashboard({
           ) : (
             <ol className="grid gap-2 sm:grid-cols-3">
               <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">١. الغرف</p>
+                <p className="text-[12px] font-semibold text-ab-ink">
+                  ١. غرفة الفريق
+                </p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  ادخل غرفة الفريق واكتب أو تابع المحادثة.
+                  غرفة واحدة للموظفين والوكلاء — شغّل أو أوقف «الوكلاء يعملون معنا».
                 </p>
                 <button
                   type="button"
                   onClick={() => onNavigate?.('chats')}
                   className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
                 >
-                  فتح الغرف
+                  فتح غرفة الفريق
                 </button>
               </li>
               <li className="rounded-lg border border-ab-border bg-white p-3">

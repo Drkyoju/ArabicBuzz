@@ -18,25 +18,29 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     nameAr: 'كابتن اليوم',
     taglineAr: 'تقويم اليوم + فرز الوارد + مقترح تيليجرام',
     descriptionAr:
-      'تشغيل واحد يجمع: مواعيد اليوم، فرز عاجل لوارد Gmail، واقتراح ملخص/رسالة تيليجرام للفريق — دون إرسال تلقائي.',
+      'تشغيل واحد يجمع: مواعيد اليوم، فرز عاجل للوارد (IMAP أو Gmail)، واقتراح ملخص/رسالة تيليجرام للفريق — دون إرسال تلقائي.',
     starterPromptAr:
-      'كابتن اليوم: ١) مواعيد اليوم من تقويم الغرفة وتقويم Google إن وُجد (توقيت الرياض). ٢) فرز وارد Gmail: عاجل · متابعة · يمكن أرشفته مع مسودة رد للعاجل فقط دون إرسال. ٣) اقترح نص ملخص تيليجرام قصير للفريق — لا ترسل إلا إذا طلبت ذلك.',
+      'كابتن اليوم: ١) مواعيد اليوم من تقويم الغرفة وتقويم Google إن وُجد (توقيت الرياض). ٢) زامن/افرز الوارد (IMAP أو Gmail): عاجل · متابعة · أرشفة مع مسودة رد للعاجل فقط دون إرسال. ٣) اقترح نص ملخص تيليجرام قصير للفريق — لا ترسل إلا إذا طلبت ذلك.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «كابتن اليوم» — منسّق يومي كامل في تشغيل واحد.
 يجب تنفيذ الخطوات التالية بالترتيب عبر الأدوات (لا تتخطّ أي خطوة دون سبب صريح من فشل الأداة):
 1) room_calendar_list لمواعيد اليوم (Asia/Riyadh). إن توفّر Google: calendar_list_events أيضاً.
-2) gmail_search لغير المقروء/الوارد الحديث ثم gmail_read لأهم 3–5 رسائل عاجلة.
+2) mail_sync إن وُجد IMAP، ثم mail_search أو gmail_search لغير المقروء، ثم mail_read/gmail_read لأهم 3–5 رسائل عاجلة.
 3) room_tasks_list للمهام العالقة إن وُجدت.
 4) أعد بطاقة نتيجة منظمة:
    أ) مواعيد اليوم (وقت · عنوان)
-   ب) فرز البريد (عاجل / متابعة / أرشفة) + مسودة رد لكل عاجل
+   ب) فرز البريد (عاجل / متابعة / أرشفة) + مسودة رد كاملة (موضوع + نص) لكل عاجل
    ج) مقترح رسالة تيليجرام (ملخص يومي للفريق)
-5) لا تستدعِ gmail_send أو send_message إلا إذا طلب المستخدم إرسالاً صريحاً.
-6) إن لم يُربط Google أو فشلت أداة: اذكر ذلك في أعلى النتيجة ولا تختلق بيانات.`,
+5) لا تستدعِ mail_send / gmail_send أو send_message إلا إذا طلب المستخدم إرسالاً صريحاً.
+6) إن لم يُربط بريد (IMAP أو Google) أو فشلت أداة: اذكر ذلك في أعلى النتيجة مع CTA واضح — لا تختلق بيانات.`,
     allowedTools: [
       'room_calendar_list',
       'calendar_list_events',
+      'mail_sync',
+      'mail_search',
+      'mail_read',
+      'mail_send',
       'gmail_search',
       'gmail_read',
       'gmail_send',
@@ -45,9 +49,9 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'memory_search',
       'send_message',
     ],
-    requires: 'google',
+    requires: 'mail',
     emptyStateAr:
-      'كابتن اليوم يحتاج ربط Google (Gmail + تقويم) أولاً — اضغط «اربط Google الآن» ثم أعد التشغيل.',
+      'كابتن اليوم يحتاج بريد الجمعية: اضبط IMAP/SMTP من الإعدادات → «بريد الجمعية» (موصى به لـ info@alhuda-alhikma.sa) أو اربط Google إن توفر.',
     keywordsAr: [
       'كابتن اليوم',
       'قائد اليوم',
@@ -57,37 +61,42 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'energy',
       'وش عندي اليوم كامل',
     ],
-    maxSteps: 12,
+    maxSteps: 14,
     ownerHintAr:
-      'room_calendar + gmail_* + calendar_list · send_message/gmail_send HITL',
+      'room_calendar + mail_*/gmail_* + calendar_list · send HITL',
   },
   {
     id: 'inbox-zero',
     nameAr: 'صفر البريد',
     taglineAr: 'فرز الوارد ومسودات رد',
     descriptionAr:
-      'يراجع رسائل Gmail غير المقروءة، يصنّفها (عاجل / متابعة / أرشفة)، ويكتب مسودات رد قصيرة — دون إرسال إلا بموافقة.',
+      'يراجع الرسائل غير المقروءة (IMAP أو Gmail)، يصنّفها (عاجل / متابعة / أرشفة)، ويكتب مسودات رد قصيرة — دون إرسال إلا بموافقة.',
     starterPromptAr:
-      'فرز وارد Gmail لليوم: جدول (الموضوع · المرسل · التصنيف · إجراء مقترح) ومسودة رد لكل رسالة عاجلة — دون إرسال.',
+      'اقرأ بريدي ورد على المهم: زامن الوارد، فرز غير المقروء (الموضوع · المرسل · التصنيف · إجراء) ومسودة رد كاملة لكل رسالة عاجلة — دون إرسال إلا بطلب صريح.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «صفر البريد».
 يجب:
-1) gmail_search فوراً لغير المقروء أو الوارد الحديث (لا تبدأ بجواب نظري).
-2) gmail_read لأهم الرسائل (حتى 8).
-3) أعد جدول/نقاط: الموضوع · المرسل · التصنيف (عاجل/متابعة/أرشفة) · اقتراح إجراء · مسودة رد للعاجل.
-4) لا تستدعِ gmail_send إلا بطلب صريح من المستخدم — وسيخضع لموافقة بشرية.
-5) إن رجعت الأداة فارغة: قل «لا رسائل غير مقروءة» وليس «يمكنني المساعدة».`,
+1) mail_sync إن وُجد IMAP، ثم mail_search أو gmail_search فوراً لغير المقروء (لا تبدأ بجواب نظري).
+2) mail_read أو gmail_read لأهم الرسائل (حتى 8) — عربي وإنجليزي.
+3) أعد جدول/نقاط: الموضوع · المرسل · التصنيف (عاجل/متابعة/أرشفة) · اقتراح إجراء · مسودة رد (موضوع + نص) للعاجل.
+4) لا تستدعِ mail_send/gmail_send إلا بطلب صريح — وسيخضع لموافقة بشرية إن كانت HITL مفعّلة.
+5) إن رجعت الأداة فارغة: قل «لا رسائل غير مقروءة» وليس «يمكنني المساعدة».
+6) إن لم يُربط بريد: أوقف واطلب ضبط IMAP من «بريد الجمعية».`,
     allowedTools: [
+      'mail_sync',
+      'mail_search',
+      'mail_read',
+      'mail_send',
       'gmail_search',
       'gmail_read',
       'gmail_send',
       'calendar_scan_email',
       'room_tasks_list',
     ],
-    requires: 'google',
+    requires: 'mail',
     emptyStateAr:
-      'يلزم ربط Google (Gmail) أولاً — اضغط «اربط Google الآن» ثم شغّل «صفر البريد».',
+      'يلزم ربط بريد الجمعية: الإعدادات → «بريد الجمعية» (IMAP/SMTP لـ info@…) أو Google Gmail إن توفر.',
     keywordsAr: [
       'صفر البريد',
       'فرز البريد',
@@ -95,9 +104,13 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'فرز الوارد',
       'inbox zero',
       'صفّر البريد',
+      'اقرأ بريدي',
+      'اقرا بريدي',
+      'رد على المهم',
+      'رد على بريدي',
     ],
-    maxSteps: 10,
-    ownerHintAr: 'gmail_search / gmail_read / gmail_send (HITL)',
+    maxSteps: 14,
+    ownerHintAr: 'mail_* / gmail_* (HITL على الإرسال)',
   },
   {
     id: 'daily-brief',
@@ -112,7 +125,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 دورك: «ملخص يومي».
 يجب:
 1) room_calendar_list لليوم (Asia/Riyadh) — اعرض الوقت مرة واحدة بدون UTC.
-2) إن توفّرت أدوات Google: calendar_list_events + gmail_search سريع للعاجل.
+2) إن توفّر تقويم Google: calendar_list_events. للبريد: mail_search أو gmail_search سريع للعاجل.
 3) room_tasks_list للمهام العالقة.
 4) أعد: فقرة قصيرة + قائمة مواعيد + بريد عاجل (إن وُجد) + مهام.
 5) ممنوع جواب بدون استدعاء أدوات.`,
@@ -120,6 +133,8 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'room_calendar_list',
       'room_tasks_list',
       'calendar_list_events',
+      'mail_search',
+      'mail_read',
       'gmail_search',
       'gmail_read',
       'room_memory_list',
@@ -134,8 +149,8 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'daily brief',
       'وش عندي اليوم',
     ],
-    maxSteps: 10,
-    ownerHintAr: 'تقويم الغرفة دائماً · Gmail/Google اختياري',
+    maxSteps: 12,
+    ownerHintAr: 'تقويم الغرفة دائماً · IMAP/Gmail اختياري',
   },
   {
     id: 'file-search',
@@ -283,7 +298,9 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 دورك: مساعد عام للنواة.
 - افهم القصد ونفّذ عبر الأدوات فوراً — لا تعرض خدماتك.
 - فضّل تقويم الغرفة room_calendar_* على تقويم Google الشخصي إلا بطلب صريح.
+- للبريد: mail_sync ثم mail_search/mail_read (IMAP) أو gmail_* إن رُبط Google. مسودات الرد يجب أن تتضمن موضوعاً ونصاً — ممنوع كلام فارغ.
 - للإرسال (بريد/تيليجرام) أو تعديل حساس: أوضح أن الموافقة البشرية قد تُطلب.
+- إن لم يُربط بريد: CTA صريح لضبط IMAP من «بريد الجمعية» (info@alhuda-alhikma.sa).
 - لمتصفح/سطح المكتب عبر Cua: cua_computer فقط إن كان الجسر متصلًا؛ وإلا اطلب التثبيت — لا تدّعِ التحكم بدون جسر.`,
     allowedTools: [
       'web_search',
@@ -305,6 +322,10 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'room_tasks_list',
       'room_memory_list',
       'memory_search',
+      'mail_sync',
+      'mail_search',
+      'mail_read',
+      'mail_send',
       'gmail_search',
       'gmail_read',
       'gmail_send',
@@ -317,8 +338,8 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     requires: 'none',
     emptyStateAr: '',
     keywordsAr: ['مساعد عام', 'نواة عامة', 'نواة العمل'],
-    maxSteps: 12,
-    ownerHintAr: 'بريد · تقويم · ملفات/تحويل · تيليجرام · cua اختياري',
+    maxSteps: 14,
+    ownerHintAr: 'IMAP/Gmail · تقويم · ملفات · تيليجرام · cua اختياري',
   },
 ] as const
 

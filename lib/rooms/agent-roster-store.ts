@@ -9,6 +9,7 @@ import {
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
+import { mergeScopeRosterSlice } from '@/lib/rooms/roster-scope'
 
 export type AgentOverride = Partial<
   Pick<
@@ -22,6 +23,8 @@ export type AgentRosterState = {
   removedFromScope: Record<string, string[]>
   addedToScope: Record<string, string[]>
   collabModeByScope: Record<string, AgentCollabMode>
+  /** Master switch: agents reply when true (default). */
+  agentsEnabledByScope: Record<string, boolean>
   /** Overrides for built-in agents (name/task/model/prompt). */
   agentOverrides: Record<string, AgentOverride>
   cloudSyncedAt: number | null
@@ -74,12 +77,16 @@ export type AgentRosterState = {
   addAgentToScope: (scopeId: string, agentId: string) => void
   setCollabMode: (scopeId: string, mode: AgentCollabMode) => void
   collabModeFor: (scopeId: string) => AgentCollabMode
+  setAgentsEnabled: (scopeId: string, enabled: boolean) => void
+  agentsEnabledFor: (scopeId: string) => boolean
   agentsForScope: (scopeId: string) => RoomAgent[]
   allAgents: () => RoomAgent[]
   findById: (id: string) => RoomAgent | undefined
   findByMention: (token: string) => RoomAgent | null
   exportPayload: () => AgentRosterPayload
   hydrateFromCloud: (payload: AgentRosterPayload) => void
+  /** Merge one room's shared roster without wiping other scopes. */
+  hydrateScopeFromCloud: (scopeId: string, payload: AgentRosterPayload) => void
   markCloudSynced: () => void
 }
 
@@ -135,6 +142,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       removedFromScope: {},
       addedToScope: {},
       collabModeByScope: {},
+      agentsEnabledByScope: {},
       agentOverrides: {},
       cloudSyncedAt: null,
 
@@ -189,11 +197,24 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         }))
       },
 
+      agentsEnabledFor: (scopeId) =>
+        get().agentsEnabledByScope[scopeId] !== false,
+
+      setAgentsEnabled: (scopeId, enabled) => {
+        set((s) => ({
+          agentsEnabledByScope: {
+            ...s.agentsEnabledByScope,
+            [scopeId]: enabled,
+          },
+        }))
+      },
+
       exportPayload: () => ({
         customAgents: get().customAgents,
         removedFromScope: get().removedFromScope,
         addedToScope: get().addedToScope,
         collabModeByScope: get().collabModeByScope,
+        agentsEnabledByScope: get().agentsEnabledByScope,
         agentOverrides: get().agentOverrides,
       }),
 
@@ -203,7 +224,22 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           removedFromScope: payload.removedFromScope || {},
           addedToScope: payload.addedToScope || {},
           collabModeByScope: payload.collabModeByScope || {},
+          agentsEnabledByScope: payload.agentsEnabledByScope || {},
           agentOverrides: payload.agentOverrides || {},
+          cloudSyncedAt: Date.now(),
+        })
+      },
+
+      hydrateScopeFromCloud: (scopeId, payload) => {
+        const current = get().exportPayload()
+        const merged = mergeScopeRosterSlice(scopeId, current, payload)
+        set({
+          customAgents: merged.customAgents,
+          removedFromScope: merged.removedFromScope,
+          addedToScope: merged.addedToScope,
+          collabModeByScope: merged.collabModeByScope,
+          agentsEnabledByScope: merged.agentsEnabledByScope || {},
+          agentOverrides: merged.agentOverrides,
           cloudSyncedAt: Date.now(),
         })
       },
@@ -409,7 +445,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
     }),
     {
       name: 'arabic-buzz-agent-roster',
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         const p = (persisted || {}) as Partial<AgentRosterState>
         return {
@@ -417,6 +453,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           removedFromScope: p.removedFromScope || {},
           addedToScope: p.addedToScope || {},
           collabModeByScope: p.collabModeByScope || {},
+          agentsEnabledByScope: p.agentsEnabledByScope || {},
           agentOverrides: p.agentOverrides || {},
         }
       },
@@ -425,6 +462,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         removedFromScope: s.removedFromScope,
         addedToScope: s.addedToScope,
         collabModeByScope: s.collabModeByScope,
+        agentsEnabledByScope: s.agentsEnabledByScope,
         agentOverrides: s.agentOverrides,
       }),
       merge: (persisted, current) => {
@@ -438,6 +476,8 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           removedFromScope: p.removedFromScope || current.removedFromScope,
           addedToScope: p.addedToScope || current.addedToScope,
           collabModeByScope: p.collabModeByScope || current.collabModeByScope,
+          agentsEnabledByScope:
+            p.agentsEnabledByScope || current.agentsEnabledByScope || {},
           agentOverrides: p.agentOverrides || current.agentOverrides || {},
         }
       },

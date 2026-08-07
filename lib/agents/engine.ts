@@ -812,7 +812,7 @@ export function getNativeAiTools(opts?: {
     }),
     gmail_search: tool({
       description:
-        'بحث في Gmail باستعلام Gmail (مثل newer_than:7d from:x أو كلمات عربية). قراءة فقط — لا إرسال. إن رُبط أكثر من حساب، مرّر accountEmail لبريد الجمعية (مثل info@…).',
+        'بحث في البريد (IMAP أولاً إن ضُبط، وإلا Gmail). استعلام مثل is:unread أو كلمات عربية/إنجليزية. قراءة فقط — لا إرسال.',
       inputSchema: z.object({
         query: z.string().describe('استعلام Gmail'),
         maxResults: z.number().optional().describe('حد أقصى 25'),
@@ -855,7 +855,7 @@ export function getNativeAiTools(opts?: {
     }),
     gmail_send: tool({
       description:
-        'إرسال بريد عبر Gmail المرتبط (إلى، موضوع، نص أو HTML). يتطلب موافقة بشرية (HITL) قبل الإرسال الفعلي. لا تختلق عناوين. للإرسال من بريد الجمعية مرّر accountEmail.',
+        'إرسال بريد عبر Gmail أو SMTP (إن ضُبط IMAP). إلى، موضوع، نص أو HTML. HITL قبل الإرسال. للرد على رسالة IMAP مرّر replyToMessageId. لا تختلق عناوين.',
       inputSchema: z.object({
         to: z.string().describe('عنوان المستلم (بريد حقيقي يحدده المستخدم)'),
         subject: z.string().describe('موضوع الرسالة'),
@@ -869,6 +869,14 @@ export function getNativeAiTools(opts?: {
           .describe('نسخة HTML اختيارية'),
         cc: z.string().optional().describe('نسخة كربونية اختيارية'),
         bcc: z.string().optional().describe('نسخة مخفية اختيارية'),
+        replyToMessageId: z
+          .string()
+          .optional()
+          .describe('معرّف رسالة IMAP للرد عليها (من mail_search/gmail_search)'),
+        replyAll: z
+          .boolean()
+          .optional()
+          .describe('رد للجميع (يشمل To/Cc الأصليين)'),
         accountEmail: z
           .string()
           .optional()
@@ -882,6 +890,83 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('gmail_send'),
+        }),
+    }),
+    mail_search: tool({
+      description:
+        'بحث/قائمة بريد الجمعية عبر IMAP (الأولوية) أو Gmail. استخدم للاستعلامات العربية مثل «غير مقروء» أو كلمات من الموضوع/المرسل. قراءة فقط.',
+      inputSchema: z.object({
+        query: z
+          .string()
+          .optional()
+          .describe('نص بحث عربي/إنجليزي أو is:unread'),
+        unreadOnly: z.boolean().optional().describe('غير المقروء فقط'),
+        maxResults: z.number().optional().describe('حد أقصى 25'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_search',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_search'),
+        }),
+    }),
+    mail_read: tool({
+      description:
+        'قراءة نص رسالة كاملة (IMAP محلي أو Gmail) بالمعرّف من mail_search/gmail_search. يدعم العربية والإنجليزية.',
+      inputSchema: z.object({
+        messageId: z.string().describe('معرّف الرسالة'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_read',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_read'),
+        }),
+    }),
+    mail_send: tool({
+      description:
+        'إرسال/رد بريد عبر SMTP (أو Gmail). للرد: replyToMessageId + bodyText. HITL قبل الإرسال الفعلي. يجب موضوع ونص عربي مهني.',
+      inputSchema: z.object({
+        to: z.string().describe('المستلم'),
+        subject: z.string().describe('الموضوع'),
+        bodyText: z.string().optional().describe('نص عادي UTF-8'),
+        bodyHtml: z.string().optional().describe('HTML اختياري'),
+        cc: z.string().optional(),
+        bcc: z.string().optional(),
+        replyToMessageId: z
+          .string()
+          .optional()
+          .describe('معرّف رسالة للرد عليها'),
+        replyAll: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_send',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_send'),
+        }),
+    }),
+    mail_sync: tool({
+      description:
+        'مزامنة فورية لصندوق IMAP وحفظ الرسائل الجديدة محلياً (وقد يُخطر تيليجرام). استدعِها قبل فرز الوارد إن لزم.',
+      inputSchema: z.object({}),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_sync',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_sync'),
         }),
     }),
     sheets_read: tool({
@@ -1460,6 +1545,7 @@ export type AgentEngineInput = {
   /** When false, skip MCP tool binding (local stubs only). Default true. */
   includeMcpTools?: boolean
   maxSteps?: number
+  temperature?: number
   /** When set, only bind these tool names (native + MCP intersection). */
   allowedTools?: string[]
 }
@@ -1536,6 +1622,9 @@ export async function runAgentEngine(
             'أنت وكيل Arabic Buzz. أجب دائماً بالعربية الفصحى المهنية (MSA) مع مصطلحات الجمعيات السعودية. استخدم الأدوات عند الحاجة. عند search_knowledge_base أو أي إجابة حساسة عن لوائح/تراخيص/قرارات: اذكر المصادر بصيغة [مصدر N: العنوان] ولا تختلق مواداً غير موجودة في النتائج. إن لم تجد مصدراً فقل ذلك صراحة.',
           prompt: input.prompt,
           tools,
+          ...(typeof input.temperature === 'number'
+            ? { temperature: input.temperature }
+            : {}),
           stopWhen: stepCountIs(input.maxSteps ?? 5),
         })
     )

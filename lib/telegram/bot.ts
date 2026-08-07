@@ -96,6 +96,9 @@ const TELEGRAM_HEAVY_TOOL_NAMES = [
   'read_decision_document',
   'gmail_search',
   'gmail_read',
+  'mail_search',
+  'mail_read',
+  'mail_sync',
 ] as const
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
@@ -588,7 +591,7 @@ async function runTelegramAgentTurn(opts: {
       })
       console.info('[telegram] timing', {
         path: 'assistant',
-        assistantId: assistantMatch.id,
+        assistantId: routed.assistantId,
         totalMs: Date.now() - t0,
       })
       return {

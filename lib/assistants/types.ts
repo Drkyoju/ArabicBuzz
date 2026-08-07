@@ -12,7 +12,7 @@ export type AssistantId =
   | 'telegram-captain'
   | 'general'
 
-export type AssistantRequirement = 'none' | 'google' | 'telegram'
+export type AssistantRequirement = 'none' | 'google' | 'telegram' | 'mail'
 
 export type AssistantUsedTool = {
   name: string
@@ -68,7 +68,7 @@ export type AssistantRunResult = {
   citations: import('@/lib/scopes/types').RoomCitation[]
   pendingApprovalIds: string[]
   blocked?: {
-    reason: 'google' | 'telegram' | 'auth'
+    reason: 'google' | 'telegram' | 'mail' | 'auth'
     messageAr: string
   }
 }

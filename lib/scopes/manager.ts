@@ -90,12 +90,14 @@ export const DEMO_SCOPES: Scope[] = [
   {
     id: 'shared-demo',
     nameAr: 'غرفة الفريق',
-    descriptionAr: 'عمل جماعي مع الوكلاء.',
+    descriptionAr:
+      'غرفة واحدة للموظفين والوكلاء — شغّل أو أوقف «الوكلاء يعملون معنا».',
     members: ['user-1'],
     memberLabelsAr: [],
     agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],
     sharedMemory: [
       'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
+      'هذه غرفة الفريق الأساسية — الموظفون والوكلاء معاً.',
     ],
     skills: ['arabic_report_generator', 'zatca_e_invoicing_checker'],
   },

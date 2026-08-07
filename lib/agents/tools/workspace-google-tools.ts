@@ -7,12 +7,18 @@ import {
   readSpreadsheetRange,
   writeSpreadsheetRange,
 } from '@/lib/google/sheets'
+import { isImapConfigured } from '@/lib/email/imap-store'
+import {
+  executeMailRead,
+  executeMailSearch,
+  executeMailSend,
+} from '@/lib/agents/tools/mailbox-tools'
 
 function requireUser(params: Record<string, unknown>) {
   const userId = String(params.userId || params._userId || '').trim()
   if (!userId || userId === 'engine' || userId === 'local-owner') {
     throw new Error(
-      'يلزم تسجيل الدخول وربط Google من الإعدادات (تقويم / Gmail / Sheets) أولاً.'
+      'يلزم تسجيل الدخول وربط Google من الإعدادات (تقويم / Gmail / Sheets) أولاً — أو اضبط بريد IMAP/SMTP من «بريد الجمعية».'
     )
   }
   return userId
@@ -25,10 +31,14 @@ function accountEmailOf(params: Record<string, unknown>): string | undefined {
   return email.includes('@') ? email : undefined
 }
 
+/** Gmail tools fall back to IMAP/SMTP when Google is not linked. */
 export async function executeGmailSearch(
   _name: string,
   params: Record<string, unknown>
 ) {
+  if (await isImapConfigured()) {
+    return executeMailSearch(_name, params)
+  }
   const userId = requireUser(params)
   const query = String(params.query || params.q || '').trim()
   const accountEmail = accountEmailOf(params)
@@ -40,6 +50,7 @@ export async function executeGmailSearch(
   })
   return {
     ok: true,
+    source: 'gmail',
     count: messages.length,
     accountEmail: accountEmail || null,
     messages,
@@ -54,12 +65,16 @@ export async function executeGmailRead(
   _name: string,
   params: Record<string, unknown>
 ) {
+  if (await isImapConfigured()) {
+    return executeMailRead(_name, params)
+  }
   const userId = requireUser(params)
   const messageId = String(params.messageId || params.id || '').trim()
   const accountEmail = accountEmailOf(params)
   const message = await readGmailMessage(userId, messageId, { accountEmail })
   return {
     ok: true,
+    source: 'gmail',
     accountEmail: accountEmail || null,
     message,
     messageAr: `قُرئت الرسالة: ${message.subject || messageId}`,
@@ -70,6 +85,9 @@ export async function executeGmailSend(
   _name: string,
   params: Record<string, unknown>
 ) {
+  if (await isImapConfigured()) {
+    return executeMailSend(_name, params)
+  }
   const userId = requireUser(params)
   const to = String(params.to || '').trim()
   const subject = String(params.subject || '').trim()
@@ -87,6 +105,7 @@ export async function executeGmailSend(
   })
   return {
     ok: true,
+    source: 'gmail',
     ...result,
     to,
     subject,

@@ -13,7 +13,7 @@ export type IntentRouteResult = {
 const HEURISTICS: Array<{ id: AssistantId; re: RegExp }> = [
   {
     id: 'inbox-zero',
-    re: /بريد|جيميل|gmail|وارد|inbox|صف[ّر]?ر?\s*البريد|فرز\s*(ال)?بريد/,
+    re: /بريد|جيميل|gmail|وارد|inbox|صف[ّر]?ر?\s*البريد|فرز\s*(ال)?بريد|اقرأ?\s*بريد|اقرا\s*بريد|رد\s*على\s*(ال)?مهم|مسود[ةه]\s*رد|ايميل|إيميل|email/,
   },
   {
     id: 'telegram-captain',

@@ -11,7 +11,6 @@ import {
   Menu,
   X,
   FolderOpen,
-  Plus,
   Sparkles,
   Brain,
   MoreHorizontal,
@@ -20,6 +19,7 @@ import {
   Activity,
   Home,
   Bot,
+  Mail,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -34,6 +34,13 @@ import {
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
+import {
+  HIDDEN_DEMO_SCOPE_IDS,
+  PERSONAL_DESK_SCOPE_ID,
+  PRIMARY_TEAM_SCOPE_ID,
+  isPinnedSidebarScope,
+  shouldRedirectToPrimary,
+} from '@/lib/scopes/primary-room'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { authHeaders } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
@@ -66,6 +73,7 @@ export type SidebarSection =
   | 'files'
   | 'memory'
   | 'calendar'
+  | 'mail'
   | 'approvals'
   | 'audit'
   | 'skills'
@@ -80,8 +88,9 @@ const PRIMARY_NAV: Array<{
 }> = [
   { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
   { id: 'assistants', labelAr: 'المساعدون', icon: Bot },
+  { id: 'mail', labelAr: 'بريد الجمعية', icon: Mail },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
-  { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
+  { id: 'chats', labelAr: 'غرفة الفريق', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
@@ -116,7 +125,6 @@ function SidebarBody({
 }) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
-  const createPersonalDesk = useWorkspaceStore((s) => s.createPersonalDesk)
   const renameScope = useWorkspaceStore((s) => s.renameScope)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const setMode = useWorkspaceModeStore((s) => s.setMode)
@@ -207,6 +215,7 @@ function SidebarBody({
       return (
         n.id === 'home' ||
         n.id === 'assistants' ||
+        n.id === 'mail' ||
         n.id === 'calendar' ||
         n.id === 'chats' ||
         n.id === 'files' ||
@@ -233,26 +242,39 @@ function SidebarBody({
       canAccessOpsUi &&
       mode === 'admin'
   )
-  const archiveScope = useWorkspaceStore((s) => s.archiveScope)
   const scopes = useWorkspaceStore((s) => s.scopes)
-  const personal = useMemo(
-    () => scopes.filter((s): s is typeof s & { userId: string } => isPersonalScope(s) && !s.archived),
+  const primaryRoom = useMemo(
+    () => scopes.find((s) => s.id === PRIMARY_TEAM_SCOPE_ID && !s.archived),
     [scopes]
   )
-  const shared = useMemo(
+  const personalDesk = useMemo(
+    () => scopes.find((s) => s.id === PERSONAL_DESK_SCOPE_ID && !s.archived),
+    [scopes]
+  )
+  /** Invite / custom rooms only — hide clutter demo cards. */
+  const otherRooms = useMemo(
     () =>
       scopes.filter(
-        (s): s is Extract<typeof s, { members: string[] }> =>
-          isSharedScope(s) && !s.archived
+        (s) =>
+          !s.archived &&
+          !isPinnedSidebarScope(s.id) &&
+          !HIDDEN_DEMO_SCOPE_IDS.has(s.id)
       ),
     [scopes]
   )
   const [menuId, setMenuId] = useState<string | null>(null)
-  const [createErr, setCreateErr] = useState('')
+  const [showOtherRooms, setShowOtherRooms] = useState(false)
   const [showMoreNav, setShowMoreNav] = useState(() =>
     MORE_NAV.some((n) => n.id === activeSection)
   )
   const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // Old clutter demo rooms → land on the primary team room.
+  useEffect(() => {
+    if (shouldRedirectToPrimary(activeScopeId)) {
+      setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+    }
+  }, [activeScopeId, setActiveScopeId])
 
   useEffect(() => {
     if (MORE_NAV.some((n) => n.id === activeSection)) {
@@ -362,27 +384,15 @@ function SidebarBody({
         <button
           type="button"
           onClick={() => {
-            setCreateErr('')
-            try {
-              const id = createPersonalDesk()
-              if (!id) throw new Error('empty')
-              onSectionChange?.('chats')
-              onNavigate?.()
-            } catch (e) {
-              console.error('createPersonalDesk failed', e)
-              setCreateErr('تعذّر إنشاء الجلسة. أعد المحاولة.')
-            }
+            setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+            onSectionChange?.('chats')
+            onNavigate?.()
           }}
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
         >
-          <Plus className="h-3.5 w-3.5" aria-hidden />
-          جلسة جديدة
+          <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+          افتح غرفة الفريق
         </button>
-        {createErr && (
-          <p className="mt-1.5 text-[10px] text-ab-warn" role="alert">
-            {createErr}
-          </p>
-        )}
       </div>
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
@@ -398,6 +408,9 @@ function SidebarBody({
                 <button
                   type="button"
                   onClick={() => {
+                    if (id === 'chats') {
+                      setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+                    }
                     onSectionChange?.(id)
                     onNavigate?.()
                   }}
@@ -463,52 +476,99 @@ function SidebarBody({
 
       <div className="flex-1 overflow-y-auto p-2">
         <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
-          <User className="h-3 w-3" aria-hidden />
-          مساحاتي
+          <Users className="h-3 w-3" aria-hidden />
+          الغرفة
         </p>
-        <ul className="mb-3 space-y-0.5">
-          {personal.length === 0 && (
-            <li className="px-2.5 py-1.5 text-[11px] text-stone-400">
-              لا جلسات بعد — اضغط «جلسة جديدة» أعلاه.
-            </li>
-          )}
-          {personal.map((scope) => {
-            const active =
-              activeSection === 'chats' && activeScopeId === scope.id
-            return (
-              <li key={scope.id} className="group relative">
+        <ul className="mb-2 space-y-0.5">
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+                onSectionChange?.('chats')
+                onNavigate?.()
+              }}
+              className={cn(
+                'w-full rounded-md px-2.5 py-2 text-right text-[13px] transition-colors',
+                activeSection === 'chats' &&
+                  activeScopeId === PRIMARY_TEAM_SCOPE_ID
+                  ? 'bg-ab-ink text-white'
+                  : 'text-ab-ink hover:bg-stone-100'
+              )}
+            >
+              <span className="block font-semibold">
+                {primaryRoom?.nameAr || 'غرفة الفريق'}
+              </span>
+              <span
+                className={cn(
+                  'mt-0.5 block text-[10px]',
+                  activeSection === 'chats' &&
+                    activeScopeId === PRIMARY_TEAM_SCOPE_ID
+                    ? 'text-white/70'
+                    : 'text-stone-400'
+                )}
+              >
+                موظفون + وكلاء — غرفة واحدة
+              </span>
+            </button>
+          </li>
+        </ul>
+
+        {personalDesk && (
+          <>
+            <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+              <User className="h-3 w-3" aria-hidden />
+              مساحة خاصة
+            </p>
+            <ul className="mb-2 space-y-0.5">
+              <li className="group relative">
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveScopeId(scope.id)
+                    setActiveScopeId(PERSONAL_DESK_SCOPE_ID)
                     onSectionChange?.('chats')
                     onNavigate?.()
                   }}
                   className={cn(
-                    'w-full rounded-md px-2.5 py-1.5 text-right transition-colors',
-                    active
+                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    activeSection === 'chats' &&
+                      activeScopeId === PERSONAL_DESK_SCOPE_ID
                       ? 'bg-ab-ink text-white'
                       : 'text-ab-ink hover:bg-stone-100'
                   )}
                 >
-                  <span className="block text-[13px] font-medium">
-                    {scope.nameAr}
+                  <span className="block font-medium">
+                    {personalDesk.nameAr}
+                  </span>
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-[10px]',
+                      activeSection === 'chats' &&
+                        activeScopeId === PERSONAL_DESK_SCOPE_ID
+                        ? 'text-white/70'
+                        : 'text-stone-400'
+                    )}
+                  >
+                    اختيارية — لك فقط
                   </span>
                 </button>
                 <button
                   type="button"
                   className="absolute start-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
-                  aria-label="خيارات الجلسة"
-                  title={scope.descriptionAr || 'خيارات الجلسة'}
+                  aria-label="خيارات المساحة الخاصة"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setMenuId((v) => (v === scope.id ? null : scope.id))
+                    setMenuId((v) =>
+                      v === PERSONAL_DESK_SCOPE_ID
+                        ? null
+                        : PERSONAL_DESK_SCOPE_ID
+                    )
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
                 </button>
-                {menuId === scope.id && (
+                {menuId === PERSONAL_DESK_SCOPE_ID && (
                   <div
                     ref={menuRef}
                     className="absolute start-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
@@ -517,85 +577,77 @@ function SidebarBody({
                       type="button"
                       className="block w-full rounded px-2 py-1.5 text-right text-[11px] hover:bg-stone-50"
                       onClick={() => {
-                        const name = window.prompt('اسم الجلسة', scope.nameAr)
-                        if (name) renameScope(scope.id, name)
+                        const name = window.prompt(
+                          'اسم المساحة',
+                          personalDesk.nameAr
+                        )
+                        if (name) renameScope(PERSONAL_DESK_SCOPE_ID, name)
                         setMenuId(null)
                       }}
                     >
                       إعادة تسمية
                     </button>
-                    {!['personal-demo', 'personal-research'].includes(
-                      scope.id
-                    ) && (
-                      <button
-                        type="button"
-                        className="block w-full rounded px-2 py-1.5 text-right text-[11px] text-ab-warn hover:bg-stone-50"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `أرشفة الجلسة «${scope.nameAr}»؟ يمكنك استعادتها لاحقاً من الإعدادات إن لزم.`
-                            )
-                          ) {
-                            archiveScope(scope.id, true)
-                          }
-                          setMenuId(null)
-                        }}
-                      >
-                        أرشفة
-                      </button>
-                    )}
                   </div>
                 )}
               </li>
-            )
-          })}
-        </ul>
+            </ul>
+          </>
+        )}
 
-        <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
-          <Users className="h-3 w-3" aria-hidden />
-          مساحات مشتركة
-        </p>
-        <ul className="space-y-0.5">
-          {shared.length === 0 && (
-            <li className="px-2.5 py-1.5 text-[11px] text-stone-400">
-              غرف الفريق والجمعية تظهر هنا بعد الإنشاء أو الدعوة.
-            </li>
-          )}
-          {shared.map((scope) => {
-            const active =
-              activeSection === 'chats' && activeScopeId === scope.id
-            return (
-              <li key={scope.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScopeId(scope.id)
-                    onSectionChange?.('chats')
-                    onNavigate?.()
-                  }}
-                  className={cn(
-                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
-                    active
-                      ? 'bg-ab-ink text-white'
-                      : 'text-ab-ink hover:bg-stone-100'
-                  )}
-                >
-                  <span className="block font-medium">{scope.nameAr}</span>
-                  <span
-                    className={cn(
-                      'mt-0.5 block text-[10px]',
-                      active ? 'text-white/70' : 'text-stone-400'
-                    )}
-                  >
-                    {scope.agentLabelsAr.length > 0
-                      ? `${scope.agentLabelsAr.length} وكلاء`
-                      : 'غرفة مشتركة'}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        {otherRooms.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowOtherRooms((v) => !v)}
+              className="mb-1 w-full px-2 text-right text-[10px] font-semibold text-stone-400 hover:text-stone-600"
+            >
+              {showOtherRooms
+                ? 'إخفاء غرف الدعوة'
+                : `غرف أخرى من دعوات (${otherRooms.length})`}
+            </button>
+            {showOtherRooms && (
+              <ul className="space-y-0.5">
+                {otherRooms.map((scope) => {
+                  const active =
+                    activeSection === 'chats' && activeScopeId === scope.id
+                  const shared = isSharedScope(scope)
+                  return (
+                    <li key={scope.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveScopeId(scope.id)
+                          onSectionChange?.('chats')
+                          onNavigate?.()
+                        }}
+                        className={cn(
+                          'w-full rounded-md px-2.5 py-1.5 text-right text-[12px] transition-colors',
+                          active
+                            ? 'bg-ab-ink text-white'
+                            : 'text-ab-ink hover:bg-stone-100'
+                        )}
+                      >
+                        <span className="block font-medium">{scope.nameAr}</span>
+                        <span
+                          className={cn(
+                            'mt-0.5 block text-[10px]',
+                            active ? 'text-white/70' : 'text-stone-400'
+                          )}
+                        >
+                          {shared
+                            ? 'من دعوة'
+                            : isPersonalScope(scope)
+                              ? 'شخصية'
+                              : 'غرفة'}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </>
+        )}
       </div>
 
       <div className="border-t border-ab-border px-3 py-2.5">

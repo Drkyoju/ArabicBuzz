@@ -16,6 +16,12 @@ import {
   executeSheetsWrite,
 } from '@/lib/agents/tools/workspace-google-tools'
 import {
+  executeMailRead,
+  executeMailSearch,
+  executeMailSend,
+  executeMailSync,
+} from '@/lib/agents/tools/mailbox-tools'
+import {
   executeRoomCalendarCancel,
   executeRoomCalendarCreate,
   executeRoomCalendarIngest,
@@ -254,6 +260,10 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   gmail_search: executeGmailSearch,
   gmail_read: executeGmailRead,
   gmail_send: executeGmailSend,
+  mail_search: executeMailSearch,
+  mail_read: executeMailRead,
+  mail_send: executeMailSend,
+  mail_sync: executeMailSync,
   sheets_read: executeSheetsRead,
   sheets_write: executeSheetsWrite,
   room_calendar_list: executeRoomCalendarList,

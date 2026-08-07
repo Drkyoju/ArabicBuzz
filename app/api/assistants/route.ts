@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { listAssistantCatalog } from '@/lib/assistants/catalog'
 import {
   assistantParallelHintAr,
+  assistantParallelNoteAr,
   getAssistantMaxParallel,
 } from '@/lib/assistants/parallel'
 
@@ -18,7 +19,7 @@ export async function GET(_req: NextRequest) {
       'اكتب طلبك في «وش تبي؟» واضغط إرسال. كل طلب مهمة في الطابور. إن أرسلت أكثر من واحدة يعملون معاً حتى الحد، والباقي بالانتظار حتى تفرغ خانة.',
     maxParallel,
     hintAr: assistantParallelHintAr(maxParallel),
-    parallelNoteAr: `يمكن تقنياً تشغيل حتى 20 معاً، لكن ذلك يضغط مهلة Netlify والحصة. الحد الحالي: ${maxParallel} مهام متوازية والباقي ينتظر.`,
+    parallelNoteAr: assistantParallelNoteAr(maxParallel),
     assistants: listAssistantCatalog(),
     telegramHintAr:
       'في مجموعة تيليجرام المربوطة: اكتب الطلب طبيعياً (مثل «صفر البريد» أو «ملخص يومي»).',

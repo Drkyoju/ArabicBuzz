@@ -29,6 +29,7 @@ import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
 import { AgentsManagePanel } from '@/components/agents-manage-panel'
+import { AgentsWorkingToggle } from '@/components/agents-working-toggle'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
@@ -44,6 +45,11 @@ import {
 } from '@/lib/rooms/member-mentions'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { useRosterCloudSync } from '@/lib/rooms/use-roster-cloud-sync'
+import {
+  ASSISTANT_PARALLEL_DEFAULT,
+  ROOM_TEAM_RUN_CAP,
+} from '@/lib/assistants/parallel'
+import { usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
 import type {
   RoomCitation,
   RoomFileAttachment,
@@ -215,6 +221,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const collabMode = useAgentRosterStore(
     (s) => s.collabModeByScope[activeScopeId] || 'solo'
   )
+  const agentsWorking = useAgentRosterStore(
+    (s) => s.agentsEnabledByScope[activeScopeId] !== false
+  )
   const roomAgents = useMemo(
     () => agentsForScopeFn(activeScopeId),
     [agentsForScopeFn, activeScopeId]
@@ -288,11 +297,20 @@ export function RoomWorkspace({ className }: { className?: string }) {
       try {
         const saved = localStorage.getItem('ab-display-name')
         if (saved) name = saved
-        // Restore scope only if still a known id (don't clobber a brand-new session)
+        // Restore scope only if still a known id (don't clobber a brand-new session).
+        // Old clutter demo rooms redirect to the primary team room.
         const scope = localStorage.getItem('ab-active-scope')
         if (scope) {
-          const known = useWorkspaceStore.getState().scopes.some((s) => s.id === scope)
-          if (known) setActiveScopeId(scope)
+          const { shouldRedirectToPrimary, PRIMARY_TEAM_SCOPE_ID } =
+            await import('@/lib/scopes/primary-room')
+          if (shouldRedirectToPrimary(scope)) {
+            setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+          } else {
+            const known = useWorkspaceStore
+              .getState()
+              .scopes.some((s) => s.id === scope)
+            if (known) setActiveScopeId(scope)
+          }
         }
       } catch {
         /* ignore */
@@ -923,28 +941,20 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const handoff = resolveMentionHandoff(promptAfterTeam, agentCatalog)
     const runTeam =
       (collabMode === 'team' && !handoff.agent) || wantsAll
-    const TEAM_RUN_CAP = 8
-    const teamAgents = roomAgents.slice(0, TEAM_RUN_CAP)
-    const agentsToRun: RoomAgent[] = runTeam
-      ? teamAgents.length
-        ? teamAgents
-        : roomAgents[0]
-          ? [roomAgents[0]]
-          : []
-      : [handoff.agent || roomAgents[0]].filter(Boolean) as RoomAgent[]
-
-    if (agentsToRun.length === 0) {
-      appendPost({
-        id: `sys-${Date.now()}`,
-        scopeId: activeScopeId,
-        authorKind: 'system',
-        authorId: 'system',
-        authorNameAr: 'النظام',
-        content: 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
-        createdAt: Date.now(),
-      })
-      return
-    }
+    const teamAgents = roomAgents.slice(0, ROOM_TEAM_RUN_CAP)
+    const agentsToRun: RoomAgent[] = agentsWorking
+      ? runTeam
+        ? teamAgents.length
+          ? teamAgents
+          : roomAgents[0]
+            ? [roomAgents[0]]
+            : []
+        : ([handoff.agent || roomAgents[0]].filter(Boolean) as RoomAgent[])
+      : []
+    const teamParallel = Math.min(
+      ASSISTANT_PARALLEL_DEFAULT,
+      agentsToRun.length || 1
+    )
 
     const cleanPrompt = handoff.cleanPrompt || prompt
     const humanId = `h-${Date.now()}`
@@ -964,7 +974,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         scopeId: activeScopeId,
         content: humanContent,
         authorNameAr: displayName,
-        mentionAgentId: runTeam ? undefined : agentsToRun[0]?.id,
+        mentionAgentId:
+          agentsWorking && !runTeam ? agentsToRun[0]?.id : undefined,
       }),
     }).catch(() => null)
 
@@ -1004,10 +1015,35 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     void broadcastRoomEdit(activeScopeId, {
       actorAr: displayName,
-      actionAr: 'أرسل رسالة',
+      actionAr: agentsWorking ? 'أرسل رسالة' : 'أضاف ملاحظة',
       detailAr: prompt.slice(0, 80),
       at: Date.now(),
     })
+
+    // Humans-only mode: save the note/chat and stop — no agent replies.
+    if (!agentsWorking) {
+      try {
+        localStorage.setItem('ab-first-chat', '1')
+        window.dispatchEvent(new Event('ab-first-chat'))
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+
+    if (agentsToRun.length === 0) {
+      appendPost({
+        id: `sys-${Date.now()}`,
+        scopeId: activeScopeId,
+        authorKind: 'system',
+        authorId: 'system',
+        authorNameAr: 'النظام',
+        content:
+          'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء»، أو أبقِ الوضع «بشر فقط».',
+        createdAt: Date.now(),
+      })
+      return
+    }
 
     runAbortRef.current?.abort()
     const abort = new AbortController()
@@ -1020,47 +1056,49 @@ export function RoomWorkspace({ className }: { className?: string }) {
     } catch {
       /* ignore */
     }
-    const peerNotes: string[] = []
-    // Prior agent posts in the room (shared memory of what others did)
+    // Prior agent posts in the room (shared context for parallel team fan-out)
     const priorPeers = posts
       .filter((p) => p.authorKind === 'agent' && p.content)
       .slice(-6)
       .map((p) => `• ${p.authorNameAr}: ${p.content.slice(0, 400)}`)
-    if (priorPeers.length) {
-      peerNotes.push('من سجل الغرفة:\n' + priorPeers.join('\n'))
-    }
+    const peerContextAr = priorPeers.length
+      ? `من سجل الغرفة:\n${priorPeers.join('\n')}`
+      : undefined
 
     try {
-      for (let i = 0; i < agentsToRun.length; i++) {
-        if (abort.signal.aborted) break
-        const agent = agentsToRun[i]
-        setAnsweringAgentId(agent.id)
-        const postId = `a-${Date.now()}-${i}`
-        appendPost({
-          id: postId,
-          scopeId: activeScopeId,
-          authorKind: 'agent',
-          authorId: agent.id,
-          authorNameAr: agent.nameAr,
-          content: '',
-          createdAt: Date.now() + i + 1,
-          streaming: true,
-        })
-        const reply = await streamOneAgent({
-          prompt: cleanPrompt,
-          agent,
-          peerContextAr:
-            runTeam && peerNotes.length ? peerNotes.join('\n\n') : undefined,
-          postId,
-          headers,
-          signal: abort.signal,
-          attachedFiles: filesForSend,
-        })
-        if (abort.signal.aborted) break
-        if (runTeam) {
-          peerNotes.push(`• ${agent.nameAr}: ${reply.slice(0, 800)}`)
+      let cursor = 0
+      const workers = Array.from(
+        { length: Math.min(teamParallel, agentsToRun.length) },
+        async () => {
+          while (!abort.signal.aborted) {
+            const i = cursor++
+            if (i >= agentsToRun.length) return
+            const agent = agentsToRun[i]
+            setAnsweringAgentId(agent.id)
+            const postId = `a-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`
+            appendPost({
+              id: postId,
+              scopeId: activeScopeId,
+              authorKind: 'agent',
+              authorId: agent.id,
+              authorNameAr: agent.nameAr,
+              content: '',
+              createdAt: Date.now() + i + 1,
+              streaming: true,
+            })
+            await streamOneAgent({
+              prompt: cleanPrompt,
+              agent,
+              peerContextAr: runTeam ? peerContextAr : undefined,
+              postId,
+              headers,
+              signal: abort.signal,
+              attachedFiles: filesForSend,
+            })
+          }
         }
-      }
+      )
+      await Promise.all(workers)
       if (abort.signal.aborted) {
         appendPost({
           id: `stop-${Date.now()}`,
@@ -1187,6 +1225,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                <AgentsWorkingToggle scopeId={activeScopeId} compact />
                 <ModelPicker compact scopeId={activeScopeId} />
                 <EffortPicker compact scopeId={activeScopeId} />
                 {hasArtifacts && (
@@ -1415,7 +1454,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
           )}
 
           <div className="relative z-[1] shrink-0 border-b border-ab-border/70 px-3 py-1.5">
-            {seatsCollapsed ? (
+            {!agentsWorking ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] text-stone-600">
+                  وضع بشر فقط — محادثة وملاحظات الفريق بلا ردود وكلاء.
+                </p>
+                <AgentsWorkingToggle scopeId={activeScopeId} compact />
+              </div>
+            ) : seatsCollapsed ? (
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-[11px] text-stone-600">
                   مقاعد الوكلاء
@@ -1470,7 +1516,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             )}
           </div>
 
-          {!seatsCollapsed && (
+          {agentsWorking && !seatsCollapsed && (
             <div
               role="separator"
               aria-orientation="horizontal"
@@ -1580,12 +1626,29 @@ export function RoomWorkspace({ className }: { className?: string }) {
             )}
             {!mentionPreview &&
               !isGuest &&
+              agentsWorking &&
               collabMode === 'team' &&
               roomAgents.length > 1 && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                وضع تعاون: سيرد حتى{' '}
-                {Math.min(8, roomAgents.length)} وكلاء بالتتابع ويتبادلون
-                الملاحظات — أو @الجميع / @اسم لوكيل أو عضو
+                وضع تعاون: حتى{' '}
+                {Math.min(ASSISTANT_PARALLEL_DEFAULT, roomAgents.length)}{' '}
+                وكيل/مهمة معاً (سقف Netlify {ROOM_TEAM_RUN_CAP}) — أو @الجميع /
+                @اسم. المقاعد مشتركة لكل الموظفين في هذه الغرفة.
+              </p>
+            )}
+            {!mentionPreview &&
+              !isGuest &&
+              agentsWorking &&
+              usesSharedRoomRoster(activeScopeId) &&
+              collabMode !== 'team' && (
+              <p className="mb-1.5 text-[11px] text-stone-500">
+                حتى {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة معاً · كل الموظفين
+                يشاركون نفس الوكلاء في غرفة الفريق.
+              </p>
+            )}
+            {!isGuest && !agentsWorking && (
+              <p className="mb-1.5 text-[11px] text-stone-500">
+                ملاحظة للفريق فقط — لتفعيل ردود الوكلاء اختر «الوكلاء يعملون معنا».
               </p>
             )}
             {mentionMenu.length > 0 && (
@@ -1641,7 +1704,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 <EffortPicker compact scopeId={activeScopeId} />
               </div>
             )}
-            {!isGuest && !streaming && (
+            {!isGuest && !streaming && agentsWorking && (
               <div className="mb-1.5 flex flex-wrap gap-1.5">
                 <button
                   type="button"
@@ -1757,14 +1820,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 placeholder={
                   isGuest
                     ? 'سجّل الدخول للإرسال…'
-                    : composerFiles.length
-                      ? 'اكتب ماذا تريد تعديله في الملف المرفق…'
-                      : collabMode === 'team'
-                        ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
-                        : shared
-                          ? 'ارفع 📎 من جهازك أو اكتب… @وكيل'
-                          : activeScopeId === 'personal-research'
-                            ? 'ارفع ملفاً أو اكتب… جرّب @research'
+                    : !agentsWorking
+                      ? 'ملاحظة أو رسالة للفريق (بلا رد وكلاء)…'
+                      : composerFiles.length
+                        ? 'اكتب ماذا تريد تعديله في الملف المرفق…'
+                        : collabMode === 'team'
+                          ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
+                          : shared
+                            ? 'ارفع 📎 من جهازك أو اكتب… @وكيل'
                             : 'ارفع 📎 من جهازك أو اكتب…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"

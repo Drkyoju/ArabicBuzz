@@ -40,7 +40,7 @@ export function CollabModeToggle({
           </button>
           <button
             type="button"
-            title="عدة وكلاء يردون بالتتابع على نفس المهمة"
+            title="عدة وكلاء يعملون معاً على نفس المهمة"
             onClick={() => setCollabMode(scopeId, 'team')}
             className={cn(
               'inline-flex items-center gap-1 rounded px-2 py-0.5',
@@ -73,9 +73,9 @@ export function CollabModeToggle({
             تُشير إليه بـ @) يرد — مناسب للمهام السريعة.
           </p>
           <p className="mt-1">
-            <strong className="text-ab-ink">تعاون:</strong> حتى ٨ وكلاء يعملون
-            بالتتابع على نفس الطلب — مثل فريق بشري في غرفة واحدة. استخدم @الجميع
-            لإجبار الوضع الجماعي.
+            <strong className="text-ab-ink">تعاون:</strong> حتى ٨ وكلاء/مهام
+            معاً على نفس الطلب (سقف Netlify ٢٠) — مقاعد مشتركة لكل الموظفين في
+            الغرفة. استخدم @الجميع لإجبار الوضع الجماعي.
           </p>
         </div>
       )}

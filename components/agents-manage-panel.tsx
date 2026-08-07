@@ -148,8 +148,8 @@ export function AgentsManagePanel({
                 <h3 className="text-sm font-bold text-ab-ink">إدارة الوكلاء</h3>
                 <p className="text-[10px] text-stone-400">
                   {cloudSyncedAt
-                    ? 'محفوظ محلياً وعلى حسابك'
-                    : 'محفوظ محلياً — يُزامَن عند تسجيل الدخول'}
+                    ? 'محفوظ للغرفة — كل الموظفين يشاركون نفس الوكلاء'
+                    : 'محفوظ محلياً — يُزامَن للغرفة عند تسجيل الدخول'}
                 </p>
               </div>
               <button
@@ -167,8 +167,8 @@ export function AgentsManagePanel({
 
             <div className="space-y-3 overflow-y-auto p-4">
               <p className="text-[11px] text-stone-500">
-                حتى 10 Gemini و10 GLM · تعاون = عدة وكلاء · منفصل = واحد ·
-                @الجميع للفريق.
+                حتى 8 وكيل/مهمة معاً (سقف Netlify 20) · مقاعد الغرفة مشتركة لكل
+                الموظفين · تعاون = عدة وكلاء · منفصل = واحد · @الجميع للفريق.
               </p>
 
               <div className="flex flex-wrap gap-1.5">

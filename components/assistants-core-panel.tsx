@@ -111,13 +111,16 @@ export function AssistantsCorePanel({
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null)
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null)
+  const [imapConnected, setImapConnected] = useState<boolean | null>(null)
   const [cuaStatusAr, setCuaStatusAr] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [connectingGoogle, setConnectingGoogle] = useState(false)
   const [error, setError] = useState('')
   const [jobs, setJobs] = useState<AssistantJob[]>([])
-  const [maxParallel, setMaxParallel] = useState(4)
-  const [hintAr, setHintAr] = useState('حتى 4 مهام معاً؛ الباقي بالانتظار.')
+  const [maxParallel, setMaxParallel] = useState(8)
+  const [hintAr, setHintAr] = useState(
+    'حتى 8 وكيل/مهمة معاً؛ الباقي بالانتظار.'
+  )
   const [enqueueBusy, setEnqueueBusy] = useState(false)
   const [barOpen, setBarOpen] = useState(true)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
@@ -163,6 +166,7 @@ export function AssistantsCorePanel({
   useEffect(() => {
     if (signedIn !== true) {
       setGoogleConnected(null)
+      setImapConnected(null)
       setCuaStatusAr(null)
       return
     }
@@ -170,17 +174,20 @@ export function AssistantsCorePanel({
     void (async () => {
       try {
         const headers = await authHeaders()
-        const [g, i] = await Promise.all([
+        const [g, i, m] = await Promise.all([
           fetch('/api/google/calendar?action=status', { headers }),
           fetch('/api/integrations/status'),
+          fetch('/api/mail/settings', { headers }),
         ])
         const gj = (await g.json()) as { connected?: boolean }
         const ij = (await i.json()) as {
           cuaStatusAr?: string
           cuaBridgeOnline?: boolean
         }
+        const mj = (await m.json()) as { configured?: boolean }
         if (cancelled) return
         setGoogleConnected(Boolean(gj.connected))
+        setImapConnected(Boolean(mj.configured))
         setCuaStatusAr(
           typeof ij.cuaStatusAr === 'string'
             ? ij.cuaStatusAr
@@ -191,6 +198,7 @@ export function AssistantsCorePanel({
       } catch {
         if (!cancelled) {
           setGoogleConnected(false)
+          setImapConnected(false)
           setCuaStatusAr('غير متصل')
         }
       }
@@ -462,35 +470,57 @@ export function AssistantsCorePanel({
         </div>
       )}
 
-      {signedIn === true && googleConnected === false && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[12px] text-amber-950">
-              Google غير مربوط — طلبات البريد والتقويم ستفشل حتى تربط الحساب.
-            </p>
-            <button
-              type="button"
-              disabled={connectingGoogle}
-              onClick={() => void linkGoogle()}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-900 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60"
-            >
-              {connectingGoogle ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : (
-                <Link2 className="h-3.5 w-3.5" aria-hidden />
-              )}
-              اربط Google
-            </button>
+      {signedIn === true &&
+        imapConnected === false &&
+        googleConnected === false && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] text-amber-950">
+                البريد غير مربوط — اضبط IMAP لـ info@alhuda-alhikma.sa من «بريد
+                الجمعية» (موصى به)، أو اربط Google إن توفر Workspace.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('mail')}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ab-accent px-3 py-1.5 text-[12px] font-bold text-white"
+                >
+                  بريد الجمعية (IMAP)
+                </button>
+                <button
+                  type="button"
+                  disabled={connectingGoogle}
+                  onClick={() => void linkGoogle()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-900 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60"
+                >
+                  {connectingGoogle ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Link2 className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  Google اختياري
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {signedIn === true && googleConnected === true && (
+      {signedIn === true && imapConnected === true && (
         <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-800">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-          Google مربوط — البريد والتقويم جاهزان
+          بريد IMAP مربوط — الوارد والردود جاهزة (Google اختياري للتقويم)
         </p>
       )}
+
+      {signedIn === true &&
+        imapConnected === false &&
+        googleConnected === true && (
+          <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-800">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+            Google مربوط — البريد والتقويم جاهزان · يُفضّل أيضاً IMAP لبريد
+            الجمعية
+          </p>
+        )}
 
       {/* Single composer */}
       <div className="rounded-2xl border-2 border-ab-accent/40 bg-ab-surface p-4 shadow-sm sm:p-5">

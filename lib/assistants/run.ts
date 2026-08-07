@@ -1,4 +1,5 @@
 import { listGoogleAccounts } from '@/lib/google/tokens'
+import { isImapConfigured } from '@/lib/email/imap-store'
 import { runAgentEngine } from '@/lib/agents/engine'
 import { getAssistant } from '@/lib/assistants/catalog'
 import type {
@@ -14,7 +15,7 @@ export type RunAssistantInput = {
   scopeId: string
   requesterId: string
   mode?: SecurityPostureMode
-  /** Skip Google gate (e.g. Telegram path already validated). */
+  /** Skip Google/mail gate (e.g. Telegram path already validated). */
   skipRequirementCheck?: boolean
   modelSlug?: string
 }
@@ -26,6 +27,11 @@ async function googleConnected(requesterId: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function mailConnected(requesterId: string): Promise<boolean> {
+  if (await isImapConfigured()) return true
+  return googleConnected(requesterId)
 }
 
 function emptyResult(
@@ -49,8 +55,7 @@ function emptyResult(
 
 /**
  * Run a catalog assistant one-shot via the existing engine (tool-scoped).
- * Telegram captain is soft-gated in the UI (summarize works; send needs bind).
- * Assistants use their own maxSteps (8–12) — not Telegram fast-path limits.
+ * Mail assistants accept IMAP/SMTP OR Google Gmail.
  */
 export async function runAssistant(
   input: RunAssistantInput
@@ -81,26 +86,40 @@ export async function runAssistant(
     })
   }
 
-  if (
-    !input.skipRequirementCheck &&
-    assistant.requires === 'google' &&
-    !(await googleConnected(input.requesterId))
-  ) {
-    return emptyResult({
-      assistantId: assistant.id,
-      nameAr: assistant.nameAr,
-      toolNames: [...assistant.allowedTools],
-      blocked: {
-        reason: 'google',
-        messageAr:
-          assistant.emptyStateAr ||
-          'يلزم ربط Google أولاً (Gmail / تقويم) — اضغط «اربط Google الآن».',
-      },
-    })
+  if (!input.skipRequirementCheck) {
+    if (assistant.requires === 'mail' && !(await mailConnected(input.requesterId))) {
+      return emptyResult({
+        assistantId: assistant.id,
+        nameAr: assistant.nameAr,
+        toolNames: [...assistant.allowedTools],
+        blocked: {
+          reason: 'mail',
+          messageAr:
+            assistant.emptyStateAr ||
+            'يلزم ربط بريد الجمعية عبر IMAP/SMTP من الإعدادات → «بريد الجمعية»، أو ربط Google.',
+        },
+      })
+    }
+    if (
+      assistant.requires === 'google' &&
+      !(await googleConnected(input.requesterId))
+    ) {
+      return emptyResult({
+        assistantId: assistant.id,
+        nameAr: assistant.nameAr,
+        toolNames: [...assistant.allowedTools],
+        blocked: {
+          reason: 'google',
+          messageAr:
+            assistant.emptyStateAr ||
+            'يلزم ربط Google أولاً (Gmail / تقويم) — أو اضبط IMAP من «بريد الجمعية».',
+        },
+      })
+    }
   }
 
   // Assistants need room to call tools — never inherit Telegram fast-path (2–3).
-  const maxSteps = Math.max(8, Math.min(16, assistant.maxSteps ?? 10))
+  const maxSteps = Math.max(10, Math.min(16, assistant.maxSteps ?? 12))
 
   const result = await runAgentEngine({
     prompt,
