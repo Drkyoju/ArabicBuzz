@@ -197,6 +197,8 @@ Set `COHERE_API_KEY` (default) or `EMBEDDING_PROVIDER=bge-m3` with a local OpenA
 
 Connect external MCP servers (stdio or SSE/HTTP) and expose their tools to the agent engine alongside native tools.
 
+Project Cursor MCP + skills inventory: [`docs/skills-and-mcp.md`](docs/skills-and-mcp.md) · config: `.cursor/mcp.json` · in-app CORE skills: `skills/` + `lib/skills/core-pack.ts`.
+
 ```bash
 # List connected servers + tools
 curl https://arabicbuzz.netlify.app/api/mcp/servers

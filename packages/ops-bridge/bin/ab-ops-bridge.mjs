@@ -77,6 +77,31 @@ const PRESETS = {
     stdio: ['npx', '-y', '@modelcontextprotocol/server-memory'],
     netlifyHint: 'MCP_MEMORY_KG_URL',
   },
+  fetch: {
+    id: 'fetch',
+    name: 'Fetch MCP',
+    stdio: ['npx', '-y', '@modelcontextprotocol/server-fetch'],
+    netlifyHint: 'MCP_FETCH_URL or MCP_REMOTE_SERVERS id=fetch',
+  },
+  'sequential-thinking': {
+    id: 'sequential-thinking',
+    name: 'Sequential Thinking MCP',
+    stdio: ['npx', '-y', '@modelcontextprotocol/server-sequential-thinking'],
+    netlifyHint: 'MCP_SEQUENTIAL_THINKING_URL',
+  },
+  playwright: {
+    id: 'playwright',
+    name: 'Playwright MCP',
+    stdio: ['npx', '-y', '@playwright/mcp@latest'],
+    netlifyHint:
+      'Prefer MAC_SYNC_URL / browser-use. Optional: MCP_PLAYWRIGHT_URL',
+  },
+  time: {
+    id: 'time',
+    name: 'Time MCP',
+    stdio: ['npx', '-y', '@modelcontextprotocol/server-time'],
+    netlifyHint: 'MCP_TIME_URL',
+  },
 }
 
 function printList() {

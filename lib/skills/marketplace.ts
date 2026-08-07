@@ -448,6 +448,165 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
     ),
   },
   {
+    id: 'word_docx_assistant',
+    nameAr: 'مساعد Word',
+    descriptionAr: 'إنشاء وتحرير مستندات Word مع استبدال موضعي — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: anthropics/skills docx)',
+    iconName: 'file-text',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من anthropics/skills docx',
+    skillMarkdownContent: shippedOrInline(
+      'word_docx_assistant',
+      skillMd({
+        id: 'word_docx_assistant',
+        name: 'مساعد Word',
+        description: 'تحرير مستندات Word',
+        body: 'اقرأ ثم عدّل بـ edit_document (replacements) وأعد الملف.',
+      })
+    ),
+  },
+  {
+    id: 'email_to_task',
+    nameAr: 'من البريد إلى مهمة',
+    descriptionAr: 'تحويل بريد قابل للتنفيذ إلى مهام غرفة بعد موافقة — مفعّلة تلقائياً.',
+    category: 'تشغيل',
+    author: 'Arabic Buzz (GitHub: gws-workflow-email-to-task)',
+    iconName: 'list-todo',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من googleworkspace/cli gws-workflow-email-to-task',
+    skillMarkdownContent: shippedOrInline(
+      'email_to_task',
+      skillMd({
+        id: 'email_to_task',
+        name: 'من البريد إلى مهمة',
+        description: 'تحويل البريد إلى مهام غرفة',
+        body: 'استخرج المهام من البريد وأنشئها بـ room_tasks_create بعد موافقة.',
+      })
+    ),
+  },
+  {
+    id: 'email_attachment_filing',
+    nameAr: 'أرشفة مرفقات البريد',
+    descriptionAr: 'حفظ مرفقات البريد للغرفة أو Drive بأسماء موحّدة — مفعّلة تلقائياً.',
+    category: 'معرفة',
+    author: 'Arabic Buzz (GitHub: recipe-save-email-attachments)',
+    iconName: 'paperclip',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من googleworkspace recipe-save-email-attachments',
+    skillMarkdownContent: shippedOrInline(
+      'email_attachment_filing',
+      skillMd({
+        id: 'email_attachment_filing',
+        name: 'أرشفة مرفقات البريد',
+        description: 'حفظ مرفقات البريد',
+        body: 'اعرض المرفقات واحفظها بعد موافقة مع تسمية عربية موحّدة.',
+      })
+    ),
+  },
+  {
+    id: 'hitl_approvals_queue',
+    nameAr: 'طابور الموافقات البشرية',
+    descriptionAr: 'تلخيص الموافقات المعلّقة وصياغة قرار HITL — مفعّلة تلقائياً.',
+    category: 'حوكمة',
+    author: 'Arabic Buzz',
+    iconName: 'shield-check',
+    packId: 'core-auto',
+    autoActive: true,
+    skillMarkdownContent: shippedOrInline(
+      'hitl_approvals_queue',
+      skillMd({
+        id: 'hitl_approvals_queue',
+        name: 'طابور الموافقات البشرية',
+        description: 'تشغيل طابور HITL',
+        body: 'لخّص المعلّق ولا توافق نيابة عن المستخدم.',
+      })
+    ),
+  },
+  {
+    id: 'arabic_presentation_builder',
+    nameAr: 'بنّاء العروض العربية',
+    descriptionAr: 'شرائح عربية RTL بعناوين ونقاط واضحة — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: arabic-presentations)',
+    iconName: 'presentation',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من sultanalsafran/agent-skills arabic-presentations',
+    skillMarkdownContent: shippedOrInline(
+      'arabic_presentation_builder',
+      skillMd({
+        id: 'arabic_presentation_builder',
+        name: 'بنّاء العروض العربية',
+        description: 'بناء عروض تقديمية عربية',
+        body: 'أخرج شرائح RTL: عنوان، أجندة، محتوى، قرارات، خاتمة.',
+      })
+    ),
+  },
+  {
+    id: 'gov_web_research',
+    nameAr: 'بحث مصادر رسمية',
+    descriptionAr: 'بحث عبر المعرفة ثم web_search/gov.sa مع استشهاد — مفعّلة تلقائياً.',
+    category: 'معرفة',
+    author: 'Arabic Buzz (GitHub: mattpocock research)',
+    iconName: 'landmark',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من mattpocock/skills research + مسار البحث المجاني',
+    skillMarkdownContent: shippedOrInline(
+      'gov_web_research',
+      skillMd({
+        id: 'gov_web_research',
+        name: 'بحث مصادر رسمية',
+        description: 'بحث من مصادر رسمية مع استشهاد',
+        body: 'ابحث في المعرفة ثم الويب الرسمي واستشهد — لا تختلق.',
+      })
+    ),
+  },
+  {
+    id: 'pdf_document_ops',
+    nameAr: 'عمليات PDF',
+    descriptionAr: 'إنشاء ودمج وختم واستبدال نص في PDF — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: anthropics/skills pdf)',
+    iconName: 'file',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من anthropics/skills pdf',
+    skillMarkdownContent: shippedOrInline(
+      'pdf_document_ops',
+      skillMd({
+        id: 'pdf_document_ops',
+        name: 'عمليات PDF',
+        description: 'إنشاء ودمج وختم PDF',
+        body: 'استخدم pdf_create / pdf_merge / pdf_stamp / pdf_replace_text حسب الحاجة.',
+      })
+    ),
+  },
+  {
+    id: 'calendar_email_ingest',
+    nameAr: 'مواعيد من البريد',
+    descriptionAr: 'استخراج مواعيد البريد وإضافتها للتقويم بعد مراجعة — مفعّلة تلقائياً.',
+    category: 'تشغيل',
+    author: 'Arabic Buzz (GitHub: gws-calendar patterns)',
+    iconName: 'calendar-plus',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من أنماط gws-calendar و calendar_scan_email',
+    skillMarkdownContent: shippedOrInline(
+      'calendar_email_ingest',
+      skillMd({
+        id: 'calendar_email_ingest',
+        name: 'مواعيد من البريد',
+        description: 'استيعاب مواعيد من البريد',
+        body: 'استخرج المواعيد واعرضها ثم أنشئها بعد موافقة دون تكرار.',
+      })
+    ),
+  },
+  {
     id: 'zatca_e_invoicing_checker',
     nameAr: 'مدقق الفوترة الإلكترونية (ZATCA)',
     descriptionAr: 'التحقق من هياكل XML/QR للفوترة الإلكترونية - المرحلة الثانية.',

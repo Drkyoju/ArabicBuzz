@@ -311,6 +311,78 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     transport: 'stdio',
     setupHintAr: 'npx mcp-server-sqlite --db-path ./data.db على الماك.',
   },
+  {
+    id: 'fetch',
+    nameAr: 'جلب صفحات (Fetch)',
+    nameEn: 'Fetch',
+    descriptionAr:
+      'جلب محتوى HTTP/HTML كأدوات MCP — مكمّل لمسار Jina Reader المدمج في web_fetch.',
+    benefitsAr: 'قراءة صفحات عامة من وكيل Cursor أو جسر الماك.',
+    categoryAr: 'ويب وبحث',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr:
+      'محلي/Cursor: مضمّن في .cursor/mcp.json. للجسر: node packages/ops-bridge/bin/ab-ops-bridge.mjs fetch',
+    docsUrl: 'https://github.com/modelcontextprotocol/servers',
+    recommended: true,
+  },
+  {
+    id: 'git',
+    nameAr: 'Git محلي',
+    nameEn: 'Git',
+    descriptionAr: 'قراءة حالة المستودع والفروع والفروق عبر MCP.',
+    benefitsAr: 'تشخيص التغييرات والمراجعات من داخل Cursor دون لصق يدوي.',
+    categoryAr: 'تطوير',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr: 'مضمّن في .cursor/mcp.json للمستودع الحالي.',
+    docsUrl: 'https://github.com/modelcontextprotocol/servers',
+    recommended: true,
+  },
+  {
+    id: 'google-workspace-mcp',
+    nameAr: 'Google Workspace MCP (اختياري)',
+    nameEn: 'taylorwilsdon/google_workspace_mcp',
+    descriptionAr:
+      'خادم مفتوح المصدر شامل (Gmail/Drive/Calendar/Docs…). المنتج يستخدم أدوات Google الأصلية أولاً — هذا بديل بعيد اختياري.',
+    benefitsAr: 'تغطية أوسع لخدمات Google إن رغبت بتشغيل خادم MCP منفصل.',
+    categoryAr: 'مساحة عمل',
+    runtime: 'both',
+    transport: 'sse',
+    setupHintAr:
+      'شغّل الخادم محلياً أو على VPS ببيانات OAuth الخاصة بكم، ثم عيّن الرابط في MCP_REMOTE_SERVERS. لا تستبدل الربط الأصلي في الواجهة إلا بعد اختبار HITL.',
+    envKeys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MCP_GOOGLE_WORKSPACE_URL'],
+    docsUrl: 'https://github.com/taylorwilsdon/google_workspace_mcp',
+    recommended: false,
+  },
+  {
+    id: 'telegram-mcp',
+    nameAr: 'Telegram MCP (ماك · اختياري)',
+    nameEn: 'chigwell/telegram-mcp',
+    descriptionAr:
+      'وصول متقدم لمحادثات تيليجرام عبر Telethon — منفصل عن بوت الغرفة المدمج. للاستخدام المحلي/Cursor فقط.',
+    benefitsAr: 'قراءة أرشيف القنوات الخاصة على الماك عند الحاجة التشغيلية.',
+    categoryAr: 'تواصل',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr:
+      'يتطلب API_ID/API_HASH من my.telegram.org. المنتج اليومي يبقى على بوت Arabic Buzz الأصلي.',
+    envKeys: ['TELEGRAM_API_ID', 'TELEGRAM_API_HASH', 'TELEGRAM_SESSION'],
+    docsUrl: 'https://github.com/chigwell/telegram-mcp',
+    recommended: false,
+  },
+  {
+    id: 'time',
+    nameAr: 'الوقت والمناطق الزمنية',
+    nameEn: 'Time',
+    descriptionAr: 'تحويل المناطق الزمنية والتواريخ — مفيد مع تقويم الرياض.',
+    benefitsAr: 'تقليل أخطاء التوقيت عند جدولة الاجتماعات عبر Cursor.',
+    categoryAr: 'تخطيط',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr: 'npx -y @modelcontextprotocol/server-time',
+    docsUrl: 'https://github.com/modelcontextprotocol/servers',
+  },
 ]
 
 export function getMcpCatalogItem(id: string) {

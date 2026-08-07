@@ -12,6 +12,10 @@
  * - agenda / follow-up / board pack: zapier/wade-skills + decision-board patterns
  * - Drive organize: googleworkspace/cli recipe-organize-drive-folder + file-naming
  * - volunteers / formal letters / KSA deadlines: association ops adaptations
+ * - Word/PDF ops: anthropics/skills docx+pdf
+ * - email→task / attachments: googleworkspace gws-workflow-email-to-task + recipe-save-email-attachments
+ * - presentations: sultanalsafran/agent-skills arabic-presentations
+ * - gov research: mattpocock research + free web_search path
  */
 
 export const CORE_AUTO_SKILL_IDS = [
@@ -35,6 +39,15 @@ export const CORE_AUTO_SKILL_IDS = [
   'agenda_builder',
   'ksa_compliance_deadlines',
   'drive_file_organizer',
+  // Wave 3 — docs / email ops / HITL / research (auto-injected)
+  'word_docx_assistant',
+  'email_to_task',
+  'email_attachment_filing',
+  'hitl_approvals_queue',
+  'arabic_presentation_builder',
+  'gov_web_research',
+  'pdf_document_ops',
+  'calendar_email_ingest',
 ] as const
 
 export type CoreAutoSkillId = (typeof CORE_AUTO_SKILL_IDS)[number]
