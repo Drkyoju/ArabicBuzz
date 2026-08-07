@@ -365,7 +365,7 @@ export function IntegrationsSetupPanel() {
           </span>
         </p>
         <p className="mb-1 text-[11px]">
-          ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.
+          ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل حاوية CranL مباشرة.
         </p>
         <DevDisclosure summaryAr="تثبيت وربط Cua (مسؤول)">
           <ol className="list-decimal space-y-1 pe-4">

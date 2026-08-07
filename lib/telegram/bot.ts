@@ -938,7 +938,7 @@ export function getTelegramBot() {
                   'اكتب بالعربية العادية — بدون /ask.',
                   privacyHintAr(botUsername),
                 ].join('\n')
-              : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
+              : 'أضِف TELEGRAM_OWNER_CHAT_ID على CranL إن أردت تثبيت مالك التنبيهات.',
           ].join('\n')
         )
         return
@@ -1019,7 +1019,7 @@ export function getTelegramBot() {
                 'عدة لجان: /link finance أو /link scope_…__c_programs في مجموعة أخرى.',
                 privacyHintAr(botUsername),
               ].join('\n')
-            : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
+            : 'أضِف TELEGRAM_OWNER_CHAT_ID على CranL إن أردت تثبيت مالك التنبيهات.',
           'أوامر اختيارية: /help · /status · /rooms · /approve',
         ]
           .filter(Boolean)

@@ -54,5 +54,5 @@ export function assistantParallelNoteAr(
   max = getAssistantMaxParallel(),
   maxPerUser = getAssistantMaxPerUser()
 ): string {
-  return `على Netlify يمكن تقنياً تشغيل حتى ${HARD_MAX} معاً عبر ASSISTANT_MAX_PARALLEL، لكن ذلك يضغط مهلة الدوال والحصة. الحد الحالي: ${max} متوازية للمساحة، وحتى ${maxPerUser} مهام معاً لكل موظف.`
+  return `على CranL يمكن تقنياً تشغيل حتى ${HARD_MAX} معاً عبر ASSISTANT_MAX_PARALLEL، لكن ذلك يضغط مهلة الدوال والحصة. الحد الحالي: ${max} متوازية للمساحة، وحتى ${maxPerUser} مهام معاً لكل موظف.`
 }

@@ -152,7 +152,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     categoryAr: 'ملفات',
     runtime: 'local',
     transport: 'stdio',
-    setupHintAr: 'محلي فقط عبر وكيل الماك / stdio — غير متاح داخل Netlify مباشرة.',
+    setupHintAr: 'محلي فقط عبر وكيل الماك / stdio — غير متاح داخل حاوية CranL مباشرة.',
     docsUrl: 'https://github.com/modelcontextprotocol/servers',
   },
   {
@@ -223,7 +223,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     nameAr: 'جسر Cua (متصفح/سطح مكتب)',
     nameEn: 'Cua Driver',
     descriptionAr:
-      'تحكم اختياري بالمتصفح وسطح المكتب عبر trycua/cua على جهازك — أداة cua_computer. لا يعمل داخل Netlify؛ يحتاج cua-driver serve + npm run cua:bridge + نفق. HITL لإجراءات الإدخال.',
+      'تحكم اختياري بالمتصفح وسطح المكتب عبر trycua/cua على جهازك — أداة cua_computer. لا يعمل داخل حاوية CranL؛ يحتاج cua-driver serve + npm run cua:bridge + نفق. HITL لإجراءات الإدخال.',
     benefitsAr:
       'صفحة واعية بدون امتداد كروم + خلفية سطح مكتب عند اتصال الجسر المحلي.',
     categoryAr: 'أتمتة',
@@ -289,7 +289,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     nameAr: 'متصفح Steel (سحابة · احتياطي)',
     nameEn: 'Steel.dev cloud browser',
     descriptionAr:
-      'جلسة متصفح سحابية احتياطية لـ browser_rpa عند غياب browser-use/جسر الماك — HITL مطلوب. لا يشغّل داخل Netlify مباشرة.',
+      'جلسة متصفح سحابية احتياطية لـ browser_rpa عند غياب browser-use/جسر الماك — HITL مطلوب. لا يشغّل داخل حاوية CranL مباشرة.',
     benefitsAr: 'Failover سحابي للبوابات الحكومية عند تعذّر الجسر المحلي.',
     categoryAr: 'أتمتة',
     runtime: 'remote',

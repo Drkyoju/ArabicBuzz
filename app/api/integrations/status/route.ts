@@ -58,7 +58,7 @@ export async function GET() {
 
   let cuaOnline = false
   let cuaMessageAr =
-    'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.'
+    'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل حاوية CranL مباشرة.'
   const cuaConfigured = cuaBridgeConfigured()
   if (cuaConfigured) {
     try {

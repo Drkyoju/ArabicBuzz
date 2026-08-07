@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       installScriptWin: 'irm https://cua.ai/driver/install.ps1 | iex',
       docsUrl: 'https://github.com/trycua/cua',
       messageAr:
-        'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.',
+        'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل حاوية CranL مباشرة.',
     })
   }
 

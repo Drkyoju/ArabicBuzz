@@ -378,7 +378,7 @@ export async function transcribeArabicAudioBuffer(
   }
   const openaiKey = resolveProviderKeySync('OPENAI_API_KEY')
   if (!openaiKey) {
-    throw new Error('OPENAI_API_KEY missing — مطلوب لـ Whisper على Netlify')
+    throw new Error('OPENAI_API_KEY missing — مطلوب لـ Whisper على CranL')
   }
   if (!buffer?.length || buffer.length < 64) {
     throw new Error('تعذر قراءة الملاحظة الصوتية')

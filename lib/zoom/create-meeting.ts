@@ -18,7 +18,7 @@ async function getZoomAccessToken(): Promise<string> {
   const clientSecret = process.env.ZOOM_CLIENT_SECRET?.trim()
   if (!accountId || !clientId || !clientSecret) {
     throw new Error(
-      'Zoom غير مضبوط — أضف ZOOM_ACCOUNT_ID و ZOOM_CLIENT_ID و ZOOM_CLIENT_SECRET على Netlify.'
+      'Zoom غير مضبوط — أضف ZOOM_ACCOUNT_ID و ZOOM_CLIENT_ID و ZOOM_CLIENT_SECRET على CranL.'
     )
   }
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')

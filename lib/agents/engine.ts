@@ -1436,7 +1436,7 @@ export function getNativeAiTools(opts?: {
     }),
     cua_computer: tool({
       description:
-        'جسر Cua Driver الاختياري (محلي/سطح مكتب) — تنقّل/نقر/كتابة/لقطة عبر cua-driver عند اتصال CUA_BRIDGE_URL. لا يعمل داخل Netlify. إن كان الجسر غير متصل أرجع رسالة عربية واضحة. إجراءات الإدخال عالية المخاطر تخضع لـ HITL.',
+        'جسر Cua Driver الاختياري (محلي/سطح مكتب) — تنقّل/نقر/كتابة/لقطة عبر cua-driver عند اتصال CUA_BRIDGE_URL. لا يعمل داخل حاوية CranL. إن كان الجسر غير متصل أرجع رسالة عربية واضحة. إجراءات الإدخال عالية المخاطر تخضع لـ HITL.',
       inputSchema: z.object({
         action: z
           .string()

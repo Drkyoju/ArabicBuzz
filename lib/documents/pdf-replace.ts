@@ -285,7 +285,7 @@ export function pdfReplaceEngineHintAr(): string {
     'تعديل نص عربي داخل PDF: استخدم pdf_replace_text. ' +
     'يفضّل إعادة استخدام الخط المضمّن من الملف (مثل Sakkal Majalla) ثم HarfBuzz/Noto كاحتياطي. ' +
     'لا تستخدم pdf_stamp أو إعادة بناء النص لاستبدال أسماء — يفصل الحروف. ' +
-    'على Netlify يلزم جسر الماك (MAC_SYNC_URL) مع pymupdf + arabic-reshaper + python-bidi. ' +
+    'على CranL يلزم جسر الماك (MAC_SYNC_URL) مع pymupdf + arabic-reshaper + python-bidi. ' +
     'CloudConvert اختياري للتحويل بين الصيغ فقط (CLOUDCONVERT_API_KEY).'
   )
 }

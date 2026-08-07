@@ -119,7 +119,7 @@ export async function cuaHealth(): Promise<{
       configured: false,
       online: false,
       messageAr:
-        'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.',
+        'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل حاوية CranL مباشرة.',
     }
   }
   try {
@@ -198,7 +198,7 @@ export async function executeCuaAction(
       configured: false,
       online: false,
       messageAr:
-        'ثبّت Cua على جهازك ثم اربط العنوان هنا (CUA_BRIDGE_URL). لا يعمل داخل Netlify.',
+        'ثبّت Cua على جهازك ثم اربط العنوان هنا (CUA_BRIDGE_URL). لا يعمل داخل حاوية CranL.',
     }
   }
 
