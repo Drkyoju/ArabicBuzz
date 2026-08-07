@@ -1,8 +1,11 @@
 /**
  * High-quality Arabic PDF find/replace.
  *
- * Engine: PyMuPDF Page.insert_htmlbox (HarfBuzz) via scripts/pdf-arabic-replace.py
- * — never use pdf-lib / insert_textbox character tricks for Arabic (disconnected glyphs).
+ * Engine: scripts/pdf-arabic-replace.py
+ *  1) Prefer embedded Arabic TTF from the PDF (e.g. Sakkal Majalla) + arabic-reshaper
+ *     presentation forms + TextWriter — closest visual match to the original.
+ *  2) Fallback: Page.insert_htmlbox (HarfBuzz) with Noto Naskh / SF Arabic.
+ * Never use pdf-lib / insert_textbox character tricks for Arabic (disconnected glyphs).
  *
  * Run order:
  *  1) Local Python (PDF_REPLACE_PYTHON / scripts/pdf-tools-venv / python3)
@@ -24,7 +27,11 @@ export type PdfTextReplacement = {
 
 export type PdfReplaceResult = {
   buffer: Buffer
-  engine: 'pymupdf-htmlbox' | 'mac-pymupdf-htmlbox'
+  engine:
+    | 'pymupdf-embedded-font'
+    | 'pymupdf-htmlbox'
+    | 'mac-pymupdf-htmlbox'
+    | 'mac-pymupdf-embedded-font'
   totalReplacements: number
   details: Array<{ find: string; replace: string; count: number }>
   messageAr: string
@@ -123,14 +130,18 @@ async function replaceViaLocalPython(opts: {
         if (parsed.ok && existsSync(outPath)) {
           const buffer = readFileSync(outPath)
           cleanupDir(dir, [inPath, outPath])
+          const eng =
+            parsed.engine === 'pymupdf-embedded-font'
+              ? 'pymupdf-embedded-font'
+              : 'pymupdf-htmlbox'
           return {
             buffer,
-            engine: 'pymupdf-htmlbox',
+            engine: eng,
             totalReplacements: parsed.totalReplacements || 0,
             details: parsed.details || [],
             messageAr:
               parsed.messageAr ||
-              'تم استبدال النص العربي في PDF بمحرّك PyMuPDF (HarfBuzz).',
+              'تم استبدال النص العربي في PDF بمحرّك PyMuPDF.',
             font: parsed.font,
           }
         }
@@ -201,14 +212,18 @@ async function replaceViaMacSync(opts: {
         `وكيل الماك /pdf-replace فشل (HTTP ${res.status})`
     )
   }
+  const eng =
+    data.font && String(data.font).startsWith('embedded:')
+      ? 'mac-pymupdf-embedded-font'
+      : 'mac-pymupdf-htmlbox'
   return {
     buffer: Buffer.from(data.contentBase64, 'base64'),
-    engine: 'mac-pymupdf-htmlbox',
+    engine: eng,
     totalReplacements: data.totalReplacements || 0,
     details: data.details || [],
     messageAr:
       data.messageAr ||
-      'تم استبدال النص العربي عبر جسر الماك (PyMuPDF/HarfBuzz).',
+      'تم استبدال النص العربي عبر جسر الماك (PyMuPDF).',
     font: data.font,
   }
 }
@@ -267,9 +282,10 @@ export async function replacePdfText(opts: {
 
 export function pdfReplaceEngineHintAr(): string {
   return (
-    'تعديل نص عربي داخل PDF: استخدم pdf_replace_text (PyMuPDF insert_htmlbox / HarfBuzz). ' +
+    'تعديل نص عربي داخل PDF: استخدم pdf_replace_text. ' +
+    'يفضّل إعادة استخدام الخط المضمّن من الملف (مثل Sakkal Majalla) ثم HarfBuzz/Noto كاحتياطي. ' +
     'لا تستخدم pdf_stamp أو إعادة بناء النص لاستبدال أسماء — يفصل الحروف. ' +
-    'على Netlify يلزم جسر الماك (MAC_SYNC_URL) مع pymupdf. ' +
+    'على Netlify يلزم جسر الماك (MAC_SYNC_URL) مع pymupdf + arabic-reshaper + python-bidi. ' +
     'CloudConvert اختياري للتحويل بين الصيغ فقط (CLOUDCONVERT_API_KEY).'
   )
 }

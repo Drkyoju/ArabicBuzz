@@ -24,7 +24,7 @@
 |--------|-------|--------|---------------------------|---------|
 | **DOCX** | mammoth / officeparser | `docx` | `edit_document(replacements)` أو `templateData` | استبدال OOXML عبر JSZip؛ قوالب `{tag}` عبر docxtemplater |
 | **XLSX** | exceljs | exceljs | `edit_excel(cells)` | يحافظ على الأوراق والأنماط |
-| **PDF** | pdf-parse + OCR | pdf-lib | **`pdf_replace_text`** (PyMuPDF `insert_htmlbox` / HarfBuzz) · `pdf_stamp` / `pdf_merge` / `pdf_fill_form` | استبدال عربي: لا تستخدم stamp ولا إعادة بناء — يفصل الحروف. على Netlify يلزم جسر الماك + pymupdf |
+| **PDF** | pdf-parse + OCR | pdf-lib | **`pdf_replace_text`** (خط مضمّن من PDF إن وُجد، وإلا `insert_htmlbox` / HarfBuzz) · `pdf_stamp` / `pdf_merge` / `pdf_fill_form` | استبدال عربي: لا تستخدم stamp ولا إعادة بناء — يفصل الحروف. على Netlify يلزم جسر الماك + pymupdf + arabic-reshaper |
 | **PPTX** | officeparser | pptxgenjs | `edit_document(replacements)` | أو `slides` لإعادة بناء نصية |
 
 أدوات الشات: `read_document` → `edit_document` / `edit_excel` / `pdf_*` → زر تنزيل (`return_file` إن لزم).
@@ -35,22 +35,23 @@
 
 | المحرّك | الجودة للعربية | متى |
 |--------|----------------|-----|
-| **PyMuPDF `insert_htmlbox`** (HarfBuzz) | جيد جداً — حروف متصلة + RTL | الأداة `pdf_replace_text` أو `edit_document(format:pdf, replacements)` |
+| **خط مضمّن من PDF** (Sakkal Majalla وغيرها) + arabic-reshaper | الأقرب للأصل — نفس ملف TTF المضمّن | تلقائي في `pdf_replace_text` عند وجود خط عربي مضمّن |
+| **PyMuPDF `insert_htmlbox`** (HarfBuzz / Noto Naskh) | جيد جداً — حروف متصلة + RTL | احتياطي إن لم يُستخرج خط مضمّن صالح |
 | pdf-lib / `pdf_stamp` / reverse يدوي | سيء (حروف منفصلة) | ختم/ملاحظة فقط — **ليس** لاستبدال أسماء |
 | CloudConvert pdf↔docx | تحويل صيغ؛ التخطيط قد يتغيّر | اختياري مدفوع `CLOUDCONVERT_API_KEY` — ليس بديلاً مثاليًا للتعديل الموضعي |
-| Aspose / Apryse / Adobe PDF Services | ممتاز غالباً (مدفوع SaaS) | غير مدمج — إن لزم جودة طباعية مطابقة للخط الأصلي |
+| Aspose / Apryse / Adobe PDF Services | ممتاز غالباً (مدفوع SaaS) | غير مدمج — إن لزم مطابقة طباعية مطلقة بدون الخط المضمّن |
 
 تثبيت محلي (ماك / جسر `storage:sync`):
 
 ```bash
 python3 -m venv scripts/pdf-tools-venv
-scripts/pdf-tools-venv/bin/pip install pymupdf
-# الخط: assets/fonts/NotoNaskhArabic-Regular.ttf
+scripts/pdf-tools-venv/bin/pip install pymupdf arabic-reshaper python-bidi
+# احتياطي: assets/fonts/NotoNaskhArabic-Regular.ttf
 ```
 
 على Netlify: عيّن `MAC_SYNC_URL` وشغّل الوكيل؛ المسار `POST /pdf-replace`. اختياري: `PDF_REPLACE_PYTHON`.
 
-خط Sakkal Majalla الأصلي في بعض اللوائح غير مرخّص للدمج — الناتج يستخدم Noto Naskh (قريب بصرياً، ليس مطابقاً حرفياً).
+Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوائح Word→PDF؛ السكربت يستخرجه ويعيد الرسم به. بدون GSUB يعتمد على أشكال العرض (presentation forms). ملف الخط الكامل غير مُوزَّع مع المشروع (ترخيص Microsoft).
 
 ## سلسلة التحويل (`convert_document` / `convert_file`)
 
