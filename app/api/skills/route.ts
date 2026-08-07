@@ -6,11 +6,12 @@ import {
   deletePersistedSkill,
   serializeOpenClawSkill,
 } from '@/lib/skills/persist'
-import { requireRealUser } from '@/lib/auth/session'
+import { requireWorkspaceOwner } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
 const MAX_CONTENT_LENGTH = 50_000
+const OWNER_ONLY_AR = 'إدارة المهارات للمالك فقط.'
 
 function slugifyName(input: string): string {
   const base = input
@@ -23,7 +24,10 @@ function slugifyName(input: string): string {
   return `skill-${Date.now().toString(36)}`
 }
 
+/** Catalog browse/manage — owner UI only. Workers load skills server-side via registry. */
 export async function GET(req: NextRequest) {
+  const auth = await requireWorkspaceOwner(req, OWNER_ONLY_AR)
+  if (!auth.ok) return auth.response
   const scope = req.nextUrl.searchParams.get('scope')
   let skills = await loadAllSkillsMerged()
   if (scope === 'personal' || scope === 'shared') {
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRealUser(req)
+  const auth = await requireWorkspaceOwner(req, OWNER_ONLY_AR)
   if (!auth.ok) return auth.response
   try {
     const body = await req.json()
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const auth = await requireRealUser(req)
+  const auth = await requireWorkspaceOwner(req, OWNER_ONLY_AR)
   if (!auth.ok) return auth.response
   try {
     const id =

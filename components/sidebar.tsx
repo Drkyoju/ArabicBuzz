@@ -34,11 +34,13 @@ import {
 import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import {
   HIDDEN_DEMO_SCOPE_IDS,
-  PERSONAL_DESK_SCOPE_ID,
   PRIMARY_TEAM_SCOPE_ID,
   isPinnedSidebarScope,
+  personalDeskScopeId,
+  shouldRedirectLegacyPersonalDesk,
   shouldRedirectToPrimary,
 } from '@/lib/scopes/primary-room'
+import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { authHeaders } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
@@ -116,6 +118,8 @@ function SidebarBody({
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
   const renameScope = useWorkspaceStore((s) => s.renameScope)
+  const ensurePersonalDesk = useWorkspaceStore((s) => s.ensurePersonalDesk)
+  const [personalDeskId, setPersonalDeskId] = useState<string | null>(null)
   const mode = useWorkspaceModeStore((s) => s.mode)
   const setMode = useWorkspaceModeStore((s) => s.setMode)
   const labelAr = useWorkspaceModeStore((s) => s.labelAr)
@@ -212,6 +216,10 @@ function SidebarBody({
       )
     }
     if (!isEmployeeSection(n.id, mode)) return false
+    // Skills catalog/management — sole workspace owner only (admin chrome).
+    if (n.id === 'skills') {
+      return canAccessOpsUi && mode === 'admin'
+    }
     // Never keep an empty «الموافقات» nav item — only when a delete is pending.
     // Deep link / home banner / sticky bar still open the inbox.
     if (n.id === 'approvals') {

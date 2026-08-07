@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { User } from '@supabase/supabase-js'
+import { isWorkspaceOwnerEmail } from '@/lib/auth/roles'
 
 /** Personal / single-user mode — no login wall. Set AUTH_REQUIRED=true to re-enable. */
 export function isAuthRequired(): boolean {
@@ -117,4 +118,26 @@ export function requireRealUser(req: Request) {
     'يلزم تسجيل الدخول لتنفيذ هذا الإجراء.',
     'جلسة غير صالحة — سجّل الدخول بحساب حقيقي.'
   )
+}
+
+/**
+ * Require the sole workspace owner email (ryodan71@gmail.com).
+ * Use for owner-only management UIs (skills catalog, mail settings, etc.).
+ */
+export async function requireWorkspaceOwner(
+  req: Request,
+  errorAr = 'هذا الإجراء للمالك فقط.'
+): Promise<{ ok: true; user: User } | { ok: false; response: Response }> {
+  const auth = await requireRealUser(req)
+  if (!auth.ok) return auth
+  if (!isWorkspaceOwnerEmail(auth.user.email)) {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: errorAr, code: 'FORBIDDEN' },
+        { status: 403 }
+      ),
+    }
+  }
+  return auth
 }

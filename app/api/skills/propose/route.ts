@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { distillThreadToSkill, type ThreadMessage } from '@/lib/ai/hermes'
 import { persistSkill } from '@/lib/skills/persist'
-import { requireRealUser } from '@/lib/auth/session'
+import { requireWorkspaceOwner } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,10 @@ const MAX_MESSAGES_CHARS = 80_000
 
 /** Propose a skill from a conversation — saved as PENDING_REVIEW until approved. */
 export async function POST(req: NextRequest) {
-  const auth = await requireRealUser(req)
+  const auth = await requireWorkspaceOwner(
+    req,
+    'اقتراح المهارات للمالك فقط.'
+  )
   if (!auth.ok) return auth.response
   try {
     const body = (await req.json()) as {

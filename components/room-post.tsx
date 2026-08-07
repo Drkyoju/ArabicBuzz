@@ -18,6 +18,7 @@ import {
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useFilePreviewStore } from '@/lib/files/preview-store'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
@@ -118,6 +119,9 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const isChannel =
     post.authorKind === 'channel' || post.authorKind === 'system'
   const openPreview = useFilePreviewStore((s) => s.openPreview)
+  const canManageSkills = useWorkspaceModeStore(
+    (s) => s.canAccessOpsUi && s.mode === 'admin'
+  )
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [memNote, setMemNote] = useState('')
@@ -488,7 +492,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
             <BookmarkPlus className="h-3 w-3" />
             {memBusy ? 'جاري الحفظ…' : 'احفظ في عقل الشركة'}
           </button>
-          {post.authorKind === 'agent' && (
+          {canManageSkills && post.authorKind === 'agent' && (
             <button
               type="button"
               disabled={skillBusy}

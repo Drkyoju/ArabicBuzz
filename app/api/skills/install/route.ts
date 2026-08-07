@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { getMarketplaceSkill } from '@/lib/skills/marketplace'
-import { requireRealUser } from '@/lib/auth/session'
+import { requireWorkspaceOwner } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 import {
   ARABIC_AUTHZ_ERROR,
-  assertPermission,
   AuthorizationError,
-  SENSITIVE_ACTION_ROLES,
   withRlsContext,
 } from '@/lib/auth/rbac'
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRealUser(req)
+  const auth = await requireWorkspaceOwner(
+    req,
+    'تثبيت المهارات للمالك فقط.'
+  )
   if (!auth.ok) return auth.response
   try {
     const body = await req.json()
@@ -40,13 +41,6 @@ export async function POST(req: NextRequest) {
     ) {
       return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
     }
-
-    await assertPermission(
-      userId,
-      orgId,
-      SENSITIVE_ACTION_ROLES.installSkill,
-      auth.user.email
-    )
 
     const skill = getMarketplaceSkill(skillId)
     if (!skill) {

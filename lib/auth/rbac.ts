@@ -292,7 +292,8 @@ export async function syncOrgRoleFromEmail(
 /** Minimum roles for sensitive product actions. */
 export const SENSITIVE_ACTION_ROLES = {
   deleteThread: 'ADMIN' as Role,
-  installSkill: 'DEPARTMENT_MANAGER' as Role,
+  /** Catalog install is owner-email gated in API; role floor kept OWNER. */
+  installSkill: 'OWNER' as Role,
   /** Any signed-in org member may resolve HITL (director email still elevates). */
   approveHighRisk: 'MEMBER' as Role,
 } as const
