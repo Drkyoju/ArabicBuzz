@@ -273,6 +273,46 @@ export function directMacReplaceInfo(id: string) {
 }
 
 /**
+ * Page OCR (Arabic+English) via Mac: PyMuPDF render + Tesseract ara+eng.
+ */
+export async function macPageOcr(opts: {
+  buffer: Buffer
+  filename: string
+  page: number
+  lang?: string
+}): Promise<{ text: string; page: number; provider: string }> {
+  if (!macSyncConfigured()) {
+    throw new Error('MAC_SYNC_URL غير مضبوط لـ OCR الصفحات.')
+  }
+  const res = await macFetch('/pdf-page-ocr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: opts.filename,
+      contentBase64: opts.buffer.toString('base64'),
+      page: opts.page,
+      lang: opts.lang || 'ara+eng',
+    }),
+    timeoutMs: 120_000,
+  })
+  const data = (await res.json()) as {
+    ok?: boolean
+    text?: string
+    page?: number
+    provider?: string
+    error?: string
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `فشل OCR الصفحة (HTTP ${res.status})`)
+  }
+  return {
+    text: String(data.text || ''),
+    page: Number(data.page || opts.page),
+    provider: String(data.provider || 'tesseract-mac'),
+  }
+}
+
+/**
  * PDF↔DOCX via Mac agent (LibreOffice / pdf2docx / visual page images).
  * Prefer mode=visual when Arabic ToUnicode is broken.
  */

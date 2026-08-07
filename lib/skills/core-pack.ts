@@ -9,10 +9,11 @@
  * - Arabic office writing: itady74/ux-writing-arabic + sultanalsafran arabic-presentations principles
  * - calendar / daily ops / knowledge: in-repo KSA marketplace pack
  * - OCR / Excel / PDF forms: yejinlei pdf-ocr, anthropics xlsx, claude-office-skills pdf-form-filler
+ * - Full-file page reads: read_document pageStart/nextPageStart + pdf-page-ocr (Tesseract ara+eng)
  * - agenda / follow-up / board pack: zapier/wade-skills + decision-board patterns
  * - Drive organize: googleworkspace/cli recipe-organize-drive-folder + file-naming
  * - volunteers / formal letters / KSA deadlines: association ops adaptations
- * - Word/PDF ops: anthropics/skills docx+pdf + convert_document (Drive-first, chat attach)
+ * - Word/PDF ops: anthropics/skills docx+pdf + convert_document (Drive-first, refuse ToUnicode garbage)
  * - email→task / attachments: googleworkspace gws-workflow-email-to-task + recipe-save-email-attachments
  * - presentations: sultanalsafran/agent-skills arabic-presentations
  * - gov research: mattpocock research + free web_search path

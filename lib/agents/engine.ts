@@ -109,9 +109,33 @@ export function getNativeAiTools(opts?: {
     }),
     read_document: tool({
       description:
-        'استخراج نص مستند مكتبي مرفوع (Word، Excel، PowerPoint، PDF) مع OCR تلقائي للصفحات الممسوحة. للصور أو طلب بحث داخل صورة/PDF ممسوح فضّل arabic_ocr.',
+        'قراءة مستند مكتبي صفحة بصفحة / ورقة بورقة (Word، Excel، PowerPoint، PDF) مع OCR تلقائي للصفحات الفارغة أو الممسوحة. للمستندات الطويلة: مرّر pageStart ثم كرّر بـ nextPageStart حتى hasMore=false — لا تتخطَّ صفحات. للصور أو بحث عبارة فضّل arabic_ocr.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف أو اسمه كما في list_workspace_files'),
+        pageStart: z
+          .number()
+          .optional()
+          .describe('رقم الصفحة/الشريحة/الورقة للبدء (1-based)'),
+        pageEnd: z
+          .number()
+          .optional()
+          .describe('آخر صفحة في هذه الدفعة (اختياري)'),
+        charOffset: z
+          .number()
+          .optional()
+          .describe('إزاحة حرفية داخل النافذة عند النص الطويل'),
+        maxChars: z
+          .number()
+          .optional()
+          .describe('حد الأحرف لهذه الدفعة — افتراضي ~18000'),
+        fullRead: z
+          .boolean()
+          .optional()
+          .describe('true لمحاولة نافذة أوسع؛ ما زال قد يلزم التكرار إن hasMore'),
+        enableOcr: z
+          .boolean()
+          .optional()
+          .describe('OCR للصفحات الفارغة/المعطوبة — افتراضي true'),
       }),
       execute: async (params) =>
         interceptToolExecution({

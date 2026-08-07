@@ -1,4 +1,5 @@
 import { extractDocumentText } from '@/lib/rag/extract'
+import { readDocumentPages } from '@/lib/documents/read-pages'
 import {
   buildDocumentBuffer,
   ensureFilename,
@@ -25,6 +26,8 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
 
 const TEXT_PREVIEW_MAX = 24_000
+/** Prefer page-window reads for long Office/PDF so agents never drop mid-file. */
+const USE_PAGED_READ = true
 
 function asStringArray(v: unknown): string[] | undefined {
   if (!Array.isArray(v)) return undefined
@@ -129,6 +132,70 @@ export async function executeReadDocument(
   }
 
   const hit = await readWorkspaceFile(scopeId, found.id)
+  const pageStart =
+    typeof params.pageStart === 'number'
+      ? params.pageStart
+      : typeof params.page === 'number'
+        ? params.page
+        : undefined
+  const pageEnd =
+    typeof params.pageEnd === 'number' ? params.pageEnd : undefined
+  const charOffset =
+    typeof params.charOffset === 'number' ? params.charOffset : undefined
+  const maxChars =
+    typeof params.maxChars === 'number' ? params.maxChars : undefined
+  const enableOcr = params.enableOcr !== false
+  const paged =
+    USE_PAGED_READ &&
+    (pageStart != null ||
+      pageEnd != null ||
+      charOffset != null ||
+      params.fullRead === true ||
+      params.paged !== false)
+
+  if (paged) {
+    const result = await readDocumentPages({
+      buffer: hit.buffer,
+      filename: hit.meta.originalName,
+      mimeType: hit.meta.mimeType,
+      pageStart,
+      pageEnd:
+        pageEnd ??
+        (pageStart != null && params.fullRead !== true
+          ? pageStart + 2
+          : undefined),
+      charOffset,
+      maxChars: maxChars ?? (params.fullRead === true ? 32_000 : undefined),
+      enableOcr,
+    })
+    return {
+      ok: result.ok,
+      fileId: hit.meta.id,
+      name: hit.meta.originalName,
+      mimeType: hit.meta.mimeType,
+      source: hit.meta.source,
+      extractMethod: result.extractMethod,
+      ocrUsed: result.ocrUsed,
+      kind: result.kind,
+      totalUnits: result.totalUnits,
+      pageStart: result.pageStart,
+      pageEnd: result.pageEnd,
+      charOffset: result.charOffset,
+      maxChars: result.maxChars,
+      truncated: result.truncated,
+      hasMore: result.hasMore,
+      nextPageStart: result.nextPageStart,
+      nextCharOffset: result.nextCharOffset,
+      charCount: result.charCount,
+      totalCharCount: result.totalCharCount,
+      pages: result.pages,
+      suggestedFormat: inferFormatFromName(hit.meta.originalName) || 'docx',
+      text: result.text,
+      warningAr: result.warningAr,
+      messageAr: result.messageAr,
+    }
+  }
+
   const extracted = await extractDocumentText({
     buffer: hit.buffer,
     filename: hit.meta.originalName,
@@ -150,10 +217,12 @@ export async function executeReadDocument(
     ocrUsed: extracted.ocrUsed,
     charCount: text.length,
     truncated,
+    hasMore: truncated,
+    nextCharOffset: truncated ? TEXT_PREVIEW_MAX : undefined,
     suggestedFormat: inferFormatFromName(hit.meta.originalName) || 'docx',
     text: preview,
     messageAr: truncated
-      ? `قُرئ «${hit.meta.originalName}» (مقتطف ${TEXT_PREVIEW_MAX} حرفاً). عدّل ثم احفظ بـ edit_document.`
+      ? `قُرئ «${hit.meta.originalName}» (مقتطف ${TEXT_PREVIEW_MAX} حرفاً). استدعِ مجدداً بـ charOffset=${TEXT_PREVIEW_MAX} أو pageStart للمتابعة — لا تتخطَّ بقية الملف.`
       : `قُرئ «${hit.meta.originalName}». عدّل المحتوى ثم احفظ بـ edit_document.`,
   }
 }

@@ -259,7 +259,7 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
         id: 'document_ocr_workflow',
         name: 'سير عمل OCR للمستندات',
         description: 'استخراج نص عربي من صور وPDF ممسوح',
-        body: 'استخدم arabic_ocr / read_document ثم احفظ النص — لا تختلق سطوراً.',
+        body: 'اقرأ بـ read_document صفحة بصفحة (pageStart→nextPageStart) ثم arabic_ocr عند الحاجة — لا تختلق سطوراً ولا تتخطَّ صفحات.',
       })
     ),
   },
@@ -463,7 +463,7 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
         id: 'word_docx_assistant',
         name: 'مساعد Word',
         description: 'تحرير مستندات Word',
-        body: 'اقرأ ثم عدّل بـ edit_document (replacements) وأعد الملف.',
+        body: 'اقرأ صفحة بصفحة ثم عدّل بـ edit_document (replacements). التحويل: Google Drive أولاً — ارفض طلاسم ToUnicode.',
       })
     ),
   },
@@ -582,7 +582,7 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
         id: 'pdf_document_ops',
         name: 'عمليات PDF',
         description: 'إنشاء ودمج وختم PDF',
-        body: 'استخدم pdf_create / pdf_merge / pdf_stamp / pdf_replace_text حسب الحاجة.',
+        body: 'اقرأ PDF كاملاً صفحة بصفحة. استخدم pdf_* و convert_document (Drive أولاً). ممنوع طلاسم ToUnicode صامتة.',
       })
     ),
   },

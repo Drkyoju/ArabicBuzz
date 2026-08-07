@@ -757,6 +757,120 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Page OCR — PyMuPDF render + Tesseract ara+eng
+  if (req.method === 'POST' && url.pathname === '/pdf-page-ocr') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        filename?: string
+        contentBase64?: string
+        page?: number
+        lang?: string
+        allPages?: boolean
+      }
+      const b64 = String(body.contentBase64 || '')
+      if (!b64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const {
+        writeFileSync,
+        unlinkSync,
+        mkdtempSync,
+        existsSync,
+      } = await import('node:fs')
+      const { join } = await import('node:path')
+      const { tmpdir } = await import('node:os')
+      const { spawn } = await import('node:child_process')
+      const { fileURLToPath } = await import('node:url')
+
+      const here = fileURLToPath(new URL('.', import.meta.url))
+      const root = join(here, '..')
+      const script = join(root, 'scripts/pdf-page-ocr.py')
+      const venvPy = join(root, 'scripts/pdf-tools-venv/bin/python')
+      const py = existsSync(venvPy) ? venvPy : 'python3'
+
+      const dir = mkdtempSync(join(tmpdir(), 'ab-page-ocr-'))
+      const fname = (body.filename || 'doc.pdf').replace(
+        /[^\w.\u0600-\u06FF-]+/g,
+        '_'
+      )
+      const inPath = join(dir, fname)
+      writeFileSync(inPath, Buffer.from(b64, 'base64'))
+
+      const page = Math.max(1, Number(body.page || 1))
+      const lang = String(body.lang || process.env.TESSERACT_OCR_LANG || 'ara+eng')
+      const args = [script, inPath, '--page', String(page), '--lang', lang]
+      if (body.allPages) args.push('--all-pages')
+
+      const result: { ok: boolean; out: string; err: string } = await new Promise(
+        (resolve) => {
+          const child = spawn(py, args, { timeout: 180_000 })
+          let out = ''
+          let err = ''
+          child.stdout?.on('data', (d) => {
+            out += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            err += String(d)
+          })
+          child.on('close', (code) => {
+            resolve({ ok: code === 0, out, err })
+          })
+          child.on('error', (e) => {
+            resolve({ ok: false, out: '', err: e.message })
+          })
+        }
+      )
+
+      try {
+        unlinkSync(inPath)
+      } catch {
+        /* ignore */
+      }
+
+      let parsed: {
+        ok?: boolean
+        text?: string
+        page?: number
+        provider?: string
+        error?: string
+      } = {}
+      try {
+        parsed = JSON.parse(result.out || '{}') as typeof parsed
+      } catch {
+        parsed = { ok: false, error: result.err || result.out || 'bad json' }
+      }
+
+      if (parsed.ok && parsed.text != null) {
+        json(res, 200, {
+          ok: true,
+          text: parsed.text,
+          page: parsed.page || page,
+          provider: parsed.provider || 'tesseract-mac',
+        })
+        return
+      }
+
+      json(res, 200, {
+        ok: false,
+        error:
+          parsed.error ||
+          result.err?.slice(0, 400) ||
+          'OCR فشل. ثبّت: brew install tesseract tesseract-lang && pip install pytesseract pillow pymupdf',
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'pdf-page-ocr failed',
+      })
+    }
+    return
+  }
+
   // MarkItDown — convert PDF/Office → markdown for decision deep-read
   if (req.method === 'POST' && url.pathname === '/markitdown') {
     if (!checkAuth(req)) {
@@ -1001,6 +1115,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /task       (Playwright / browser-use RPA)`)
   console.log(`  POST /pdf-replace (Arabic PDF find/replace via PyMuPDF)`)
   console.log(`  POST /pdf-docx-convert (PDF↔DOCX local quality path)`)
+  console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)

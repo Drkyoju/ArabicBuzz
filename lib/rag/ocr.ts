@@ -17,6 +17,7 @@
 import { generateText } from 'ai'
 import { getCloudProviders } from '@/lib/ai/providers'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
+import { assessArabicTextQuality } from '@/lib/documents/arabic-text-quality'
 
 export type ArabicOcrResult = {
   text: string
@@ -248,5 +249,9 @@ export function shouldRunOcr(opts: {
   // Scanned PDFs often yield empty/near-empty text from pdf-parse
   if (trimmed.length < 80 && byteLength > 20_000) return true
   if (trimmed.length < 20) return true
+  // Corrupt Arabic ToUnicode — prefer OCR over garbage layer
+  if (looksLikePdf(mimeType, filename) && assessArabicTextQuality(trimmed).broken) {
+    return true
+  }
   return false
 }

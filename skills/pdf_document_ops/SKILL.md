@@ -1,6 +1,6 @@
 ---
 name: pdf_document_ops
-description: "عمليات PDF العامة: إنشاء، دمج، ختم، استبدال نص، وتحويل ممتاز PDF↔Word — غير تعبئة النماذج"
+description: "عمليات PDF: إنشاء، دمج، ختم، استبدال نص، قراءة صفحة بصفحة، وتحويل ممتاز PDF↔Word/PPTX/XLSX"
 scope: shared
 id: pdf_document_ops
 author: "Arabic Buzz / adapted from anthropics/skills pdf + in-repo pdf_* tools (free)"
@@ -13,31 +13,36 @@ toolsRequired:
   - read_document
   - convert_document
   - return_file
+  - arabic_ocr
 ---
 
 # عمليات مستندات PDF
 
-استخدم عند: «أنشئ PDF»، «ادمج الملفات»، «اختم»، «استبدل نصاً في PDF»، «حوّل إلى Word»، وليس تعبئة حقول نموذج (تلك لمهارة `pdf_form_assistant`).
+استخدم عند: «أنشئ PDF»، «ادمج»، «اختم»، «استبدل نصاً»، «حوّل إلى Word/Excel/PPT»، وليس تعبئة نماذج (`pdf_form_assistant`).
+
+## قراءة كاملة (إلزامي)
+- `read_document(fileId, pageStart=1)` ثم كرّر `nextPageStart` حتى `hasMore=false`.
+- صفحات فارغة/معطوبة: OCR تلقائي أو `arabic_ocr`.
+- لا تلخّص من أول 3 صفحات وتتجاهل الباقي.
 
 ## الأدوات
 | الحاجة | الأداة |
 | إنشاء من نص عربي | `pdf_create` |
-| دمج عدة ملفات | `pdf_merge` |
-| ختم/علامة مائية خفيفة | `pdf_stamp` |
-| استبدال نص في الطبقة النصية | `pdf_replace_text` |
-| تحويل من/إلى Word أو صيغ أخرى | `convert_document` / `convert_file` |
+| دمج | `pdf_merge` |
+| ختم خفيف | `pdf_stamp` |
+| استبدال نص عربي في الطبقة | `pdf_replace_text` (خط مضمّن / HarfBuzz — ليس stamp) |
+| تحويل صيغ | `convert_document` |
 
-## تحويل PDF ↔ Word (ممتاز — إلزامي)
+## مصفوفة التحويل (جودة)
+| الزوج | الأفضل | احتياطي | ممنوع |
+| pdf↔docx | Google Drive | CloudConvert / Word مرئي (ماك) | rebuild نصّي عند ToUnicode معطوب |
+| pdf↔pptx / pdf↔xlsx | Google أو CloudConvert | استخراج نص→إعادة بناء (جداول/شرائح فقط) | ادّعاء مطابقة تخطيط 100% |
+| docx↔pdf | Google Drive | CloudConvert / مسار نصّي بسيط | pdf-lib لنسخ جسم عربي |
+| xlsx→docx / docx→xlsx | Google أو استخراج منظم | free-rebuild من الصفحات/الأوراق | صمت عند فشل الاستخراج |
 
-1. **الأفضل مجاناً:** `convert_document(engine=auto|google)` عبر **Google Drive** إن مربوط المستخدم — يحافظ على العربية/RTL أفضل من المسار النصّي.
-2. **احتياطي مدفوع:** CloudConvert إن `CLOUDCONVERT_API_KEY` مضبوط.
-3. **تجنّب** إعادة البناء النصية (`engine=free`) لـ PDF عربي بخط مضمّن (Sakkal Majalla وغيرها) عندما تكون طبقة ToUnicode معطوبة — تنتج **طلاسم** رغم أن الصفحة تبدو صحيحة بصرياً.
-4. عند ToUnicode معطوب ووجود جسر الماك: `convert_document` يُنتج تلقائياً **Word مرئي** (صورة لكل صفحة · تخطيط 100%) — أبلغ المستخدم أنه غير قابل للتحرير النصي؛ للتحرير: Drive.
-5. **ممنوع** استخدام `pdf-lib` / `pdf_stamp` لنسخ جسم عربي أو كمحرّك تحويل.
-6. بعد التحويل: الناتج يُحفظ بمساحة الغرفة **ويظهر كمرفق في فقاعة الشات** بأزرار **معاينة** + **تنزيل** ووسم «تم التعديل». لا تكتفِ بالإشارة إلى «ملفات الفريق».
-7. إن طُلب Word→PDF: نفس السلسلة `convert_document(toFormat=pdf)`.
+عند فشل الجودة: **خطأ عربي صريح** + اقتراح ربط Drive — لا طلاسم صامتة.
 
 ## قواعد
-- اعرض خطة قصيرة (ملفات الدخل → العملية → الناتج) قبل التنفيذ إن كان دامجاً أو استبدالاً واسعاً.
-- إن فشل استبدال النص (خط مضمّن/مسح): اقترح OCR أو التحويل لـ Word عبر Drive.
+- اعرض خطة قصيرة قبل دمج/استبدال واسع.
+- بعد التحويل: المرفق في فقاعة الشات (معاينة+تنزيل).
 - لا تُسقط صفحات دون تأكيد عند الدمج الجزئي.

@@ -80,6 +80,21 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 
 عند فشل Google/CloudConvert ووجود `MAC_SYNC_URL`: `convert_document` ينتج **Word مرئي** (صورة لكل صفحة عبر `POST /pdf-docx-convert` mode=visual) — تخطيط مطابق 100%، غير قابل للتحرير النصي. للتحرير النصي: Drive OCR/تصدير.
 
+`convert_document(engine=auto)` **يرفض** إعادة البناء النصية عند اكتشاف العطب (خطأ عربي صريح) إلا إذا مرّرت `engine=free` صراحة.
+
+## مصفوفة التحويل (صادق)
+
+| من → إلى | Google Drive (مربوط) | CloudConvert | جسر الماك | مسار نصّي مجاني |
+|----------|----------------------|--------------|-----------|-----------------|
+| PDF → DOCX | ممتاز (نص+تخطيط أفضل) | ممتاز | مرئي 100% تخطيط / 0% تحرير | مرفوض عند ToUnicode معطوب |
+| DOCX → PDF | ممتاز | ممتاز | soffice إن وُجد | إعادة بناء نصية فقط |
+| PDF/DOCX → PPTX | عبر عائلة Slides إن دعم الزوج | نعم | — | شرائح من مقاطع النص |
+| PDF/DOCX → XLSX | عبر Sheets إن دعم الزوج | نعم | — | أوراق من صفحات/فقرات |
+| XLSX → DOCX | عبر Docs إن دعم | نعم | — | فقرات من الأوراق |
+| PPTX ↔ PDF | نعم | نعم | — | نص فقط |
+
+**قراءة الوكلاء:** `read_document` صفحة/شريحة/ورقة بصفحة مع `pageStart` → `nextPageStart` حتى `hasMore=false`. OCR: Qari → Gemini → `POST /pdf-page-ocr` (Tesseract ara+eng على الماك).
+
 ## اختياري مدفوع: CloudConvert
 
 | المتغير | الوصف |

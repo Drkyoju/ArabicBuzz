@@ -6,6 +6,11 @@
  *  3) Free Arabic text rebuild (pdf/docx/txt/md only)
  */
 import { extractDocumentText } from '@/lib/rag/extract'
+import { readDocumentPages } from '@/lib/documents/read-pages'
+import {
+  assessArabicTextQuality,
+  brokenToUnicodeErrorAr,
+} from '@/lib/documents/arabic-text-quality'
 import {
   buildDocumentBuffer,
   ensureFilename,
@@ -33,7 +38,8 @@ import {
   macSyncConfigured,
 } from '@/lib/storage/mac-sync-client'
 
-const FREE_ALLOWED: DocFormat[] = ['docx', 'pdf', 'txt', 'md']
+/** Free local rebuild pairs (no Drive/CloudConvert). Layout not preserved. */
+const FREE_ALLOWED: DocFormat[] = ['docx', 'pdf', 'txt', 'md', 'xlsx', 'pptx', 'csv']
 const CLOUD_ALLOWED = [
   'docx',
   'doc',
@@ -257,7 +263,7 @@ export async function executeConvertDocument(
     )
   }
 
-  // ── 3) Free text rebuild ──
+  // ── 3) Free text / structured rebuild ──
   if (!FREE_ALLOWED.includes(toFormat)) {
     const tips: string[] = []
     if (!googleLinked) {
@@ -271,32 +277,46 @@ export async function executeConvertDocument(
       tips.push('أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع) لـ xlsx/pptx/doc')
     }
     throw new Error(
-      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf ↔ docx (و txt/md). ${tips.join(' · ')}`
+      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf/docx/pptx/xlsx ↔ بعضها (نص فقط). ${tips.join(' · ')}`
     )
   }
 
-  const extracted = await extractDocumentText({
+  // Prefer page-aware extract so we don't drop sheets/slides
+  const paged = await readDocumentPages({
     buffer: hit.buffer,
     filename: hit.meta.originalName,
     mimeType: hit.meta.mimeType,
+    pageStart: 1,
+    maxChars: 200_000,
     enableOcr: true,
   })
-  const text = (extracted.text || '').trim()
+  let text = (paged.text || '').trim()
+  let extractMethod = paged.extractMethod
+  let ocrUsed = paged.ocrUsed
+
+  if (!text || text.length < 40) {
+    const extracted = await extractDocumentText({
+      buffer: hit.buffer,
+      filename: hit.meta.originalName,
+      mimeType: hit.meta.mimeType,
+      enableOcr: true,
+    })
+    text = (extracted.text || '').trim()
+    extractMethod = extracted.method
+    ocrUsed = extracted.ocrUsed
+  }
+
   if (!text) {
     throw new Error(
       'تعذّر استخراج نص عربي/لاتيني صالح للتحويل. جرّب arabic_ocr أولاً للملفات الممسوحة، أو اربط Google لتحويل Drive.'
     )
   }
 
-  // Broken Arabic ToUnicode (common in Sakkal Majalla Word→PDF exports)
-  const brokenHints = ['املادة', 'الالئحة', 'االسم', 'األساسية', 'واألهداف']
-  const brokenHits = brokenHints.filter((h) => text.includes(h)).length
-  const badLig = (text.match(/اال|امل[^ا]/g) || []).length
-  const goodLig = (text.match(/ال[اأإ]|الم/g) || []).length
+  const quality = assessArabicTextQuality(text)
   const arabicBroken =
     fromFormat === 'pdf' &&
-    toFormat === 'docx' &&
-    (brokenHits >= 2 || (badLig > goodLig * 1.5 && badLig > 8))
+    (toFormat === 'docx' || toFormat === 'xlsx' || toFormat === 'pptx') &&
+    quality.broken
 
   // Broken ToUnicode: prefer Mac visual page-image DOCX (layout 100%) over gibberish text rebuild
   if (
@@ -339,6 +359,7 @@ export async function executeConvertDocument(
         extra: {
           visualLayoutMatch: true,
           textEditable: false,
+          qualityPercent: { layout: 100, editableText: 0 },
           macLog: converted.log.slice(0, 400),
         },
       })
@@ -349,7 +370,10 @@ export async function executeConvertDocument(
 
   if (arabicBroken && engine === 'auto') {
     throw new Error(
-      'طبقة النص في PDF العربي تبدو معطوبة (ToUnicode) — إعادة البناء النصية ستُنتج طلاسم. الأفضل: اربط Google من الإعدادات (Drive) أو أضف CLOUDCONVERT_API_KEY، أو شغّل جسر الماك (MAC_SYNC_URL + npm run storage:sync) للنسخة المرئية المطابقة للتخطيط. مرّر engine=free فقط إن قبلت جودة منخفضة.'
+      brokenToUnicodeErrorAr({
+        hasMac: macSyncConfigured(),
+        hasGoogleHint: !googleLinked,
+      })
     )
   }
 
@@ -359,12 +383,60 @@ export async function executeConvertDocument(
     .map((p) => p.trim())
     .filter(Boolean)
 
+  // Structured targets from page units
+  let sheets:
+    | Array<{ name?: string; rows: Array<Array<string>> }>
+    | undefined
+  let slides: Array<{ title: string; bullets?: string[] }> | undefined
+
+  if (toFormat === 'xlsx') {
+    sheets = paged.pages.map((p) => {
+      const lines = p.text.split('\n').filter((l) => l.trim())
+      const rows = lines.map((line) =>
+        line.includes('\t') ? line.split('\t') : [line]
+      )
+      return {
+        name: (p.labelAr || `Sheet${p.index}`).slice(0, 31),
+        rows: rows.length ? rows : [['']],
+      }
+    })
+    if (!sheets.length) {
+      sheets = [
+        {
+          name: 'مستخرج',
+          rows: paragraphs.map((p) => [p]),
+        },
+      ]
+    }
+  }
+
+  if (toFormat === 'pptx') {
+    slides = paged.pages.slice(0, 40).map((p) => {
+      const lines = p.text.split('\n').map((l) => l.trim()).filter(Boolean)
+      return {
+        title: lines[0]?.slice(0, 120) || p.labelAr || `شريحة ${p.index}`,
+        bullets: lines.slice(1, 12),
+      }
+    })
+    if (!slides.length) {
+      slides = paragraphs.slice(0, 20).map((p, i) => ({
+        title: `شريحة ${i + 1}`,
+        bullets: [p.slice(0, 200)],
+      }))
+    }
+  }
+
   const filename = ensureFilename(outputName, toFormat)
   const built = await buildDocumentBuffer({
     format: toFormat,
     title: params.title != null ? String(params.title) : baseName,
-    paragraphs,
+    paragraphs:
+      toFormat === 'docx' || toFormat === 'pdf' || toFormat === 'txt' || toFormat === 'md'
+        ? paragraphs
+        : undefined,
     body: paragraphs.join('\n\n'),
+    sheets,
+    slides,
   })
 
   const saved = await saveWorkspaceFile({
@@ -390,8 +462,15 @@ export async function executeConvertDocument(
     extra: {
       charCount: text.length,
       paragraphCount: paragraphs.length,
-      extractMethod: extracted.method,
-      ocrUsed: extracted.ocrUsed,
+      extractMethod,
+      ocrUsed,
+      qualityPercent: {
+        layout: 0,
+        editableText: quality.broken ? 15 : 70,
+      },
+      warningAr: quality.broken
+        ? 'تحذير: إشارات ToUnicode معطوبة — راجع النص يدوياً.'
+        : undefined,
     },
   })
 }
