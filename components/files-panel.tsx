@@ -553,47 +553,42 @@ export function FilesPanel() {
 
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
+          <header className="ab-page-head">
+            <div className="min-w-0">
+              <h2 className="ab-title">ملفات الفريق</h2>
               <p className="ab-subtitle">
-                {scope?.nameAr || scopeId} — {sourceLabel}
-              </p>
-              <p className="mt-1 max-w-xl text-[11px] leading-snug text-ab-muted">
-                قائمة الملفات والصوت المرفوعة من الغرفة — بلا محادثة. افتح/شغّل
-                الملف من غرفة الفريق مباشرة؛ استخدم هذا الأرشيف عندما يضيع المرفق
-                وسط الرسائل.
-              </p>
-              <p className="mt-1.5 flex max-w-xl items-start gap-1.5 text-[11px] leading-snug text-emerald-800">
-                <ShieldCheck
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                  aria-hidden
-                />
-                أرشيف دائم: حذف شات اليوم أو الاحتفاظ التلقائي للرسائل لا يمس هذه
-                الملفات. صدّر الفهرس أدناه كنسخة احتياطية للأسماء والمعرّفات.
+                أرشيف دائم لملفات وصوتيات الغرفة، بعيداً عن زحمة الرسائل.
+                <span className="ab-meta ms-1.5 inline-block">
+                  {scope?.nameAr || scopeId} · {sourceLabel}
+                </span>
               </p>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-1.5">
+            <div className="ab-page-head-actions">
               <button
                 type="button"
                 onClick={() => void exportVaultManifest()}
                 disabled={backingUp || files.length === 0}
-                className="ab-btn-secondary"
+                className="ab-btn-ghost"
                 title="تنزيل JSON بأسماء ومعرّفات كل ملفات الأرشيف"
               >
-                <Download className="h-3 w-3" />
-                {backingUp ? 'جاري التصدير…' : 'نسخ احتياطي للفهرس'}
+                <Download className="h-3 w-3" aria-hidden />
+                {backingUp ? 'جاري التصدير…' : 'نسخة احتياطية'}
               </button>
               <button
                 type="button"
                 onClick={() => void load()}
-                className="ab-btn-secondary"
+                className="ab-btn-ghost"
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="h-3 w-3" aria-hidden />
                 تحديث
               </button>
             </div>
-          </div>
+          </header>
+
+          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-emerald-800">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            حذف شات اليوم أو الاحتفاظ التلقائي للرسائل لا يمس هذه الملفات.
+          </p>
 
           <div>
             <BrainPrivacyNote compact />

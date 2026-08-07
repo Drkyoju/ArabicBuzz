@@ -59,6 +59,7 @@ import {
   sidebarWidthFromClientX,
 } from '@/lib/ui/sidebar-width'
 import { applyFontScale, readStoredFontScale } from '@/lib/ui/font-scale'
+import { sectionTitleAr } from '@/lib/ui/section-titles'
 import { cn } from '@/lib/utils'
 
 function GuestChip({ onLogin }: { onLogin?: () => void }) {
@@ -423,15 +424,25 @@ function SidebarBody({
                     onSectionChange?.(id)
                     onNavigate?.()
                   }}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors',
+                    'relative flex w-full items-center gap-2.5 rounded-lg py-2 pe-2.5 ps-3 text-[13px] transition-colors',
+                    // Accent bar on the inline-start edge marks the active row
+                    // without relying on the tint alone.
+                    'before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-full before:bg-ab-accent before:transition-opacity',
                     active
-                      ? 'bg-ab-accent/10 font-semibold text-ab-accent'
-                      : 'text-ab-ink hover:bg-stone-100'
+                      ? 'bg-ab-accent/10 font-semibold text-ab-accent before:opacity-100'
+                      : 'text-ab-ink before:opacity-0 hover:bg-ab-stage'
                   )}
                 >
                   <span className="relative shrink-0">
-                    <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                    <Icon
+                      className={cn(
+                        'h-4 w-4',
+                        active ? 'text-ab-accent' : 'text-ab-muted'
+                      )}
+                      aria-hidden
+                    />
                     {mailDot && (
                       <span
                         className="absolute -end-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-red-500"
@@ -443,8 +454,8 @@ function SidebarBody({
                   {badge > 0 && (
                     <span
                       className={cn(
-                        'rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white',
-                        id === 'mail' ? 'bg-red-500' : 'bg-ab-warn'
+                        'rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white',
+                        id === 'mail' ? 'bg-red-600' : 'bg-ab-warn'
                       )}
                     >
                       {badge > 99 ? '99+' : badge}
@@ -458,7 +469,7 @@ function SidebarBody({
       </nav>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+        <p className="mb-1.5 flex items-center gap-1.5 px-2 text-[11px] font-semibold text-ab-muted-soft">
           <Users className="h-3 w-3" aria-hidden />
           الغرفة
         </p>
@@ -472,11 +483,11 @@ function SidebarBody({
                 onNavigate?.()
               }}
               className={cn(
-                'w-full rounded-md px-2.5 py-2 text-right text-[13px] transition-colors',
+                'w-full rounded-lg px-2.5 py-2 text-right text-[13px] transition-colors',
                 activeSection === 'chats' &&
                   activeScopeId === PRIMARY_TEAM_SCOPE_ID
-                  ? 'bg-ab-ink text-white'
-                  : 'text-ab-ink hover:bg-stone-100'
+                  ? 'bg-ab-ink text-white shadow-ab-sm'
+                  : 'text-ab-ink hover:bg-ab-stage'
               )}
             >
               <span className="block font-semibold">
@@ -488,7 +499,7 @@ function SidebarBody({
                   activeSection === 'chats' &&
                     activeScopeId === PRIMARY_TEAM_SCOPE_ID
                     ? 'text-white/70'
-                    : 'text-stone-400'
+                    : 'text-ab-muted-soft'
                 )}
               >
                 محادثة الفريق والوكلاء بـ @
@@ -499,7 +510,7 @@ function SidebarBody({
 
         {personalDesk && deskScopeId && (
           <>
-            <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
+            <p className="mb-1.5 flex items-center gap-1.5 px-2 text-[11px] font-semibold text-ab-muted-soft">
               <User className="h-3 w-3" aria-hidden />
               مساحة خاصة
             </p>
@@ -513,11 +524,11 @@ function SidebarBody({
                     onNavigate?.()
                   }}
                   className={cn(
-                    'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    'w-full rounded-lg px-2.5 py-1.5 text-right text-[13px] transition-colors',
                     activeSection === 'chats' &&
                       activeScopeId === deskScopeId
-                      ? 'bg-ab-ink text-white'
-                      : 'text-ab-ink hover:bg-stone-100'
+                      ? 'bg-ab-ink text-white shadow-ab-sm'
+                      : 'text-ab-ink hover:bg-ab-stage'
                   )}
                 >
                   <span className="block font-medium">
@@ -529,7 +540,7 @@ function SidebarBody({
                       activeSection === 'chats' &&
                         activeScopeId === deskScopeId
                         ? 'text-white/70'
-                        : 'text-stone-400'
+                        : 'text-ab-muted-soft'
                     )}
                   >
                     {PERSONAL_DESK_COPY.sidebarHintAr}
@@ -806,7 +817,9 @@ export function Sidebar({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-bold">Arabic Buzz</span>
+          <span className="truncate text-sm font-bold tracking-tight">
+            {sectionTitleAr(activeSection)}
+          </span>
           <div className="flex items-center gap-1">
             {signedIn === true && (
               <MailBell

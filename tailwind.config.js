@@ -11,6 +11,7 @@ module.exports = {
           bg: '#f6f7f6',
           surface: '#ffffff',
           border: '#e2e5e3',
+          hairline: '#edefee',
           ink: '#1a1f1c',
           accent: '#0e5a46',
           muted: '#4f5853',

@@ -23,10 +23,13 @@
   /* Readable muted (avoid stone-400 on white — ~3:1 fail) */
   --ab-muted: #4f5853;
   --ab-muted-soft: #6b746e;
+  /* Faint hairline for inner dividers — quieter than --ab-border */
+  --ab-hairline: #edefee;
   --ab-radius: 0.625rem;
   --ab-radius-lg: 0.875rem;
-  --ab-shadow-sm: 0 1px 2px rgba(26, 31, 28, 0.04);
-  --ab-shadow: 0 8px 24px rgba(26, 31, 28, 0.08);
+  /* Shadows carry the forest hue instead of neutral black */
+  --ab-shadow-sm: 0 1px 2px rgba(14, 60, 46, 0.05);
+  --ab-shadow: 0 10px 30px -12px rgba(14, 60, 46, 0.18);
   /* Desktop sidebar width — resized via handle; main must use same var */
   --ab-sidebar-width: 15.5rem;
   /* Room / workspace text zoom (90%–140%); set via FontScalePicker */
@@ -34,7 +37,15 @@
 }
 
 body {
-  background: var(--ab-bg);
+  /* Faint forest wash from the inline-start top so wide screens are not a flat slab. */
+  background-color: var(--ab-bg);
+  background-image: radial-gradient(
+    900px 520px at 100% -5%,
+    rgba(14, 90, 70, 0.05),
+    transparent 70%
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--ab-ink);
   line-height: 1.75;
 }
@@ -43,11 +54,35 @@ h1,
 h2,
 h3,
 h4 {
-  line-height: 1.45;
+  line-height: 1.4;
+  letter-spacing: -0.003em;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Times, counts and day numbers align in columns without a mono font. */
+time,
+.ab-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One visible focus treatment for the whole product. */
+:where(a, button, [role='button'], [role='tab'], summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ab-accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* QM-like stage behind session tiles */
@@ -82,9 +117,52 @@ h4 {
     color: var(--ab-muted-soft);
   }
 
+  /* ——— Page head: title block on one side, actions on the other ——— */
+  .ab-page-head {
+    @apply flex flex-wrap items-start justify-between gap-x-4 gap-y-3;
+    padding-block-end: 0.875rem;
+    border-block-end: 1px solid var(--ab-border);
+  }
+  .ab-page-head-actions {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+
+  /* ——— Section head: quiet 15px heading, action pinned inline-end ——— */
+  .ab-section-head {
+    @apply mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1;
+  }
+  .ab-section-title {
+    @apply flex min-w-0 items-center gap-2 text-[0.9375rem] font-bold tracking-tight text-ab-ink;
+  }
+  .ab-section-title > svg {
+    @apply h-4 w-4 shrink-0;
+    color: var(--ab-accent);
+  }
+  .ab-section-count {
+    @apply shrink-0 rounded-md px-1.5 py-px text-[11px] font-semibold tabular-nums;
+    color: var(--ab-muted);
+    background: var(--ab-stage);
+  }
+  .ab-meta {
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: var(--ab-muted-soft);
+  }
+
+  /* ——— Quiet action: replaces underlined accent text links ——— */
+  .ab-action {
+    @apply inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold transition-colors;
+    color: var(--ab-accent);
+  }
+  .ab-action:hover:not(:disabled) {
+    background: var(--ab-accent-soft);
+  }
+
   /* ——— Buttons: primary / secondary / ghost ——— */
   .ab-btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold;
+    @apply transition-[background-color,color,border-color,transform] duration-150;
+    @apply active:translate-y-px;
     @apply disabled:pointer-events-none disabled:opacity-40;
   }
   .ab-btn-primary {
@@ -129,6 +207,48 @@ h4 {
   }
   .ab-section-pad {
     @apply ab-section p-3.5 sm:p-4;
+  }
+
+  /* ——— Lists: one container, hairline rows — no chip-per-item borders ——— */
+  .ab-list {
+    @apply overflow-hidden rounded-xl border border-ab-border bg-white;
+    box-shadow: var(--ab-shadow-sm);
+  }
+  .ab-list > * + * {
+    border-block-start: 1px solid var(--ab-hairline);
+  }
+  .ab-row {
+    @apply flex w-full items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2.5 text-start;
+  }
+  button.ab-row,
+  a.ab-row {
+    @apply transition-colors;
+  }
+  button.ab-row:hover,
+  a.ab-row:hover {
+    background: var(--ab-stage);
+  }
+  .ab-row-title {
+    @apply min-w-0 truncate text-[13px] font-medium text-ab-ink;
+  }
+  .ab-row-meta {
+    @apply shrink-0 text-[11px] tabular-nums;
+    color: var(--ab-muted-soft);
+  }
+
+  /* ——— Inline note: one shape, tone via modifier ——— */
+  .ab-note {
+    @apply rounded-xl border px-3.5 py-2.5 text-[12px] leading-relaxed;
+  }
+  .ab-note-warn {
+    @apply ab-note border-amber-200/90 bg-amber-50/80 text-amber-950;
+  }
+  .ab-note-danger {
+    @apply ab-note border-red-200 bg-red-50 text-red-900;
+  }
+  .ab-note-quiet {
+    @apply ab-note border-ab-border bg-ab-stage/70;
+    color: var(--ab-muted);
   }
   .ab-composer {
     @apply rounded-2xl border-2 bg-white p-4 sm:p-5;

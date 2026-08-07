@@ -7,6 +7,7 @@ import { DEFAULT_DIRECTOR_EMAIL } from '@/lib/auth/roles'
 import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
 import { resolveChannelOwnerUserIdAsync } from '@/lib/channels/owner-context'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { telegramBotApiFetch } from '@/lib/telegram/never-delete'
 
 export type WireLane = {
   id: 'telegram' | 'mail' | 'google' | 'calendar' | 'drive'
@@ -50,7 +51,7 @@ export async function ensureTelegramWebhook(): Promise<{
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim()
 
   try {
-    const infoRes = await fetch(
+    const infoRes = await telegramBotApiFetch(
       `https://api.telegram.org/bot${token}/getWebhookInfo`,
       { signal: AbortSignal.timeout(8_000) }
     )
@@ -71,7 +72,7 @@ export async function ensureTelegramWebhook(): Promise<{
         drop_pending_updates: false,
       }
       if (secret) body.secret_token = secret
-      const setRes = await fetch(
+      const setRes = await telegramBotApiFetch(
         `https://api.telegram.org/bot${token}/setWebhook`,
         {
           method: 'POST',

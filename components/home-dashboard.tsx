@@ -145,6 +145,55 @@ const INBOX_KIND_AR: Record<TeamInboxItem['kind'], string> = {
   channel: 'قناة',
 }
 
+type StartStep = {
+  titleAr: string
+  detailAr: string
+  ctaAr: string
+  target: string
+}
+
+const OWNER_START_STEPS: StartStep[] = [
+  {
+    titleAr: 'اربط Google',
+    detailAr: 'للدعوات الخارجية وملفات Drive — خطوة واحدة من الإعدادات.',
+    ctaAr: 'الإعدادات',
+    target: 'settings',
+  },
+  {
+    titleAr: 'زامن ملفات الفريق',
+    detailAr: 'فهرسة مجلد Drive حتى يجيب الوكيل من ملفاتكم لا من تخمينه.',
+    ctaAr: 'الملفات',
+    target: 'files',
+  },
+  {
+    titleAr: 'أضف أول موعد أو مهمة',
+    detailAr: 'من تقويم ومهام الفريق — تظهر فوراً في لوحة اليوم.',
+    ctaAr: 'التقويم',
+    target: 'calendar',
+  },
+]
+
+const MEMBER_START_STEPS: StartStep[] = [
+  {
+    titleAr: 'غرفة الفريق',
+    detailAr: 'الوكلاء متواجدون دائماً — اكتب @اسم_الوكيل فيبدأ العمل فوراً.',
+    ctaAr: 'افتح الغرفة',
+    target: 'chats',
+  },
+  {
+    titleAr: 'التقويم والمهام',
+    detailAr: 'مواعيد ومهام الفريق المشتركة تظهر للجميع هنا.',
+    ctaAr: 'التقويم',
+    target: 'calendar',
+  },
+  {
+    titleAr: 'الملفات',
+    detailAr: 'ارفع أو افتح ملفات العمل عند الحاجة.',
+    ctaAr: 'الملفات',
+    target: 'files',
+  },
+]
+
 const TASK_STATUS_AR: Record<string, string> = {
   open: 'مفتوحة',
   in_progress: 'قيد التنفيذ',
@@ -158,51 +207,74 @@ function taskStatusAr(status: string): string {
   return TASK_STATUS_AR[status] || 'مفتوحة'
 }
 
+/**
+ * لوحة يوم واحد — بطاقة واحدة وصفوف بخطوط شعرية،
+ * بدون بطاقة داخل بطاقة، والوقت في عمود ثابت.
+ */
 function DayBlock({
   title,
   subtitle,
   events,
-  accent,
+  isToday,
 }: {
   title: string
   subtitle?: string
   events: CalEvent[]
-  accent?: string
+  isToday?: boolean
 }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-ab-border bg-white p-3.5 shadow-ab-sm',
-        accent
+        'overflow-hidden rounded-xl border bg-white shadow-ab-sm',
+        isToday ? 'border-ab-accent/35' : 'border-ab-border'
       )}
     >
-      <p className="text-sm font-bold text-ab-ink">{title}</p>
-      {subtitle && (
-        <p className="text-[10px] text-ab-muted-soft">{subtitle}</p>
-      )}
+      <div
+        className={cn(
+          'flex items-baseline justify-between gap-2 px-3.5 py-2.5',
+          isToday && 'bg-ab-accent/[0.06]'
+        )}
+      >
+        <p
+          className={cn(
+            'text-[13px] font-bold tracking-tight',
+            isToday ? 'text-ab-accent' : 'text-ab-ink'
+          )}
+        >
+          {title}
+        </p>
+        {subtitle && <p className="ab-meta shrink-0">{subtitle}</p>}
+      </div>
       {events.length === 0 ? (
-        <p className="mt-2 rounded-lg border border-dashed border-ab-border/80 bg-stone-50/70 px-2.5 py-2 text-[11px] leading-snug text-ab-muted">
-          لا مواعيد لهذا اليوم — أضف من التقويم
+        <p className="border-t border-ab-hairline px-3.5 py-4 text-[12px] text-ab-muted-soft">
+          لا مواعيد
         </p>
       ) : (
-        <ul className="mt-2 space-y-2">
+        <ul>
           {events.map((e) => (
             <li
               key={e.id}
-              className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
+              className="flex gap-3 border-t border-ab-hairline px-3.5 py-2.5"
             >
-              <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
-              <p className="mt-0.5 text-[10px] text-ab-muted">
+              <span className="w-14 shrink-0 pt-px text-[11px] font-semibold tabular-nums text-ab-muted">
                 {e.startsAtAr}
-                {e.hasZoom ? ' · Zoom' : ''}
-                {e.locationAr ? ` · ${e.locationAr}` : ''}
-              </p>
-              {e.source === 'google_sync' && (
-                <p className="mt-0.5 text-[10px] text-sky-800">
-                  من Google
-                  {e.createdByAr ? ` · ${e.createdByAr}` : ''}
-                </p>
-              )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium leading-snug text-ab-ink">
+                  {e.titleAr}
+                </span>
+                {(e.hasZoom || e.locationAr || e.source === 'google_sync') && (
+                  <span className="ab-meta mt-0.5 block">
+                    {[
+                      e.hasZoom ? 'Zoom' : null,
+                      e.locationAr || null,
+                      e.source === 'google_sync' ? 'من Google' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                )}
+              </span>
             </li>
           ))}
         </ul>
@@ -220,17 +292,17 @@ function MonthRestRow({
   event: CalEvent
 }) {
   return (
-    <li className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 px-3 py-2">
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-stone-500">{labelAr}</p>
-        <p className="truncate text-[12px] font-medium text-ab-ink">
-          {event.titleAr}
-        </p>
-      </div>
-      <p className="shrink-0 text-[10px] text-stone-400">
+    <li className="ab-row">
+      <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
+        <span className="w-16 shrink-0 text-[11px] font-semibold text-ab-muted-soft">
+          {labelAr}
+        </span>
+        <span className="ab-row-title">{event.titleAr}</span>
+      </span>
+      <span className="ab-row-meta">
         {event.startsAtAr}
         {event.hasZoom ? ' · Zoom' : ''}
-      </p>
+      </span>
     </li>
   )
 }
@@ -534,12 +606,17 @@ export function HomeDashboard({
   // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
   if (authPending) {
     return (
-      <section className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:px-6" dir="rtl">
-        <header>
-          <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
-          <DateDual className="mt-2" />
+      <section className="ab-page-narrow" dir="rtl">
+        <header className="ab-page-head">
+          <div>
+            <h1 className="ab-title">لوحة اليوم</h1>
+            <DateDual className="mt-1.5" />
+          </div>
         </header>
-        <p className="text-sm text-stone-500">جاري التحميل…</p>
+        <div className="space-y-3" aria-hidden>
+          <div className="h-20 animate-pulse rounded-xl bg-ab-stage" />
+          <div className="h-32 animate-pulse rounded-xl bg-ab-stage" />
+        </div>
       </section>
     )
   }
@@ -547,29 +624,26 @@ export function HomeDashboard({
   // ── Guest: one clear login path, no empty chrome ──
   if (isGuest) {
     return (
-      <section className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:px-6" dir="rtl">
-        <header>
-          <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
-          <DateDual className="mt-2" />
-        </header>
-        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-5">
-          <p className="text-sm font-semibold text-ab-ink">
-            سجّل الدخول للعمل
-          </p>
-          <p className="mt-1 text-[12px] leading-relaxed text-amber-950/80">
-            بعد الدخول: مواعيد اليوم والمهام والموافقات الحقيقية — بلا بيانات
-            وهمية. للعمل التشغيلي (بريد/تقويم) استخدم «مهام التشغيل»، وللنقاش مع
-            الفريق والوكلاء بـ @ افتح «غرفة الفريق».
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate?.('settings')}
-              className="rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
-            >
-              سجّل الدخول
-            </button>
+      <section className="ab-page-narrow" dir="rtl">
+        <header className="ab-page-head">
+          <div>
+            <h1 className="ab-title">لوحة اليوم</h1>
+            <DateDual className="mt-1.5" />
           </div>
+        </header>
+        <div className="rounded-xl border border-ab-accent/25 bg-ab-accent/[0.05] p-5">
+          <p className="text-base font-bold text-ab-ink">سجّل الدخول للعمل</p>
+          <p className="mt-1.5 max-w-md text-[12px] leading-relaxed text-ab-muted">
+            بعد الدخول تظهر مواعيد اليوم والمهام والموافقات الحقيقية. النقاش مع
+            الفريق والوكلاء في «غرفة الفريق»، والتشغيل اليومي في «مهام التشغيل».
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('settings')}
+            className="ab-btn-primary mt-4 px-4 py-2 text-sm"
+          >
+            سجّل الدخول
+          </button>
         </div>
       </section>
     )
@@ -577,32 +651,37 @@ export function HomeDashboard({
 
   return (
     <section className="ab-page pb-24" dir="rtl">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <header className="ab-page-head">
+        <div className="min-w-0">
           <h1 className="ab-title">لوحة اليوم</h1>
-          <p className="ab-subtitle">
-            مواعيد اليوم والأيام القادمة أولاً — ثم ما ينتظر قرارك ومن يعمل الآن.
-          </p>
-          <DateDual className="mt-2" />
+          <DateDual className="mt-1.5" />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="ab-page-head-actions">
           {mailUnread != null && (
             <button
               type="button"
               onClick={() => onNavigate?.('mail')}
-              className="ab-btn-secondary"
+              className="ab-btn-ghost"
             >
-              <Inbox className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+              <Inbox className="h-3.5 w-3.5" aria-hidden />
               البريد
               {mailUnread > 0 ? (
                 <span className="ab-badge-accent tabular-nums">
                   {mailUnread}
                 </span>
-              ) : (
-                <span className="text-ab-muted-soft">٠</span>
-              )}
+              ) : null}
             </button>
           )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void load()}
+            className="ab-btn-ghost"
+            aria-label="تحديث اللوحة"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
+            تحديث
+          </button>
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
@@ -610,32 +689,21 @@ export function HomeDashboard({
           >
             أضف موعد
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void load()}
-            className="ab-btn-ghost"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
-            تحديث
-          </button>
         </div>
       </header>
 
       {!authPending && <TelegramHomePanel />}
 
       {!authPending && teamInbox.length > 0 && (
-        <div className="rounded-xl border border-ab-border bg-white p-3.5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-              <Inbox className="h-4 w-4 text-ab-accent" />
+        <section>
+          <div className="ab-section-head">
+            <h2 className="ab-section-title">
+              <Inbox aria-hidden />
               وارد الفريق
-              <span className="text-[11px] font-normal text-stone-500">
-                ({teamInbox.length})
-              </span>
+              <span className="ab-section-count">{teamInbox.length}</span>
             </h2>
           </div>
-          <ul className="space-y-2">
+          <ul className="ab-list">
             {teamInbox.slice(0, 10).map((item) => (
               <li key={item.id}>
                 <button
@@ -664,60 +732,59 @@ export function HomeDashboard({
                     }
                     onNavigate?.('calendar')
                   }}
-                  className="flex w-full items-start justify-between gap-2 rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2 text-right hover:bg-stone-50"
+                  className="ab-row !items-start"
                 >
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-ab-ink">
-                      {(() => {
-                        const kindAr = INBOX_KIND_AR[item.kind]
-                        const title = item.titleAr.trim()
-                        const stripped = title
-                          .replace(new RegExp(`^${kindAr}[\\s·\\-–—]+`), '')
-                          .trim()
-                        return (
-                          <>
-                            <span className="me-1.5 text-[10px] font-medium text-stone-500">
-                              {kindAr}
-                            </span>
-                            {stripped || title}
-                          </>
-                        )
-                      })()}
-                    </p>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="w-10 shrink-0 text-[10px] font-semibold text-ab-muted-soft">
+                        {INBOX_KIND_AR[item.kind]}
+                      </span>
+                      <span className="ab-row-title !whitespace-normal">
+                        {(() => {
+                          const kindAr = INBOX_KIND_AR[item.kind]
+                          const title = item.titleAr.trim()
+                          return (
+                            title
+                              .replace(new RegExp(`^${kindAr}[\\s·\\-–—]+`), '')
+                              .trim() || title
+                          )
+                        })()}
+                      </span>
+                    </span>
                     {(item.detailAr || item.whenAtAr) && (
-                      <p className="mt-0.5 text-[10px] text-stone-500">
-                        {[item.whenAtAr, item.detailAr].filter(Boolean).join(' · ')}
-                      </p>
+                      <span className="ab-meta mt-0.5 block ps-12">
+                        {[item.whenAtAr, item.detailAr]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
                     )}
-                  </div>
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
 
       {!authPending && (
-        <div>
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-              <CalendarDays className="h-4 w-4 text-ab-accent" />
-              تقويم الفريق · الأيام القادمة
-              {hasDayEvents ? (
-                <span className="text-[11px] font-normal text-stone-500">
-                  · مشترك للجميع
+        <section>
+          <div className="ab-section-head">
+            <h2 className="ab-section-title">
+              <CalendarDays aria-hidden />
+              تقويم الفريق
+            </h2>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('calendar:full')}
+              className="ab-action"
+            >
+              التقويم الكامل
+              {beyondMonthCount > 0 ? (
+                <span className="ab-section-count">
+                  {beyondMonthCount}+
                 </span>
               ) : null}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onNavigate?.('calendar:full')}
-                className="text-[11px] font-semibold text-ab-accent underline"
-              >
-                القائمة الكاملة
-              </button>
-            </div>
+            </button>
           </div>
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -727,18 +794,14 @@ export function HomeDashboard({
                   title={d.labelAr}
                   subtitle={d.weekdayAr || d.ymd}
                   events={d.events}
-                  accent={
-                    d.offset === 0 ? 'ring-1 ring-ab-accent/30' : undefined
-                  }
+                  isToday={d.offset === 0}
                 />
               ))}
             </div>
             {monthRestDays.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[11px] font-semibold text-stone-500">
-                  باقي هذا الشهر
-                </p>
-                <ul className="divide-y divide-ab-border overflow-hidden rounded-xl border border-ab-border bg-white">
+                <p className="ab-meta font-semibold">باقي هذا الشهر</p>
+                <ul className="ab-list">
                   {monthRestDays.flatMap((d) =>
                     d.events.map((e) => (
                       <MonthRestRow
@@ -751,97 +814,75 @@ export function HomeDashboard({
                 </ul>
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ab-border bg-stone-50/70 px-3 py-2">
-              <p className="text-[11px] text-stone-600">
-                {beyondMonthCount > 0
-                  ? `${beyondMonthCount} موعد بعد هذا الشهر`
-                  : 'كل الأشهر في التقويم الكامل'}
-              </p>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('calendar:full')}
-                className="shrink-0 rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-semibold text-white hover:brightness-95"
-              >
-                التقويم الكامل
-              </button>
-            </div>
             {!hasDayEvents && monthRestDays.length === 0 && (
-              <p className="text-[11px] text-stone-400">
-                لا مواعيد قادمة —{' '}
+              <p className="ab-meta">
+                لا مواعيد قادمة.{' '}
                 <button
                   type="button"
                   onClick={() => onNavigate?.('calendar')}
-                  className="font-semibold text-ab-accent underline"
+                  className="font-semibold text-ab-accent"
                 >
                   أضف موعداً
                 </button>
               </p>
             )}
           </div>
-        </div>
+        </section>
       )}
 
       {showCockpit && (
         <div className="grid gap-3 lg:grid-cols-12">
           {livePending > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 lg:col-span-5">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 text-sm font-bold text-amber-950">
-                  <ShieldCheck className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => onNavigate?.('approvals')}
+              className="group flex items-center gap-3 rounded-xl border border-amber-300/80 bg-amber-50/80 p-3.5 text-start transition-colors hover:bg-amber-50 lg:col-span-5"
+            >
+              <ShieldCheck
+                className="h-5 w-5 shrink-0 text-amber-700"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-bold text-amber-950">
                   يحتاج قرارك
-                  <span className="tabular-nums text-amber-800">
-                    ({livePending})
+                  <span className="ms-1.5 tabular-nums font-semibold text-amber-800">
+                    {livePending}
                   </span>
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('approvals')}
-                  className="text-[11px] font-semibold text-amber-900 underline"
-                >
-                  صندوق الموافقات
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('approvals')}
-                className="mt-2.5 w-full rounded-lg border border-amber-200 bg-white/80 px-3 py-3 text-right text-[12px] font-semibold text-amber-950 hover:bg-white"
-              >
-                {livePending} طلب حذف معلّق — افتح صندوق الموافقات للاعتماد أو
-                الرفض
-              </button>
-            </div>
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-amber-900/80">
+                  طلبات حذف معلّقة — اعتمد أو ارفض من صندوق الموافقات
+                </span>
+              </span>
+            </button>
           )}
 
           {deadlines.length > 0 && (
-            <div className="rounded-xl border border-ab-border bg-white p-3.5 lg:col-span-7">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                  <CalendarDays className="h-4 w-4 text-ab-accent" />
+            <div className="lg:col-span-7">
+              <div className="ab-section-head">
+                <h2 className="ab-section-title">
+                  <CalendarDays aria-hidden />
                   مواعيد نظامية
                 </h2>
                 <button
                   type="button"
                   onClick={() => onNavigate?.('calendar')}
-                  className="text-[11px] text-ab-accent underline"
+                  className="ab-action"
                 >
                   التقويم
                 </button>
               </div>
-              <ul className="mt-2.5 space-y-2">
+              <ul className="ab-list">
                 {deadlines.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-baseline justify-between gap-2 text-[12px]"
-                  >
-                    <span className="font-medium text-ab-ink">{d.labelAr}</span>
+                  <li key={d.id} className="ab-row">
+                    <span className="ab-row-title">{d.labelAr}</span>
                     <span
                       className={cn(
-                        'shrink-0 tabular-nums text-[11px]',
+                        'ab-row-meta',
                         d.daysLeft < 0
-                          ? 'font-semibold text-ab-danger'
+                          ? '!font-semibold !text-ab-danger'
                           : d.daysLeft <= 14
-                            ? 'font-semibold text-ab-warn'
-                            : 'text-stone-500'
+                            ? '!font-semibold !text-ab-warn'
+                            : undefined
                       )}
                     >
                       {d.daysLeft < 0
@@ -856,124 +897,52 @@ export function HomeDashboard({
         </div>
       )}
 
-      {signedIn === true && !isEmptyWorkspace && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-[12px] text-emerald-900">
-          {canAccessOpsUi
-            ? 'جلسة مسجّلة — الغرف والموافقات والربط بـ Drive/تيليجرام تُحفظ لحسابك.'
-            : 'جلسة مسجّلة — غرفك وتقويمك ومهامك محفوظة لحسابك.'}
-        </div>
-      )}
-
       {isEmptyWorkspace && signedIn === true && (
-        <div className="space-y-3 rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-4">
+        <div className="space-y-4 rounded-xl border border-ab-accent/25 bg-ab-accent/[0.05] p-4 sm:p-5">
           <div>
-            <h2 className="flex items-center gap-1.5 text-base font-bold text-ab-ink">
+            <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-ab-ink">
               <Rocket className="h-4 w-4 text-ab-accent" aria-hidden />
               {canAccessOpsUi
-                ? 'مساحتك جاهزة — ابدأ بثلاث خطوات'
-                : 'ابدأ من الغرف والعمل اليومي'}
+                ? 'مساحتك جاهزة — ابدأ من هنا'
+                : 'ابدأ من الغرفة والعمل اليومي'}
             </h2>
-            <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-stone-600">
+            <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-ab-muted">
               {canAccessOpsUi
-                ? 'اللوحة فارغة لأن هذه الغرفة جديدة. أكمل الخطوات أدناه لتظهر المواعيد والمهام تلقائياً.'
-                : 'افتح غرفة الفريق، أضف موعداً أو مهمة، وتابع صندوق الوارد — بلا إعدادات تقنية.'}
+                ? 'اللوحة فارغة لأن الغرفة جديدة. أكمل الخطوات لتظهر المواعيد والمهام تلقائياً.'
+                : 'افتح غرفة الفريق، أضف موعداً أو مهمة، وتابع الوارد. بلا إعدادات تقنية.'}
             </p>
           </div>
-          {canAccessOpsUi ? (
-            <ol className="grid gap-2 sm:grid-cols-3">
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">
-                  ١. اربط Google
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  للدعوات الخارجية وملفات Drive — خطوة واحدة من الإعدادات.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('settings')}
-                  className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
-                >
-                  الإعدادات
-                </button>
-              </li>
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">
-                  ٢. زامن ملفات الفريق
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  فهرسة مجلد Drive حتى يجيب الوكيل من ملفاتكم لا من تخمينه.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('settings')}
-                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-                >
-                  الملفات والمعرفة
-                </button>
-              </li>
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">
-                  ٣. أضف أول مهمة أو موعد
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  من لوحة التقويم والمهام المشتركة — تظهر فوراً في لوحة اليوم.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('calendar')}
-                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-                >
-                  تقويم ومهام الفريق
-                </button>
-              </li>
-            </ol>
-          ) : (
-            <ol className="grid gap-2 sm:grid-cols-3">
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">
-                  ١. غرفة الفريق
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  الوكلاء متواجدون دائماً — اكتب @اسم_الوكيل فيبدأ العمل فوراً.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('chats')}
-                  className="mt-2 rounded-md bg-ab-ink px-2.5 py-1 text-[11px] font-semibold text-white"
-                >
-                  فتح غرفة الفريق
-                </button>
-              </li>
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">
-                  ٢. التقويم والمهام
-                </p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  مواعيد ومهام الفريق المشتركة تظهر للجميع هنا.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('calendar')}
-                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-                >
-                  التقويم
-                </button>
-              </li>
-              <li className="rounded-lg border border-ab-border bg-white p-3">
-                <p className="text-[12px] font-semibold text-ab-ink">٣. الملفات</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  ارفع أو افتح ملفات العمل عند الحاجة.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('files')}
-                  className="mt-2 rounded-md border border-ab-border px-2.5 py-1 text-[11px] font-medium text-ab-ink"
-                >
-                  الملفات
-                </button>
-              </li>
-            </ol>
-          )}
+          <ol className="ab-list">
+            {(canAccessOpsUi ? OWNER_START_STEPS : MEMBER_START_STEPS).map(
+              (step, i) => (
+                <li key={step.titleAr}>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.(step.target)}
+                    className="ab-row !items-center"
+                  >
+                    <span className="flex min-w-0 flex-1 items-start gap-3">
+                      <span
+                        className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-ab-accent/10 text-[11px] font-bold tabular-nums text-ab-accent"
+                        aria-hidden
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-semibold text-ab-ink">
+                          {step.titleAr}
+                        </span>
+                        <span className="ab-meta mt-0.5 block">
+                          {step.detailAr}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="ab-action !px-0">{step.ctaAr}</span>
+                  </button>
+                </li>
+              )
+            )}
+          </ol>
           {canAccessOpsUi ? (
             <FirstRunChecklist
               scopeId={scopeId}
@@ -999,162 +968,136 @@ export function HomeDashboard({
       {!isEmptyWorkspace && <AssociationRecipes onNavigate={onNavigate} />}
 
       {err && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+        <p className="ab-note-danger" role="alert">
           {err}
         </p>
       )}
 
       {busy && !liveData && (
-        <p className="text-sm text-stone-500">جاري تحميل لوحة اليوم…</p>
+        <div className="space-y-3" aria-hidden>
+          <div className="h-24 animate-pulse rounded-xl bg-ab-stage" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="h-32 animate-pulse rounded-xl bg-ab-stage" />
+            <div className="h-32 animate-pulse rounded-xl bg-ab-stage" />
+          </div>
+        </div>
       )}
 
       {!isEmptyWorkspace && (
         <>
           {showZoomStrip && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Video className="h-5 w-5 text-red-600" />
-                <div>
-                  <p className="text-sm font-bold text-ab-ink">
-                    Zoom مباشر الآن ({zoom?.liveCount})
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50/80 px-3.5 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Video className="h-4 w-4 shrink-0 text-red-700" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-ab-ink">
+                    Zoom مباشر الآن
+                    <span className="ms-1.5 tabular-nums text-red-700">
+                      {zoom?.liveCount}
+                    </span>
                   </p>
-                  <p className="text-[11px] text-stone-500">
+                  <p className="ab-meta truncate">
                     {(() => {
                       const live = zoom as
                         | { liveMeetings?: Array<{ topic: string }> }
                         | undefined
                       return (
-                        live?.liveMeetings?.[0]?.topic ||
-                        zoom?.messageAr ||
-                        ''
+                        live?.liveMeetings?.[0]?.topic || zoom?.messageAr || ''
                       )
                     })()}
                   </p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-bold text-white">
-                <Radio className="h-3 w-3 animate-pulse" />
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[10px] font-bold text-white">
+                <Radio className="h-3 w-3 animate-pulse" aria-hidden />
                 LIVE
               </span>
             </div>
           )}
 
           {hasCommitments && (
-            <div className="rounded-xl border border-ab-border bg-white p-4">
-              <h2 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                <ListTodo className="h-4 w-4 text-ab-accent" />
-                أسبوع الفريق
-              </h2>
-              <p className="mb-3 text-[11px] text-stone-500">
-                مهام ومواعيد ومواعيد نظام ({viewData.commitments?.count || 0})
-              </p>
-              <ul className="divide-y divide-ab-border">
+            <section>
+              <div className="ab-section-head">
+                <h2 className="ab-section-title">
+                  <ListTodo aria-hidden />
+                  أسبوع الفريق
+                  <span className="ab-section-count">
+                    {viewData.commitments?.count || 0}
+                  </span>
+                </h2>
+              </div>
+              <ul className="ab-list">
                 {(viewData.commitments?.items || []).map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
-                  >
-                    <span>
-                      <span className="ms-1 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
+                  <li key={c.id} className="ab-row">
+                    <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
+                      <span className="w-10 shrink-0 text-[10px] font-semibold text-ab-muted-soft">
                         {c.kind === 'task'
                           ? 'مهمة'
                           : c.kind === 'deadline'
                             ? 'نظام'
                             : 'موعد'}
                       </span>
-                      <span className="font-medium text-ab-ink">{c.titleAr}</span>
+                      <span className="ab-row-title">{c.titleAr}</span>
                     </span>
-                    <span className="text-[11px] text-stone-500">
+                    <span className="ab-row-meta">
                       {c.whenAtAr}
                       {c.detailAr ? ` · ${c.detailAr}` : ''}
                     </span>
                   </li>
                 ))}
               </ul>
-              {(viewData.systemDeadlines || []).length > 0 && (
-                <div className="mt-3 border-t border-ab-border pt-3">
-                  <p className="mb-1 text-[11px] font-semibold text-stone-600">
-                    مواعيد النظام القادمة
-                  </p>
-                  <ul className="space-y-1 text-xs">
-                    {(viewData.systemDeadlines || []).map((d) => (
-                      <li key={d.id} className="flex justify-between gap-2">
-                        <span>{d.labelAr}</span>
-                        <span className="tabular-nums text-stone-500">
-                          {d.daysLeft < 0
-                            ? `متأخر ${Math.abs(d.daysLeft)}ي`
-                            : `${d.daysLeft} يوم`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+            </section>
           )}
 
           {hasWeek && (
-            <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
-              <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                <Clock className="h-4 w-4 text-ab-accent" />
-                أحداث هذا الأسبوع
-              </h2>
-              <ul className="divide-y divide-ab-border">
+            <section>
+              <div className="ab-section-head">
+                <h2 className="ab-section-title">
+                  <Clock aria-hidden />
+                  أحداث هذا الأسبوع
+                </h2>
+              </div>
+              <ul className="ab-list">
                 {(cal?.week || []).map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm"
-                  >
-                    <span className="font-medium text-ab-ink">{e.titleAr}</span>
-                    <span className="text-[11px] text-stone-500">
+                  <li key={e.id} className="ab-row">
+                    <span className="ab-row-title">{e.titleAr}</span>
+                    <span className="ab-row-meta">
                       {e.startsAtAr}
                       {e.hasZoom ? ' · Zoom' : ''}
                     </span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           )}
 
           {(hasPeople || hasMergedPulse || hasTasks) && (
             <div className="grid gap-4 lg:grid-cols-2">
               {hasMergedPulse && (
-                <div
-                  className={cn(
-                    'rounded-xl border border-ab-border bg-white p-3',
-                    !hasPeople && !hasTasks && 'lg:col-span-2'
-                  )}
+                <section
+                  className={cn(!hasPeople && !hasTasks && 'lg:col-span-2')}
                 >
-                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                      <History className="h-4 w-4 text-ab-accent" />
+                  <div className="ab-section-head">
+                    <h2 className="ab-section-title">
+                      <History aria-hidden />
                       نشاط حديث
                     </h2>
                     <button
                       type="button"
                       onClick={() => setActivityOpen(true)}
-                      className="text-[11px] font-semibold text-ab-accent underline"
+                      className="ab-action"
                     >
                       كل النشاط
                     </button>
                   </div>
-                  <ul className="space-y-1.5">
+                  <ul className="ab-list">
                     {activityPreview.map((a) => (
                       <li
                         key={a.id}
-                        className="text-[12px] leading-snug text-stone-600"
+                        className="px-3 py-2 text-[12px] leading-relaxed text-ab-muted"
                       >
-                        {a.badge ? (
-                          <span
-                            className={cn(
-                              'me-1.5 rounded px-1 py-px text-[10px] font-semibold',
-                              a.badge === 'الآن'
-                                ? 'bg-ab-accent/10 text-ab-accent'
-                                : 'bg-stone-100 font-medium text-stone-500'
-                            )}
-                          >
-                            {a.badge}
-                          </span>
+                        {a.badge === 'الآن' ? (
+                          <span className="ab-badge-accent me-1.5">الآن</span>
                         ) : null}
                         <span className="font-semibold text-ab-ink">
                           {a.actorAr}
@@ -1162,82 +1105,80 @@ export function HomeDashboard({
                         {' · '}
                         {a.actionAr}
                         {a.detailAr ? (
-                          <span className="text-stone-400">
-                            {' '}
-                            — {a.detailAr}
+                          <span className="text-ab-muted-soft">
+                            {' · '}
+                            {a.detailAr}
                           </span>
                         ) : null}
                         {a.atAr ? (
-                          <span className="text-stone-400"> · {a.atAr}</span>
+                          <span className="text-ab-muted-soft tabular-nums">
+                            {' · '}
+                            {a.atAr}
+                          </span>
                         ) : null}
                       </li>
                     ))}
                   </ul>
-                </div>
+                </section>
               )}
 
               {hasPeople && (
-                <div className="rounded-xl border border-ab-border bg-white p-4">
-                  <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                    <Users className="h-4 w-4 text-ab-accent" />
-                    من كانوا هنا
-                  </h2>
-                  <ul className="space-y-2">
+                <section>
+                  <div className="ab-section-head">
+                    <h2 className="ab-section-title">
+                      <Users aria-hidden />
+                      من كانوا هنا
+                    </h2>
+                  </div>
+                  <ul className="ab-list">
                     {(viewData.people || []).map((p) => (
                       <li
                         key={`${p.nameAr}-${p.email || ''}`}
-                        className="rounded-lg border border-ab-border/70 px-2.5 py-2"
+                        className="px-3 py-2.5"
                       >
                         <p className="text-[13px] font-semibold text-ab-ink">
                           {p.nameAr}
-                          {p.email ? (
-                            <span
-                              className="mr-1 text-[10px] font-normal text-stone-400"
-                              dir="ltr"
-                            >
-                              {p.email}
-                            </span>
-                          ) : null}
                         </p>
-                        <p className="text-[11px] text-stone-500">
-                          {[
-                            p.lastAction,
-                            `${p.actions} إجراء`,
-                            p.lastAtAr,
-                          ]
+                        <p className="ab-meta mt-0.5">
+                          {[p.lastAction, `${p.actions} إجراء`, p.lastAtAr]
                             .filter(Boolean)
                             .join(' · ')}
                         </p>
                       </li>
                     ))}
                   </ul>
-                </div>
+                </section>
               )}
 
               {hasTasks && (
-                <div className="rounded-xl border border-ab-border bg-white p-4">
-                  <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-                    <ListTodo className="h-4 w-4 text-ab-accent" />
-                    مهام مفتوحة ({viewData.tasks?.openCount || 0})
-                  </h2>
-                  <ul className="space-y-1.5">
+                <section>
+                  <div className="ab-section-head">
+                    <h2 className="ab-section-title">
+                      <ListTodo aria-hidden />
+                      مهام مفتوحة
+                      <span className="ab-section-count">
+                        {viewData.tasks?.openCount || 0}
+                      </span>
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('calendar:tasks')}
+                      className="ab-action"
+                    >
+                      لوحة المهام
+                    </button>
+                  </div>
+                  <ul className="ab-list">
                     {(viewData.tasks?.items || []).map((t) => (
-                      <li key={t.id} className="text-[12px] text-ab-ink">
-                        {t.titleAr}
-                        <span className="mr-1 text-[10px] text-stone-400">
-                          ({taskStatusAr(t.status)})
+                      <li key={t.id} className="ab-row">
+                        <span className="ab-row-title">{t.titleAr}</span>
+                        <span className="ab-row-meta">
+                          {taskStatusAr(t.status)}
                         </span>
                       </li>
                     ))}
                   </ul>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate?.('calendar')}
-                    className="mt-3 text-[11px] text-ab-accent underline"
-                  >
-                    عرض لوحة المهام في التقويم
-                  </button>
-                </div>
+                </section>
               )}
             </div>
           )}

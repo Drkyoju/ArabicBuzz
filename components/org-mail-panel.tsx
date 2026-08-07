@@ -532,23 +532,22 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
 
   return (
     <section className="ab-page" dir="rtl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <header className="ab-page-head">
+        <div className="min-w-0">
           <h2 className="ab-title flex items-center gap-2">
             <Mail className="h-5 w-5 text-ab-accent" aria-hidden />
             بريد الجمعية
             {unread > 0 && (
-              <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
                 {unread} جديد
               </span>
             )}
           </h2>
           <p className="ab-subtitle">
-            افتح أي رسالة → ملخص الوكيل + مسودة رد جاهزة → قبول / تعديل / إرسال.
-            الأعضاء والمالك يستخدمون الصندوق؛ إعداد IMAP للمالك فقط.
+            افتح الرسالة ليصلك ملخص الوكيل ومسودة رد جاهزة للقبول أو التعديل.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="ab-page-head-actions">
           {isOwner && (
             <button
               type="button"
@@ -575,16 +574,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             </button>
           )}
         </div>
-      </div>
+      </header>
 
       {mailbox?.lastErrorAr && (
-        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="ab-note-warn flex items-start gap-2">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {mailbox.lastErrorAr}
         </p>
       )}
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+        <p className="ab-note-danger" role="alert">
           {error}
         </p>
       )}

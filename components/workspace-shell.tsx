@@ -50,6 +50,7 @@ import { RoleBadge } from '@/components/role-badge'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { Fingerprint } from 'lucide-react'
+import { sectionTitleAr } from '@/lib/ui/section-titles'
 import { cn } from '@/lib/utils'
 
 type CalendarTab =
@@ -445,9 +446,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       {/* Offset must be on the inline-start side and match --ab-sidebar-width
           (set from components/sidebar.tsx), otherwise the fixed sidebar covers content. */}
       <div className="min-h-dvh pt-11 md:ms-[var(--ab-sidebar-width)] md:pt-0">
-        <div className="sticky top-0 z-20 hidden items-center justify-end gap-2 border-b border-ab-border/60 bg-ab-bg/90 px-4 py-1.5 backdrop-blur md:flex">
-          <MailBell onOpenMail={() => setSection('mail')} />
-        </div>
+        {/* Desktop bar: names the current surface so the page body does not
+            have to carry the only orientation cue. */}
+        {section !== 'chats' && (
+          <div className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-ab-border/70 bg-ab-bg/85 px-4 py-2 backdrop-blur md:flex">
+            <p className="truncate text-[13px] font-semibold tracking-tight text-ab-ink">
+              {sectionTitleAr(section)}
+            </p>
+            <MailBell onOpenMail={() => setSection('mail')} />
+          </div>
+        )}
         {pendingCount > 0 &&
           section !== 'approvals' &&
           signedIn !== false &&
@@ -485,13 +493,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'calendar' && (
           <section className="ab-page" dir="rtl">
-            <div>
-              <h2 className="ab-title">تقويم الفريق</h2>
-              <p className="ab-subtitle">
-                تقويم الغرفة المشترك — أي عضو مسجّل يضيف أو يعدّل، والمواعيد تظهر
-                للجميع. ليس تقويماً شخصياً.
-              </p>
-            </div>
+            <header className="ab-page-head">
+              <div className="min-w-0">
+                <h2 className="ab-title">تقويم الفريق</h2>
+                <p className="ab-subtitle">
+                  تقويم الغرفة المشترك — أي عضو مسجّل يضيف أو يعدّل، والمواعيد
+                  تظهر للجميع.
+                </p>
+              </div>
+            </header>
 
             <div
               role="tablist"
@@ -566,17 +576,17 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'approvals' && (
-          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-1.5 text-xl font-bold">
+          <section className="ab-page-narrow" dir="rtl">
+            <header className="ab-page-head mb-1">
+              <div className="min-w-0">
+                <h2 className="ab-title flex items-center gap-1.5">
                   صندوق الموافقات
                   {hitlDisabled !== true && (
                     <HelpTip textAr="الموافقة مطلوبة فقط عند حذف الملفات أو الأشياء (مثل إلغاء موعد). باقي الأدوات تُنفَّذ تلقائياً." />
                   )}
                 </h2>
                 {hitlDisabled !== true && (
-                  <p className="mt-1 text-sm text-stone-500">
+                  <p className="ab-subtitle">
                     هنا تظهر طلبات الحذف فقط — اعتمد · ارفض · أو عدّل ثم يُنفَّذ.
                   </p>
                 )}
@@ -585,12 +595,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <button
                   type="button"
                   onClick={() => void loadApprovals()}
-                  className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                  className="ab-btn-secondary"
                 >
                   تحديث
                 </button>
               )}
-            </div>
+            </header>
             {hitlDisabled === true && (
               <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
                 <p className="text-sm font-semibold text-amber-950">
@@ -708,17 +718,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'audit' && canAccessOpsUi && mode === 'admin' && (
-          <section className="mx-auto max-w-3xl space-y-6 px-6 py-8" dir="rtl">
-            <div>
-              <h1 className="flex items-center gap-2 text-xl font-bold text-ab-ink">
-                <Fingerprint className="h-5 w-5 text-ab-accent" />
-                سجل العمل
-              </h1>
-              <p className="mt-1 text-sm text-stone-500">
+          <section className="ab-page-narrow" dir="rtl">
+            <header className="ab-page-head">
+              <div className="min-w-0">
+                <h1 className="ab-title flex items-center gap-2">
+                  <Fingerprint className="h-5 w-5 text-ab-accent" aria-hidden />
+                  سجل العمل
+                </h1>
+                <p className="ab-subtitle">
                 كل إجراء للبشر والوكلاء — وقت، فاعل، ومستوى خطر — مع ختم قابل
                 للمراجعة.
-              </p>
-            </div>
+                </p>
+              </div>
+            </header>
 
             {signedIn === false && (
               <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-center">
@@ -746,16 +758,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'skills' && canAccessOpsUi && mode === 'admin' && (
-          <div className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <div className="mb-6">
-              <h2 className="flex items-center gap-1.5 text-xl font-bold">
-                المهارات والمهام
-                <HelpTip textAr="المهارة = تعليمات ثابتة للوكيل في هذه المساحة. يمكنك اقتراح مهارة من المحادثة أيضاً." />
-              </h2>
-              <p className="mt-1 text-sm text-stone-500">
-                ثبّت مهارات للوكلاء أو سجّل تذكيراً يومياً.
-              </p>
-            </div>
+          <div className="ab-page-narrow" dir="rtl">
+            <header className="ab-page-head">
+              <div className="min-w-0">
+                <h2 className="ab-title flex items-center gap-1.5">
+                  المهارات والمهام
+                  <HelpTip textAr="المهارة = تعليمات ثابتة للوكيل في هذه المساحة. يمكنك اقتراح مهارة من المحادثة أيضاً." />
+                </h2>
+                <p className="ab-subtitle">
+                  ثبّت مهارات للوكلاء أو سجّل تذكيراً يومياً.
+                </p>
+              </div>
+            </header>
             <SkillMarketplace targetScopeId={activeScopeId} />
             <div className="mt-10 space-y-6 border-t border-ab-border pt-8">
               <div>
@@ -780,12 +794,17 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'api-keys' && signedIn && canAccessOpsUi && mode === 'admin' && (
-          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <h2 className="mb-1 text-xl font-bold">مفاتيح النماذج</h2>
-            <p className="mb-6 text-sm text-stone-500">
-              قائمة النماذج في الغرفة تعرض فقط المزوّدين الذين لديهم مفتاح صالح.
-            </p>
-            <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+          <section className="ab-page-narrow" dir="rtl">
+            <header className="ab-page-head">
+              <div className="min-w-0">
+                <h2 className="ab-title">مفاتيح النماذج</h2>
+                <p className="ab-subtitle">
+                  قائمة النماذج في الغرفة تعرض فقط المزوّدين الذين لديهم مفتاح
+                  صالح.
+                </p>
+              </div>
+            </header>
+            <div className="ab-section-pad">
               <ProviderKeysPanel />
             </div>
           </section>
@@ -797,12 +816,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
         {section === 'settings' && (
           <section className="ab-page-narrow" dir="rtl">
-            <h2 className="ab-title">الإعدادات</h2>
-            <p className="ab-subtitle mb-2">
-              {mode === 'employee' || !canAccessOpsUi
-                ? 'حسابك وتفضيلات التاريخ — الربط التقني تلقائي من المالك.'
-                : 'الحالة فقط — النظام يربط الخدمات تلقائياً من الإعدادات المخزّنة.'}
-            </p>
+            <header className="ab-page-head">
+              <div className="min-w-0">
+                <h2 className="ab-title">الإعدادات</h2>
+                <p className="ab-subtitle">
+                  {mode === 'employee' || !canAccessOpsUi
+                    ? 'حسابك وتفضيلات التاريخ. الربط التقني تلقائي من المالك.'
+                    : 'الحالة فقط. النظام يربط الخدمات تلقائياً من الإعدادات المخزّنة.'}
+                </p>
+              </div>
+            </header>
 
             <div className="ab-section-pad text-sm">
               <div className="mb-2 flex items-center justify-between gap-2">

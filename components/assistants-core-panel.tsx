@@ -727,13 +727,15 @@ export function AssistantsCorePanel({
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-5">
-      <div>
-        <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
-        <p className="ab-subtitle">
-          {catalog?.subtitleAr ||
-            'مهام تشغيل للمساحة (بريد/تقويم) — غرفة الفريق = محادثة حية ووكلاء متواجدون بـ @.'}
-        </p>
-      </div>
+      <header className="ab-page-head">
+        <div className="min-w-0">
+          <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
+          <p className="ab-subtitle">
+            {catalog?.subtitleAr ||
+              'مهام تشغيل للمساحة على البريد والتقويم. للنقاش الحي مع الوكلاء استخدم غرفة الفريق.'}
+          </p>
+        </div>
+      </header>
 
       <div
         className={cn(

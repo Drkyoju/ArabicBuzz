@@ -256,6 +256,25 @@ export function RoomWorkspace({ className }: { className?: string }) {
   function detachComposerFile(fileId: string) {
     setComposerFiles((prev) => prev.filter((f) => f.fileId !== fileId))
   }
+
+  /** Clear header control — not buried only under «المزيد». */
+  function toggleTelegramPane() {
+    setShowTelegram((v) => {
+      const next = !v
+      if (next) {
+        setShowMore(false)
+        setShowHeaderMore(false)
+        if (
+          typeof window !== 'undefined' &&
+          window.matchMedia('(max-width: 767px)').matches
+        ) {
+          setSeatsCollapsed(true)
+        }
+      }
+      return next
+    })
+  }
+
   const signedIn = useSignedIn()
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const isGuest = signedIn === false
@@ -1506,19 +1525,26 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border/60 bg-ab-surface px-3 py-2">
+          <header className="border-b border-ab-border/70 bg-ab-surface px-3 py-2.5 md:py-2">
             <div className="flex flex-nowrap items-center justify-between gap-x-2 gap-y-1.5 md:flex-wrap">
               <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex min-w-0 items-baseline gap-x-2">
-                  <h2 className="truncate text-[15px] font-semibold tracking-tight text-ab-ink">
+                  <h2 className="truncate text-[15px] font-bold tracking-tight text-ab-ink">
                     {activeScope.nameAr}
                   </h2>
-                  <span className="hidden truncate text-[11px] text-stone-400 sm:inline">
-                    {shared
-                      ? 'غرفة الفريق'
-                      : PERSONAL_DESK_COPY.taglineAr}
+                  <span className="hidden truncate text-[11px] text-ab-muted-soft sm:inline">
+                    {shared ? 'غرفة الفريق' : PERSONAL_DESK_COPY.taglineAr}
                   </span>
                 </div>
+                {/* Mobile keeps a one-line status instead of hiding presence
+                    entirely behind the overflow menu. */}
+                <p className="mt-0.5 truncate text-[11px] leading-snug text-ab-muted-soft sm:hidden">
+                  {streaming
+                    ? 'الوكيل يكتب الآن…'
+                    : shared
+                      ? 'غرفة الفريق · اكتب @ لاستدعاء وكيل'
+                      : PERSONAL_DESK_COPY.taglineAr}
+                </p>
                 <div className="mt-1 hidden flex-wrap items-center gap-2 md:flex">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
@@ -1567,6 +1593,27 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     </button>
                   )}
                 </div>
+                {shared ? (
+                  <button
+                    type="button"
+                    onClick={toggleTelegramPane}
+                    className={cn(
+                      'inline-flex items-center gap-1 !py-1 text-[11px]',
+                      showTelegram ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
+                    )}
+                    aria-label={
+                      showTelegram
+                        ? 'إخفاء تيليجرام المباشر'
+                        : 'فتح تيليجرام المباشر'
+                    }
+                    aria-expanded={showTelegram}
+                    aria-controls="room-telegram-live-pane"
+                    title="نافذة تيليجرام المباشرة — محادثة المجموعة"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>تيليجرام</span>
+                  </button>
+                ) : null}
                 {previewOpen && (
                   <button
                     type="button"
@@ -1584,7 +1631,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   type="button"
                   onClick={() => setShowHeaderMore((v) => !v)}
                   className={cn(
-                    'inline-flex h-8 w-8 items-center justify-center !p-0 md:!h-auto md:!w-auto md:!px-2 md:!py-1 md:text-[11px]',
+                    'inline-flex h-9 w-9 items-center justify-center !p-0 md:!h-auto md:!w-auto md:!px-2 md:!py-1 md:text-[11px]',
                     showHeaderMore || showRoomTools
                       ? 'ab-btn-accent-soft'
                       : 'ab-btn-ghost'
@@ -1700,22 +1747,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         type="button"
                         role="menuitem"
                         onClick={() => {
-                          setShowTelegram((v) => {
-                            const next = !v
-                            if (next) {
-                              setShowMore(false)
-                              if (
-                                typeof window !== 'undefined' &&
-                                window.matchMedia('(max-width: 767px)').matches
-                              ) {
-                                setSeatsCollapsed(true)
-                              }
-                            }
-                            return next
-                          })
+                          toggleTelegramPane()
                           setShowHeaderMore(false)
                         }}
-                        className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px]"
+                        className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px] md:hidden"
                       >
                         <MessageCircle className="h-3 w-3" aria-hidden />
                         {showTelegram ? 'إخفاء تيليجرام' : 'تيليجرام'}
@@ -1761,16 +1796,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 ) : null}
               </div>
             </div>
-            {showRoomTools ? (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ab-border/50 pt-2">
-                <ModelPicker compact scopeId={activeScopeId} />
-                <EffortPicker compact scopeId={activeScopeId} />
-                <FontScalePicker compact />
-                <span className="ms-auto text-[10px] text-stone-400">
-                  الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
-                </span>
-              </div>
-            ) : null}
+            {/* Font zoom always visible; model/effort stay under «المزيد». */}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ab-border/50 pt-2">
+              <FontScalePicker compact />
+              {showRoomTools ? (
+                <>
+                  <ModelPicker compact scopeId={activeScopeId} />
+                  <EffortPicker compact scopeId={activeScopeId} />
+                </>
+              ) : null}
+              <span className="ms-auto text-[10px] text-stone-400">
+                الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
+              </span>
+            </div>
           </header>
 
           {deleteTodayNote ? (

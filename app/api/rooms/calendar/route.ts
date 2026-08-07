@@ -86,7 +86,9 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === 'list') {
-      const events = await listRoomCalendarEvents({ scopeId })
+      // Same SoT as GET / home / Telegram — a second reader here would
+      // re-expose QA test titles that getRoomAgenda filters out.
+      const events = await getRoomAgenda({ scopeId })
       return NextResponse.json({ events, count: events.length })
     }
 
