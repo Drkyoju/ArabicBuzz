@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Circle, Sparkles, X } from 'lucide-react'
-import { authHeaders } from '@/lib/supabase/browser'
+import {
+  authHeaders,
+  ensureSupabaseBrowserConfig,
+} from '@/lib/supabase/browser'
 
 type Step = {
   id: string
@@ -19,10 +22,13 @@ export function FirstRunChecklist({
   onNavigate,
   onDismiss,
   className,
+  /** Room already has chat history in this session — skip waiting on /api/rooms/home. */
+  knownRoomPosts = 0,
 }: {
   onNavigate?: (section: string) => void
   onDismiss?: () => void
   className?: string
+  knownRoomPosts?: number
 }) {
   const [googleOk, setGoogleOk] = useState(false)
   const [driveCount, setDriveCount] = useState(0)
@@ -51,10 +57,28 @@ export function FirstRunChecklist({
   }, [])
 
   useEffect(() => {
+    if (knownRoomPosts > 0) {
+      setChatted(true)
+      try {
+        localStorage.setItem('ab-first-chat', '1')
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [knownRoomPosts])
+
+  useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const h = await authHeaders()
+        await ensureSupabaseBrowserConfig()
+        let h = await authHeaders()
+        // CranL cold boot: session may arrive after public-config — retry once.
+        if (!h.Authorization) {
+          await new Promise((r) => setTimeout(r, 600))
+          if (cancelled) return
+          h = await authHeaders()
+        }
         const [cal, drive, providers, integ, home] = await Promise.all([
           fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
             r.json()
@@ -65,16 +89,24 @@ export function FirstRunChecklist({
           fetch('/api/rooms/home', { headers: h }).then((r) => r.json()),
         ])
         if (cancelled) return
-        setGoogleOk(Boolean(cal?.connected))
+        setGoogleOk(
+          Boolean(cal?.connected) || Boolean(integ?.googleAutoLinked)
+        )
         setDriveCount(Number(drive?.count || 0))
         setKeysOk(Number(providers?.serviceableCount || 0) > 0)
-        setTelegramOk(Boolean(integ?.telegramConfigured))
+        setTelegramOk(
+          Boolean(integ?.telegramConfigured) ||
+            Boolean(integ?.telegramOwnerConfigured) ||
+            Boolean(integ?.telegramOutboundReady)
+        )
 
         // Returning users already have room history — don't keep the checklist stuck
         // on localStorage flags that only flip from this browser's future clicks.
-        const hasPosts = Array.isArray(home?.recentPosts)
-          ? home.recentPosts.length > 0
-          : false
+        const hasPosts =
+          knownRoomPosts > 0 ||
+          (Array.isArray(home?.recentPosts)
+            ? home.recentPosts.length > 0
+            : false)
         const hasCalendar =
           (Array.isArray(home?.agenda) && home.agenda.length > 0) ||
           Number(home?.beyondMonthCount || 0) > 0 ||
@@ -104,7 +136,7 @@ export function FirstRunChecklist({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [knownRoomPosts])
 
   const steps: Step[] = useMemo(
     () => [

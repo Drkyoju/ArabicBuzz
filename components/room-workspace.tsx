@@ -1491,6 +1491,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           {showOnboarding && (
             <div className="space-y-3 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
+                knownRoomPosts={posts.length}
                 onNavigate={(section) => {
                   window.dispatchEvent(
                     new CustomEvent('ab-nav', { detail: section })
@@ -1979,7 +1980,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           <div
             ref={feedRef}
-            className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2.5 py-3 sm:px-3 lg:px-4"
+            className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2.5 py-3 pb-36 sm:px-3 lg:px-4"
           >
             {/* Full column width — avoid hollow side gutters on wide desktops */}
             <div className="mx-auto w-full max-w-none">
