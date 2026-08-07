@@ -99,6 +99,7 @@ export const useWorkspaceModeStore = create<State>()(
 /** Sections visible to members (no audit, skills, API keys, ops, memory). */
 export const EMPLOYEE_SECTIONS = new Set([
   'home',
+  'assistants',
   'chats',
   'files',
   'calendar',

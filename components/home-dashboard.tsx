@@ -956,6 +956,29 @@ export function HomeDashboard({
         </div>
       )}
 
+      {!isEmptyWorkspace && (
+        <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-ab-ink">
+                المساعدون — نواة العمل
+              </h2>
+              <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-stone-500">
+                مساعدون جاهزون (صفر البريد · ملخص يومي · بحث ملفات · كابتن
+                تيليجرام · مساعد عام). قوالب الجمعية تبقى منفصلة أدناه.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('assistants')}
+              className="rounded-md bg-ab-ink px-3 py-1.5 text-[11px] font-semibold text-white"
+            >
+              فتح المساعدين
+            </button>
+          </div>
+        </div>
+      )}
+
       {!isEmptyWorkspace && <AssociationRecipes onNavigate={onNavigate} />}
 
       {err && (

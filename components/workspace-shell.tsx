@@ -37,6 +37,7 @@ import {
   useWorkspaceModeStore,
 } from '@/lib/scopes/workspace-mode-store'
 import { HomeDashboard } from '@/components/home-dashboard'
+import { AssistantsCorePanel } from '@/components/assistants-core-panel'
 import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { RoleBadge } from '@/components/role-badge'
@@ -248,6 +249,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       const q = params.get('section')
       if (
         q === 'home' ||
+        q === 'assistants' ||
         q === 'calendar' ||
         q === 'chats' ||
         q === 'settings' ||
@@ -362,6 +364,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
     if (
       target === 'home' ||
+      target === 'assistants' ||
       target === 'calendar' ||
       target === 'chats' ||
       target === 'settings' ||
@@ -413,6 +416,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             onNavigate={goToSection}
             pendingApprovalsCount={pendingCount}
           />
+        )}
+
+        {section === 'assistants' && (
+          <AssistantsCorePanel onNavigate={goToSection} />
         )}
 
         {section === 'chats' && <RoomWorkspace />}

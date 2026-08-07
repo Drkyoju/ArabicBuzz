@@ -1364,6 +1364,8 @@ export type AgentEngineInput = {
   /** When false, skip MCP tool binding (local stubs only). Default true. */
   includeMcpTools?: boolean
   maxSteps?: number
+  /** When set, only bind these tool names (native + MCP intersection). */
+  allowedTools?: string[]
 }
 
 export type AgentEngineResult = {
@@ -1406,7 +1408,15 @@ export async function runAgentEngine(
     }
   }
 
-  const tools: ToolSet = { ...native, ...mcpTools }
+  let tools: ToolSet = { ...native, ...mcpTools }
+  if (input.allowedTools && input.allowedTools.length > 0) {
+    const allow = new Set(input.allowedTools)
+    const filtered: ToolSet = {}
+    for (const name of Object.keys(tools)) {
+      if (allow.has(name)) filtered[name] = tools[name]
+    }
+    tools = filtered
+  }
   const toolNames = Object.keys(tools)
 
   try {
@@ -1417,6 +1427,7 @@ export async function runAgentEngine(
         'ab.scope_id': input.scopeId,
         'ab.tool_count': toolNames.length,
         'ab.include_mcp': input.includeMcpTools !== false,
+        'ab.allowed_tools': input.allowedTools?.length ?? 0,
       },
       async () =>
         generateText({

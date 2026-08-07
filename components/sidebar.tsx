@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Activity,
   Home,
+  Bot,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -57,6 +58,7 @@ function GuestChip({ onLogin }: { onLogin?: () => void }) {
 
 export type SidebarSection =
   | 'home'
+  | 'assistants'
   | 'chats'
   | 'files'
   | 'memory'
@@ -74,6 +76,7 @@ const PRIMARY_NAV: Array<{
   icon: LucideIcon
 }> = [
   { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
+  { id: 'assistants', labelAr: 'المساعدون', icon: Bot },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'chats', labelAr: 'الغرف', icon: MessageSquare },
   { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
@@ -168,6 +171,7 @@ function SidebarBody({
     if (!roleReady) {
       return (
         n.id === 'home' ||
+        n.id === 'assistants' ||
         n.id === 'calendar' ||
         n.id === 'chats' ||
         n.id === 'files' ||

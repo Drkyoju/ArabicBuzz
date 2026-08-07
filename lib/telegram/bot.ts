@@ -44,6 +44,10 @@ import {
   shouldNormalizeTelegramDialect,
 } from '@/lib/telegram/fast-path'
 import { claimTelegramUpdate } from '@/lib/telegram/update-dedupe'
+import {
+  matchAssistantByKeyword,
+  runAssistant,
+} from '@/lib/assistants'
 
 /** Chat turns: lean toolset (no Drive sync / browser RPA / sheets / MCP by default). */
 const TELEGRAM_CHAT_TOOL_NAMES = [
@@ -537,6 +541,63 @@ async function runTelegramAgentTurn(opts: {
     } catch (e) {
       console.error('[telegram] fast-path', e)
       /* fall through to agent — still one final via the same ack placeholder */
+    }
+  }
+
+  // نواة عامة: keyword → catalog assistant (system + allowed tools)
+  const assistantMatch =
+    !opts.forceHeavy ? matchAssistantByKeyword(opts.promptSource) : null
+  if (assistantMatch) {
+    try {
+      const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
+      const run = await runAssistant({
+        assistantId: assistantMatch.id,
+        message: opts.promptSource,
+        scopeId,
+        requesterId,
+        // Soft for telegram captain; hard Google gate still applies inside runAssistant
+        skipRequirementCheck: false,
+      })
+      const text =
+        run.blocked?.messageAr ||
+        run.text ||
+        'لم يُرجع المساعد نصاً.'
+      try {
+        await opts.ctx.api.editMessageText(
+          opts.ctx.chat!.id,
+          ack.message_id,
+          text.slice(0, 4000)
+        )
+      } catch {
+        try {
+          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
+        } catch {
+          /* ignore */
+        }
+        await opts.ctx.reply(text.slice(0, 4000))
+      }
+      void mirrorChannelTurnToRoom({
+        scopeId,
+        channel: 'telegram',
+        externalId: opts.chatId,
+        userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+        userMessageAr: opts.promptSource,
+        agentReplyAr: text,
+      })
+      console.info('[telegram] timing', {
+        path: 'assistant',
+        assistantId: assistantMatch.id,
+        totalMs: Date.now() - t0,
+      })
+      return {
+        text,
+        citations: run.citations || [],
+        pendingApprovalIds: run.pendingApprovalIds || [],
+        attachmentsSent: [] as string[],
+      }
+    } catch (e) {
+      console.error('[telegram] assistant-path', e)
+      /* fall through to default agent */
     }
   }
 
