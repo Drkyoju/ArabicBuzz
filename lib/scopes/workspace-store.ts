@@ -7,6 +7,7 @@ import {
   isSharedScope,
 } from '@/lib/scopes/manager'
 import type { RoomPost, Scope, SharedScope } from '@/lib/scopes/types'
+import { DEFAULT_ROOM_SKILL_IDS } from '@/lib/skills/core-pack'
 
 const SCOPES_STORAGE_KEY = 'ab-scopes-v1'
 
@@ -297,12 +298,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         'عند الإجابة من قاعدة المعرفة: اذكر المصادر بصيغة [مصدر N: …].',
         'ارفع الملفات من أي جهاز بعد تسجيل الدخول — تُزامن تلقائياً مع عقل الشركة (Drive).',
       ],
-      skills: [
-        'arabic_report_generator',
-        'zatca_e_invoicing_checker',
-        'cron_digest',
-        'channel_notify',
-      ],
+      skills: [...DEFAULT_ROOM_SKILL_IDS],
     }
     const welcome = [
       `مرحباً بكم في «${nameAr}».`,

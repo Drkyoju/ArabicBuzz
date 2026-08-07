@@ -7,6 +7,10 @@ import type {
   AssistantRunResult,
 } from '@/lib/assistants/types'
 import type { SecurityPostureMode } from '@/lib/security/posture'
+import {
+  buildScopedSystemPrompt,
+  scopeCtxForAssistant,
+} from '@/lib/skills/registry'
 
 export type RunAssistantInput = {
   assistantId: string
@@ -121,9 +125,14 @@ export async function runAssistant(
   // Assistants need room to call tools — never inherit Telegram fast-path (2–3).
   const maxSteps = Math.max(10, Math.min(16, assistant.maxSteps ?? 12))
 
+  const system = await buildScopedSystemPrompt(
+    assistant.systemPromptAr,
+    scopeCtxForAssistant(input.scopeId, input.requesterId)
+  )
+
   const result = await runAgentEngine({
     prompt,
-    system: assistant.systemPromptAr,
+    system,
     modelSlug: input.modelSlug || assistant.modelSlug,
     scopeId: input.scopeId,
     requesterId: input.requesterId,

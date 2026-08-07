@@ -3,6 +3,7 @@
  */
 
 import type { SharedScope } from '@/lib/scopes/types'
+import { DEFAULT_ROOM_SKILL_IDS } from '@/lib/skills/core-pack'
 import {
   ASSOCIATION_ROLE_SLOTS,
   type AssociationRoleSlot,
@@ -48,12 +49,7 @@ export function buildAssociationRoomScope(opts?: {
       'الإجراءات عالية المخاطر تمر عبر موافقة بشرية عند تفعيل HITL.',
       'عند الإجابة من قاعدة المعرفة: اذكر المصادر بصيغة [مصدر N: …].',
     ],
-    skills: [
-      'arabic_report_generator',
-      'zatca_e_invoicing_checker',
-      'cron_digest',
-      'channel_notify',
-    ],
+    skills: [...DEFAULT_ROOM_SKILL_IDS],
   }
 
   const welcomeAr = [

@@ -4,6 +4,7 @@ import type {
   Scope,
   SharedScope,
 } from './types'
+import { DEFAULT_ROOM_SKILL_IDS } from '@/lib/skills/core-pack'
 
 export function isPersonalScope(scope: Scope): scope is PersonalScope {
   return 'userId' in scope && 'privateMemory' in scope
@@ -52,7 +53,7 @@ export function buildPromptContext(ctx: ActiveScopeContext): string {
   const skills =
     ctx.kind === 'shared' && ctx.allowedSkills?.length
       ? `\nالمهارات المسموحة: ${ctx.allowedSkills.join(', ')}`
-      : ''
+      : `\nالمهارات الأساسية مفعّلة تلقائياً (بريد، تقويم، محاضر، بحث، تيليجرام، مكتب عربي).`
   const nameAr = ctx.scope.nameAr
   return `أنت مشارك في مساحة العمل «${nameAr}» (${ctx.kind === 'personal' ? 'شخصية' : 'مشتركة'}).
 سياق الذاكرة:
@@ -99,7 +100,7 @@ export const DEMO_SCOPES: Scope[] = [
       'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
       'هذه غرفة الفريق الأساسية — الموظفون والوكلاء معاً.',
     ],
-    skills: ['arabic_report_generator', 'zatca_e_invoicing_checker'],
+    skills: [...DEFAULT_ROOM_SKILL_IDS],
   },
   {
     id: 'shared-ops',
@@ -111,6 +112,6 @@ export const DEMO_SCOPES: Scope[] = [
     sharedMemory: [
       'قناة التنبيه: تيليجرام عند تفعيله.',
     ],
-    skills: ['cron_digest', 'channel_notify'],
+    skills: [...DEFAULT_ROOM_SKILL_IDS],
   },
 ]

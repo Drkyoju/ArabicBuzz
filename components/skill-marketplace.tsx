@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Plus, Sparkles, Trash2 } from 'lucide-react'
 import {
   KSA_SKILL_CATALOG,
+  isCatalogSkillAutoActive,
   type KSASkillItem,
 } from '@/lib/skills/marketplace'
 
@@ -365,8 +366,9 @@ export function SkillMarketplace({
           </span>
         </button>
         <p className="mt-1 text-[11px] text-stone-500">
-          حجوزات، ملخص اجتماع، مهام يومية، مراجعة معرفة، وامتثال سعودي — ثبّت
-          ما تحتاجه.
+          الحزمة الأساسية (بريد، تقويم، محاضر، مكتب عربي، بحث، تيليجرام){' '}
+          <strong className="font-semibold text-ab-ink">مفعّلة تلقائياً</strong>{' '}
+          للوكلاء دون تثبيت. الباقي اختياري من كتالوج المملكة.
         </p>
         {showCatalog && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -375,21 +377,32 @@ export function SkillMarketplace({
                 key={skill.id}
                 className="rounded-lg border border-ab-border bg-white p-3"
               >
-                <div className="mb-1 text-[10px] text-ab-accent">
-                  {skill.category}
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] text-ab-accent">
+                  <span>{skill.category}</span>
+                  {isCatalogSkillAutoActive(skill) && (
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">
+                      تلقائية
+                    </span>
+                  )}
                 </div>
                 <h4 className="mb-1 text-sm font-semibold">{skill.nameAr}</h4>
                 <p className="mb-3 text-xs text-stone-600">
                   {skill.descriptionAr}
                 </p>
-                <button
-                  type="button"
-                  disabled={installBusy === skill.id}
-                  onClick={() => void installCatalog(skill)}
-                  className="rounded-md border border-ab-border px-2.5 py-1.5 text-xs font-medium hover:bg-stone-50 disabled:opacity-40"
-                >
-                  {installBusy === skill.id ? '…' : 'إضافة بهذا الاسم'}
-                </button>
+                {isCatalogSkillAutoActive(skill) ? (
+                  <p className="text-[11px] text-emerald-800">
+                    نشطة في الغرف والمساعدين الآن — بلا اختيار يدوي.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={installBusy === skill.id}
+                    onClick={() => void installCatalog(skill)}
+                    className="rounded-md border border-ab-border px-2.5 py-1.5 text-xs font-medium hover:bg-stone-50 disabled:opacity-40"
+                  >
+                    {installBusy === skill.id ? '…' : 'إضافة بهذا الاسم'}
+                  </button>
+                )}
               </article>
             ))}
           </div>
