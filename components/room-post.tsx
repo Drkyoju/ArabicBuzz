@@ -445,7 +445,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-1.5">
-            <span className="text-[13px] font-semibold text-ab-ink">
+            <span className="ab-room-post-author">
               {post.authorNameAr}
             </span>
             <span className="text-[10px] text-stone-500">
@@ -475,7 +475,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         )}
       </header>
 
-      <div className="text-[13px] leading-relaxed text-ab-ink">
+      <div className="ab-room-post-body">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{

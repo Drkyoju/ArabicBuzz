@@ -29,6 +29,8 @@
   --ab-shadow: 0 8px 24px rgba(26, 31, 28, 0.08);
   /* Desktop sidebar width — resized via handle; main must use same var */
   --ab-sidebar-width: 15.5rem;
+  /* Room / workspace text zoom (90%–140%); set via FontScalePicker */
+  --ab-font-scale: 1;
 }
 
 body {
@@ -208,6 +210,31 @@ h4 {
   .ab-toolbar-label {
     @apply inline-flex items-center gap-1 text-[10px] font-medium;
     color: var(--ab-muted);
+  }
+
+  /* ——— Room chat feed (wider column + zoomable body) ——— */
+  .ab-room-feed {
+    /* Base ~15px at 100% scale (was ~13px); zoom via --ab-font-scale */
+    font-size: calc(0.9375rem * var(--ab-font-scale, 1));
+  }
+  .ab-room-post-author {
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--ab-ink);
+  }
+  .ab-room-post-body {
+    font-size: 1em;
+    line-height: 1.7;
+    color: var(--ab-ink);
+  }
+  .ab-room-post-body p {
+    margin-block: 0.35em;
+  }
+  .ab-room-post-body p:first-child {
+    margin-block-start: 0;
+  }
+  .ab-room-post-body p:last-child {
+    margin-block-end: 0;
   }
 }
 

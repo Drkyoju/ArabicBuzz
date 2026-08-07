@@ -49,6 +49,7 @@ import { RoomTeamPanel } from '@/components/room-team-panel'
 import { PersonalMailPanel } from '@/components/personal-mail-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { EffortPicker } from '@/components/effort-picker'
+import { FontScalePicker } from '@/components/font-scale-picker'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
@@ -1316,6 +1317,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
                 <ModelPicker compact scopeId={activeScopeId} />
                 <EffortPicker compact scopeId={activeScopeId} />
+                <FontScalePicker compact />
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -1694,9 +1696,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           <div
             ref={feedRef}
-            className="relative z-0 min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-3 md:px-4"
           >
-            <div className="mx-auto w-full max-w-2xl">
+            <div className="mx-auto w-full max-w-6xl">
               {posts.length === 0 ? (
                 <div className="ab-empty mx-auto my-4 max-w-md !py-8">
                   <MessageSquare
@@ -2057,7 +2059,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                             ? 'اكتب @ واسم الوكيل — أو اسحب ملفاً / 📎'
                             : 'اسحب ملفاً أو 📎 أو تكلم بالميكروفون…'
                 }
-                className="ab-input max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl !py-2.5 disabled:opacity-50"
+                className="ab-input max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl !py-2.5 text-[calc(0.9375rem*var(--ab-font-scale,1))] disabled:opacity-50"
                 aria-label="رسالة الغرفة"
                 aria-autocomplete="list"
                 aria-controls={

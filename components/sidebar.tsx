@@ -57,6 +57,7 @@ import {
   readStoredSidebarWidthPx,
   sidebarWidthFromClientX,
 } from '@/lib/ui/sidebar-width'
+import { applyFontScale, readStoredFontScale } from '@/lib/ui/font-scale'
 import { cn } from '@/lib/utils'
 
 function GuestChip({ onLogin }: { onLogin?: () => void }) {
@@ -671,6 +672,7 @@ export function Sidebar({
     const stored = readStoredSidebarWidthPx()
     const next = applySidebarWidthPx(stored ?? SIDEBAR_WIDTH_DEFAULT_PX)
     setSidebarWidthPx(next)
+    applyFontScale(readStoredFontScale())
   }, [])
 
   useEffect(() => {
