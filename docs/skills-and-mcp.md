@@ -31,26 +31,64 @@
 
 **تغطية سابقة كافية (لم نُكرّر):** محاضر MSA، Drive، مواعيد امتثال، تيليجرام، Excel/PDF/Word، بحث حكومي، HITL، أرشفة مرفقات.
 
-### مهارات Cursor المنسوخة من GitHub (مجانية)
+### مهارات Cursor — موجة 5 (أغسطس 2026)
 
-`accessibility`, `arabic-presentations`, `docx`, `pdf`, `xlsx`, `netlify-deploy`, `netlify-functions`, `ux-writing-arabic`, `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines`, `hebrew-rtl-best-practices`, `gws-workflow-email-to-task`, `recipe-save-email-attachments`, `meeting-notes`, `research`, `playwright-core` (TestDino), `arabicbuzz-testing` + مهارات عربيةBuzz (`arabicbuzz-live-qa`, `arabicbuzz-rtl-shell`, `arabicbuzz-netlify-api`, `arabicbuzz-taste`).
+أُضيفت مهارات مجانية عالية القيمة متوافقة مع المكدس (Next.js / AI SDK / Supabase / shadcn / Vitest):
+
+| مهارة | المصدر | لماذا؟ |
+|-------|--------|--------|
+| `shadcn` | shadcn/ui | CLI ومكوّنات UI (~272K تثبيت) |
+| `supabase` + `supabase-postgres-best-practices` | supabase/agent-skills | Postgres/Supabase (~300K+) |
+| `ai-sdk` | vercel/ai | Vercel AI SDK الرسمي |
+| `nextjs-app-router-patterns` | wshobson/agents | أنماط App Router |
+| `vitest` | antfu/skills | اختبارات الوحدة (مستخدمة في المشروع) |
+| `security-and-hardening` | addyosmani/agent-skills | أمان الويب |
+| `security-review` | getsentry/skills | مراجعة أمنية |
+| `typescript-advanced-types` | wshobson/agents | TypeScript متقدم |
+| `tailwind-design-system` | wshobson/agents | أنظمة تصميم Tailwind |
+| `prisma-cli` / `prisma-client-api` / `prisma-postgres` / `prisma-database-setup` / `prisma-upgrade-v7` | prisma/skills | نُسخت إلى `.cursor/skills` (كانت في القفل فقط) |
+
+### مهارات Cursor السابقة (مُبقاة)
+
+`accessibility`, `arabic-presentations`, `docx`, `pdf`, `xlsx`, `netlify-deploy`, `netlify-functions`, `ux-writing-arabic`, `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines`, `hebrew-rtl-best-practices`, `gws-workflow-email-to-task`, `recipe-save-email-attachments`, `meeting-notes`, `research`, `playwright-core` (TestDino), `design-taste-frontend`, `redesign-existing-projects`, ومهارات ArabicBuzz (`arabicbuzz-testing`, `arabicbuzz-live-qa`, `arabicbuzz-rtl-shell`, `arabicbuzz-netlify-api`, `arabicbuzz-taste`).
 
 استعادة الكاش المحلي:
 
 ```bash
 npx skills check
+npx skills add shadcn/ui@shadcn -y
+npx skills add supabase/agent-skills@supabase -y
+npx skills add supabase/agent-skills@supabase-postgres-best-practices -y
+npx skills add vercel/ai@ai-sdk -y
+npx skills add wshobson/agents@nextjs-app-router-patterns -y
+npx skills add antfu/skills@vitest -y
+npx skills add addyosmani/agent-skills@security-and-hardening -y
+npx skills add getsentry/skills@security-review -y
+npx skills add wshobson/agents@typescript-advanced-types -y
+npx skills add wshobson/agents@tailwind-design-system -y
 npx skills add testdino-hq/playwright-skill/core -y
 npx skills add anthropics/skills@pdf -y
 npx skills add anthropics/skills@docx -y
 npx skills add anthropics/skills@xlsx -y
 npx skills add vercel-labs/agent-skills@vercel-react-best-practices -y
 npx skills add vercel-labs/agent-skills@web-design-guidelines -y
-npx skills add netlify/context-and-tools@netlify-deploy -y
 npx skills add netlify/context-and-tools@netlify-functions -y
 npx skills add addyosmani/web-quality-skills@accessibility -y
 npx skills add sultanalsafran/agent-skills@arabic-presentations -y
 npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 ```
+
+### تخطّينا عمداً (مهارات)
+
+| مرشّح | السبب |
+|-------|--------|
+| حزمة Apify كاملة | مدفوعة / scraping مدفوع |
+| `clerk-nextjs-patterns` | لا نستخدم Clerk |
+| `nextjs-supabase-auth` / Better Auth skills | مصادقة المنتج مخصّصة |
+| `firebase-security-*` | لا Firebase |
+| `expo-tailwind-setup` | ليس Expo |
+| `prisma-mongodb-*` / `prisma-compute` / driver-adapter | غير مستخدمة يومياً في هذا المكدس |
+| تكرار Playwright/Puppeteer skills | لدينا `playwright-core` + MCP Playwright |
 
 ## اختبارات (مجانية / خفيفة)
 
@@ -68,14 +106,23 @@ npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 
 ### Cursor (محلي) — `.cursor/mcp.json`
 
-يعمل بدون مفاتيح: `filesystem`, `memory`, `sequential-thinking`, `git`, `fetch`, `time`, `playwright`, `context7`, `markitdown`.
+يعمل بدون مفاتيح: `filesystem`, `memory`, `sequential-thinking`, `git`, `fetch`, `time`, `playwright`, `context7`, `markitdown`, **`duckduckgo`**, **`chrome-devtools`**.
 
-**موجة 2 (اختيارية):**
+**موجة 2 (اختيارية بمفتاح / OAuth):**
 
 | خادم | ملاحظات |
 |------|---------|
 | `supabase` | `mcp-remote` → `https://mcp.supabase.com/mcp?read_only=true` (OAuth رسمي، قراءة فقط) |
 | `imap` | `@aiwerk/mcp-server-imap` — يحتاج `IMAP_*`؛ الإرسال معطّل افتراضياً |
+| `github` | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `brave-search` | `BRAVE_API_KEY` (طبقة مجانية) — اختياري؛ DuckDuckGo يغطي البحث بلا مفتاح |
+
+**موجة 5 (أغسطس 2026):**
+
+| خادم | ملاحظات |
+|------|---------|
+| `duckduckgo` | `@ericthered926/duckduckgo-mcp-server` — بحث مجاني بلا مفتاح |
+| `chrome-devtools` | `chrome-devtools-mcp` — تشخيص أداء/DOM بجانب Playwright |
 
 يحتاج مفتاحاً اختيارياً في البيئة:
 
@@ -85,7 +132,18 @@ npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 | Brave Search | `BRAVE_API_KEY` (طبقة مجانية) |
 | IMAP | `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS` |
 
-**تخطّينا عمداً (تكرار / مفتاح / غير مناسب لـ CranL Docker):** Notion (مفتاح)، Google Workspace MCP منفصل (الأصلي في المنتج يكفي)، Telegram userbot (مفاتيح my.telegram.org؛ البوت المدمج يكفي)، Puppeteer (مكرر لـ Playwright)، WhatsApp Cloud API مدفوع/Meta، Apify مدفوع.
+**تخطّينا عمداً (تكرار / مفتاح / غير مناسب لـ CranL Docker):**
+
+| مرشّح | السبب |
+|-------|--------|
+| `@modelcontextprotocol/server-postgres` | أُزيل من npm؛ استخدم MCP Toolbox / Supabase |
+| Notion | مفتاح |
+| Google Workspace MCP منفصل | الأصلي في المنتج يكفي |
+| Telegram userbot | مفاتيح my.telegram.org؛ البوت المدمج يكفي |
+| Puppeteer | مكرر لـ Playwright |
+| WhatsApp Cloud API | مدفوع/Meta |
+| Apify | مدفوع |
+| Kubernetes MCP | خارج نطاق المنتج |
 
 بعد التعديل: Settings → Tools & MCP → Refresh، أو أعد فتح Cursor.
 

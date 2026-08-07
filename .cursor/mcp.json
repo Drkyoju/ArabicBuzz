@@ -76,6 +76,14 @@
         "IMAP_PASS": "${env:IMAP_PASS}",
         "SMTP_SEND_ENABLED": "false"
       }
+    },
+    "duckduckgo": {
+      "command": "npx",
+      "args": ["-y", "@ericthered926/duckduckgo-mcp-server"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }
