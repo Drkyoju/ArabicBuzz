@@ -186,7 +186,7 @@ export async function extractAttachmentTexts(
           meta.extractNoteAr ||
           (extracted.ocrUsed
             ? 'تعذّر استخراج نص واضح — قد يلزم جسر Mac لـ OCR للماسح الضوئي.'
-            : 'لا نص مستخرج من المرفق (قد يكون صورة ممسوحة أو صيغة غير مدعومة على Netlify).')
+            : 'لا نص مستخرج من المرفق (قد يكون صورة ممسوحة أو صيغة غير مدعومة على الخادم).')
       }
     } catch (e) {
       meta.extractNoteAr =

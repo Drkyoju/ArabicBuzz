@@ -98,7 +98,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'both',
     transport: 'stdio',
     setupHintAr:
-      'لا stdio على Netlify. على الماك/VPS: node packages/ops-bridge/bin/ab-ops-bridge.mjs github ثم عيّن MCP_GITHUB_URL أو MCP_REMOTE_SERVERS. محلياً فقط: npx مع GITHUB_PERSONAL_ACCESS_TOKEN.',
+      'لا stdio على CranL. على الماك/VPS: node packages/ops-bridge/bin/ab-ops-bridge.mjs github ثم عيّن MCP_GITHUB_URL أو MCP_REMOTE_SERVERS. محلياً فقط: npx مع GITHUB_PERSONAL_ACCESS_TOKEN.',
     envKeys: ['GITHUB_PERSONAL_ACCESS_TOKEN', 'MCP_GITHUB_URL'],
     docsUrl: 'https://github.com/github/github-mcp-server',
     recommended: true,
@@ -114,7 +114,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'both',
     transport: 'sse',
     setupHintAr:
-      'على Netlify: شغّل Toolbox كحاوية بعيدة (Streamable HTTP على /mcp) وعيّن MCP_TOOLBOX_URL — يتصل تلقائياً. محلياً: npx -y @toolbox-sdk/server --prebuilt=postgres --stdio مع DATABASE_URL/POSTGRES_*. لا تستخدم @modelcontextprotocol/server-postgres.',
+      'على CranL: شغّل Toolbox كحاوية بعيدة (Streamable HTTP على /mcp) وعيّن MCP_TOOLBOX_URL — يتصل تلقائياً. محلياً: npx -y @toolbox-sdk/server --prebuilt=postgres --stdio مع DATABASE_URL/POSTGRES_*. لا تستخدم @modelcontextprotocol/server-postgres.',
     envKeys: [
       'MCP_TOOLBOX_URL',
       'DATABASE_URL',
@@ -206,7 +206,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'local',
     transport: 'stdio',
     setupHintAr:
-      'على الماك: pip install browser-use && playwright install chromium، ثم npm run storage:sync. عيّن MAC_SYNC_URL أو BROWSER_USE_URL على Netlify. BROWSER_ENGINE=browser-use|playwright|auto.',
+      'على الماك: pip install browser-use && playwright install chromium، ثم npm run storage:sync. عيّن MAC_SYNC_URL أو BROWSER_USE_URL على CranL. BROWSER_ENGINE=browser-use|playwright|auto.',
     envKeys: [
       'BROWSER_USE_URL',
       'BROWSER_USE_SECRET',
@@ -295,7 +295,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     runtime: 'remote',
     transport: 'sse',
     setupHintAr:
-      'عيّن STEEL_API_KEY على Netlify. الأولوية: BROWSER_USE_URL ثم MAC_SYNC_URL ثم Steel.',
+      'عيّن STEEL_API_KEY على CranL. الأولوية: BROWSER_USE_URL ثم MAC_SYNC_URL ثم Steel.',
     envKeys: ['STEEL_API_KEY', 'STEEL_API_URL'],
     docsUrl: 'https://github.com/steel-dev/steel-sdk',
     recommended: false,
@@ -388,7 +388,7 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     nameAr: 'بريد IMAP (Cursor / ماك)',
     nameEn: 'IMAP (local Cursor)',
     descriptionAr:
-      'قراءة صناديق بريد عامة عبر IMAP على الجهاز المحلي — مكمّل لأدوات Gmail الأصلية في المنتج، وليس بديلاً عنها على Netlify.',
+      'قراءة صناديق بريد عامة عبر IMAP على الجهاز المحلي — مكمّل لأدوات Gmail الأصلية في المنتج، وليس بديلاً عنها على CranL.',
     benefitsAr: 'تشخيص بريد الجمعية من Cursor عند الحاجة لـ IMAP/App Password.',
     categoryAr: 'مساحة عمل',
     runtime: 'local',

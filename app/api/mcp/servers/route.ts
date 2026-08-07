@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     servers,
     toolCount: servers.reduce((n, s) => n + s.tools.length, 0),
     netlifyNoteAr:
-      'على Netlify يعمل الاتصال البعيد (SSE/HTTP) فقط. أدوات الماك (stdio) عبر جسر محلي.',
+      'على الاستضافة السحابية (CranL) يعمل الاتصال البعيد (SSE/HTTP) فقط. أدوات الماك (stdio) عبر جسر محلي.',
   })
 }
 
@@ -112,9 +112,9 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error:
-            'stdio غير متاح على Netlify. استخدم رابط SSE بعيد أو شغّل الجسر على الماك.',
+            'stdio غير متاح على الاستضافة السحابية (CranL). استخدم رابط SSE بعيد أو شغّل الجسر على الماك.',
           messageAr:
-            'stdio غير متاح على Netlify. استخدم رابط SSE بعيد أو شغّل الجسر على الماك.',
+            'stdio غير متاح على الاستضافة السحابية (CranL). استخدم رابط SSE بعيد أو شغّل الجسر على الماك.',
         },
         { status: 400 }
       )

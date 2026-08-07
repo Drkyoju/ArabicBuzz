@@ -205,7 +205,7 @@ export async function POST(req: Request) {
           {
             error: sensitive
               ? 'الملف الحساس كبير ويتطلب وكيل الماك. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل المزامنة.'
-              : 'الملف كبير جداً للنقل عبر Netlify. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل وكيل الماك، ثم ارفع مباشرة.',
+              : 'الملف كبير جداً للنقل عبر الاستضافة السحابية. اضبط NEXT_PUBLIC_MAC_UPLOAD_URL وشغّل وكيل الماك، ثم ارفع مباشرة.',
             directUploadRequired: true,
           },
           { status: 413 }
@@ -219,7 +219,7 @@ export async function POST(req: Request) {
           scopeId,
           messageAr: sensitive
             ? 'ارفع هذا الملف الحساس مباشرة إلى الماك فقط (دون سحابة).'
-            : 'ارفع هذا الملف مباشرة إلى وكيل الماك (تجاوز حجم النقل عبر Netlify).',
+            : 'ارفع هذا الملف مباشرة إلى وكيل الماك (تجاوز حجم النقل عبر الاستضافة السحابية).',
         },
         { status: 200 }
       )
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
     if (buf.length > NETLIFY_MAC_HOP_MAX) {
       return Response.json(
         {
-          error: 'الملف أكبر من حد النقل عبر Netlify. استخدم الرفع المباشر للماك.',
+          error: 'الملف أكبر من حد النقل عبر الاستضافة السحابية. استخدم الرفع المباشر للماك.',
           directUploadRequired: true,
           directUpload: direct,
         },

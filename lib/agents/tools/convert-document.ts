@@ -159,6 +159,10 @@ export async function executeConvertDocument(
   const wantGoogle =
     engine === 'google' || (engine === 'auto' && googleOk)
 
+  let googleFailAr: string | null = null
+  let cloudFailAr: string | null = null
+  let macFailAr: string | null = null
+
   // ── 1) Best free: Google Drive import/export ──
   if (wantGoogle) {
     if (!googleLinked) {
@@ -202,6 +206,8 @@ export async function executeConvertDocument(
             'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل للعربية والتخطيط. النتيجة مرفق شات (معاينة+تنزيل) وليست فقط ملفات الفريق.',
         })
       } catch (e) {
+        googleFailAr =
+          e instanceof Error ? e.message : 'فشل تحويل Google Drive'
         if (engine === 'google') {
           throw e instanceof Error ? e : new Error(String(e))
         }
@@ -250,6 +256,8 @@ export async function executeConvertDocument(
           'محرّك: CloudConvert. الأفضل مجاناً: اربط Google. النتيجة مرفق شات (معاينة+تنزيل).',
       })
     } catch (e) {
+      cloudFailAr =
+        e instanceof Error ? e.message : 'فشل تحويل CloudConvert'
       if (engine === 'cloudconvert') {
         throw e instanceof Error ? e : new Error(String(e))
       }
@@ -363,7 +371,8 @@ export async function executeConvertDocument(
           macLog: converted.log.slice(0, 400),
         },
       })
-    } catch {
+    } catch (e) {
+      macFailAr = e instanceof Error ? e.message : 'فشل التحويل المرئي عبر الماك'
       // fall through to honest error / free rebuild if forced
     }
   }
@@ -375,11 +384,23 @@ export async function executeConvertDocument(
 
   // Never emit silent طلاسم — refuse broken ToUnicode unless explicitly forced.
   if (arabicBroken && !forceBroken) {
+    const tried: string[] = []
+    if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
+    if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
+    if (macFailAr) tried.push(`مرئي/ماك: ${macFailAr}`)
+    if (!googleLinked) tried.push('Google غير مربوط')
+    if (!cloudConvertConfigured()) tried.push('CloudConvert غير مضبوط')
+    if (!macSyncConfigured()) tried.push('جسر الماك غير مضبوط')
     throw new Error(
-      brokenToUnicodeErrorAr({
-        hasMac: macSyncConfigured(),
-        hasGoogleHint: !googleLinked,
-      })
+      [
+        brokenToUnicodeErrorAr({
+          hasMac: macSyncConfigured(),
+          hasGoogleHint: !googleLinked,
+        }),
+        tried.length ? `محاولات: ${tried.join(' · ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
     )
   }
 
@@ -462,9 +483,11 @@ export async function executeConvertDocument(
     sourceFileId: hit.meta.id,
     sourceName: hit.meta.originalName,
     messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} بإعادة بناء نصية عربية (بدون صور/تخطيط أصلي). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
-    noteAr: googleLinked
-      ? 'محرّك: إعادة بناء نصية (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
-      : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert. إعادة البناء النصية احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
+    noteAr: forceBroken && quality.broken
+      ? 'تحذير: فُرضت إعادة بناء نصية رغم ToUnicode معطوب — راجع النص يدوياً (قد تظهر طلاسم). الأفضل لاحقاً: Google Drive أو CloudConvert أو Word مرئي عبر الماك.'
+      : googleLinked
+        ? 'محرّك: إعادة بناء نصية (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
+        : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert. إعادة البناء النصية احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
     extra: {
       charCount: text.length,
       paragraphCount: paragraphs.length,
@@ -477,6 +500,11 @@ export async function executeConvertDocument(
       warningAr: quality.broken
         ? 'تحذير: إشارات ToUnicode معطوبة — راجع النص يدوياً.'
         : undefined,
+      priorEngineFailures: {
+        google: googleFailAr,
+        cloudconvert: cloudFailAr,
+        macVisual: macFailAr,
+      },
     },
   })
 }

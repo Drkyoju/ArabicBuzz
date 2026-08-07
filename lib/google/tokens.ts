@@ -213,7 +213,7 @@ async function tokenFromRow(
     return {
       ok: false,
       error:
-        'تعذّر تجديد رمز Google. تأكد من GOOGLE_CLIENT_ID/SECRET على Netlify ثم أعد الربط.',
+        'تعذّر تجديد رمز Google. تأكد من GOOGLE_CLIENT_ID/SECRET على CranL ثم أعد الربط.',
     }
   }
 

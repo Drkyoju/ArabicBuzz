@@ -32,7 +32,7 @@ async function macFetch(
   const { baseUrl, secret } = getMacSyncConfig()
   if (!baseUrl) {
     throw new Error(
-      'MAC_SYNC_URL غير مضبوط. شغّل npm run storage:sync على الماك وضبط النفق على Netlify.'
+      'MAC_SYNC_URL غير مضبوط. شغّل npm run storage:sync على الماك وضبط النفق على CranL.'
     )
   }
   const headers = new Headers(init?.headers)

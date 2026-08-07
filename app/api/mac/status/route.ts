@@ -27,7 +27,7 @@ export async function GET(req: Request) {
       online: false,
       directUpload: null,
       messageAr:
-        'اضبط MAC_SYNC_URL و MAC_SYNC_SECRET على Netlify، وشغّل npm run storage:sync على الماك مع نفق (ngrok).',
+        'اضبط MAC_SYNC_URL و MAC_SYNC_SECRET على CranL، وشغّل npm run storage:sync على الماك مع نفق (ngrok).',
     })
   }
 

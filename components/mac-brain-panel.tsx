@@ -83,7 +83,7 @@ export function MacBrainPanel() {
                   npm run storage:sync
                 </code>
               </li>
-              <li>افتح نفقاً (ngrok) واضبط MAC_SYNC_URL و MAC_SYNC_SECRET على Netlify.</li>
+              <li>افتح نفقاً (ngrok) واضبط MAC_SYNC_URL و MAC_SYNC_SECRET على CranL.</li>
               <li>
                 للمعرفة الحساسة عيّن{' '}
                 <code dir="ltr" className="rounded bg-stone-100 px-1 font-mono text-[10px]">

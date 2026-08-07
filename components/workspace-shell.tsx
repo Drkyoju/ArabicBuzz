@@ -592,7 +592,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
                   لا طلبات معلّقة هنا لأن الحوكمة متوقفة. لإعادة الاعتماد البشري
-                  على Netlify:{' '}
+                  على CranL:{' '}
                   <code dir="ltr" className="rounded bg-white/80 px-1">
                     HITL_DISABLED=0
                   </code>
