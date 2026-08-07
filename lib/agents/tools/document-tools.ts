@@ -14,6 +14,7 @@ import {
   readWorkspaceFile,
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
+import { isFileEdited } from '@/lib/files/edited-status'
 import { nextVersionFileName } from '@/lib/documents/versions'
 import {
   fillOfficeTemplate,
@@ -172,6 +173,7 @@ export async function executeReturnFile(
   }
 
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(found.id)}&scopeId=${encodeURIComponent(scopeId)}`
+  const edited = isFileEdited(found)
   return {
     ok: true,
     fileId: found.id,
@@ -186,6 +188,7 @@ export async function executeReturnFile(
         mimeType: found.mimeType,
         scopeId,
         downloadPath,
+        edited,
       },
     ],
     messageAr: `الملف «${found.originalName}» جاهز للتنزيل في الشات.`,
@@ -330,6 +333,8 @@ export async function executeEditDocument(
     originalName: filename,
     mimeType: outMime,
     replaceId,
+    markEdited: true,
+    editedBy: params.userId ? String(params.userId) : 'agent',
   })
 
   if (!replaceId && versionTag) {
@@ -381,6 +386,7 @@ export async function executeEditDocument(
         mimeType: saved.file.mimeType,
         scopeId,
         downloadPath,
+        edited: true,
       },
     ],
     messageAr: replaceId

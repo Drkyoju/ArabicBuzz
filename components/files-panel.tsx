@@ -18,6 +18,8 @@ import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
+import { isFileEdited, looksLikeEditedBackfill } from '@/lib/files/edited-status'
+import { FileEditedBadge } from '@/components/file-edited-badge'
 
 type ListedFile = {
   id?: string
@@ -28,6 +30,9 @@ type ListedFile = {
   size?: number
   sizeBytes?: number
   createdAt?: string
+  editedAt?: string
+  editedBy?: string
+  tags?: string[]
 }
 
 function fmtSize(n?: number) {
@@ -397,15 +402,21 @@ export function FilesPanel() {
               ? `/api/storage/file?id=${encodeURIComponent(id)}&scopeId=${encodeURIComponent(scopeId)}`
               : undefined
             const busy = busyId === id
+            const edited =
+              isFileEdited(f) ||
+              looksLikeEditedBackfill(id, name)
             return (
               <li
                 key={id || String(i)}
                 className="flex flex-col gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ab-ink">
-                    {name}
-                  </p>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <p className="truncate text-sm font-medium text-ab-ink">
+                      {name}
+                    </p>
+                    <FileEditedBadge show={edited} />
+                  </div>
                   <p className="text-[11px] text-stone-400">
                     {fmtSize(size)}
                     {f.mimeType ? ` · ${f.mimeType}` : ''}

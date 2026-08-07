@@ -74,38 +74,104 @@ export function FilePreviewPane({
     let cancelled = false
     let objectUrl: string | null = null
 
+    async function loadBinary(downloadPath?: string) {
+      const bin = await fetch(
+        downloadPath ||
+          `/api/storage/file?id=${encodeURIComponent(file!.fileId)}&scopeId=${encodeURIComponent(file!.scopeId)}`,
+        { headers: await authHeaders() }
+      )
+      if (!bin.ok) throw new Error('تعذّر جلب الملف للمعاينة')
+      const blob = await bin.blob()
+      objectUrl = URL.createObjectURL(blob)
+      if (!cancelled) setMediaUrl(objectUrl)
+    }
+
+    function guessVisualMode(): 'image' | 'pdf' | null {
+      const mime = (file!.mimeType || '').toLowerCase()
+      const name = file!.name.toLowerCase()
+      if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|tiff?)$/i.test(name))
+        return 'image'
+      if (mime.includes('pdf') || name.endsWith('.pdf')) return 'pdf'
+      return null
+    }
+
     async function load() {
       setLoading(true)
       setError('')
       setLiveHint(revision > 1)
       try {
-        const metaRes = await fetch(
-          `/api/storage/preview?id=${encodeURIComponent(file!.fileId)}&scopeId=${encodeURIComponent(file!.scopeId)}`,
-          { headers: await authHeaders() }
-        )
-        const meta = (await metaRes.json()) as PreviewPayload
-        if (!metaRes.ok) {
-          throw new Error(meta.error || `فشل المعاينة (${metaRes.status})`)
+        const ac = new AbortController()
+        const kill = window.setTimeout(() => ac.abort(), 10_000)
+        let metaRes: Response | null = null
+        let meta: PreviewPayload | null = null
+        try {
+          metaRes = await fetch(
+            `/api/storage/preview?id=${encodeURIComponent(file!.fileId)}&scopeId=${encodeURIComponent(file!.scopeId)}`,
+            { headers: await authHeaders(), signal: ac.signal }
+          )
+          const raw = await metaRes.text()
+          if (raw.trim()) {
+            try {
+              meta = JSON.parse(raw) as PreviewPayload
+            } catch {
+              meta = null
+            }
+          }
+        } catch {
+          metaRes = null
+          meta = null
+        } finally {
+          window.clearTimeout(kill)
+        }
+
+        if (!metaRes?.ok || !meta?.ok) {
+          // Netlify 502 / timeout / empty body: still try visual load from known mime/name.
+          const fallback = guessVisualMode()
+          if (fallback) {
+            if (cancelled) return
+            setPayload({
+              ok: true,
+              name: file!.name,
+              mimeType: file!.mimeType,
+              previewMode: fallback,
+            })
+            await loadBinary()
+            return
+          }
+          throw new Error(
+            meta?.error ||
+              (metaRes?.status === 502
+                ? 'تعذّرت المعاينة مؤقتاً (انتهت مهلة الخادم)'
+                : `فشل المعاينة (${metaRes?.status || 'فارغ'})`)
+          )
         }
         if (cancelled) return
         setPayload(meta)
 
         const mode = meta.previewMode || 'binary'
         if (mode === 'image' || mode === 'pdf') {
-          const bin = await fetch(
-            meta.downloadPath ||
-              `/api/storage/file?id=${encodeURIComponent(file!.fileId)}&scopeId=${encodeURIComponent(file!.scopeId)}`,
-            { headers: await authHeaders() }
-          )
-          if (!bin.ok) throw new Error('تعذّر جلب الملف للمعاينة')
-          const blob = await bin.blob()
-          objectUrl = URL.createObjectURL(blob)
-          if (!cancelled) setMediaUrl(objectUrl)
+          await loadBinary(meta.downloadPath)
         } else {
           setMediaUrl(null)
         }
       } catch (e) {
         if (!cancelled) {
+          const fallback = guessVisualMode()
+          if (fallback) {
+            try {
+              setError('')
+              setPayload({
+                ok: true,
+                name: file!.name,
+                mimeType: file!.mimeType,
+                previewMode: fallback,
+              })
+              await loadBinary()
+              return
+            } catch {
+              /* fall through */
+            }
+          }
           setError(e instanceof Error ? e.message : 'تعذّرت المعاينة')
           setPayload(null)
           setMediaUrl(null)

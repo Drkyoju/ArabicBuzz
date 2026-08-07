@@ -213,6 +213,7 @@ export async function executeFillPolicyAudit(
     originalName: next.fileName,
     mimeType:
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    markEdited: true,
   })
 
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
@@ -237,6 +238,7 @@ export async function executeFillPolicyAudit(
         mimeType: saved.file.mimeType,
         scopeId,
         downloadPath,
+        edited: true,
       },
     ],
     messageAr:

@@ -11,6 +11,7 @@ import {
   listCloudFiles,
   readCloudFile,
   saveCloudFile,
+  replaceCloudFile,
 } from '@/lib/storage/cloud'
 import {
   getMacSyncConfig,
@@ -21,6 +22,7 @@ import {
   NETLIFY_MAC_HOP_MAX,
 } from '@/lib/storage/mac-sync-client'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { buildEditedMeta } from '@/lib/files/edited-status'
 
 export type WorkspaceFileRef = {
   id: string
@@ -29,6 +31,9 @@ export type WorkspaceFileRef = {
   kind?: string
   size?: number
   createdAt?: string
+  editedAt?: string
+  editedBy?: string
+  tags?: string[]
   source: 'local' | 'mac' | 'cloud'
 }
 
@@ -101,6 +106,9 @@ export async function listWorkspaceFiles(
           kind: f.kind,
           size: f.size,
           createdAt: f.createdAt,
+          editedAt: f.editedAt,
+          editedBy: f.editedBy,
+          tags: f.tags,
           source: 'local' as const,
         }))
       }
@@ -119,6 +127,9 @@ export async function listWorkspaceFiles(
         kind: f.kind,
         size: f.size,
         createdAt: f.createdAt,
+        editedAt: f.editedAt,
+        editedBy: f.editedBy,
+        tags: f.tags,
         source: 'mac' as const,
       }))
     }
@@ -132,6 +143,9 @@ export async function listWorkspaceFiles(
     kind: f.kind,
     size: f.size,
     createdAt: f.createdAt,
+    editedAt: f.editedAt,
+    editedBy: f.editedBy,
+    tags: f.tags,
     source: 'cloud' as const,
   }))
 }
@@ -268,52 +282,19 @@ export async function findWorkspaceFile(
   )
 }
 
-async function replaceCloudFile(opts: {
-  scopeId: string
-  id: string
-  buffer: Buffer
-  originalName: string
-  mimeType: string
-}): Promise<StoredFileMeta> {
-  const sb = getSupabaseAdmin()
-  if (!sb) throw new Error('لا قاعدة بيانات لاستبدال الملف السحابي')
-  const kind = opts.originalName.toLowerCase().endsWith('.xlsx')
-    ? 'xlsx'
-    : opts.originalName.toLowerCase().endsWith('.pptx')
-      ? 'pptx'
-      : opts.originalName.toLowerCase().match(/\.(docx?|txt|md)$/)
-        ? 'doc'
-        : 'other'
-  const { error } = await sb.from('workspace_files').upsert({
-    id: opts.id,
-    scope_id: opts.scopeId,
-    original_name: opts.originalName,
-    mime_type: opts.mimeType,
-    kind,
-    size: opts.buffer.length,
-    content_base64: opts.buffer.toString('base64'),
-  })
-  if (error) throw new Error(error.message)
-  return {
-    id: opts.id,
-    scopeId: opts.scopeId,
-    kind: kind as StoredFileMeta['kind'],
-    originalName: opts.originalName,
-    mimeType: opts.mimeType,
-    size: opts.buffer.length,
-    relativePath: `cloud:${opts.id}`,
-    createdAt: new Date().toISOString(),
-    sha256: '',
-  }
-}
-
 export async function saveWorkspaceFile(opts: {
   scopeId: string
   buffer: Buffer
   originalName: string
   mimeType: string
   replaceId?: string
+  /** Mark as edited (تم التعديل) — also implied when replaceId is set. */
+  markEdited?: boolean
+  editedBy?: string
 }): Promise<{ file: StoredFileMeta; source: 'local' | 'mac' | 'cloud' }> {
+  const markEdited = Boolean(opts.replaceId) || Boolean(opts.markEdited)
+  const editedBy = opts.editedBy || (markEdited ? 'agent' : undefined)
+
   if (opts.replaceId) {
     if (macSyncConfigured()) {
       try {
@@ -335,6 +316,12 @@ export async function saveWorkspaceFile(opts: {
           createdAt: new Date().toISOString(),
           sha256: '',
         }) as StoredFileMeta
+        if (markEdited && !file.editedAt) {
+          Object.assign(
+            file,
+            buildEditedMeta({ editedBy, existingTags: file.tags })
+          )
+        }
         return { file, source: 'mac' }
       } catch {
         /* fall through */
@@ -349,6 +336,7 @@ export async function saveWorkspaceFile(opts: {
           {
             originalName: opts.originalName,
             mimeType: opts.mimeType,
+            editedBy,
           }
         )
         if (replaced.ok) return { file: replaced.meta, source: 'local' }
@@ -362,13 +350,29 @@ export async function saveWorkspaceFile(opts: {
       buffer: opts.buffer,
       originalName: opts.originalName,
       mimeType: opts.mimeType,
+      editedBy,
     })
     return { file: cloud, source: 'cloud' }
+  }
+
+  const saveOpts = {
+    scopeId: opts.scopeId,
+    buffer: opts.buffer,
+    originalName: opts.originalName,
+    mimeType: opts.mimeType,
+    markEdited,
+    editedBy,
   }
 
   if (macSyncConfigured()) {
     try {
       const file = await forwardToMacSync(opts)
+      if (markEdited && !file.editedAt) {
+        Object.assign(
+          file,
+          buildEditedMeta({ editedBy, existingTags: file.tags })
+        )
+      }
       return { file, source: 'mac' }
     } catch {
       /* fall through */
@@ -377,14 +381,14 @@ export async function saveWorkspaceFile(opts: {
 
   if (isLocalStorageEnabled()) {
     try {
-      const file = saveLocalFile(opts)
+      const file = saveLocalFile(saveOpts)
       return { file, source: 'local' }
     } catch {
       /* fall through */
     }
   }
 
-  const cloud = await saveCloudFile(opts)
+  const cloud = await saveCloudFile(saveOpts)
   if (!cloud.ok) throw new Error(cloud.error)
   return { file: cloud.file, source: 'cloud' }
 }

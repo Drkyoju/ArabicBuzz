@@ -48,6 +48,8 @@ export type RoomFileAttachment = {
   mimeType?: string
   scopeId: string
   downloadPath?: string
+  /** True when agent edited / replaced content (show «تم التعديل»). */
+  edited?: boolean
 }
 
 export type RoomPostKind = 'chat' | 'decision' | 'minutes'

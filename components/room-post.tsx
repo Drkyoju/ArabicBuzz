@@ -22,6 +22,7 @@ import { useFilePreviewStore } from '@/lib/files/preview-store'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 import { looksLikeDecisionOrMinutes } from '@/lib/rooms/item-acks'
+import { FileEditedBadge } from '@/components/file-edited-badge'
 
 function parseFileMarkers(content: string, scopeId: string): RoomFileAttachment[] {
   const out: RoomFileAttachment[] = []
@@ -597,6 +598,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                   {busyId === a.fileId ? 'جاري…' : a.name}
                 </span>
               </button>
+              <FileEditedBadge show={Boolean(a.edited)} />
               <button
                 type="button"
                 disabled={busyId === `tg-${a.fileId}`}

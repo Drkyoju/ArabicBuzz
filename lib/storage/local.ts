@@ -10,6 +10,10 @@ import {
 } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import {
+  buildEditedMeta,
+  looksLikeEditedBackfill,
+} from '@/lib/files/edited-status'
 
 export type StoredKind =
   | 'pdf'
@@ -30,6 +34,10 @@ export type StoredFileMeta = {
   relativePath: string
   createdAt: string
   sha256: string
+  /** ISO timestamp when content was edited (agent or replace). */
+  editedAt?: string
+  editedBy?: string
+  tags?: string[]
 }
 
 /** Default Mac vault: ~/ArabicBuzz/data */
@@ -130,6 +138,8 @@ export function saveLocalFile(opts: {
   buffer: Buffer
   originalName: string
   mimeType: string
+  markEdited?: boolean
+  editedBy?: string
 }): StoredFileMeta {
   assertLocalStorageAvailable()
   const scopeId = opts.scopeId || 'shared-demo'
@@ -154,6 +164,9 @@ export function saveLocalFile(opts: {
     createdAt: new Date().toISOString(),
     sha256,
   }
+  if (opts.markEdited) {
+    Object.assign(meta, buildEditedMeta({ editedBy: opts.editedBy }))
+  }
   writeFileSync(path.join(metaDir, `${id}.json`), JSON.stringify(meta, null, 2))
   // global index append
   const indexPath = path.join(getLocalStorageRoot(), 'index.jsonl')
@@ -170,9 +183,20 @@ export function listLocalFiles(scopeId: string): StoredFileMeta[] {
     .filter((f) => f.endsWith('.json'))
     .map((f) => {
       try {
-        return JSON.parse(
-          readFileSync(path.join(metaDir, f), 'utf8')
-        ) as StoredFileMeta
+        const metaPath = path.join(metaDir, f)
+        const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StoredFileMeta
+        if (
+          !meta.editedAt &&
+          looksLikeEditedBackfill(meta.id, meta.originalName)
+        ) {
+          Object.assign(meta, buildEditedMeta({ editedBy: 'backfill' }))
+          try {
+            writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+          } catch {
+            /* best-effort backfill */
+          }
+        }
+        return meta
       } catch {
         return null
       }
@@ -255,7 +279,7 @@ export function replaceLocalFile(
   scopeId: string,
   id: string,
   buffer: Buffer,
-  opts?: { originalName?: string; mimeType?: string }
+  opts?: { originalName?: string; mimeType?: string; editedBy?: string }
 ): { ok: true; meta: StoredFileMeta } | { ok: false; error: string } {
   assertLocalStorageAvailable()
   const { metaDir } = ensureVault(scopeId)
@@ -273,6 +297,13 @@ export function replaceLocalFile(
     meta.createdAt = new Date().toISOString()
     if (opts?.originalName) meta.originalName = opts.originalName
     if (opts?.mimeType) meta.mimeType = opts.mimeType
+    Object.assign(
+      meta,
+      buildEditedMeta({
+        editedBy: opts?.editedBy || 'user',
+        existingTags: meta.tags,
+      })
+    )
     writeFileSync(metaPath, JSON.stringify(meta, null, 2))
     return { ok: true, meta }
   } catch (e) {

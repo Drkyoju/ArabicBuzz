@@ -310,6 +310,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       originalName: name,
       mimeType: String(params.mimeType || 'text/plain; charset=utf-8'),
       replaceId: params.fileId ? String(params.fileId) : undefined,
+      markEdited: Boolean(params.fileId),
     })
     const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
     return {
@@ -326,6 +327,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
           mimeType: saved.file.mimeType,
           scopeId,
           downloadPath,
+          edited: Boolean(params.fileId || saved.file.editedAt),
         },
       ],
       messageAr: `تم حفظ الملف «${saved.file.originalName}» — جاهز للتنزيل في الشات.`,

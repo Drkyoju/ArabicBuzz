@@ -816,6 +816,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     downloadPath: a.downloadPath
                       ? String(a.downloadPath)
                       : undefined,
+                    edited: Boolean(
+                      a.edited ||
+                        nested.replaced ||
+                        nested.versionTag ||
+                        nested.editMode
+                    ),
                   }
                   attachments.push(att)
                   notifyFileReady({
@@ -842,6 +848,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     scopeId: activeScopeId,
                     downloadPath: String(
                       nested.downloadPath || nested.downloadUrl || ''
+                    ),
+                    edited: Boolean(
+                      nested.edited ||
+                        nested.replaced ||
+                        nested.versionTag ||
+                        nested.editMode
                     ),
                   }
                   attachments.push(att)

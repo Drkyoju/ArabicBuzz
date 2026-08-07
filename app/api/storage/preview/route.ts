@@ -3,7 +3,7 @@ import { extractDocumentText } from '@/lib/rag/extract'
 import { readWorkspaceFile, findWorkspaceFile } from '@/lib/documents/workspace'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 30
 
 function kindFrom(name: string, mime: string): string {
   const n = name.toLowerCase()
@@ -33,9 +33,27 @@ function kindFrom(name: string, mime: string): string {
   return 'other'
 }
 
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('انتهت مهلة استخراج النص')),
+          ms
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /**
- * Lightweight preview payload for the side pane (text extract + meta).
- * Binary/image/pdf still load via /api/storage/file in the client.
+ * Lightweight preview payload for the side pane.
+ * Image/PDF: metadata only — binary loads via /api/storage/file (no OCR).
+ * Text-like: short extract without OCR so Netlify never 502s the pane.
  */
 export async function GET(req: Request) {
   const auth = await requireSessionUser(req)
@@ -53,25 +71,51 @@ export async function GET(req: Request) {
     if (!found) {
       return Response.json({ error: 'الملف غير موجود' }, { status: 404 })
     }
-    const hit = await readWorkspaceFile(scopeId, found.id)
-    const kind = kindFrom(hit.meta.originalName, hit.meta.mimeType)
 
+    const kind = kindFrom(found.originalName, found.mimeType)
+    const downloadPath = `/api/storage/file?id=${encodeURIComponent(found.id)}&scopeId=${encodeURIComponent(scopeId)}`
+
+    // Visual modes never need server-side extract/OCR — that was 502'ing Netlify (~40s).
+    if (kind === 'image' || kind === 'pdf') {
+      return Response.json({
+        ok: true,
+        fileId: found.id,
+        name: found.originalName,
+        mimeType: found.mimeType,
+        size: found.size ?? 0,
+        kind,
+        text: null,
+        truncated: false,
+        extractMethod: null,
+        charCount: 0,
+        downloadPath,
+        previewMode: kind === 'image' ? 'image' : 'pdf',
+      })
+    }
+
+    const hit = await readWorkspaceFile(scopeId, found.id)
     let text: string | null = null
     let truncated = false
     let extractMethod: string | null = null
 
-    if (kind !== 'image') {
-      const extracted = await extractDocumentText({
-        buffer: hit.buffer,
-        filename: hit.meta.originalName,
-        mimeType: hit.meta.mimeType,
-        enableOcr: kind === 'pdf',
-      })
+    try {
+      const extracted = await withTimeout(
+        extractDocumentText({
+          buffer: hit.buffer,
+          filename: hit.meta.originalName,
+          mimeType: hit.meta.mimeType,
+          enableOcr: false,
+        }),
+        12_000
+      )
       const full = extracted.text || ''
       const max = 40_000
       truncated = full.length > max
       text = truncated ? `${full.slice(0, max)}\n…` : full
       extractMethod = extracted.method
+    } catch {
+      text = null
+      extractMethod = null
     }
 
     return Response.json({
@@ -85,15 +129,8 @@ export async function GET(req: Request) {
       truncated,
       extractMethod,
       charCount: text?.length ?? 0,
-      downloadPath: `/api/storage/file?id=${encodeURIComponent(hit.meta.id)}&scopeId=${encodeURIComponent(scopeId)}`,
-      previewMode:
-        kind === 'image'
-          ? 'image'
-          : kind === 'pdf'
-            ? 'pdf'
-            : text
-              ? 'text'
-              : 'binary',
+      downloadPath,
+      previewMode: text ? 'text' : 'binary',
     })
   } catch (e) {
     return Response.json(

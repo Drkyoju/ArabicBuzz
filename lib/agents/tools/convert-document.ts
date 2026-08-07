@@ -78,6 +78,7 @@ function attachmentResult(opts: {
         mimeType: opts.saved.file.mimeType,
         scopeId: opts.scopeId,
         downloadPath,
+        edited: true,
       },
     ],
     messageAr: opts.messageAr,
@@ -176,6 +177,7 @@ export async function executeConvertDocument(
           buffer: converted.buffer,
           originalName: converted.filename || filename,
           mimeType: converted.mimeType,
+          markEdited: true,
         })
         return attachmentResult({
           saved,
@@ -223,6 +225,7 @@ export async function executeConvertDocument(
         buffer: converted.buffer,
         originalName: converted.filename || filename,
         mimeType: converted.mimeType,
+        markEdited: true,
       })
       return attachmentResult({
         saved,
@@ -300,6 +303,7 @@ export async function executeConvertDocument(
     buffer: built.buffer,
     originalName: filename,
     mimeType: built.mimeType,
+    markEdited: true,
   })
 
   return attachmentResult({

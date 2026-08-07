@@ -126,6 +126,8 @@ export async function executeEditExcel(
     mimeType:
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     replaceId: replaceSource ? found.id : undefined,
+    markEdited: true,
+    editedBy: 'agent',
   })
 
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
@@ -147,6 +149,7 @@ export async function executeEditExcel(
         mimeType: saved.file.mimeType,
         scopeId,
         downloadPath,
+        edited: true,
       },
     ],
     messageAr: `عُدّلت ${applied} خلية في «${saved.file.originalName}» — جاهز للتنزيل في الشات.`,

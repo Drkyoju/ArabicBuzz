@@ -25,7 +25,8 @@ async function loadPdfBuffer(scopeId: string, ref: string) {
 function downloadMeta(
   scopeId: string,
   file: { id: string; originalName: string; mimeType: string; size: number },
-  messageAr: string
+  messageAr: string,
+  edited = true
 ) {
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(file.id)}&scopeId=${encodeURIComponent(scopeId)}`
   return {
@@ -43,6 +44,7 @@ function downloadMeta(
         mimeType: file.mimeType,
         scopeId,
         downloadPath,
+        edited,
       },
     ],
     messageAr,
@@ -71,7 +73,8 @@ export async function executePdfCreate(
   return downloadMeta(
     scopeId,
     saved.file,
-    `أُنشئ PDF «${saved.file.originalName}» في ملفات الغرفة.`
+    `أُنشئ PDF «${saved.file.originalName}» في ملفات الغرفة.`,
+    false
   )
 }
 
@@ -98,6 +101,7 @@ export async function executePdfStamp(
     buffer,
     originalName: String(params.outputName || `${base}-ختم.pdf`),
     mimeType: 'application/pdf',
+    markEdited: true,
   })
   return downloadMeta(
     scopeId,
@@ -129,6 +133,7 @@ export async function executePdfMerge(
     buffer,
     originalName: String(params.outputName || 'مدمج.pdf'),
     mimeType: 'application/pdf',
+    markEdited: true,
   })
   return downloadMeta(scopeId, saved.file, `دُمجت ${ids.length} ملفات PDF.`)
 }
@@ -179,6 +184,7 @@ export async function executePdfFillForm(
     buffer,
     originalName: String(params.outputName || `${base}-معبّأ.pdf`),
     mimeType: 'application/pdf',
+    markEdited: true,
   })
   return downloadMeta(
     scopeId,

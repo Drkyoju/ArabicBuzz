@@ -38,6 +38,7 @@ function downloadMeta(
         mimeType: file.mimeType,
         scopeId,
         downloadPath,
+        edited: true,
       },
     ],
   }
@@ -76,6 +77,7 @@ async function saveEditedImage(opts: {
     originalName: outputName,
     mimeType: opts.mimeType,
     replaceId: opts.replaceSource ? opts.sourceId : undefined,
+    markEdited: true,
   })
   return { saved, versionTag }
 }
