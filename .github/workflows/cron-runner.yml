@@ -4,8 +4,8 @@ name: Cron runner
 
 on:
   schedule:
-    # Every hour at :07 UTC (~10:07 Asia/Riyadh in winter; still fine for heartbeats)
-    - cron: '7 * * * *'
+    # Every 15 minutes — aggressive auto-sync (mail · calendar · Drive · Telegram)
+    - cron: '3,18,33,48 * * * *'
   workflow_dispatch:
 
 jobs:

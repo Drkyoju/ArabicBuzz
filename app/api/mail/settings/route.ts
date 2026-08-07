@@ -76,21 +76,29 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
+    const emailAddress = String(body.emailAddress || '').trim()
+    const { guessMailHosts } = await import('@/lib/integrations/auto-wire')
+    const guessed = guessMailHosts(emailAddress)
+    const imapHost =
+      String(body.imapHost || '').trim() || guessed.imapHost
+    const smtpHost =
+      String(body.smtpHost || '').trim() || guessed.smtpHost || imapHost
+
     const mailbox = await upsertMailbox({
       labelAr: body.labelAr,
-      emailAddress: String(body.emailAddress || '').trim(),
-      imapHost: String(body.imapHost || '').trim(),
+      emailAddress,
+      imapHost,
       imapPort:
         typeof body.imapPort === 'number' ? body.imapPort : undefined,
       imapSecure: body.imapSecure,
-      smtpHost: String(body.smtpHost || '').trim(),
+      smtpHost,
       smtpPort:
         typeof body.smtpPort === 'number' ? body.smtpPort : undefined,
       smtpSecure: body.smtpSecure,
       username: String(body.username || body.emailAddress || '').trim(),
       password: body.password,
       enabled: body.enabled,
-      notifyTelegram: body.notifyTelegram,
+      notifyTelegram: body.notifyTelegram ?? true,
       createdBy: auth.user.id,
     })
 

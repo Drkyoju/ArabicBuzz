@@ -59,20 +59,21 @@ export function TelegramConnectCard() {
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         {ready === null ? (
           <span className="text-stone-400">جاري الفحص…</span>
+        ) : ok && (outboundOk || ownerOk) ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            مربوط
+            {outboundOk ? ' · الإرسال يعمل تلقائياً' : ' · المالك مربوط'}
+          </span>
         ) : ok ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-emerald-800">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            البوت جاهز
-            {outboundOk
-              ? ' · الإرسال جاهز'
-              : ownerOk
-                ? ' · المالك مربوط'
-                : ' · افتح رابط الربط أدناه'}
+            البوت جاهز · اضغط الرابط مرة واحدة لربط محادثتك
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-amber-900">
             <Circle className="h-3.5 w-3.5" />
-            غير مفعّل بعد — يحتاج إعداد البوت من المسؤول
+            غير مفعّل بعد — يضبطه المسؤول على الاستضافة
           </span>
         )}
       </div>

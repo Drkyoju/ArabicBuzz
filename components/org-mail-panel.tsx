@@ -129,6 +129,28 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     void refresh()
   }, [refresh])
 
+  // Auto-sync inbox in background when already configured — no «زامن» primary UX.
+  useEffect(() => {
+    if (!configured) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const headers = await authHeaders()
+        const res = await fetch('/api/mail/sync', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+        if (!cancelled && res.ok) await loadMessages()
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [configured, loadMessages])
+
   async function saveSettings() {
     if (!isOwner) return
     setBusy('save')
@@ -268,18 +290,21 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
               إعدادات الربط
             </button>
           )}
-          <button
-            type="button"
-            disabled={busy === 'sync' || !configured}
-            onClick={() => void syncNow()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${busy === 'sync' ? 'animate-spin' : ''}`}
-              aria-hidden
-            />
-            زامن الآن
-          </button>
+          {configured && (
+            <button
+              type="button"
+              disabled={busy === 'sync'}
+              onClick={() => void syncNow()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-600 disabled:opacity-50"
+              title="اختياري — المزامنة تعمل بالخلفية"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${busy === 'sync' ? 'animate-spin' : ''}`}
+                aria-hidden
+              />
+              حدّث الوارد
+            </button>
+          )}
         </div>
       </div>
 
@@ -303,75 +328,48 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       {showSettings && isOwner && (
         <div className="space-y-3 rounded-xl border border-ab-border bg-white p-4">
           <h3 className="text-sm font-semibold text-ab-ink">
-            إعدادات IMAP + SMTP (مشفّرة على الخادم)
+            بريد الجمعية — إعداد مرة واحدة
           </h3>
           <p className="text-[11px] leading-relaxed text-stone-500">
-            من لوحة الاستضافة (cPanel / Zoho / Microsoft): فعّل IMAP، وأنشئ «كلمة
-            مرور للتطبيق» إن لزم. المنافذ الشائعة: IMAP 993 SSL · SMTP 465 SSL
-            أو 587 STARTTLS (عطّل SSL للمنفذ 587).
+            بعدها المزامنة والتنبيهات تعمل تلقائياً. يكفي البريد + كلمة مرور
+            التطبيق + المضيف (المنافذ الافتراضية 993/465).
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-xs">
+            <label className="block text-xs sm:col-span-2">
               <span className="text-stone-500">البريد</span>
               <input
                 dir="ltr"
                 className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
                 value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setEmailAddress(v)
+                  setUsername(v)
+                  const d = v.split('@')[1]
+                  if (d) {
+                    const h = `mail.${d}`
+                    setImapHost(h)
+                    setSmtpHost(h)
+                  }
+                }}
               />
             </label>
-            <label className="block text-xs">
-              <span className="text-stone-500">اسم المستخدم</span>
-              <input
-                dir="ltr"
-                className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-stone-500">مضيف IMAP</span>
+            <label className="block text-xs sm:col-span-2">
+              <span className="text-stone-500">مضيف البريد</span>
               <input
                 dir="ltr"
                 className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
                 placeholder="mail.example.com"
                 value={imapHost}
-                onChange={(e) => setImapHost(e.target.value)}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-stone-500">مضيف SMTP</span>
-              <input
-                dir="ltr"
-                className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
-                placeholder="mail.example.com"
-                value={smtpHost}
-                onChange={(e) => setSmtpHost(e.target.value)}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-stone-500">منفذ IMAP</span>
-              <input
-                dir="ltr"
-                type="number"
-                className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
-                value={imapPort}
-                onChange={(e) => setImapPort(Number(e.target.value) || 993)}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-stone-500">منفذ SMTP</span>
-              <input
-                dir="ltr"
-                type="number"
-                className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-sm"
-                value={smtpPort}
-                onChange={(e) => setSmtpPort(Number(e.target.value) || 465)}
+                onChange={(e) => {
+                  setImapHost(e.target.value)
+                  setSmtpHost(e.target.value)
+                }}
               />
             </label>
             <label className="block text-xs sm:col-span-2">
               <span className="text-stone-500">
-                كلمة المرور / App Password
+                كلمة مرور التطبيق
                 {mailbox?.passwordHint
                   ? ` (المحفوظ: ${mailbox.passwordHint})`
                   : ''}
@@ -391,39 +389,80 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
               />
             </label>
           </div>
-          <div className="flex flex-wrap gap-4 text-xs text-stone-600">
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={imapSecure}
-                onChange={(e) => setImapSecure(e.target.checked)}
-              />
-              IMAP SSL/TLS
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={smtpSecure}
-                onChange={(e) => setSmtpSecure(e.target.checked)}
-              />
-              SMTP SSL/TLS
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={notifyTelegram}
-                onChange={(e) => setNotifyTelegram(e.target.checked)}
-              />
-              إشعار تيليجرام عند بريد جديد
-            </label>
-          </div>
+          <details className="rounded-lg border border-dashed border-ab-border bg-stone-50 px-3 py-2 text-[11px] text-stone-600">
+            <summary className="cursor-pointer font-medium">خيارات متقدمة</summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <label className="block">
+                اسم المستخدم
+                <input
+                  dir="ltr"
+                  className="mt-1 w-full rounded border border-ab-border px-2 py-1 font-mono"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                مضيف SMTP
+                <input
+                  dir="ltr"
+                  className="mt-1 w-full rounded border border-ab-border px-2 py-1 font-mono"
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                منفذ IMAP
+                <input
+                  dir="ltr"
+                  type="number"
+                  className="mt-1 w-full rounded border border-ab-border px-2 py-1 font-mono"
+                  value={imapPort}
+                  onChange={(e) => setImapPort(Number(e.target.value) || 993)}
+                />
+              </label>
+              <label className="block">
+                منفذ SMTP
+                <input
+                  dir="ltr"
+                  type="number"
+                  className="mt-1 w-full rounded border border-ab-border px-2 py-1 font-mono"
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(Number(e.target.value) || 465)}
+                />
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={imapSecure}
+                  onChange={(e) => setImapSecure(e.target.checked)}
+                />
+                IMAP SSL
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={smtpSecure}
+                  onChange={(e) => setSmtpSecure(e.target.checked)}
+                />
+                SMTP SSL
+              </label>
+              <label className="inline-flex items-center gap-2 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={notifyTelegram}
+                  onChange={(e) => setNotifyTelegram(e.target.checked)}
+                />
+                إشعار تيليجرام عند بريد جديد
+              </label>
+            </div>
+          </details>
           <button
             type="button"
             disabled={busy === 'save'}
             onClick={() => void saveSettings()}
             className="rounded-lg bg-ab-accent px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
-            {busy === 'save' ? 'جاري الحفظ والاختبار…' : 'احفظ واختبر الاتصال'}
+            {busy === 'save' ? 'جاري الحفظ والاختبار…' : 'احفظ — ثم يعمل تلقائياً'}
           </button>
         </div>
       )}

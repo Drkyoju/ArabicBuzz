@@ -24,12 +24,15 @@ import {
   cloudConvertStatusAr,
 } from '@/lib/documents/cloudconvert'
 import { googleDriveConvertStatusAr } from '@/lib/documents/google-drive-convert'
+import { getWorkspaceReadiness } from '@/lib/integrations/auto-wire'
 
 export const dynamic = 'force-dynamic'
 
 /** Public-ish status of optional integrations (no secrets). */
 export async function GET() {
   ensurePooledDatabaseUrl()
+  // Auto-wire Telegram webhook + readiness (no user «connect» click).
+  const readiness = await getWorkspaceReadiness().catch(() => null)
   const telegramOwnerConfigured = await hasTelegramOwnerTarget()
   const embeddingProvider = getActiveEmbeddingProvider()
   let dbPooler = false
@@ -140,8 +143,21 @@ export async function GET() {
     cloudConvertStatusAr: cloudConvertStatusAr(),
     /** Hint for UI — actual convert uses the signed-in user's Google token. */
     googleDriveConvertHintAr: googleDriveConvertStatusAr(false),
-    googleDriveConvertBestFreeAr:
-      'الأفضل مجاناً: اربط Google من الإعدادات — تحويل Drive عالي الجودة دون دفع',
+    googleDriveConvertBestFreeAr: readiness?.googleEmail
+      ? 'تحويل Drive يعمل تلقائياً من حساب Google المربوط'
+      : 'بعد أول دخول Google للمالك يعمل التحويل تلقائياً دون أزرار',
+    workspaceReady: Boolean(readiness?.ready),
+    workspaceReadyMessageAr:
+      readiness?.messageAr || 'جاري فحص الربط التلقائي…',
+    workspaceLanes: readiness?.lanes || [],
+    telegramWebhookOk: Boolean(readiness?.telegramWebhookOk),
+    googleAutoLinked: Boolean(
+      readiness?.lanes?.find((l) => l.id === 'google')?.ok
+    ),
+    googleLinkedEmail: readiness?.googleEmail || null,
+    autoSyncHintAr:
+      readiness?.autoSyncHintAr ||
+      'المزامنة تعمل بالخلفية دون أزرار ربط.',
     /** Free built-in paths work without Brave / Firecrawl keys. */
     webSearchFreePath: true,
     webCrawlFreePath: true,

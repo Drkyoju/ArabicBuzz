@@ -246,7 +246,7 @@ export async function getValidGoogleAccessToken(
     return {
       ok: false,
       error:
-        'Google / Gmail غير مربوط. من الشريط: تقويم الفريق → تبويب «Google / Gmail» → «ربط بريد Google (Gmail)»، واختر بريد الجمعية (Workspace) إن وُجد.',
+        'لا توكن Google محفوظ بعد. للمالك: من الإعدادات أكمل تسجيل دخول Google مرة واحدة فقط — بعدها يُستخدم تلقائياً.',
     }
   }
   return tokenFromRow(row)

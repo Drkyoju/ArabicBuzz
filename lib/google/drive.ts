@@ -36,7 +36,7 @@ export function classifyDriveAccessError(err: unknown): {
     return {
       code: 'no_token',
       messageAr:
-        'Google غير مربوط أو انتهت صلاحية الرمز. من الإعدادات اضغط «ربط Google (Drive)» بحساب ryodan71@gmail.com ثم أعد المحاولة.',
+        'Google غير مربوط أو انتهت صلاحية الرمز. للمالك: أكمل دخول Google مرة واحدة من الإعدادات — بعدها يعمل Drive تلقائياً.',
     }
   }
   if (

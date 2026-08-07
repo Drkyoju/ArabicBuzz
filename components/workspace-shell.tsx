@@ -24,8 +24,8 @@ import { FilesPanel } from '@/components/files-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
-import { ConnectedServicesPanel } from '@/components/telegram-connect-card'
 import { HelpTip } from '@/components/help-tip'
+import { WorkspaceAutoStatus } from '@/components/workspace-auto-status'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { RoomFullCalendar } from '@/components/room-full-calendar'
@@ -787,8 +787,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>
             <p className="mb-6 text-sm text-stone-500">
               {mode === 'employee' || !canAccessOpsUi
-                ? 'حسابك وتفضيلات التاريخ — العمل اليومي من الغرف والتقويم.'
-                : 'حسابك، الأمان، والربط بالخدمات.'}
+                ? 'حسابك وتفضيلات التاريخ — الربط التقني تلقائي من المالك.'
+                : 'الحالة فقط — النظام يربط الخدمات تلقائياً من الإعدادات المخزّنة.'}
             </p>
 
             <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
@@ -809,51 +809,63 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <HijriPreferenceToggle />
             </div>
 
-            {(mode === 'admin' && canAccessOpsUi) || !signedIn ? (
+            {signedIn ? (
+              <div className="mb-5">
+                <WorkspaceAutoStatus
+                  isOwner={Boolean(canAccessOpsUi && mode === 'admin')}
+                  onOpenCalendar={() => setSection('calendar')}
+                />
+              </div>
+            ) : (
+              <div className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-5 text-sm text-stone-600">
+                <p className="font-medium text-ab-ink">
+                  سجّل الدخول للعمل في الغرفة
+                </p>
+                <p className="mt-1 text-xs">
+                  الزائر يرى معاينة فقط. بعد الدخول تظهر الغرف والمهام حسب دورك
+                  — الربط يعمل تلقائياً في الخلفية.
+                </p>
+              </div>
+            )}
+
+            {signedIn && canAccessOpsUi && mode === 'admin' && (
               <>
-                {signedIn && (
-                  <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
-                    <h3 className="mb-1 flex items-center gap-1.5 font-semibold">
-                      وضع الأمان
-                      <HelpTip textAr="صارم = موافقة على معظم الأدوات. تلقائي = موافقة لحذف الملفات والأشياء فقط. حر = أسرع؛ الحذف يبقى بموافقة إن كانت الحوكمة مفعّلة." />
-                    </h3>
-                    <p className="mb-3 text-xs text-stone-500">
+                <details className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
+                    وضع الأمان
+                  </summary>
+                  <div className="mt-3">
+                    <p className="mb-2 flex items-center gap-1.5 text-xs text-stone-500">
                       الوضع الافتراضي: كل شيء تلقائي ما عدا الحذف.
+                      <HelpTip textAr="صارم = موافقة على معظم الأدوات. تلقائي = موافقة لحذف الملفات والأشياء فقط. حر = أسرع؛ الحذف يبقى بموافقة إن كانت الحوكمة مفعّلة." />
                     </p>
                     <SecurityPosturePicker />
                   </div>
-                )}
+                </details>
 
-                <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
-                  <h3 className="mb-1 font-semibold">
-                    تقويم الغرفة · ربط Gmail الجمعية
-                  </h3>
-                  <p className="mb-3 text-xs text-stone-500">
-                    المواعيد والمهام مشتركة للغرفة. لربط بريد الجمعية الرسمي
-                    (Google Workspace / Gmail) افتح تبويب «Google / Gmail».
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSection('calendar')}
-                      className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      تقويم ومهام الفريق
-                    </button>
-                    {signedIn && canAccessOpsUi && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSection('calendar')
-                          setCalendarTab('external')
-                        }}
-                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-semibold"
-                      >
-                        ربط Google / Gmail
-                      </button>
-                    )}
-                    {signedIn && canAccessOpsUi && mode === 'admin' && (
-                      <>
+                <details
+                  className="mb-5 rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4"
+                  onToggle={(e) =>
+                    setShowDevOps((e.currentTarget as HTMLDetailsElement).open)
+                  }
+                >
+                  <summary className="cursor-pointer text-sm font-semibold text-stone-600">
+                    إعدادات متقدمة (مالك فقط)
+                  </summary>
+                  {showDevOps && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-[11px] text-stone-500">
+                        أدوات تقنية اختيارية — لا يحتاجها العمل اليومي. المزامنة
+                        الأساسية تعمل وحدها.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSection('calendar')}
+                          className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                        >
+                          تقويم الغرفة
+                        </button>
                         <button
                           type="button"
                           onClick={() => setSection('api-keys')}
@@ -866,96 +878,44 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                           onClick={() => setSection('ops')}
                           className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
                         >
-                          حالة الربط
+                          لوحة صحة الأنظمة
                         </button>
-                      </>
-                    )}
-                  </div>
-                  {signedIn && canAccessOpsUi && mode === 'admin' && (
-                    <div className="mt-4 space-y-4">
+                        <button
+                          type="button"
+                          onClick={() => setSection('mail')}
+                          className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                        >
+                          صندوق بريد الجمعية
+                        </button>
+                      </div>
                       <AssociationKnowledgePanel />
                       <GoogleDriveBrainPanel />
+                      <GoogleSetupChecklist focus="all" />
+                      <IntegrationsSetupPanel />
+                      <McpServersPanel />
+                      <div className="rounded-xl border border-ab-border bg-white p-4">
+                        <MacBrainPanel />
+                      </div>
                     </div>
                   )}
-                </div>
+                </details>
 
-                {signedIn && canAccessOpsUi && mode === 'admin' ? (
-                  <>
-                    <div className="mb-5">
-                      <ConnectedServicesPanel />
-                    </div>
-
-                    <div className="mb-5">
-                      <McpServersPanel />
-                    </div>
-
-                    <details
-                      className="mb-5 rounded-xl border border-dashed border-ab-border bg-stone-50 p-4"
-                      onToggle={(e) =>
-                        setShowDevOps(
-                          (e.currentTarget as HTMLDetailsElement).open
-                        )
-                      }
-                    >
-                      <summary className="cursor-pointer text-sm font-semibold text-stone-600">
-                        للمطوّر / المسؤول فقط
-                      </summary>
-                      {showDevOps && (
-                        <div className="mt-3 space-y-4">
-                          <GoogleSetupChecklist focus="all" />
-                          <IntegrationsSetupPanel />
-                          <div className="rounded-xl border border-ab-border bg-white p-4">
-                            <MacBrainPanel />
-                          </div>
-                        </div>
-                      )}
-                    </details>
-
-                    <details
-                      className="rounded-xl border border-ab-border bg-ab-surface p-4"
-                      onToggle={(e) =>
-                        setShowSdaia(
-                          (e.currentTarget as HTMLDetailsElement).open
-                        )
-                      }
-                    >
-                      <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
-                        سجل العمل
-                      </summary>
-                      {showSdaia && (
-                        <div className="mt-3">
-                          <SdaiaAuditViewer />
-                        </div>
-                      )}
-                    </details>
-                  </>
-                ) : !signedIn ? (
-                  <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-5 text-sm text-stone-600">
-                    <p className="font-medium text-ab-ink">
-                      سجّل الدخول للعمل في الغرفة
-                    </p>
-                    <p className="mt-1 text-xs">
-                      الزائر يرى معاينة فقط. بعد الدخول تظهر الغرف والمهام
-                      والموافقات حسب دورك.
-                    </p>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-sm text-stone-600">
-                <p className="font-medium text-ab-ink">للعمل اليومي</p>
-                <p className="mt-1 text-xs leading-relaxed">
-                  استخدم الشريط الجانبي للغرف والملفات والتقويم والموافقات. أي
-                  إعدادات تقنية يضبطها المدير أو المسؤول.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSection('calendar')}
-                  className="mt-3 rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+                <details
+                  className="rounded-xl border border-ab-border bg-ab-surface p-4"
+                  onToggle={(e) =>
+                    setShowSdaia((e.currentTarget as HTMLDetailsElement).open)
+                  }
                 >
-                  فتح التقويم والمهام
-                </button>
-              </div>
+                  <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
+                    سجل العمل
+                  </summary>
+                  {showSdaia && (
+                    <div className="mt-3">
+                      <SdaiaAuditViewer />
+                    </div>
+                  )}
+                </details>
+              </>
             )}
           </section>
         )}

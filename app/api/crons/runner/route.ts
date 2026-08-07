@@ -275,6 +275,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let autoWire: unknown = null
+  try {
+    const { getWorkspaceReadiness } = await import(
+      '@/lib/integrations/auto-wire'
+    )
+    // Ensures Telegram webhook + reports lane status (mail/calendar/Drive).
+    autoWire = await getWorkspaceReadiness()
+  } catch (e) {
+    autoWire = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'auto-wire error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -284,5 +298,6 @@ export async function POST(req: NextRequest) {
     morningDigest,
     googleRoomCalendarSync,
     imapMailSync,
+    autoWire,
   })
 }
