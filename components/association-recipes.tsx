@@ -3,19 +3,11 @@
 import {
   CalendarDays,
   FolderSearch,
-  Users,
 } from 'lucide-react'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 const RECIPES = [
-  {
-    id: 'meeting',
-    titleAr: 'غرفة الفريق',
-    detailAr: 'غرفة واحدة للموظفين والوكلاء — شغّل أو أوقف الوكلاء من المفتاح.',
-    section: 'chats',
-    icon: Users,
-  },
   {
     id: 'knowledge',
     titleAr: 'اسأل ملفات الفريق',
@@ -53,10 +45,10 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        غرفة الفريق الواحدة · ملفات · مواعيد ومهام — بلا غرف فارغة إضافية.
+        ملفات · مواعيد ومهام — غرفة الفريق من الشريط الجانبي.
       </p>
 
-      <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
         {RECIPES.map((r) => {
           const Icon = r.icon
           return (

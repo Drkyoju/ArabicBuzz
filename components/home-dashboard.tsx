@@ -13,7 +13,6 @@ import {
   Video,
   ListTodo,
   Rocket,
-  MessageSquare,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -624,14 +623,6 @@ export function HomeDashboard({
             className="ab-btn-secondary"
           >
             التقويم
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('chats')}
-            className="ab-btn-secondary"
-          >
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
-            غرفة الفريق
           </button>
         </div>
       </header>

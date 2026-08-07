@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  MessageSquare,
   ShieldCheck,
   Settings,
   Users,
@@ -88,7 +87,7 @@ const PRIMARY_NAV: Array<{
   { id: 'assistants', labelAr: 'مهام التشغيل', icon: Bot },
   { id: 'mail', labelAr: 'بريد الجمعية', icon: Mail },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
-  { id: 'chats', labelAr: 'غرفة الفريق', icon: MessageSquare },
+  // غرفة الفريق: single entry under «الغرفة» below (fuller room row) — no nav duplicate.
   { id: 'files', labelAr: 'ملفات الفريق', icon: FolderOpen },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
@@ -205,7 +204,6 @@ function SidebarBody({
         n.id === 'assistants' ||
         n.id === 'mail' ||
         n.id === 'calendar' ||
-        n.id === 'chats' ||
         n.id === 'files' ||
         n.id === 'settings'
       )
@@ -350,9 +348,6 @@ function SidebarBody({
                 <button
                   type="button"
                   onClick={() => {
-                    if (id === 'chats') {
-                      setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
-                    }
                     onSectionChange?.(id)
                     onNavigate?.()
                   }}
