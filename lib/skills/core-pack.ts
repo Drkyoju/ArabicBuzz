@@ -8,6 +8,10 @@
  * - meeting notes: claude-office-skills/skills (meeting-notes)
  * - Arabic office writing: itady74/ux-writing-arabic + sultanalsafran arabic-presentations principles
  * - calendar / daily ops / knowledge: in-repo KSA marketplace pack
+ * - OCR / Excel / PDF forms: yejinlei pdf-ocr, anthropics xlsx, claude-office-skills pdf-form-filler
+ * - agenda / follow-up / board pack: zapier/wade-skills + decision-board patterns
+ * - Drive organize: googleworkspace/cli recipe-organize-drive-folder + file-naming
+ * - volunteers / formal letters / KSA deadlines: association ops adaptations
  */
 
 export const CORE_AUTO_SKILL_IDS = [
@@ -20,6 +24,17 @@ export const CORE_AUTO_SKILL_IDS = [
   'telegram_ops_notifier',
   'daily_ops_checklist',
   'knowledge_doc_reviewer',
+  // Wave 2 — Gulf / association ops (auto-injected)
+  'document_ocr_workflow',
+  'excel_ops_reporting',
+  'pdf_form_assistant',
+  'board_decision_pack',
+  'volunteer_coordinator',
+  'arabic_formal_letter',
+  'followup_crm_lite',
+  'agenda_builder',
+  'ksa_compliance_deadlines',
+  'drive_file_organizer',
 ] as const
 
 export type CoreAutoSkillId = (typeof CORE_AUTO_SKILL_IDS)[number]

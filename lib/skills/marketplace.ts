@@ -243,6 +243,211 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
     ),
   },
   {
+    id: 'document_ocr_workflow',
+    nameAr: 'سير عمل OCR للمستندات',
+    descriptionAr:
+      'استخراج نص عربي من صور وPDF ممسوح وحفظه في الغرفة — مفعّلة تلقائياً.',
+    category: 'معرفة',
+    author: 'Arabic Buzz (GitHub: pdf-ocr patterns)',
+    iconName: 'scan',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من yejinlei/pdf-ocr-skill وأنماط claude-office-skills',
+    skillMarkdownContent: shippedOrInline(
+      'document_ocr_workflow',
+      skillMd({
+        id: 'document_ocr_workflow',
+        name: 'سير عمل OCR للمستندات',
+        description: 'استخراج نص عربي من صور وPDF ممسوح',
+        body: 'استخدم arabic_ocr / read_document ثم احفظ النص — لا تختلق سطوراً.',
+      })
+    ),
+  },
+  {
+    id: 'excel_ops_reporting',
+    nameAr: 'تقارير Excel التشغيلية',
+    descriptionAr: 'قراءة وتحليل وتعديل جداول Excel للتقارير — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: xlsx skill patterns)',
+    iconName: 'table',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من anthropics/skills xlsx و document-xlsx',
+    skillMarkdownContent: shippedOrInline(
+      'excel_ops_reporting',
+      skillMd({
+        id: 'excel_ops_reporting',
+        name: 'تقارير Excel التشغيلية',
+        description: 'قراءة وتعديل Excel للتقارير التشغيلية',
+        body: 'اقرأ بـ read_excel وعدّل بـ edit_excel دون اختلاق أرقام.',
+      })
+    ),
+  },
+  {
+    id: 'pdf_form_assistant',
+    nameAr: 'مساعد نماذج PDF',
+    descriptionAr: 'سرد حقول النماذج وتعبئتها بعد موافقة — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: pdf-form-filler patterns)',
+    iconName: 'file-input',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من claude-office-skills pdf-form-filler',
+    skillMarkdownContent: shippedOrInline(
+      'pdf_form_assistant',
+      skillMd({
+        id: 'pdf_form_assistant',
+        name: 'مساعد نماذج PDF',
+        description: 'تعبئة نماذج PDF بعد مراجعة القيم',
+        body: 'اسرد الحقول بـ pdf_list_fields ثم املأ بـ pdf_fill_form بعد موافقة.',
+      })
+    ),
+  },
+  {
+    id: 'board_decision_pack',
+    nameAr: 'حزمة قرار مجلس الإدارة',
+    descriptionAr:
+      'ورقة قرار: خيارات وتوصية ومسودة قرار ومهام متابعة — مفعّلة تلقائياً.',
+    category: 'حوكمة',
+    author: 'Arabic Buzz (GitHub: wade-skills / decision-board)',
+    iconName: 'gavel',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من zapier/wade-skills و decision-board',
+    skillMarkdownContent: shippedOrInline(
+      'board_decision_pack',
+      skillMd({
+        id: 'board_decision_pack',
+        name: 'حزمة قرار مجلس الإدارة',
+        description: 'تحضير حزمة قرار قابلة للتصويت',
+        body: 'أخرج خلفية وخيارات وتوصية ومسودة قرار دون اختلاق وقائع.',
+      })
+    ),
+  },
+  {
+    id: 'volunteer_coordinator',
+    nameAr: 'منسّق المتطوعين',
+    descriptionAr: 'نوبات وتذكيرات وقوائم حضور للمتطوعين — مفعّلة تلقائياً.',
+    category: 'تشغيل',
+    author: 'Arabic Buzz (GitHub: volunteer-coordinator patterns)',
+    iconName: 'users',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من travisjneuman volunteer-coordinator مع أدوات الغرفة',
+    skillMarkdownContent: shippedOrInline(
+      'volunteer_coordinator',
+      skillMd({
+        id: 'volunteer_coordinator',
+        name: 'منسّق المتطوعين',
+        description: 'تنسيق نوبات المتطوعين والتذكيرات',
+        body: 'ابنِ جدول نوبات وسجّل مهاماً وصِغ تذكيراً دون كشف بيانات خاصة.',
+      })
+    ),
+  },
+  {
+    id: 'arabic_formal_letter',
+    nameAr: 'الخطابات الرسمية العربية',
+    descriptionAr: 'قوالب خطابات وتعاميم ومخاطبات رسمية بالفصحى — مفعّلة تلقائياً.',
+    category: 'مكتب',
+    author: 'Arabic Buzz (GitHub: ux-writing-arabic formal)',
+    iconName: 'mail',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من أنماط الكتابة العربية الرسمية للجمعيات',
+    skillMarkdownContent: shippedOrInline(
+      'arabic_formal_letter',
+      skillMd({
+        id: 'arabic_formal_letter',
+        name: 'الخطابات الرسمية العربية',
+        description: 'صياغة خطابات رسمية وتعاميم',
+        body: 'اتبع بنية الترويسة والموضوع والمتن والتوقيع — دون اختلاق أرقام صادر.',
+      })
+    ),
+  },
+  {
+    id: 'followup_crm_lite',
+    nameAr: 'متابعة علاقات (CRM خفيف)',
+    descriptionAr: 'وعود ومتابعات ومسودات من البريد والاجتماعات — مفعّلة تلقائياً.',
+    category: 'تشغيل',
+    author: 'Arabic Buzz (GitHub: zapier meeting-follow-up-pipeline)',
+    iconName: 'user-check',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من zapier/wade-skills meeting-follow-up-pipeline',
+    skillMarkdownContent: shippedOrInline(
+      'followup_crm_lite',
+      skillMd({
+        id: 'followup_crm_lite',
+        name: 'متابعة علاقات (CRM خفيف)',
+        description: 'إغلاق حلقة الوعود والمتابعات',
+        body: 'استخرج الوعود وصِغ مسودات متابعة واقترح مهاماً — دون إرسال تلقائي.',
+      })
+    ),
+  },
+  {
+    id: 'agenda_builder',
+    nameAr: 'بنّاء الأجندة',
+    descriptionAr:
+      'أجندة اجتماع مرتّبة من التقويم والبريد والمهام — مفعّلة تلقائياً.',
+    category: 'تشغيل',
+    author: 'Arabic Buzz (GitHub: zapier exec-weekly-agenda-generator)',
+    iconName: 'list-ordered',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr: 'مقتبس من zapier/wade-skills exec-weekly-agenda-generator',
+    skillMarkdownContent: shippedOrInline(
+      'agenda_builder',
+      skillMd({
+        id: 'agenda_builder',
+        name: 'بنّاء الأجندة',
+        description: 'بناء أجندة اجتماع مرتّبة بالأولوية',
+        body: 'امسح التقويم والمهام والبريد وأخرج بنوداً قابلة للنقاش والقرار.',
+      })
+    ),
+  },
+  {
+    id: 'ksa_compliance_deadlines',
+    nameAr: 'مواعيد الامتثال (السعودية)',
+    descriptionAr:
+      'ترخيص وعمومية وتقرير سنوي على تقويم الغرفة — مفعّلة تلقائياً.',
+    category: 'حوكمة',
+    author: 'Arabic Buzz / KSA Pack',
+    iconName: 'calendar-clock',
+    packId: 'core-auto',
+    autoActive: true,
+    skillMarkdownContent: shippedOrInline(
+      'ksa_compliance_deadlines',
+      skillMd({
+        id: 'ksa_compliance_deadlines',
+        name: 'مواعيد الامتثال (السعودية)',
+        description: 'متابعة المواعيد النظامية للجمعيات',
+        body: 'اعرض ولوّن المواعيد النظامية على تقويم الغرفة دون اختلاق تواريخ قانونية.',
+      })
+    ),
+  },
+  {
+    id: 'drive_file_organizer',
+    nameAr: 'منظّم ملفات Drive',
+    descriptionAr:
+      'اقتراح أسماء وهيكل مجلدات لملفات الغرفة وعقل الشركة — مفعّلة تلقائياً.',
+    category: 'معرفة',
+    author: 'Arabic Buzz (GitHub: gws organize-drive + file-naming)',
+    iconName: 'folder-tree',
+    packId: 'core-auto',
+    autoActive: true,
+    sourceNoteAr:
+      'مقتبس من googleworkspace/cli recipe-organize-drive-folder و file-naming',
+    skillMarkdownContent: shippedOrInline(
+      'drive_file_organizer',
+      skillMd({
+        id: 'drive_file_organizer',
+        name: 'منظّم ملفات Drive',
+        description: 'إعادة تسمية وتنظيم ملفات الغرفة وDrive',
+        body: 'اقترح جدول أسماء موحّدة ونفّذ بعد موافقة — لا تحذف دون طلب صريح.',
+      })
+    ),
+  },
+  {
     id: 'zatca_e_invoicing_checker',
     nameAr: 'مدقق الفوترة الإلكترونية (ZATCA)',
     descriptionAr: 'التحقق من هياكل XML/QR للفوترة الإلكترونية - المرحلة الثانية.',
