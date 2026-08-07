@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser } from '@/lib/auth/session'
+import { forbidOrgMailIfMember } from '@/lib/email/org-mail-access'
 import { getMessageById, markSeen } from '@/lib/email/imap-store'
 import {
   messageAttachments,
@@ -14,6 +15,9 @@ export async function GET(
 ) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
+
+  const denied = forbidOrgMailIfMember(auth.user)
+  if (denied) return denied
 
   const { id } = await ctx.params
   const row = await getMessageById(id)

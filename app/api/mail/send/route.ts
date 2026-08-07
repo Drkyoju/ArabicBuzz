@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser } from '@/lib/auth/session'
-import { isWorkspaceOwnerEmail } from '@/lib/auth/roles'
-import { canAccessOpsUi, orgRoleForEmail } from '@/lib/auth/rbac'
+import { forbidOrgMailIfMember } from '@/lib/email/org-mail-access'
 import { sendSmtpMail } from '@/lib/email/smtp-send'
 
 export const dynamic = 'force-dynamic'
@@ -10,13 +9,8 @@ export async function POST(req: NextRequest) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
-  const role = orgRoleForEmail(auth.user.email, { userId: auth.user.id })
-  if (!isWorkspaceOwnerEmail(auth.user.email) && !canAccessOpsUi(role)) {
-    return NextResponse.json(
-      { error: 'إرسال البريد للمدير/المالك فقط.', code: 'FORBIDDEN' },
-      { status: 403 }
-    )
-  }
+  const denied = forbidOrgMailIfMember(auth.user)
+  if (denied) return denied
 
   let body: {
     to?: string
