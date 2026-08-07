@@ -73,23 +73,26 @@ export async function GET() {
     secretMode: 'compat_missing_header_ok',
     groupSupport: {
       bindCommands: ['/link', '/start'],
-      linkedGroupMode: 'natural_arabic_no_ask',
+      linkedGroupMode: 'ingest_all_reply_on_mention_or_unknown',
       triggers: [
         'plain_text_when_privacy_off',
-        '@mention',
+        'silent_execute_actionable',
+        '@mention_full_reply',
         'reply_to_bot',
+        'unknown_short_ar',
         '/ask_optional',
         'voice_stt_intent_router',
         'document',
         'photo',
+        'video',
         'drive_brain_search',
         'room_calendar_create',
         'wake_cascade_agent1',
       ],
       privacyNoteAr:
-        'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل العادية بدون /ask. الخصوصية الافتراضية = أوامر ومنشن فقط.',
+        'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل. ينفّذ الطلبات صامتاً؛ الرد الظاهر عند منشن البوت أو بجملة «ما عرفت/ما حصلت». لا يُنسخ نص القروب إلى شات الغرفة.',
       limitsAr:
-        'Drive يحتاج ربط Google من الموقع. OCR الممسوح أدق مع جسر ماك. الحذف فقط بموافقة.',
+        'Drive يحتاج ربط Google من الموقع. OCR الممسوح أدق مع جسر ماك. الحذف فقط بموافقة. البوت لا يحذف رسائل تيليجرام أبداً.',
     },
     latency: {
       chatModelDefault: process.env.TELEGRAM_HARNESS_MODEL || 'gemini-2.5-flash',
