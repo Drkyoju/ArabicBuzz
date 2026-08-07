@@ -396,7 +396,7 @@ export function TelegramMirrorChat({
           className="mb-1.5 min-h-0 flex-1 overflow-y-auto rounded-lg border border-ab-border/80 bg-stone-50/60 px-2 py-1.5"
         >
           {items.length === 0 ? (
-            <p className="py-4 text-center text-[11px] text-stone-400">
+            <p className="py-4 text-center text-[11px] text-ab-muted-soft">
               {linked
                 ? 'لا رسائل بعد — اكتب أدناه أو من تيليجرام.'
                 : 'بعد الربط تظهر المحادثة هنا.'}
@@ -420,7 +420,7 @@ export function TelegramMirrorChat({
                     <span className="text-[10px] font-medium text-ab-ink">
                       {m.senderAr}
                     </span>
-                    <span className="text-[9px] text-stone-400" dir="ltr">
+                    <span className="text-[9px] text-ab-muted-soft" dir="ltr">
                       {m.atAr}
                     </span>
                   </div>

@@ -76,4 +76,9 @@ export type RoomPost = {
   mentionUserIds?: string[]
   /** Directed @agent seat for this turn (wake / handoff). */
   mentionAgentId?: string
+  /**
+   * When `telegram`, post feeds the live Telegram pane only —
+   * not duplicated into غرفة الفريق chat (see telegram-chat-policy).
+   */
+  channel?: string | null
 }

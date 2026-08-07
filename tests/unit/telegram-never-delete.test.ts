@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   assertTelegramApiMethodAllowed,
@@ -48,5 +50,64 @@ describe('telegram never-delete policy', () => {
       TelegramNeverDeleteError
     )
     expect(() => assertTelegramApiMethodAllowed('sendMessage')).not.toThrow()
+  })
+
+  it('blocks history-destroying methods beyond delete*', () => {
+    for (const m of [
+      'unpinAllChatMessages',
+      'unpinAllForumTopicMessages',
+      'leaveChat',
+      'banChatMember',
+      'closeForumTopic',
+    ]) {
+      expect(isTelegramDeleteApiMethod(m)).toBe(true)
+    }
+    // Pinning / unpinning a single message stays allowed.
+    expect(isTelegramDeleteApiMethod('unpinChatMessage')).toBe(false)
+    expect(isTelegramDeleteApiMethod('pinChatMessage')).toBe(false)
+  })
+})
+
+/**
+ * The runtime guard only protects calls that go through grammy or
+ * telegramBotApiFetch. A raw fetch to the Bot API would silently bypass it,
+ * so the guarantee is enforced at the source level too.
+ */
+describe('no un-guarded Bot API call sites', () => {
+  const ROOT = join(__dirname, '..', '..')
+  const SCAN_DIRS = ['lib', 'app', 'components']
+  const ALLOWED = new Set(['lib/telegram/never-delete.ts'])
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+      if (entry === 'node_modules' || entry.startsWith('.')) continue
+      const full = join(dir, entry)
+      if (statSync(full).isDirectory()) walk(full, out)
+      else if (/\.tsx?$/.test(entry)) out.push(full)
+    }
+    return out
+  }
+
+  it('routes every api.telegram.org/bot call through the guard', () => {
+    const offenders: string[] = []
+    for (const dir of SCAN_DIRS) {
+      for (const file of walk(join(ROOT, dir))) {
+        const rel = file.slice(ROOT.length + 1)
+        if (ALLOWED.has(rel)) continue
+        const src = readFileSync(file, 'utf8')
+        const lines = src.split('\n')
+        lines.forEach((line, i) => {
+          // /file/bot<token>/... is a CDN download, not a Bot API method call.
+          if (!line.includes('api.telegram.org') || line.includes('/file/bot')) {
+            return
+          }
+          const context = lines.slice(Math.max(0, i - 3), i + 1).join('\n')
+          if (!context.includes('telegramBotApiFetch')) {
+            offenders.push(`${rel}:${i + 1}`)
+          }
+        })
+      }
+    }
+    expect(offenders).toEqual([])
   })
 })

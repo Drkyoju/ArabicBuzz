@@ -1,6 +1,15 @@
 import { insertRoomPost } from '@/lib/rooms/persist'
 
-/** Mirror an inbound/outbound channel turn into a room timeline. */
+/**
+ * Persist a Telegram/WhatsApp turn for the **channel feed** (live pane).
+ *
+ * For Telegram: posts are tagged `channel: 'telegram'` so غرفة الفريق chat
+ * does **not** show them again (see `shouldShowInRoomChat`). Full chat sync
+ * both ways would duplicate every line — text stays in the live pane only.
+ * Media is imported separately into the vault via `afterTelegramMediaSaved`.
+ *
+ * `includeAgentReply: false` = user/group line only (silent execute / no spam).
+ */
 export async function mirrorChannelTurnToRoom(opts: {
   scopeId: string
   channel: 'telegram' | 'whatsapp'
@@ -9,6 +18,8 @@ export async function mirrorChannelTurnToRoom(opts: {
   userMessageAr: string
   agentReplyAr: string
   agentNameAr?: string
+  /** Default true. Set false when the bot stayed silent in the group. */
+  includeAgentReply?: boolean
 }) {
   const channelLabel =
     opts.channel === 'telegram' ? 'تيليجرام' : 'واتساب'
@@ -21,12 +32,15 @@ export async function mirrorChannelTurnToRoom(opts: {
     channel: opts.channel,
     externalId: opts.externalId,
   })
+  if (opts.includeAgentReply === false) return
+  const reply = String(opts.agentReplyAr || '').trim()
+  if (!reply) return
   await insertRoomPost({
     scopeId: opts.scopeId,
     authorKind: 'agent',
     authorId: 'agent-channels',
     authorNameAr: opts.agentNameAr || 'رد الوكيل · القنوات',
-    content: opts.agentReplyAr,
+    content: reply,
     channel: opts.channel,
     externalId: opts.externalId,
   })

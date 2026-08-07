@@ -13,6 +13,7 @@ import {
   Pencil,
   RefreshCw,
   Replace,
+  Send,
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
@@ -26,7 +27,11 @@ import { openFilePreviewInChat } from '@/lib/files/preview-store'
 import { parseFileMarkersFromText } from '@/lib/files/file-markers'
 import { isFileEdited, looksLikeEditedBackfill } from '@/lib/files/edited-status'
 import { FileEditedBadge } from '@/components/file-edited-badge'
-import type { BridgeFilePayload } from '@/lib/files/workspace-bridge'
+import {
+  sendWorkspaceFileToTelegram,
+  setBridgeDragData,
+  type BridgeFilePayload,
+} from '@/lib/files/workspace-bridge'
 
 type ListedFile = {
   id?: string
@@ -235,6 +240,32 @@ export function FilesPanel() {
       setNote(data.messageAr || 'رُفع إلى عقل الشركة (Drive)')
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'فشل الرفع لعقل الشركة')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function sendFileToTelegram(f: ListedFile) {
+    const fileId = f.id || ''
+    if (!fileId) {
+      setNote('معرّف الملف غير متاح — أعد الرفع ثم حاول.')
+      return
+    }
+    const name = f.originalName || f.name || 'ملف'
+    setBusyId(`tg-${fileId}`)
+    setNote('')
+    try {
+      const sent = await sendWorkspaceFileToTelegram({
+        fileId,
+        name,
+        mimeType: f.mimeType,
+        scopeId,
+        kind: 'file',
+      })
+      if (!sent.ok) throw new Error(sent.error || 'تعذّر الإرسال')
+      setNote(`أُرسل «${name}» لتيليجرام`)
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل الإرسال لتيليجرام')
     } finally {
       setBusyId(null)
     }
@@ -655,12 +686,28 @@ export function FilesPanel() {
                 const href = id
                   ? `/api/storage/file?id=${encodeURIComponent(id)}&scopeId=${encodeURIComponent(scopeId)}`
                   : undefined
-                const busy = busyId === id
+                const busy = busyId === id || busyId === `tg-${id}`
                 const edited =
                   isFileEdited(f) || looksLikeEditedBackfill(id, name)
+                const bridge: BridgeFilePayload | null = id
+                  ? {
+                      fileId: id,
+                      name,
+                      mimeType: f.mimeType,
+                      scopeId,
+                      kind: (f.mimeType || '').startsWith('audio/')
+                        ? 'voice'
+                        : 'file',
+                    }
+                  : null
                 return (
                   <li
                     key={id || String(i)}
+                    draggable={Boolean(bridge)}
+                    onDragStart={(e) => {
+                      if (!bridge) return
+                      setBridgeDragData(e.dataTransfer, bridge)
+                    }}
                     className="flex flex-col gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5 shadow-ab-sm sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
@@ -739,6 +786,16 @@ export function FilesPanel() {
                           في الغرفة
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => void sendFileToTelegram(f)}
+                        className="ab-btn-secondary !py-1 text-[11px]"
+                        title="إرسال لتيليجرام المجموعة المربوطة"
+                      >
+                        <Send className="h-3 w-3" />
+                        تيليجرام
+                      </button>
                       <button
                         type="button"
                         disabled={!id || busy}

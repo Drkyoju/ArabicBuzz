@@ -126,6 +126,36 @@ export async function ingestTelegramPhotoToWorkspace(opts: {
   }
 }
 
+export async function ingestTelegramVideoToWorkspace(opts: {
+  ctx: Context
+  scopeId: string
+  fileId: string
+  fileName?: string
+  mimeType?: string
+}): Promise<{ fileId: string; name: string; mimeType: string }> {
+  const { buffer, filePath } = await downloadTelegramFileBuffer(
+    opts.ctx,
+    opts.fileId
+  )
+  const ext = filePath.includes('.')
+    ? filePath.slice(filePath.lastIndexOf('.'))
+    : '.mp4'
+  const originalName =
+    opts.fileName || `telegram-video-${Date.now()}${ext || '.mp4'}`
+  const mime = opts.mimeType || 'video/mp4'
+  const saved = await saveWorkspaceFile({
+    scopeId: opts.scopeId,
+    buffer,
+    originalName,
+    mimeType: mime,
+  })
+  return {
+    fileId: saved.file.id,
+    name: saved.file.originalName,
+    mimeType: saved.file.mimeType,
+  }
+}
+
 export async function sendAttachmentsToTelegramChat(opts: {
   ctx: Context
   attachments: TelegramAttachmentRef[]

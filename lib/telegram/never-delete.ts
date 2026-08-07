@@ -5,7 +5,11 @@
  */
 import type { Bot } from 'grammy'
 
-/** Bot API methods that remove chat/message/media content — forever blocked. */
+/**
+ * Bot API methods that remove chat/message/media content, or remove the bot's
+ * own access to history — forever blocked. Losing the chat is as destructive
+ * as deleting the messages in it.
+ */
 export const TELEGRAM_NEVER_DELETE_METHODS = [
   'deleteMessage',
   'deleteMessages',
@@ -14,6 +18,14 @@ export const TELEGRAM_NEVER_DELETE_METHODS = [
   'deleteBusinessMessages',
   'deleteStory',
   'deleteStickerFromSet',
+  'unpinAllChatMessages',
+  'unpinAllForumTopicMessages',
+  'unpinAllGeneralForumTopicMessages',
+  'leaveChat',
+  'banChatMember',
+  'banChatSenderChat',
+  'closeForumTopic',
+  'closeGeneralForumTopic',
 ] as const
 
 export type TelegramNeverDeleteMethod =
@@ -55,7 +67,8 @@ export function isTelegramDeleteApiMethod(method: string): boolean {
     key.startsWith('deleteforum') ||
     key.startsWith('deletebusiness') ||
     key.startsWith('deletestory') ||
-    key.startsWith('deletesticker')
+    key.startsWith('deletesticker') ||
+    key.startsWith('unpinall')
   )
 }
 

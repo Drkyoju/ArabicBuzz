@@ -15,6 +15,8 @@ import {
   isPostInRiyadhToday,
   roomChatRetentionDays,
 } from '@/lib/rooms/chat-retention'
+import { isNoiseRoomPost } from '@/lib/rooms/noise'
+import { shouldShowInRoomChat } from '@/lib/rooms/telegram-chat-policy'
 import { RoomPostCard } from '@/components/room-post'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { FilePreviewPane } from '@/components/file-preview-pane'
@@ -68,7 +70,6 @@ import { FontScalePicker } from '@/components/font-scale-picker'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
-import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import {
   planRoomRunAdaptation,
@@ -592,7 +593,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
       if (!res.ok || cancelled) return
       const data = (await res.json()) as { posts?: RoomPost[] }
       if (Array.isArray(data.posts)) {
-        const cleaned = data.posts.filter((p) => !isNoiseRoomPost(p.content || ''))
+        const cleaned = data.posts.filter(
+          (p) =>
+            !isNoiseRoomPost(p.content || '') &&
+            shouldShowInRoomChat({
+              channel: p.channel,
+              content: p.content,
+            })
+        )
         setPostsForScope(activeScopeId, cleaned)
       }
 
@@ -646,6 +654,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
         (payload) => {
           const row = payload.new as Record<string, string>
           if (isNoiseRoomPost(row.content || '')) return
+          if (
+            !shouldShowInRoomChat({
+              channel: row.channel,
+              content: row.content,
+            })
+          ) {
+            return
+          }
           mergePost({
             id: row.id,
             scopeId: row.scope_id,
@@ -665,6 +681,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               row.post_kind === 'decision' || row.post_kind === 'minutes'
                 ? row.post_kind
                 : 'chat',
+            channel: row.channel || null,
           })
         }
       )
@@ -1805,7 +1822,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <EffortPicker compact scopeId={activeScopeId} />
                 </>
               ) : null}
-              <span className="ms-auto text-[10px] text-stone-400">
+              <span className="ms-auto text-[10px] text-ab-muted-soft">
                 الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
               </span>
             </div>
@@ -1965,7 +1982,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   }}
                 >
                   <span className="h-1.5 w-14 rounded-full bg-ab-border group-hover:bg-ab-accent" />
-                  <span className="pointer-events-none absolute inset-x-0 -bottom-3 text-center text-[9px] text-stone-400 opacity-0 group-hover:opacity-100">
+                  <span className="pointer-events-none absolute inset-x-0 -bottom-3 text-center text-[9px] text-ab-muted-soft opacity-0 group-hover:opacity-100">
                     اسحب لتغيير الحجم
                   </span>
                   <span className="sr-only">اسحب لتغيير حجم القائمة</span>
@@ -2309,7 +2326,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     </span>
                     <button
                       type="button"
-                      className="shrink-0 text-stone-400 hover:text-ab-warn"
+                      className="shrink-0 text-ab-muted-soft hover:text-ab-warn"
                       aria-label="إزالة المرفق"
                       onClick={() => detachComposerFile(f.fileId)}
                     >

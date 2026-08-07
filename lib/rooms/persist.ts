@@ -1,5 +1,6 @@
 import { appBaseUrl } from '@/lib/app-url'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
+import { shouldShowInRoomChat } from '@/lib/rooms/telegram-chat-policy'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import type { RoomPost } from '@/lib/scopes/types'
 
@@ -57,24 +58,32 @@ export function rowToRoomPost(row: DbRoomPost): RoomPost {
     createdAt: new Date(row.created_at).getTime(),
     postKind,
     mentionUserIds,
+    channel: row.channel ?? null,
   }
 }
 
 export async function listRoomPosts(scopeId: string, limit = 100) {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false as const, posts: [] as RoomPost[], error: 'no supabase' }
+  // Fetch extra rows so filtering telegram feed-only posts still fills the limit.
+  const take = Math.min(Math.max(limit * 2, limit), 400)
   const { data, error } = await sb
     .from('room_posts')
     .select('*')
     .eq('scope_id', scopeId)
     .order('created_at', { ascending: true })
-    .limit(limit)
+    .limit(take)
   if (error) return { ok: false as const, posts: [] as RoomPost[], error: error.message }
   return {
     ok: true as const,
     posts: (data as DbRoomPost[])
       .map(rowToRoomPost)
-      .filter((p) => !isNoiseRoomPost(p.content)),
+      .filter(
+        (p) =>
+          !isNoiseRoomPost(p.content) &&
+          shouldShowInRoomChat({ channel: p.channel, content: p.content })
+      )
+      .slice(-limit),
   }
 }
 

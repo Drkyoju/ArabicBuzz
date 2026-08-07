@@ -285,7 +285,7 @@ function PostTime({ createdAt }: { createdAt: number }) {
   }, [createdAt])
 
   return (
-    <span className="text-[11px] text-stone-400" suppressHydrationWarning>
+    <span className="text-[11px] text-ab-muted-soft" suppressHydrationWarning>
       {label}
     </span>
   )
@@ -546,7 +546,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                 onClick={() =>
                   void setKind(postKind === 'decision' ? 'chat' : 'decision')
                 }
-                className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-amber-800"
+                className="inline-flex items-center gap-1 text-[10px] text-ab-muted-soft hover:text-amber-800"
               >
                 <Gavel className="h-3 w-3" />
                 {postKind === 'decision' ? 'إلغاء وسم القرار' : 'وسم كقرار'}
@@ -557,7 +557,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                 onClick={() =>
                   void setKind(postKind === 'minutes' ? 'chat' : 'minutes')
                 }
-                className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-sky-800"
+                className="inline-flex items-center gap-1 text-[10px] text-ab-muted-soft hover:text-sky-800"
               >
                 <FileText className="h-3 w-3" />
                 {postKind === 'minutes' ? 'إلغاء وسم المحضر' : 'وسم كمحضر'}
@@ -573,7 +573,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                 'inline-flex items-center gap-1 text-[10px]',
                 seenByMe
                   ? 'font-semibold text-emerald-700'
-                  : 'text-stone-400 hover:text-ab-accent'
+                  : 'text-ab-muted-soft hover:text-ab-accent'
               )}
             >
               <CheckCheck className="h-3 w-3" />
@@ -675,7 +675,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                 }
               })()
             }}
-            className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-[10px] text-ab-muted-soft hover:text-ab-accent disabled:opacity-50"
           >
             <BookmarkPlus className="h-3 w-3" />
             {memBusy ? 'جاري الحفظ…' : 'احفظ في عقل الشركة'}
@@ -740,7 +740,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                   }
                 })()
               }}
-              className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent disabled:opacity-40"
+              className="inline-flex items-center gap-1 text-[10px] text-ab-muted-soft hover:text-ab-accent disabled:opacity-40"
             >
               <Sparkles className="h-3 w-3" />
               {skillBusy ? 'جاري الاقتراح…' : 'اقتراح مهارة'}
