@@ -42,6 +42,7 @@ import {
 import { HomeDashboard } from '@/components/home-dashboard'
 import { AssistantsCorePanel } from '@/components/assistants-core-panel'
 import { OrgMailPanel } from '@/components/org-mail-panel'
+import { MailBell } from '@/components/mail-bell'
 import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { RoleBadge } from '@/components/role-badge'
@@ -442,6 +443,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       {/* Offset must be on the inline-start side and match the aside width in
           components/sidebar.tsx, otherwise the fixed sidebar covers content. */}
       <div className="min-h-dvh pt-11 md:ms-[15.5rem] md:pt-0">
+        <div className="sticky top-0 z-20 hidden items-center justify-end gap-2 border-b border-ab-border/60 bg-ab-bg/90 px-4 py-1.5 backdrop-blur md:flex">
+          <MailBell onOpenMail={() => setSection('mail')} />
+        </div>
         {pendingCount > 0 &&
           section !== 'approvals' &&
           signedIn !== false &&

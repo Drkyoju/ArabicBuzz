@@ -53,6 +53,7 @@ const MIGRATIONS = [
   'supabase/migrations/028_google_to_room_calendar_sync.sql',
   'supabase/migrations/029_assistant_jobs.sql',
   'supabase/migrations/030_imap_mailbox.sql',
+  'supabase/migrations/031_imap_mail_intel.sql',
   'supabase/migrations/031_scope_agent_rosters.sql',
   'supabase/migrations/032_workspace_files_edited.sql',
 ]

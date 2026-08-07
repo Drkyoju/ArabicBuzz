@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer'
 import {
   getMailboxCreds,
   getMessageById,
+  markAnswered,
   markSeen,
 } from '@/lib/email/imap-store'
 
@@ -42,6 +43,9 @@ export type SendMailResult = {
   to: string
   subject: string
   messageAr: string
+  /** Honest delivery signal: SMTP accepted ≠ inbox delivery receipt. */
+  deliveryStatus: 'smtp_accepted' | 'smtp_rejected'
+  deliveryNoteAr: string
 }
 
 export async function sendSmtpMail(
@@ -107,6 +111,7 @@ export async function sendSmtpMail(
       bodyText = `${bodyText}\n\n---\n${quote}`
     }
     await markSeen(orig.id, true).catch(() => null)
+    await markAnswered(orig.id, true).catch(() => null)
   }
 
   if (!to) throw new Error('يلزم عنوان المستلم (to).')
@@ -125,23 +130,34 @@ export async function sendSmtpMail(
     },
   })
 
-  const info = await transporter.sendMail({
-    from: `"${creds.emailAddress}" <${creds.emailAddress}>`,
-    to,
-    cc,
-    bcc,
-    subject: encodeHeaderUtf8(subject),
-    text: bodyText || undefined,
-    html: bodyHtml || undefined,
-    headers,
-  })
+  try {
+    const info = await transporter.sendMail({
+      from: `"${creds.emailAddress}" <${creds.emailAddress}>`,
+      to,
+      cc,
+      bcc,
+      subject: encodeHeaderUtf8(subject),
+      text: bodyText || undefined,
+      html: bodyHtml || undefined,
+      headers,
+    })
 
-  return {
-    ok: true,
-    messageId: info.messageId,
-    to,
-    subject,
-    messageAr: `أُرسل البريد عبر SMTP إلى ${to} — الموضوع: ${subject}`,
+    const deliveryNoteAr =
+      'قَبِل خادم SMTP الرسالة للإرسال. هذا ليس إيصال تسليم إلى صندوق المستلم — لا يتوفر DSN/قراءة في إعداد الجمعية الحالي.'
+
+    return {
+      ok: true,
+      messageId: info.messageId,
+      to,
+      subject,
+      messageAr: `قُبل الإرسال عبر SMTP إلى ${to} — الموضوع: ${subject}`,
+      deliveryStatus: 'smtp_accepted',
+      deliveryNoteAr,
+    }
+  } catch (e) {
+    const err =
+      e instanceof Error ? e.message : 'رفض خادم SMTP الإرسال أو فشل الاتصال.'
+    throw new Error(`فشل الإرسال / مشكلة تسليم محتملة: ${err}`)
   }
 }
 

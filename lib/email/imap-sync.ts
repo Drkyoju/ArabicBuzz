@@ -1,5 +1,4 @@
 import { ImapFlow } from 'imapflow'
-import { TextDecoder } from 'util'
 import {
   getMailboxCreds,
   listUnnotified,
@@ -9,6 +8,10 @@ import {
   type ImapMailboxCreds,
 } from '@/lib/email/imap-store'
 import { emitNotification } from '@/lib/notifications/emit'
+import {
+  extractAttachmentTexts,
+  parseMimeMessage,
+} from '@/lib/email/mail-attachments'
 
 function htmlToText(html: string): string {
   return html
@@ -172,6 +175,7 @@ export async function syncImapInbox(opts?: {
           let dateAt: Date | null = null
           let seen = false
           let answered = false
+          let attachmentsJson: unknown = null
 
           try {
             const downloaded = await client.fetchOne(
@@ -204,11 +208,16 @@ export async function syncImapInbox(opts?: {
 
             if (downloaded.source) {
               const raw = Buffer.isBuffer(downloaded.source)
-                ? downloaded.source.toString('utf8')
+                ? downloaded.source.toString('binary')
                 : String(downloaded.source)
-              const parsed = parseMimeBodies(raw)
+              const parsed = parseMimeMessage(raw)
               bodyText = parsed.text
               bodyHtml = parsed.html
+              if (parsed.attachments.length) {
+                // Extract text now (PDF/Word via existing RAG pipeline). Cap count.
+                const slice = parsed.attachments.slice(0, 6)
+                attachmentsJson = await extractAttachmentTexts(slice)
+              }
             }
           } catch {
             continue
@@ -234,6 +243,7 @@ export async function syncImapInbox(opts?: {
             bodyHtml: bodyHtml ? bodyHtml.slice(0, 80_000) : null,
             seen,
             answered,
+            attachmentsJson,
           })
           fetched += 1
           if (isNew) newCount += 1
@@ -284,69 +294,7 @@ export async function syncImapInbox(opts?: {
   }
 }
 
-/** Minimal MIME extractor for text/plain + text/html (AR/EN UTF-8). */
-function parseMimeBodies(raw: string): { text: string; html: string } {
-  const out = { text: '', html: '' }
-  if (!raw) return out
-
-  const boundaryMatch = raw.match(/boundary="?([^";\r\n]+)"?/i)
-  if (!boundaryMatch) {
-    const body = raw.split(/\r?\n\r?\n/).slice(1).join('\n\n')
-    if (/Content-Type:\s*text\/html/i.test(raw)) {
-      out.html = decodeTransfer(raw, body)
-    } else {
-      out.text = decodeTransfer(raw, body)
-    }
-    return out
-  }
-
-  const boundary = boundaryMatch[1]
-  const parts = raw.split(new RegExp(`--${escapeReg(boundary)}`))
-  for (const part of parts) {
-    if (!part || part.startsWith('--')) continue
-    const [hdrRaw, ...rest] = part.split(/\r?\n\r?\n/)
-    const headers = hdrRaw || ''
-    const body = rest.join('\n\n').replace(/--\s*$/, '').trim()
-    if (/Content-Type:\s*text\/plain/i.test(headers) && !out.text) {
-      out.text = decodeTransfer(headers, body)
-    } else if (/Content-Type:\s*text\/html/i.test(headers) && !out.html) {
-      out.html = decodeTransfer(headers, body)
-    }
-  }
-  return out
-}
-
-function escapeReg(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function decodeTransfer(headers: string, body: string): string {
-  const cte = (headers.match(/Content-Transfer-Encoding:\s*(\S+)/i)?.[1] || '')
-    .toLowerCase()
-    .trim()
-  const charset =
-    headers.match(/charset="?([^";\s]+)"?/i)?.[1]?.toLowerCase() || 'utf-8'
-  let buf: Buffer
-  if (cte === 'base64') {
-    buf = Buffer.from(body.replace(/\s+/g, ''), 'base64')
-  } else if (cte === 'quoted-printable') {
-    const qp = body
-      .replace(/=\r?\n/g, '')
-      .replace(/=([0-9A-F]{2})/gi, (_, h: string) =>
-        String.fromCharCode(parseInt(h, 16))
-      )
-    buf = Buffer.from(qp, 'latin1')
-  } else {
-    buf = Buffer.from(body, 'utf8')
-  }
-  try {
-    const enc = charset === 'utf8' ? 'utf-8' : charset
-    return new TextDecoder(enc).decode(buf)
-  } catch {
-    return buf.toString('utf8')
-  }
-}
-
+/** Quick connectivity test (login + INBOX status). */
 async function notifyNewMailTelegram(): Promise<number> {
   const rows = await listUnnotified(8)
   if (!rows.length) return 0
@@ -369,7 +317,6 @@ async function notifyNewMailTelegram(): Promise<number> {
   return 0
 }
 
-/** Quick connectivity test (login + INBOX status). */
 export async function testImapConnection(): Promise<{
   ok: boolean
   messageAr: string
@@ -409,3 +356,4 @@ export async function testImapConnection(): Promise<{
     }
   }
 }
+

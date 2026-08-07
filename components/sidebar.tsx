@@ -22,6 +22,7 @@ import {
 import { AirGapBadge } from '@/components/airgap-badge'
 import { SdaiaBadge } from '@/components/sdaia-badge'
 import { RoleBadge } from '@/components/role-badge'
+import { MailBell } from '@/components/mail-bell'
 import {
   hydrateScopeMemories,
   useWorkspaceStore,
@@ -102,6 +103,7 @@ function SidebarBody({
   onNavigate,
   pendingApprovals = 0,
   hitlDisabled = false,
+  mailUnread = 0,
 }: {
   airGapped?: boolean
   activeSection: SidebarSection
@@ -109,6 +111,7 @@ function SidebarBody({
   onNavigate?: () => void
   pendingApprovals?: number
   hitlDisabled?: boolean
+  mailUnread?: number
 }) {
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const setActiveScopeId = useWorkspaceStore((s) => s.setActiveScopeId)
@@ -342,7 +345,10 @@ function SidebarBody({
             const badge =
               id === 'approvals' && pendingApprovals > 0
                 ? pendingApprovals
-                : 0
+                : id === 'mail' && mailUnread > 0
+                  ? mailUnread
+                  : 0
+            const mailDot = id === 'mail' && mailUnread > 0
             return (
               <li key={id}>
                 <button
@@ -358,11 +364,24 @@ function SidebarBody({
                       : 'text-ab-ink hover:bg-stone-100'
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                  <span className="relative shrink-0">
+                    <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                    {mailDot && (
+                      <span
+                        className="absolute -end-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-red-500"
+                        aria-hidden
+                      />
+                    )}
+                  </span>
                   <span className="flex-1 text-right">{labelAr}</span>
                   {badge > 0 && (
-                    <span className="rounded-full bg-ab-warn px-1.5 py-0.5 text-[10px] font-bold text-white">
-                      {badge}
+                    <span
+                      className={cn(
+                        'rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white',
+                        id === 'mail' ? 'bg-red-500' : 'bg-ab-warn'
+                      )}
+                    >
+                      {badge > 99 ? '99+' : badge}
                     </span>
                   )}
                 </button>
@@ -570,6 +589,7 @@ export function Sidebar({
   hitlDisabled?: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [mailUnread, setMailUnread] = useState(0)
   const signedIn = useSignedIn()
   // At md+ the aside is always laid out on screen, so it must never be inert.
   const [isDesktop, setIsDesktop] = useState(false)
@@ -596,6 +616,43 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', onKey)
   }, [mobileOpen])
 
+  useEffect(() => {
+    if (signedIn !== true) {
+      setMailUnread(0)
+      return
+    }
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const headers = await authHeaders()
+        const res = await fetch('/api/mail/unread', { headers })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          configured?: boolean
+          unread?: number
+        }
+        if (!cancelled) {
+          setMailUnread(
+            data.configured ? Number(data.unread || 0) : 0
+          )
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    void poll()
+    const t = window.setInterval(() => void poll(), 25_000)
+    const onMail = () => void poll()
+    window.addEventListener('ab-mail-changed', onMail)
+    window.addEventListener('focus', onMail)
+    return () => {
+      cancelled = true
+      window.clearInterval(t)
+      window.removeEventListener('ab-mail-changed', onMail)
+      window.removeEventListener('focus', onMail)
+    }
+  }, [signedIn])
+
   const drawerActive = mobileOpen || isDesktop
 
   return (
@@ -613,24 +670,32 @@ export function Sidebar({
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-bold">Arabic Buzz</span>
-          {signedIn === false ? (
-            <Link
-              href="/auth/login"
-              className="rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white"
-            >
-              دخول
-            </Link>
-          ) : pendingApprovals > 0 ? (
-            <button
-              type="button"
-              onClick={() => onSectionChange?.('approvals')}
-              className="rounded-full bg-ab-warn px-2 py-0.5 text-[10px] font-bold text-white"
-            >
-              {pendingApprovals}
-            </button>
-          ) : (
-            <span className="w-9" aria-hidden />
-          )}
+          <div className="flex items-center gap-1">
+            {signedIn === true && (
+              <MailBell
+                compact
+                onOpenMail={() => onSectionChange?.('mail')}
+              />
+            )}
+            {signedIn === false ? (
+              <Link
+                href="/auth/login"
+                className="rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white"
+              >
+                دخول
+              </Link>
+            ) : pendingApprovals > 0 ? (
+              <button
+                type="button"
+                onClick={() => onSectionChange?.('approvals')}
+                className="rounded-full bg-ab-warn px-2 py-0.5 text-[10px] font-bold text-white"
+              >
+                {pendingApprovals}
+              </button>
+            ) : (
+              <span className="w-2" aria-hidden />
+            )}
+          </div>
         </div>
       )}
 
@@ -676,6 +741,7 @@ export function Sidebar({
           onNavigate={() => setMobileOpen(false)}
           pendingApprovals={pendingApprovals}
           hitlDisabled={hitlDisabled}
+          mailUnread={mailUnread}
         />
       </aside>
     </>

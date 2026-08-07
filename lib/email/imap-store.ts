@@ -23,6 +23,20 @@ export type ImapMailboxRow = {
   updated_at: Date | string
 }
 
+export type MailIntelCache = {
+  summaryAr: string
+  draftSubject: string
+  draftBody: string
+  extract: {
+    dates: string[]
+    times: string[]
+    names: string[]
+    important: string[]
+  }
+  analyzedAt: string
+  fallbackNoteAr?: string
+}
+
 export type ImapMessageRow = {
   id: string
   mailbox_id: string
@@ -43,6 +57,8 @@ export type ImapMessageRow = {
   answered: boolean
   notified: boolean
   raw_size: number | null
+  attachments_json?: unknown
+  intel_json?: unknown
   created_at: Date | string
   updated_at: Date | string
 }
@@ -134,10 +150,22 @@ async function ensureTables(): Promise<void> {
           answered BOOLEAN NOT NULL DEFAULT false,
           notified BOOLEAN NOT NULL DEFAULT false,
           raw_size INT,
+          attachments_json JSONB,
+          intel_json JSONB,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           UNIQUE (mailbox_id, folder, uid)
         )
+      `),
+    0
+  )
+  // Existing DBs created before mail-intel — add columns safely.
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(`
+        ALTER TABLE imap_messages
+          ADD COLUMN IF NOT EXISTS attachments_json JSONB,
+          ADD COLUMN IF NOT EXISTS intel_json JSONB
       `),
     0
   )
@@ -393,6 +421,7 @@ export type UpsertMessageInput = {
   seen: boolean
   answered?: boolean
   rawSize?: number | null
+  attachmentsJson?: unknown
 }
 
 export async function upsertMessage(
@@ -412,6 +441,11 @@ export async function upsertMessage(
       ),
     [] as Array<{ id: string }>
   )
+  const attachmentsJson =
+    input.attachmentsJson !== undefined
+      ? JSON.stringify(input.attachmentsJson)
+      : null
+
   if (existing[0]) {
     await withPrismaFallback(
       () =>
@@ -420,8 +454,10 @@ export async function upsertMessage(
             message_id = $1, in_reply_to = $2, references_hdr = $3,
             subject = $4, from_addr = $5, to_addr = $6, cc_addr = $7,
             date_at = $8, snippet = $9, body_text = $10, body_html = $11,
-            seen = $12, answered = $13, raw_size = $14, updated_at = NOW()
-           WHERE id = $15`,
+            seen = $12, answered = $13, raw_size = $14,
+            attachments_json = COALESCE($15::jsonb, attachments_json),
+            updated_at = NOW()
+           WHERE id = $16`,
           input.messageId || null,
           input.inReplyTo || null,
           input.referencesHdr || null,
@@ -436,6 +472,7 @@ export async function upsertMessage(
           input.seen,
           input.answered ?? false,
           input.rawSize ?? null,
+          attachmentsJson,
           existing[0].id
         ),
       0
@@ -450,9 +487,9 @@ export async function upsertMessage(
         `INSERT INTO imap_messages (
           id, mailbox_id, uid, message_id, in_reply_to, references_hdr, folder,
           subject, from_addr, to_addr, cc_addr, date_at, snippet, body_text, body_html,
-          seen, answered, raw_size
+          seen, answered, raw_size, attachments_json
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb
         )`,
         id,
         input.mailboxId,
@@ -471,7 +508,8 @@ export async function upsertMessage(
         input.bodyHtml || null,
         input.seen,
         input.answered ?? false,
-        input.rawSize ?? null
+        input.rawSize ?? null,
+        attachmentsJson
       ),
     0
   )
@@ -586,6 +624,51 @@ export async function markSeen(id: string, seen = true): Promise<void> {
       prisma.$executeRawUnsafe(
         `UPDATE imap_messages SET seen = $1, updated_at = NOW() WHERE id = $2`,
         seen,
+        id
+      ),
+    0
+  )
+}
+
+export async function markAnswered(id: string, answered = true): Promise<void> {
+  await ensureTables()
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `UPDATE imap_messages SET answered = $1, seen = true, updated_at = NOW() WHERE id = $2`,
+        answered,
+        id
+      ),
+    0
+  )
+}
+
+export async function updateMessageIntel(
+  id: string,
+  intel: MailIntelCache
+): Promise<void> {
+  await ensureTables()
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `UPDATE imap_messages SET intel_json = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+        JSON.stringify(intel),
+        id
+      ),
+    0
+  )
+}
+
+export async function updateMessageAttachments(
+  id: string,
+  attachments: unknown
+): Promise<void> {
+  await ensureTables()
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(
+        `UPDATE imap_messages SET attachments_json = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+        JSON.stringify(attachments),
         id
       ),
     0

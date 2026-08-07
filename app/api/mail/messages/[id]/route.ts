@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser } from '@/lib/auth/session'
 import { getMessageById, markSeen } from '@/lib/email/imap-store'
+import {
+  messageAttachments,
+  messageIntel,
+} from '@/lib/email/mail-intel'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +29,20 @@ export async function GET(
     await markSeen(row.id, true).catch(() => null)
   }
 
+  const attachments = messageAttachments(row).map((a) => ({
+    id: a.id,
+    filename: a.filename,
+    mimeType: a.mimeType,
+    size: a.size,
+    hasText: Boolean(a.extractedText?.trim()),
+    extractMethod: a.extractMethod || null,
+    extractNoteAr: a.extractNoteAr || null,
+    ocrUsed: Boolean(a.ocrUsed),
+    textPreview: a.extractedText?.trim()
+      ? a.extractedText.trim().slice(0, 800)
+      : null,
+  }))
+
   return NextResponse.json({
     message: {
       id: row.id,
@@ -41,6 +59,8 @@ export async function GET(
       answered: row.answered,
       messageId: row.message_id,
       inReplyTo: row.in_reply_to,
+      attachments,
+      intel: messageIntel(row),
     },
   })
 }
