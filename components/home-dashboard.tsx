@@ -13,8 +13,7 @@ import {
   Video,
   ListTodo,
   Rocket,
-  Bot,
-  Compass,
+  MessageSquare,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -557,8 +556,9 @@ export function HomeDashboard({
             سجّل الدخول للعمل
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-amber-950/80">
-            بعد الدخول: اكتب «وش تبي؟» من «المساعدون»، ثم المواعيد والمهام
-            والموافقات الحقيقية — بلا بيانات وهمية.
+            بعد الدخول: مواعيد اليوم والمهام والموافقات الحقيقية — بلا بيانات
+            وهمية. للعمل التشغيلي (بريد/تقويم) استخدم «مهام التشغيل»، وللنقاش مع
+            الفريق والوكلاء بـ @ افتح «غرفة الفريق».
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -567,13 +567,6 @@ export function HomeDashboard({
               className="rounded-md bg-ab-accent px-3 py-2 text-xs font-semibold text-white"
             >
               سجّل الدخول
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('assistants')}
-              className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs font-medium text-ab-ink"
-            >
-              وش تبي؟
             </button>
           </div>
         </div>
@@ -632,38 +625,16 @@ export function HomeDashboard({
           >
             التقويم
           </button>
-        </div>
-      </header>
-
-      {/* مساعد العمل — single composer entry */}
-      <div className="ab-composer bg-gradient-to-l from-ab-accent/[0.09] via-white to-white">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ab-accent/15 text-ab-accent">
-                <Bot className="h-5 w-5" aria-hidden />
-              </span>
-              <div>
-                <h2 className="text-lg font-bold text-ab-ink sm:text-xl">
-                  وش تبي؟
-                </h2>
-                <p className="mt-0.5 text-[12px] leading-relaxed text-ab-muted sm:text-[13px]">
-                  اكتب طلبك — بريد · تقويم · ملفات · تيليجرام. مهام متعددة تدخل
-                  الطابور وتعمل معاً حتى الحد.
-                </p>
-              </div>
-            </div>
-          </div>
           <button
             type="button"
-            onClick={() => onNavigate?.('assistants')}
-            className="ab-btn-primary px-3.5 py-2 text-[12px]"
+            onClick={() => onNavigate?.('chats')}
+            className="ab-btn-secondary"
           >
-            <Compass className="h-3.5 w-3.5" aria-hidden />
-            افتح المساعدين
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+            غرفة الفريق
           </button>
         </div>
-      </div>
+      </header>
 
       {!authPending && <TelegramHomePanel />}
 

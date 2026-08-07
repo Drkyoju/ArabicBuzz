@@ -12,11 +12,11 @@ export const dynamic = 'force-dynamic'
 export async function GET(_req: NextRequest) {
   const maxParallel = getAssistantMaxParallel()
   return NextResponse.json({
-    titleAr: 'المساعدون',
+    titleAr: 'مهام التشغيل',
     subtitleAr:
-      'اكتب ما تريده بالعربية — نوجّه الطلب للمساعد المناسب (بريد · تقويم · ملفات · تيليجرام) وننفّذ. مهام متعددة تدخل الطابور.',
+      'مهام تشغيل عامة للمساحة (بريد · تقويم · ملفات · تيليجرام) — ليست مساعداً خاصاً لكل موظف. غرفة الفريق = محادثة الفريق + الوكلاء بـ @؛ نفس الأدوات تقريباً بواجهتين.',
     howToAr:
-      'اكتب طلبك في «وش تبي؟» واضغط إرسال. كل طلب مهمة في الطابور. إن أرسلت أكثر من واحدة يعملون معاً حتى الحد، والباقي بالانتظار حتى تفرغ خانة.',
+      'اكتب طلبك واضغط إرسال. كل طلب مهمة في الطابور. إن أرسلت أكثر من واحدة يعملون معاً حتى الحد، والباقي بالانتظار حتى تفرغ خانة.',
     maxParallel,
     hintAr: assistantParallelHintAr(maxParallel),
     parallelNoteAr: assistantParallelNoteAr(maxParallel),

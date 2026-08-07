@@ -368,7 +368,7 @@ export function AssistantsCorePanel({
     }
     const text = message.trim()
     if (!text) {
-      setError('اكتب ما تريده في «وش تبي؟».')
+      setError('اكتب ما تريده في خانة الطلب.')
       return
     }
     setEnqueueBusy(true)
@@ -427,11 +427,11 @@ export function AssistantsCorePanel({
     >
       <div>
         <h2 className="ab-title">
-          {catalog?.titleAr || 'المساعدون'}
+          {catalog?.titleAr || 'مهام التشغيل'}
         </h2>
         <p className="ab-subtitle">
           {catalog?.subtitleAr ||
-            'اكتب ما تريده — ننفّذ. مهام متعددة تدخل الطابور.'}
+            'مهام تشغيل عامة للمساحة (بريد/تقويم) — غرفة الفريق للمحادثة والوكلاء بـ @.'}
         </p>
         <p className="mt-2 text-[12px] font-medium text-ab-accent">
           {hintAr}
@@ -511,7 +511,7 @@ export function AssistantsCorePanel({
       <div className="ab-composer">
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-ab-ink">
-            وش تبي؟
+            ماذا تريد تنفيذه؟
           </span>
           <textarea
             value={message}
