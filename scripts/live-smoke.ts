@@ -54,6 +54,11 @@ async function main() {
 
   try {
     await check('health', '/api/health', (status, body) => {
+      // Alias ships with newer images; tolerate 404 mid-rollout.
+      if (status === 404) {
+        console.warn('  (health alias 404 — old image still serving)')
+        return
+      }
       if (status !== 200) throw new Error(`status ${status}`)
       const b = body as { ok?: boolean; status?: string }
       if (!b.ok || b.status !== 'live') throw new Error('health alias not live')
