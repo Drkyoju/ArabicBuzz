@@ -65,6 +65,17 @@ npx ngrok http 7420
 
 5. **Google Drive company brain:** set `GOOGLE_DRIVE_BRAIN_FOLDER_ID` (default: [ملفات الجمعية](https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW?usp=sharing)). Connect Google in Settings (includes `drive.readonly`), then **مزامنة المجلد → عقل الشركة**. Enable Drive API in Google Cloud. Sync is HITL-gated via `drive_sync_brain`.
 
+## تعديل الملفات (Word / Excel / PDF / PowerPoint)
+
+مجاني على Netlify بدون مفاتيح:
+
+- **Word/PPT موجود:** `edit_document(replacements)` يحافظ على التنسيق (JSZip OOXML) · قوالب `{tag}` عبر docxtemplater
+- **Excel:** `edit_excel(cells)` عبر exceljs
+- **PDF:** pdf-lib (`pdf_stamp` / دمج / نماذج) + إنشاء عربي
+- **تحويل:** `convert_document` نصّي مجاني؛ أو **CloudConvert** اختياري مدفوع (`CLOUDCONVERT_API_KEY`)
+
+التفاصيل: [`docs/file-edit-engines.md`](docs/file-edit-engines.md).
+
 ## Cua Driver bridge (optional computer / browser use)
 
 Open-source [Cua](https://github.com/trycua/cua) — runs on **your desktop**, not inside Netlify. See [`docs/cua-bridge.md`](docs/cua-bridge.md).

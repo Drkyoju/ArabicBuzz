@@ -50,16 +50,17 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
   لا ترفض طلب تعديل لأن الملف «ليس في Drive» — اعمل على ملف الغرفة أولاً.
 - عند إرفاق ملف أو ذكر fileId أو طلب «عدّل / غيّر / صحّح / استبدل» — نفّذ الأدوات فوراً وأعد نسخة قابلة للتنزيل. ممنوع الاكتفاء بوصف التعديل دون ملف.
 - حلقة العمل الإلزامية للملفات:
-  1) Word/PDF/نص: read_document → edit_document (format=docx|pdf|txt…) → يظهر زر تنزيل. أو return_file إن لم يتغيّر المحتوى.
-  2) Excel (خلايا مع الحفاظ على البنية): read_excel → edit_excel(cells) → تنزيل.
-  3) Excel كامل كجداول جديدة: edit_document(format=xlsx, sheets=…).
-  4) PowerPoint: edit_document(format=pptx, slides=[…]) — إعادة بناء شرائح (عنوان+نقاط). قل بصراحة إن التعديل إعادة بناء نصية وليس تحرير تصميم/صور الشريحة الأصلي.
-  5) صور: edit_image أو generate_image_edit ثم تنزيل في الشات.
-  6) PDF متقدم: pdf_create / pdf_stamp / pdf_merge / pdf_fill_form. تحويل PDF↔Word: convert_document.
-  7) صورة/PDF ممسوح + «اقرأ/ابحث»: arabic_ocr. قرارات طويلة: read_decision_document.
-  8) إنشاء من الصفر: edit_document بدون fileId. إعادة إرسال: return_file. حذف من الغرفة: delete_file.
-  9) Drive اختياري: brain_open_document → عدّل → brain_save_document. تعبئة تدقيق: fill_policy_audit.
-  10) لتيليجرام/بريد: send_file.
+  1) Word موجود: read_document → edit_document(replacements=[{find,replace}]) للحفاظ على التنسيق/الصور، أو templateData لـ {placeholders}. إعادة بناء كاملة فقط عند الحاجة: body/paragraphs.
+  2) PDF/نص: read_document → edit_document (format=pdf|txt…) أو pdf_*. أو return_file إن لم يتغيّر المحتوى.
+  3) Excel (خلايا مع الحفاظ على البنية): read_excel → edit_excel(cells) → تنزيل.
+  4) Excel كامل كجداول جديدة: edit_document(format=xlsx, sheets=…).
+  5) PowerPoint موجود: edit_document(replacements=…) للحفاظ على التصميم؛ أو slides=[…] لإعادة بناء نصية (وضّح ذلك للمستخدم).
+  6) صور: edit_image أو generate_image_edit ثم تنزيل في الشات.
+  7) PDF متقدم: pdf_create / pdf_stamp / pdf_merge / pdf_fill_form. تحويل الصيغ: convert_document (مجاني نصّي؛ CloudConvert اختياري مدفوع للدقة).
+  8) صورة/PDF ممسوح + «اقرأ/ابحث»: arabic_ocr. قرارات طويلة: read_decision_document.
+  9) إنشاء من الصفر: edit_document بدون fileId. إعادة إرسال: return_file. حذف من الغرفة: delete_file.
+  10) Drive اختياري: brain_open_document → عدّل → brain_save_document. تعبئة تدقيق: fill_policy_audit.
+  11) لتيليجرام/بريد: send_file.
 - بحث اللوائح على الويب: web_search ثم web_fetch / ingest_url_to_brain.
 - تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa. متصفح/سطح مكتب عبر Cua: cua_computer عند اتصال CUA_BRIDGE_URL فقط.
 - بريد Google: gmail_search ثم gmail_read. الإرسال: gmail_send (HITL). جداول: sheets_read / sheets_write (الكتابة HITL).
@@ -92,6 +93,12 @@ type ChatBody = {
   enableTools?: boolean
   /** Client-side scope memories for tools + prompt */
   scopeMemory?: string[]
+  /** Files attached from device / preview (not Drive-only). */
+  attachedFiles?: {
+    fileId: string
+    name?: string
+    mimeType?: string
+  }[]
   /** Power / effort: LOW | MEDIUM | HIGH | MAX */
   effort?: string
   effortLevel?: string
@@ -314,12 +321,17 @@ export async function POST(req: Request) {
     const enableTools = body.enableTools !== false
     const effort = parseRunEffort(body.effortLevel || body.effort)
     const effortParams = effortToRunParams(effort)
-    const maxSteps =
+    const baseMaxSteps =
       typeof body.maxSteps === 'number' &&
       Number.isFinite(body.maxSteps) &&
       body.maxSteps > 0
         ? Math.min(16, Math.round(body.maxSteps))
         : effortParams.maxSteps
+    // Extra tool steps when the user attached a file so edit→return can finish.
+    const maxSteps = Math.min(
+      16,
+      baseMaxSteps + (body.attachedFiles?.length ? 3 : 0)
+    )
     const temperature =
       typeof body.temperature === 'number' &&
       Number.isFinite(body.temperature)
@@ -346,7 +358,7 @@ export async function POST(req: Request) {
         temperature,
         ...(hasMessages
           ? { messages: await convertToModelMessages(body.messages!) }
-          : { prompt }),
+          : { prompt: promptWithFiles }),
         ...(tools ? { tools, stopWhen: stepCountIs(maxSteps) } : {}),
         abortSignal: req.signal,
         onFinish: async ({ text }) => {

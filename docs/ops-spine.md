@@ -119,9 +119,11 @@ Do **not** set fake keys on Netlify. Firecrawl MCP auto-connects only when a key
 
 ## G. Integrations status
 
-`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, **Cua bridge** (`cuaBridgeConfigured`, `cuaBridgeOnline`, `cuaStatusAr`), Steel, browser RPA. TokenRouter/Kimi is retired (`tokenrouterAvailable: false`).
+`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`, `cloudConvertStatusAr`), Langfuse/Brave/Firecrawl/CloudConvert booleans, MCP Toolbox, Mac bridge, **Cua bridge** (`cuaBridgeConfigured`, `cuaBridgeOnline`, `cuaStatusAr`), Steel, browser RPA. TokenRouter/Kimi is retired (`tokenrouterAvailable: false`).
 
-UI labels: **مجاني مدمج** vs **اختياري بمفتاح** — search/crawl are ready without Brave/Firecrawl.
+UI labels: **مجاني مدمج** vs **اختياري بمفتاح** / **اختياري مدفوع** — search/crawl/office-edit are ready without Brave/Firecrawl/CloudConvert.
+
+Office edit engines: see [`docs/file-edit-engines.md`](./file-edit-engines.md).
 
 ## H. GitHub MCP (optional)
 
@@ -148,7 +150,7 @@ npm run evals:fetch-arabic-fc   # regenerate vendor subset from HF
 3. **Mac bridge** (`storage:sync` + ngrok/Cloudflare tunnel) + `MAC_SYNC_*` (if needed)
 4. **Cua bridge** (optional): `cua-driver serve` + `npm run cua:bridge` + `CUA_BRIDGE_*` — see `docs/cua-bridge.md`
 5. Optional free signups (no pressure): Langfuse hobby · Brave free tier
-6. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`
+6. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`, `CLOUDCONVERT_API_KEY`
 7. Redeploy Netlify → verify صحة التشغيل — search/crawl should show **مجاني مدمج**
 8. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify). Repo secret `CRON_SECRET` is required; trigger manually via Actions → Cron runner → Run workflow.
 9. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in

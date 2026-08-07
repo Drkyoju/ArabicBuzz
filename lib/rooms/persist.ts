@@ -660,6 +660,86 @@ export async function listCalendarSyncEnabledMembers(): Promise<RoomMember[]> {
   return data.map((r) => mapDbMember(r as Record<string, unknown>))
 }
 
+/**
+ * Distinct rooms the user belongs to (for sidebar sync).
+ * Optional nameAr from notes_ar when prefixed with room_name:.
+ */
+export async function listMyRoomScopes(opts: {
+  userId: string
+  email?: string | null
+}): Promise<{ scopeId: string; nameAr?: string; role?: string }[]> {
+  const email = opts.email?.trim().toLowerCase() || null
+  const sb = getSupabaseAdmin()
+  if (!sb) {
+    const out: { scopeId: string; nameAr?: string; role?: string }[] = []
+    for (const [scopeId, list] of memMembers.entries()) {
+      const hit = list.find(
+        (m) =>
+          (m.userId && m.userId === opts.userId) ||
+          (email && m.email && m.email.toLowerCase() === email)
+      )
+      if (!hit) continue
+      out.push({
+        scopeId,
+        role: hit.role,
+        nameAr: parseRoomNameFromNotes(hit.notesAr),
+      })
+    }
+    return out
+  }
+
+  const rows: Record<string, unknown>[] = []
+  const { data: byUser } = await sb
+    .from('room_members')
+    .select('scope_id, role, notes_ar, email, user_id')
+    .eq('user_id', opts.userId)
+    .limit(200)
+  if (byUser?.length) rows.push(...(byUser as Record<string, unknown>[]))
+  if (email) {
+    const { data: byEmail } = await sb
+      .from('room_members')
+      .select('scope_id, role, notes_ar, email, user_id')
+      .eq('email', email)
+      .limit(200)
+    if (byEmail?.length) rows.push(...(byEmail as Record<string, unknown>[]))
+  }
+  if (!rows.length) return []
+
+  const byScope = new Map<string, { scopeId: string; nameAr?: string; role?: string }>()
+  for (const row of rows) {
+    const scopeId = String(row.scope_id || '')
+    if (!scopeId) continue
+    const nameAr = parseRoomNameFromNotes(
+      typeof row.notes_ar === 'string' ? row.notes_ar : null
+    )
+    const prev = byScope.get(scopeId)
+    if (!prev || row.role === 'owner') {
+      byScope.set(scopeId, {
+        scopeId,
+        role: String(row.role || 'member'),
+        nameAr: nameAr || prev?.nameAr,
+      })
+    } else if (nameAr && !prev.nameAr) {
+      byScope.set(scopeId, { ...prev, nameAr })
+    }
+  }
+  return [...byScope.values()]
+}
+
+function parseRoomNameFromNotes(notes: string | null | undefined): string | undefined {
+  if (!notes) return undefined
+  const m = notes.match(/room_name:([^\n|]+)/)
+  const name = m?.[1]?.trim()
+  return name || undefined
+}
+
+/** Store display name for a room on the owner's membership row. */
+export function roomNameNotes(nameAr: string, extra?: string | null): string {
+  const base = `room_name:${nameAr.trim()}`
+  const rest = extra?.trim()
+  return rest ? `${base}|${rest}` : base
+}
+
 export async function removeRoomMember(opts: {
   scopeId: string
   memberId: string

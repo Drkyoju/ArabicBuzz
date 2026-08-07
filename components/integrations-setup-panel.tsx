@@ -17,6 +17,12 @@ export function IntegrationsSetupPanel() {
   const [cuaOnline, setCuaOnline] = useState<boolean | null>(null)
   const [cuaConfigured, setCuaConfigured] = useState<boolean | null>(null)
   const [cuaStatusAr, setCuaStatusAr] = useState<string | null>(null)
+  const [cloudConvertConfigured, setCloudConvertConfigured] = useState<
+    boolean | null
+  >(null)
+  const [cloudConvertStatusAr, setCloudConvertStatusAr] = useState<string | null>(
+    null
+  )
   const [tg, setTg] = useState<boolean | null>(null)
   const [waStatusAr, setWaStatusAr] = useState<string | null>(null)
   const [waBridge, setWaBridge] = useState(false)
@@ -37,6 +43,12 @@ export function IntegrationsSetupPanel() {
             typeof z.whatsappStatusAr === 'string' ? z.whatsappStatusAr : null
           )
           setWaBridge(Boolean(z.whatsappBridgeConfigured))
+          setCloudConvertConfigured(Boolean(z.cloudConvertConfigured))
+          setCloudConvertStatusAr(
+            typeof z.cloudConvertStatusAr === 'string'
+              ? z.cloudConvertStatusAr
+              : null
+          )
           if (!c) {
             setCuaConfigured(Boolean(z.cuaBridgeConfigured))
             setCuaOnline(Boolean(z.cuaBridgeOnline))
@@ -70,7 +82,7 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua)
+        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua · CloudConvert)
       </h3>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
@@ -245,6 +257,54 @@ export function IntegrationsSetupPanel() {
             </li>
             <li>Redeploy ثم اضغط «فحص» في لوحة خزنة الماك</li>
           </ol>
+        </DevDisclosure>
+      </div>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3">
+        <p className="mb-1 font-semibold text-ab-ink">
+          CloudConvert{' '}
+          <span className="font-normal text-stone-400">
+            ·{' '}
+            {cloudConvertStatusAr ||
+              (cloudConvertConfigured
+                ? 'اختياري مدفوع · مفعّل'
+                : 'اختياري مدفوع')}
+          </span>
+        </p>
+        <p className="mb-1 text-[11px]">
+          اختياري مدفوع — تحويل PDF/Word/Excel/PowerPoint بدقة أعلى. بدون المفتاح
+          يعمل المسار المجاني (تعديل OOXML + إعادة بناء نصية).
+        </p>
+        <DevDisclosure summaryAr="مفتاح CloudConvert (مسؤول)">
+          <ol className="list-decimal space-y-1 pe-4">
+            <li>
+              أنشئ مفتاحاً من{' '}
+              <a
+                href="https://cloudconvert.com/dashboard/api/v2/keys"
+                target="_blank"
+                rel="noreferrer"
+                className="text-ab-accent underline"
+              >
+                cloudconvert.com/dashboard
+              </a>
+            </li>
+            <li>
+              Netlify:{' '}
+              <code dir="ltr">CLOUDCONVERT_API_KEY</code> ثم Redeploy
+            </li>
+            <li>
+              الأداة:{' '}
+              <code dir="ltr">convert_document</code> تستخدمه تلقائياً عند
+              التوفر؛ التعديل الموضعي لـ Word/PPT يعمل مجاناً عبر{' '}
+              <code dir="ltr">edit_document(replacements)</code>
+            </li>
+          </ol>
+          <p className="mt-2 text-[11px] text-stone-500">
+            دليل:{' '}
+            <span dir="ltr" className="font-mono">
+              docs/file-edit-engines.md
+            </span>
+          </p>
         </DevDisclosure>
       </div>
 

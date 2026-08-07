@@ -3,6 +3,7 @@ import {
   buildDocumentBuffer,
   ensureFilename,
   inferFormatFromName,
+  mimeForFormat,
   type DocFormat,
   type SheetSpec,
   type SlideSpec,
@@ -14,6 +15,11 @@ import {
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
 import { nextVersionFileName } from '@/lib/documents/versions'
+import {
+  fillOfficeTemplate,
+  patchOfficeOpenXml,
+  type TextReplacement,
+} from '@/lib/documents/office-patch'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
 
@@ -60,6 +66,27 @@ function asSlides(v: unknown): SlideSpec[] | undefined {
   })
 }
 
+function asReplacements(v: unknown): TextReplacement[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out: TextReplacement[] = []
+  for (const raw of v) {
+    const r = (raw || {}) as Record<string, unknown>
+    const find = String(r.find ?? r.from ?? r.search ?? '')
+    if (!find) continue
+    out.push({
+      find,
+      replace: String(r.replace ?? r.to ?? r.with ?? ''),
+      all: r.all === undefined ? true : Boolean(r.all),
+    })
+  }
+  return out.length ? out : undefined
+}
+
+function asTemplateData(v: unknown): Record<string, unknown> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  return v as Record<string, unknown>
+}
+
 export async function executeListWorkspaceFiles(
   _name: string,
   params: Record<string, unknown>
@@ -80,8 +107,8 @@ export async function executeListWorkspaceFiles(
     })),
     messageAr:
       files.length === 0
-        ? 'لا ملفات في هذه المساحة بعد. ارفع Word/Excel/PowerPoint من قسم «ملفات».'
-        : `عُثر على ${files.length} ملفاً — استخدم read_document ثم edit_document.`,
+        ? 'لا ملفات في هذه المساحة بعد. ارفع من جهازك (Word/Excel/PDF/صور) عبر 📎 في الشات — لا يلزم Drive.'
+        : `عُثر على ${files.length} ملفاً في الغرفة — استخدم read_document ثم edit_document / edit_excel، أو return_file للتنزيل.`,
   }
 }
 
@@ -217,42 +244,91 @@ export async function executeEditDocument(
   const paragraphs = asStringArray(params.paragraphs)
   const sheets = asSheets(params.sheets)
   const slides = asSlides(params.slides)
+  const replacements = asReplacements(
+    params.replacements || params.findReplace || params.patches
+  )
+  const templateData = asTemplateData(
+    params.templateData || params.data || params.placeholders
+  )
   const title =
     params.title != null ? String(params.title) : undefined
 
-  if (
-    !body &&
-    !paragraphs?.length &&
-    !sheets?.length &&
-    !slides?.length
-  ) {
+  const hasRebuildContent = Boolean(
+    body || paragraphs?.length || sheets?.length || slides?.length
+  )
+  const hasInPlace =
+    Boolean(replacements?.length || templateData) && Boolean(sourceFound)
+
+  if (!hasRebuildContent && !hasInPlace) {
     throw new Error(
-      'مرّر المحتوى المعدّل: body أو paragraphs (Word/نص)، sheets (Excel)، أو slides (PowerPoint).'
+      'مرّر المحتوى المعدّل: body/paragraphs (Word/نص)، sheets (Excel)، slides (PowerPoint)، أو replacements/templateData مع fileId لتعديل OOXML مع الحفاظ على التنسيق.'
     )
   }
 
   const filename = ensureFilename(
-    outputName || title || `ملف-معدّل.${format}`,
+    outputName || title || sourceFound?.originalName || `ملف-معدّل.${format}`,
     format
   )
 
-  const built = await buildDocumentBuffer({
-    format,
-    title,
-    body,
-    paragraphs,
-    sheets,
-    slides,
-  })
+  let outBuffer: Buffer
+  let outMime: string
+  let editMode: 'rebuild' | 'replace' | 'template' = 'rebuild'
+  let patchMeta: Record<string, unknown> | undefined
+
+  if (hasInPlace && sourceFound && (format === 'docx' || format === 'pptx')) {
+    const hit = await readWorkspaceFile(scopeId, sourceFound.id)
+    if (templateData) {
+      outBuffer = await fillOfficeTemplate({
+        buffer: hit.buffer,
+        format,
+        data: templateData,
+      })
+      outMime = mimeForFormat(format)
+      editMode = 'template'
+      patchMeta = { keys: Object.keys(templateData) }
+    } else if (replacements?.length) {
+      const patched = await patchOfficeOpenXml({
+        buffer: hit.buffer,
+        format,
+        replacements,
+      })
+      outBuffer = patched.buffer
+      outMime = mimeForFormat(format)
+      editMode = 'replace'
+      patchMeta = {
+        totalReplacements: patched.totalReplacements,
+        partsTouched: patched.partsTouched,
+      }
+    } else {
+      throw new Error('تعذّر التعديل الموضعي.')
+    }
+  } else {
+    if (!hasRebuildContent) {
+      throw new Error(
+        'التعديل الموضعي (replacements/templateData) يعمل على docx/pptx مع fileId. لـ PDF استخدم pdf_* أو body؛ لـ Excel استخدم edit_excel.'
+      )
+    }
+    const built = await buildDocumentBuffer({
+      format,
+      title,
+      body,
+      paragraphs,
+      sheets,
+      slides,
+    })
+    outBuffer = built.buffer
+    outMime = built.mimeType
+    editMode = 'rebuild'
+  }
 
   const replaceId =
     replaceSource && sourceFound ? sourceFound.id : undefined
 
   const saved = await saveWorkspaceFile({
     scopeId,
-    buffer: built.buffer,
+    buffer: outBuffer,
     originalName: filename,
-    mimeType: built.mimeType,
+    mimeType: outMime,
     replaceId,
   })
 
@@ -277,6 +353,13 @@ export async function executeEditDocument(
 
   const downloadPath = `/api/storage/file?id=${encodeURIComponent(saved.file.id)}&scopeId=${encodeURIComponent(scopeId)}`
 
+  const modeAr =
+    editMode === 'replace'
+      ? 'استبدال نصّي مع الحفاظ على التنسيق (OOXML)'
+      : editMode === 'template'
+        ? 'تعبئة قالب {placeholders} عبر docxtemplater'
+        : 'إعادة بناء من المحتوى'
+
   return {
     ok: true,
     fileId: saved.file.id,
@@ -287,6 +370,8 @@ export async function executeEditDocument(
     source: saved.source,
     replaced: Boolean(replaceId),
     versionTag,
+    editMode,
+    patchMeta,
     downloadPath,
     downloadUrl: downloadPath,
     attachments: [
@@ -299,10 +384,10 @@ export async function executeEditDocument(
       },
     ],
     messageAr: replaceId
-      ? `تم استبدال الملف «${saved.file.originalName}». يمكن تنزيله من قسم الملفات أو من رابط التحميل في الرد.`
+      ? `تم استبدال الملف «${saved.file.originalName}» (${modeAr}). يمكن تنزيله من قسم الملفات أو من رابط التحميل في الرد.`
       : versionTag
-        ? `حُفظت نسخة ${versionTag}: «${saved.file.originalName}». الأصل لم يُمس.`
-        : `تم حفظ النسخة المعدّلة «${saved.file.originalName}». أخبر المستخدم أنه يستطيع تنزيلها الآن.`,
+        ? `حُفظت نسخة ${versionTag}: «${saved.file.originalName}» (${modeAr}). الأصل لم يُمس.`
+        : `تم حفظ النسخة المعدّلة «${saved.file.originalName}» (${modeAr}). أخبر المستخدم أنه يستطيع تنزيلها الآن.`,
   }
 }
 

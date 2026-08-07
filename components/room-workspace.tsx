@@ -21,7 +21,10 @@ import {
   hydrateScopeMemories,
   useWorkspaceStore,
 } from '@/lib/scopes/workspace-store'
-import { LocalUploadPanel } from '@/components/local-upload-panel'
+import {
+  LocalUploadPanel,
+  type UploadedRoomFile,
+} from '@/components/local-upload-panel'
 import { RoomPresenceBar, broadcastRoomEdit } from '@/components/room-presence'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
 import { AgentSeatsPanel } from '@/components/agent-seats-panel'
@@ -171,6 +174,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
+  /** Files attached from device / preview for the next agent turn. */
+  const [composerFiles, setComposerFiles] = useState<UploadedRoomFile[]>([])
   const [mentionMembers, setMentionMembers] = useState<MentionableMember[]>([])
   const [mentionMenu, setMentionMenu] = useState<
     Array<{ kind: 'agent' | 'member'; labelAr: string; insert: string }>
@@ -179,6 +184,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const runAbortRef = useRef<AbortController | null>(null)
+
+  function attachComposerFile(file: UploadedRoomFile) {
+    setComposerFiles((prev) => {
+      if (prev.some((f) => f.fileId === file.fileId)) return prev
+      return [...prev, file]
+    })
+  }
+
+  function detachComposerFile(fileId: string) {
+    setComposerFiles((prev) => prev.filter((f) => f.fileId !== fileId))
+  }
   const signedIn = useSignedIn()
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const isGuest = signedIn === false
@@ -284,10 +300,62 @@ export function RoomWorkspace({ className }: { className?: string }) {
       setDisplayName(String(name))
     })
     hydrateScopeMemories()
+    // Restore active scope after hydrate (custom rooms may now be known)
+    try {
+      const scope = localStorage.getItem('ab-active-scope')
+      if (scope) {
+        const known = useWorkspaceStore.getState().scopes.some((s) => s.id === scope)
+        if (known) setActiveScopeId(scope)
+      }
+    } catch {
+      /* ignore */
+    }
     return () => {
       cancelled = true
     }
   }, [setActiveScopeId])
+
+  // Sync membership rooms into sidebar (association / invites survive reload)
+  useEffect(() => {
+    if (signedIn !== true) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/rooms/mine', {
+          headers: await authHeaders(),
+        })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          rooms?: { scopeId: string; nameAr?: string; kind?: 'personal' | 'shared' }[]
+        }
+        if (data.rooms?.length) {
+          useWorkspaceStore.getState().syncRemoteRooms(data.rooms)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [signedIn])
+
+  // When preview opens from files panel, attach that file for the next send
+  useEffect(() => {
+    function onPreview(e: Event) {
+      const detail = (e as CustomEvent<UploadedRoomFile>).detail
+      if (!detail?.fileId) return
+      if (detail.scopeId && detail.scopeId !== activeScopeId) return
+      attachComposerFile({
+        fileId: detail.fileId,
+        name: detail.name || detail.fileId,
+        mimeType: detail.mimeType,
+        scopeId: detail.scopeId || activeScopeId,
+      })
+    }
+    window.addEventListener('ab-file-preview', onPreview)
+    return () => window.removeEventListener('ab-file-preview', onPreview)
+  }, [activeScopeId])
 
   useEffect(() => {
     if (signedIn !== true) {
@@ -311,6 +379,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   useEffect(() => {
     setInput('')
     setOutboundMsg('')
+    setComposerFiles([])
     // Canvas store is global — hide cross-room artifacts when switching desks
     useCanvasStore.setState({ artifacts: [], activeId: null })
   }, [activeScopeId])
@@ -545,6 +614,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     postId: string
     headers: HeadersInit
     signal?: AbortSignal
+    attachedFiles?: UploadedRoomFile[]
   }): Promise<string> {
     if (opts.signal?.aborted) {
       updatePost(activeScopeId, opts.postId, {
@@ -585,6 +655,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
           scopeMemory: useWorkspaceStore
             .getState()
             .memoriesForScope(activeScopeId),
+          attachedFiles: (opts.attachedFiles || []).map((f) => ({
+            fileId: f.fileId,
+            name: f.name,
+            mimeType: f.mimeType,
+          })),
         }),
       })
     } catch (e) {
@@ -813,8 +888,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }
 
   async function sendPrompt(overridePrompt?: string) {
-    const prompt = (overridePrompt ?? input).trim()
-    if (!prompt || streaming) return
+    const filesForSend = [...composerFiles]
+    const typed = (overridePrompt ?? input).trim()
+    const prompt =
+      typed ||
+      (filesForSend.length
+        ? `عدّل الملف المرفق «${filesForSend[0].name}» وفق طلب العمل وأعد نسخة قابلة للتنزيل في الشات.`
+        : '')
+    if ((!prompt && !filesForSend.length) || streaming) return
     if (isGuest) {
       // Keep the text so nothing the user typed disappears silently.
       setSendBlockedAr(
@@ -824,6 +905,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     }
     setSendBlockedAr('')
     setInput('')
+    setComposerFiles([])
 
     const headers = await authHeaders({
       'Content-Type': 'application/json',
@@ -865,6 +947,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     const cleanPrompt = handoff.cleanPrompt || prompt
     const humanId = `h-${Date.now()}`
+    const fileNote =
+      filesForSend.length > 0
+        ? `\n\n📎 مرفق للتعديل: ${filesForSend
+            .map((f) => `«${f.name}» (id:${f.fileId})`)
+            .join(' · ')}`
+        : ''
+    const humanContent = `${prompt}${fileNote}`
 
     const savedHuman = await fetch('/api/rooms/posts', {
       method: 'POST',
@@ -872,7 +961,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       body: JSON.stringify({
         id: humanId,
         scopeId: activeScopeId,
-        content: prompt,
+        content: humanContent,
         authorNameAr: displayName,
         mentionAgentId: runTeam ? undefined : agentsToRun[0]?.id,
       }),
@@ -884,7 +973,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         code?: string
       }
       if (savedHuman.status === 401 || failure.code === 'AUTH_REQUIRED') {
-        setInput(prompt)
+        setInput(typed)
+        setComposerFiles(filesForSend)
         setSendBlockedAr(
           'سجّل الدخول للإرسال — لم تُحفظ الرسالة في الغرفة.'
         )
@@ -901,8 +991,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
       authorKind: 'human',
       authorId: 'me',
       authorNameAr: displayName,
-      content: prompt,
+      content: humanContent,
       createdAt: Date.now(),
+      attachments: filesForSend.map((f) => ({
+        fileId: f.fileId,
+        name: f.name,
+        mimeType: f.mimeType,
+        scopeId: f.scopeId,
+      })),
     })
 
     void broadcastRoomEdit(activeScopeId, {
@@ -957,6 +1053,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           postId,
           headers,
           signal: abort.signal,
+          attachedFiles: filesForSend,
         })
         if (abort.signal.aborted) break
         if (runTeam) {
@@ -1569,6 +1666,31 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </button>
               </div>
             )}
+            {composerFiles.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap gap-1.5" dir="rtl">
+                {composerFiles.map((f) => (
+                  <span
+                    key={f.fileId}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-ab-accent/30 bg-ab-accent/5 px-2 py-0.5 text-[10px] text-ab-ink"
+                  >
+                    <span className="truncate" title={f.name}>
+                      📎 {f.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-stone-400 hover:text-ab-warn"
+                      aria-label="إزالة المرفق"
+                      onClick={() => detachComposerFile(f.fileId)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <span className="self-center text-[10px] text-stone-500">
+                  اكتب طلب التعديل ثم أرسل — النتيجة زر تنزيل
+                </span>
+              </div>
+            )}
             <form
               className="flex items-end gap-1.5"
               onSubmit={(e) => {
@@ -1577,7 +1699,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
               }}
               onFocusCapture={() => setPresenceSurface('composer')}
             >
-              <LocalUploadPanel scopeId={activeScopeId} compact />
+              <LocalUploadPanel
+                scopeId={activeScopeId}
+                compact
+                onFileReady={attachComposerFile}
+              />
               <ComposerMicButton
                 disabled={streaming || isGuest}
                 composerValue={input}
@@ -1630,13 +1756,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 placeholder={
                   isGuest
                     ? 'سجّل الدخول للإرسال…'
-                    : collabMode === 'team'
-                      ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
-                      : shared
-                        ? 'اكتب أو تكلم بالميك… @وكيل أو @عضو'
-                        : activeScopeId === 'personal-research'
-                          ? 'اكتب أو تكلم بالميك… جرّب @research'
-                          : 'اكتب أو تكلم بالميك…'
+                    : composerFiles.length
+                      ? 'اكتب ماذا تريد تعديله في الملف المرفق…'
+                      : collabMode === 'team'
+                        ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
+                        : shared
+                          ? 'ارفع 📎 من جهازك أو اكتب… @وكيل'
+                          : activeScopeId === 'personal-research'
+                            ? 'ارفع ملفاً أو اكتب… جرّب @research'
+                            : 'ارفع 📎 من جهازك أو اكتب…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
@@ -1652,7 +1780,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               ) : (
                 <button
                   type="submit"
-                  disabled={!input.trim() || isGuest}
+                  disabled={(!input.trim() && !composerFiles.length) || isGuest}
                   title={isGuest ? 'سجّل الدخول للإرسال' : undefined}
                   className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
                 >

@@ -10,6 +10,7 @@ import {
 } from '@/lib/audio/browser-record'
 import { authHeaders } from '@/lib/supabase/browser'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
+import { pickDeviceFile } from '@/lib/files/pick-device-file'
 import { cn } from '@/lib/utils'
 
 type StoredFile = {
@@ -20,19 +21,29 @@ type StoredFile = {
   createdAt: string
 }
 
+export type UploadedRoomFile = {
+  fileId: string
+  name: string
+  mimeType?: string
+  scopeId: string
+}
+
 /**
  * Compact attach / Mac-save / brain toolbar for the session composer.
+ * Primary path: upload from the user's device into room storage (Drive optional).
  */
 export function LocalUploadPanel({
   scopeId,
   onUploaded,
+  onFileReady,
   compact,
 }: {
   scopeId: string
   onUploaded?: () => void
+  /** Fired when a file is saved to the room vault — attach to chat for the agent. */
+  onFileReady?: (file: UploadedRoomFile) => void
   compact?: boolean
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
   const mediaRef = useRef<ActiveRecording | null>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -92,6 +103,27 @@ export function LocalUploadPanel({
     }
   }, [])
 
+  function notifyReady(meta: {
+    id?: string
+    originalName?: string
+    mimeType?: string
+  }, fallbackName: string, fallbackMime: string) {
+    if (!meta.id) return
+    const payload: UploadedRoomFile = {
+      fileId: meta.id,
+      name: meta.originalName || fallbackName,
+      mimeType: meta.mimeType || fallbackMime,
+      scopeId,
+    }
+    onFileReady?.(payload)
+    openFilePreviewInChat({
+      fileId: payload.fileId,
+      scopeId,
+      name: payload.name,
+      mimeType: payload.mimeType,
+    })
+  }
+
   async function uploadDirectToMac(
     file: File,
     direct: {
@@ -119,7 +151,7 @@ export function LocalUploadPanel({
       ok?: boolean
       error?: string
       messageAr?: string
-      file?: { id?: string }
+      file?: { id?: string; originalName?: string; mimeType?: string }
     }
     if (!res.ok || !data.ok) {
       throw new Error(data.error || 'فشل الرفع المباشر للماك')
@@ -137,7 +169,6 @@ export function LocalUploadPanel({
           ? file
           : new File([file], filename, { type: file.type })
 
-      // Probe status for direct-upload threshold / URL
       const statusRes = await fetch('/api/storage/upload?status=1', {
         headers: await authHeaders(),
       })
@@ -166,6 +197,11 @@ export function LocalUploadPanel({
           sensitiveMacOnly
             ? data.messageAr || 'حُفظ على الماك فقط (حساس)'
             : data.messageAr || 'حُفظ مباشرة على الماك'
+        )
+        notifyReady(
+          data.file || {},
+          asFile.name,
+          asFile.type || 'application/octet-stream'
         )
         await refresh()
         onUploaded?.()
@@ -212,6 +248,11 @@ export function LocalUploadPanel({
         const direct = await uploadDirectToMac(asFile, data.directUpload)
         setProgress(100)
         setMessage(direct.messageAr || 'حُفظ مباشرة على الماك')
+        notifyReady(
+          direct.file || {},
+          asFile.name,
+          asFile.type || 'application/octet-stream'
+        )
         await refresh()
         onUploaded?.()
         return
@@ -221,27 +262,34 @@ export function LocalUploadPanel({
         return
       }
       setProgress(100)
-      const via =
-        status.macSyncConfigured
-          ? 'عبر وكيل الماك إن وُجد'
-          : 'تخزين سحابي (حد أقصى لحجم الملف على الاستضافة)'
-      setMessage(`${data.messageAr || 'تم الحفظ'} · ${via}`)
+      setMessage(
+        `${data.messageAr || 'تم الحفظ في الغرفة'} · جاهز لتعديل الوكيل (بلا Drive)`
+      )
+      notifyReady(
+        data.file || {},
+        asFile.name,
+        asFile.type || 'application/octet-stream'
+      )
       await refresh()
       onUploaded?.()
-      if (data.file?.id) {
-        openFilePreviewInChat({
-          fileId: data.file.id,
-          scopeId,
-          name: data.file.originalName || asFile.name,
-          mimeType: data.file.mimeType || asFile.type,
-        })
-      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'خطأ في الرفع')
     } finally {
       setBusy(false)
       setTimeout(() => setProgress(null), 800)
     }
+  }
+
+  async function pickAndUpload() {
+    setMessage(
+      'اختر ملفاً من جهازك — المتصفح يطلب إذن الاختيار فقط (وليس قرصاً كاملاً).'
+    )
+    const picked = await pickDeviceFile()
+    if (!picked) {
+      setMessage('')
+      return
+    }
+    await uploadBlob(picked.file, picked.file.name)
   }
 
   async function ingestToBrain(fileId?: string, file?: File) {
@@ -327,26 +375,30 @@ export function LocalUploadPanel({
           disabled={busy}
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
-          aria-label="تحميل ملفات"
-          title="تحميل ملفات"
+          aria-label="ارفع من جهازك"
+          title="ارفع من جهازك — Word / Excel / PDF / صور"
         >
           <Paperclip className="h-4 w-4" />
         </button>
         {open && (
-          <div className="absolute bottom-full end-0 z-20 mb-2 w-64 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
+          <div className="absolute bottom-full end-0 z-20 mb-2 w-72 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
+            <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-500">
+              ارفع من جهازك إلى الغرفة — لا يلزم Google Drive. الوكيل يعدّل ويرجع
+              تنزيلاً في الشات.
+            </p>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1.5 text-[11px]"
+                onClick={() => void pickAndUpload()}
+                className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-[11px] font-semibold text-ab-accent"
               >
                 <FileUp className="h-3 w-3" />
-                تحميل ملفات
+                ارفع من جهازك
               </button>
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-[11px] text-ab-accent">
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-border px-2 py-1.5 text-[11px] text-stone-600">
                 <Brain className="h-3 w-3" />
-                عقل الشركة
+                عقل (اختياري)
                 <input
                   type="file"
                   accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
@@ -407,7 +459,26 @@ export function LocalUploadPanel({
               <ul className="mt-1.5 max-h-20 space-y-0.5 overflow-y-auto text-[10px] text-stone-600">
                 {files.slice(0, 5).map((f) => (
                   <li key={f.id} className="flex justify-between gap-2">
-                    <span className="truncate">{f.originalName}</span>
+                    <button
+                      type="button"
+                      className="truncate text-start hover:text-ab-accent hover:underline"
+                      title="إرفاق للشات وتعديل الوكيل"
+                      onClick={() => {
+                        onFileReady?.({
+                          fileId: f.id,
+                          name: f.originalName,
+                          scopeId,
+                        })
+                        openFilePreviewInChat({
+                          fileId: f.id,
+                          scopeId,
+                          name: f.originalName,
+                        })
+                        setOpen(false)
+                      }}
+                    >
+                      {f.originalName}
+                    </button>
                     {(f.kind === 'pdf' ||
                       f.kind === 'doc' ||
                       f.kind === 'pptx' ||
@@ -426,17 +497,6 @@ export function LocalUploadPanel({
                 ))}
               </ul>
             )}
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".pdf,application/pdf,image/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,*/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void uploadBlob(f, f.name)
-                e.target.value = ''
-              }}
-            />
           </div>
         )}
       </div>
@@ -448,19 +508,25 @@ export function LocalUploadPanel({
       className="rounded-md border border-dashed border-ab-border bg-stone-50 p-2"
       dir="rtl"
     >
+      <p className="mb-2 text-[11px] leading-relaxed text-stone-600">
+        <span className="font-semibold text-ab-ink">ارفع من جهازك</span>
+        {' — '}
+        Word / Excel / PDF / صور (وPowerPoint بإعادة بناء نصية). يُحفظ في الغرفة
+        ويعدّله الوكيل — Google Drive اختياري للمزامنة فقط.
+      </p>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={busy}
-          onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs disabled:opacity-40"
+          onClick={() => void pickAndUpload()}
+          className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/10 px-2 py-1.5 text-xs font-semibold text-ab-accent disabled:opacity-40"
         >
           <FileUp className="h-3.5 w-3.5" />
-          تحميل ملفات
+          ارفع من جهازك
         </button>
-        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-xs text-ab-accent">
+        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs text-stone-600">
           <Brain className="h-3.5 w-3.5" />
-          إلى عقل الشركة
+          إلى عقل الشركة (اختياري)
           <input
             type="file"
             accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
@@ -506,17 +572,6 @@ export function LocalUploadPanel({
               : 'تسجيل ملف صوتي'}
         </button>
       </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".pdf,application/pdf,image/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,*/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) void uploadBlob(f, f.name)
-          e.target.value = ''
-        }}
-      />
       {progress != null && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
           <div

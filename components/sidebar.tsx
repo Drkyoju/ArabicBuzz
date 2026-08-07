@@ -25,7 +25,10 @@ import {
 import { AirGapBadge } from '@/components/airgap-badge'
 import { SdaiaBadge } from '@/components/sdaia-badge'
 import { RoleBadge } from '@/components/role-badge'
-import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import {
+  hydrateScopeMemories,
+  useWorkspaceStore,
+} from '@/lib/scopes/workspace-store'
 import {
   isEmployeeSection,
   useWorkspaceModeStore,
@@ -123,6 +126,38 @@ function SidebarBody({
   const roleResolved = useWorkspaceModeStore((s) => s.roleResolved)
   const signedIn = useSignedIn()
   const roleReady = signedIn === false || (signedIn === true && roleResolved)
+
+  useEffect(() => {
+    hydrateScopeMemories()
+  }, [])
+
+  useEffect(() => {
+    if (signedIn !== true) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/rooms/mine', {
+          headers: await authHeaders(),
+        })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as {
+          rooms?: {
+            scopeId: string
+            nameAr?: string
+            kind?: 'personal' | 'shared'
+          }[]
+        }
+        if (data.rooms?.length) {
+          useWorkspaceStore.getState().syncRemoteRooms(data.rooms)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [signedIn])
 
   useEffect(() => {
     let cancelled = false
@@ -432,6 +467,11 @@ function SidebarBody({
           مساحاتي
         </p>
         <ul className="mb-3 space-y-0.5">
+          {personal.length === 0 && (
+            <li className="px-2.5 py-1.5 text-[11px] text-stone-400">
+              لا جلسات بعد — اضغط «جلسة جديدة» أعلاه.
+            </li>
+          )}
           {personal.map((scope) => {
             const active =
               activeSection === 'chats' && activeScopeId === scope.id
@@ -484,22 +524,26 @@ function SidebarBody({
                     >
                       إعادة تسمية
                     </button>
-                    <button
-                      type="button"
-                      className="block w-full rounded px-2 py-1.5 text-right text-[11px] text-ab-warn hover:bg-stone-50"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `أرشفة الجلسة «${scope.nameAr}»؟ يمكنك استعادتها لاحقاً من الإعدادات إن لزم.`
-                          )
-                        ) {
-                          archiveScope(scope.id, true)
-                        }
-                        setMenuId(null)
-                      }}
-                    >
-                      أرشفة
-                    </button>
+                    {!['personal-demo', 'personal-research'].includes(
+                      scope.id
+                    ) && (
+                      <button
+                        type="button"
+                        className="block w-full rounded px-2 py-1.5 text-right text-[11px] text-ab-warn hover:bg-stone-50"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `أرشفة الجلسة «${scope.nameAr}»؟ يمكنك استعادتها لاحقاً من الإعدادات إن لزم.`
+                            )
+                          ) {
+                            archiveScope(scope.id, true)
+                          }
+                          setMenuId(null)
+                        }}
+                      >
+                        أرشفة
+                      </button>
+                    )}
                   </div>
                 )}
               </li>
@@ -512,6 +556,11 @@ function SidebarBody({
           مساحات مشتركة
         </p>
         <ul className="space-y-0.5">
+          {shared.length === 0 && (
+            <li className="px-2.5 py-1.5 text-[11px] text-stone-400">
+              غرف الفريق والجمعية تظهر هنا بعد الإنشاء أو الدعوة.
+            </li>
+          )}
           {shared.map((scope) => {
             const active =
               activeSection === 'chats' && activeScopeId === scope.id

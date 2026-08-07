@@ -19,6 +19,10 @@ import {
 } from '@/lib/whatsapp/bridge'
 import { buildArabicQualitySignal } from '@/lib/evals/arabic-quality-signal'
 import { isHitlDisabled } from '@/lib/security/posture'
+import {
+  cloudConvertConfigured,
+  cloudConvertStatusAr,
+} from '@/lib/documents/cloudconvert'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,9 +135,13 @@ export async function GET() {
     langfuseConfigured: isLangfuseConfigured(),
     braveConfigured: Boolean(process.env.BRAVE_API_KEY?.trim()),
     firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY?.trim()),
+    cloudConvertConfigured: cloudConvertConfigured(),
+    cloudConvertStatusAr: cloudConvertStatusAr(),
     /** Free built-in paths work without Brave / Firecrawl keys. */
     webSearchFreePath: true,
     webCrawlFreePath: true,
+    /** Free Office edit path always works; CloudConvert is optional paid fidelity. */
+    officeEditFreePath: true,
     /** Director-facing Arabic labels — not red “broken” when free path works. */
     braveStatusAr: process.env.BRAVE_API_KEY?.trim()
       ? 'اختياري بمفتاح · مفعّل'

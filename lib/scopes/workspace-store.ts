@@ -6,7 +6,9 @@ import {
   isPersonalScope,
   isSharedScope,
 } from '@/lib/scopes/manager'
-import type { RoomPost, Scope } from '@/lib/scopes/types'
+import type { RoomPost, Scope, SharedScope } from '@/lib/scopes/types'
+
+const SCOPES_STORAGE_KEY = 'ab-scopes-v1'
 
 function seedPosts(): Record<string, RoomPost[]> {
   return {
@@ -15,6 +17,106 @@ function seedPosts(): Record<string, RoomPost[]> {
     'shared-demo': [],
     'shared-ops': [],
   }
+}
+
+function isDemoScopeId(id: string): boolean {
+  return DEMO_SCOPES.some((d) => d.id === id)
+}
+
+/** Demo scopes always present; custom rooms merged on top; demos never stay archived. */
+export function mergeScopesWithDemos(custom: Scope[]): Scope[] {
+  const byId = new Map<string, Scope>()
+  for (const d of DEMO_SCOPES) {
+    byId.set(d.id, { ...d, archived: false })
+  }
+  for (const c of custom) {
+    if (!c?.id) continue
+    if (isDemoScopeId(c.id)) {
+      const demo = byId.get(c.id)!
+      byId.set(c.id, {
+        ...demo,
+        nameAr: c.nameAr?.trim() || demo.nameAr,
+        archived: false,
+      })
+      continue
+    }
+    byId.set(c.id, c)
+  }
+  const demos = DEMO_SCOPES.map((d) => byId.get(d.id)!)
+  const customs = [...byId.values()].filter((s) => !isDemoScopeId(s.id))
+  return [...demos, ...customs]
+}
+
+function persistScopes(scopes: Scope[]) {
+  try {
+    const custom = scopes.filter((s) => !isDemoScopeId(s.id))
+    const demoRenames = scopes
+      .filter((s) => isDemoScopeId(s.id))
+      .map((s) => ({ id: s.id, nameAr: s.nameAr }))
+    localStorage.setItem(
+      SCOPES_STORAGE_KEY,
+      JSON.stringify({ custom, demoRenames, v: 1 })
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadPersistedScopes(): Scope[] {
+  try {
+    const raw = localStorage.getItem(SCOPES_STORAGE_KEY)
+    if (!raw) return DEMO_SCOPES
+    const parsed = JSON.parse(raw) as {
+      custom?: Scope[]
+      demoRenames?: { id: string; nameAr: string }[]
+    }
+    let merged = mergeScopesWithDemos(
+      Array.isArray(parsed.custom) ? parsed.custom : []
+    )
+    if (Array.isArray(parsed.demoRenames)) {
+      merged = merged.map((s) => {
+        const r = parsed.demoRenames!.find((x) => x.id === s.id)
+        return r?.nameAr?.trim() ? { ...s, nameAr: r.nameAr.trim() } : s
+      })
+    }
+    return merged
+  } catch {
+    return DEMO_SCOPES
+  }
+}
+
+function stubSharedRoom(opts: {
+  id: string
+  nameAr?: string
+  descriptionAr?: string
+}): SharedScope {
+  return {
+    id: opts.id,
+    nameAr: opts.nameAr?.trim() || guessRoomName(opts.id),
+    descriptionAr:
+      opts.descriptionAr ||
+      'غرفة مشتركة — ملفات ومحادثة من أي جهاز بعد تسجيل الدخول.',
+    members: ['user-1'],
+    memberLabelsAr: [],
+    agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],
+    sharedMemory: [
+      'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
+      'ارفع الملفات من جهازك — لا يلزم Google Drive للتعديل.',
+    ],
+    skills: [
+      'arabic_report_generator',
+      'zatca_e_invoicing_checker',
+      'cron_digest',
+      'channel_notify',
+    ],
+  }
+}
+
+function guessRoomName(scopeId: string): string {
+  if (scopeId.startsWith('assoc-')) return 'غرفة الجمعية'
+  if (scopeId.startsWith('personal-')) return 'جلسة شخصية'
+  if (scopeId.startsWith('shared-')) return 'غرفة مشتركة'
+  return `غرفة ${scopeId.slice(0, 14)}`
 }
 
 type WorkspaceState = {
@@ -34,6 +136,12 @@ type WorkspaceState = {
   createPersonalDesk: (opts?: { nameAr?: string }) => string
   /** One-click association room (مجلس / لجان / موظفين) from template. */
   createAssociationRoom: (opts?: { nameAr?: string }) => string
+  /** Ensure a scope exists in the sidebar (invite / server sync). */
+  upsertScope: (scope: Scope) => void
+  /** Merge server membership rooms into the sidebar. */
+  syncRemoteRooms: (
+    rooms: { scopeId: string; nameAr?: string; kind?: 'personal' | 'shared' }[]
+  ) => void
   renameScope: (id: string, nameAr: string) => void
   archiveScope: (id: string, archived?: boolean) => void
   addMemory: (scopeId: string, text: string) => boolean
@@ -104,7 +212,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           },
         }
       }
-      // de-dupe near-identical agent content within 2s
       const dup = list.find(
         (p) =>
           p.authorKind === post.authorKind &&
@@ -122,8 +229,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   createPersonalDesk: (opts) => {
     const n =
-      get().scopes.filter((s) => 'userId' in s && s.id.startsWith('personal-')).length +
-      1
+      get().scopes.filter((s) => 'userId' in s && s.id.startsWith('personal-'))
+        .length + 1
     const id = `personal-${Date.now().toString(36)}`
     const nameAr = opts?.nameAr?.trim() || `جلسة ${n}`
     const scope: Scope = {
@@ -134,27 +241,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       keychain: {},
       privateMemory: [
         'مساحة شخصية جديدة أنشأها المستخدم من «جلسة جديدة».',
+        'ارفع ملفاً من جهازك واطلب التعديل — لا يلزم Drive.',
       ],
     }
-    set((state) => ({
-      scopes: [scope, ...state.scopes],
-      activeScopeId: id,
-      postsByScope: {
-        ...state.postsByScope,
-        [id]: [
-          {
-            id: `welcome-${id}`,
-            scopeId: id,
-            authorKind: 'agent',
-            authorId: 'agent-desk',
-            authorNameAr: 'الوكيل الشخصي',
-            content:
-              'جلسة جديدة جاهزة. اكتب مهمتك أو تكلم بالميكروفون — هذه المساحة خاصة بك.',
-            createdAt: Date.now(),
-          },
-        ],
-      },
-    }))
+    set((state) => {
+      const scopes = mergeScopesWithDemos([scope, ...state.scopes])
+      persistScopes(scopes)
+      return {
+        scopes,
+        activeScopeId: id,
+        postsByScope: {
+          ...state.postsByScope,
+          [id]: [
+            {
+              id: `welcome-${id}`,
+              scopeId: id,
+              authorKind: 'agent',
+              authorId: 'agent-desk',
+              authorNameAr: 'الوكيل الشخصي',
+              content:
+                'جلسة جديدة جاهزة. ارفع ملفاً من جهازك (📎) واكتب طلب التعديل — الملف يُحفظ في الغرفة ويظهر زر التنزيل بعد التعديل.',
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      }
+    })
     try {
       localStorage.setItem('ab-active-scope', id)
     } catch {
@@ -164,7 +276,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   createAssociationRoom: (opts) => {
-    // Lazy import avoided — keep client bundle light by inlining template shape
     const id = `assoc-${Date.now().toString(36)}`
     const nameAr = opts?.nameAr?.trim() || 'غرفة الجمعية'
     const roleLabelsAr = [
@@ -189,6 +300,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         'المواعيد النظامية (ترخيص / عمومية / تقرير سنوي) تُتابع في تقويم الفريق.',
         'الموافقات البشرية للإجراءات عالية المخاطر عند تفعيل HITL.',
         'عند الإجابة من قاعدة المعرفة: اذكر المصادر بصيغة [مصدر N: …].',
+        'ارفع الملفات من أي جهاز بعد تسجيل الدخول — التعديل في الغرفة بلا Drive إلزامي.',
       ],
       skills: [
         'arabic_report_generator',
@@ -200,26 +312,31 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const welcome = [
       `مرحباً بكم في «${nameAr}».`,
       'غرفة جمعية جاهزة: أدوار المجلس واللجان والموظفين في الذاكرة.',
+      'ارفع ملفاً من جهازك (📎 ارفع من جهازك) واطلب من الوكيل تعديله — لا يلزم Google Drive.',
       'ادعُ الأعضاء، اضبط المواعيد النظامية، واربط تيليجرام للتنبيهات.',
     ].join('\n')
-    set((state) => ({
-      scopes: [scope, ...state.scopes],
-      activeScopeId: id,
-      postsByScope: {
-        ...state.postsByScope,
-        [id]: [
-          {
-            id: `welcome-${id}`,
-            scopeId: id,
-            authorKind: 'system',
-            authorId: 'system-assoc-template',
-            authorNameAr: 'قالب الجمعية',
-            content: welcome,
-            createdAt: Date.now(),
-          },
-        ],
-      },
-    }))
+    set((state) => {
+      const scopes = mergeScopesWithDemos([scope, ...state.scopes])
+      persistScopes(scopes)
+      return {
+        scopes,
+        activeScopeId: id,
+        postsByScope: {
+          ...state.postsByScope,
+          [id]: [
+            {
+              id: `welcome-${id}`,
+              scopeId: id,
+              authorKind: 'system',
+              authorId: 'system-assoc-template',
+              authorNameAr: 'قالب الجمعية',
+              content: welcome,
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      }
+    })
     try {
       localStorage.setItem('ab-active-scope', id)
     } catch {
@@ -228,17 +345,89 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     return id
   },
 
+  upsertScope: (scope) => {
+    if (!scope?.id) return
+    set((state) => {
+      const existing = state.scopes.find((s) => s.id === scope.id)
+      const next = existing
+        ? state.scopes.map((s) =>
+            s.id === scope.id
+              ? {
+                  ...s,
+                  ...scope,
+                  nameAr: scope.nameAr?.trim() || s.nameAr,
+                }
+              : s
+          )
+        : [scope, ...state.scopes]
+      const scopes = mergeScopesWithDemos(next)
+      persistScopes(scopes)
+      const postsByScope = { ...state.postsByScope }
+      if (!postsByScope[scope.id]) postsByScope[scope.id] = []
+      return { scopes, postsByScope }
+    })
+  },
+
+  syncRemoteRooms: (rooms) => {
+    if (!rooms?.length) return
+    set((state) => {
+      let scopes = [...state.scopes]
+      const postsByScope = { ...state.postsByScope }
+      for (const r of rooms) {
+        const id = String(r.scopeId || '').trim()
+        if (!id) continue
+        const known = scopes.some((s) => s.id === id)
+        if (known) {
+          if (r.nameAr?.trim()) {
+            scopes = scopes.map((s) =>
+              s.id === id ? { ...s, nameAr: r.nameAr!.trim() } : s
+            )
+          }
+          continue
+        }
+        if (r.kind === 'personal' || id.startsWith('personal-')) {
+          scopes = [
+            {
+              id,
+              nameAr: r.nameAr?.trim() || guessRoomName(id),
+              descriptionAr: 'جلسة شخصية مزامَنة من حسابك.',
+              userId: 'user-1',
+              keychain: {},
+              privateMemory: [
+                'جلسة مزامَنة — ارفع ملفاً من جهازك واطلب التعديل.',
+              ],
+            },
+            ...scopes,
+          ]
+        } else {
+          scopes = [
+            stubSharedRoom({ id, nameAr: r.nameAr }),
+            ...scopes,
+          ]
+        }
+        if (!postsByScope[id]) postsByScope[id] = []
+      }
+      scopes = mergeScopesWithDemos(scopes)
+      persistScopes(scopes)
+      return { scopes, postsByScope }
+    })
+  },
+
   renameScope: (id, nameAr) => {
     const trimmed = nameAr.trim()
     if (!trimmed) return
-    set((state) => ({
-      scopes: state.scopes.map((s) =>
+    set((state) => {
+      const scopes = state.scopes.map((s) =>
         s.id === id ? { ...s, nameAr: trimmed } : s
-      ),
-    }))
+      )
+      persistScopes(scopes)
+      return { scopes }
+    })
   },
 
   archiveScope: (id, archived = true) => {
+    // Demo starter rooms stay visible — hide archive for demos.
+    if (isDemoScopeId(id) && archived) return
     set((state) => {
       const scopes = state.scopes.map((s) =>
         s.id === id ? { ...s, archived } : s
@@ -248,6 +437,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         const next = scopes.find((s) => !s.archived)
         if (next) activeScopeId = next.id
       }
+      persistScopes(scopes)
       return { scopes, activeScopeId }
     })
   },
@@ -269,8 +459,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ? scope.sharedMemory
         : []
     if (existing.includes(trimmed)) return false
-    set((state) => ({
-      scopes: state.scopes.map((s) => {
+    set((state) => {
+      const scopes = state.scopes.map((s) => {
         if (s.id !== scopeId) return s
         if (isPersonalScope(s)) {
           return { ...s, privateMemory: [...s.privateMemory, trimmed] }
@@ -279,8 +469,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           return { ...s, sharedMemory: [...s.sharedMemory, trimmed] }
         }
         return s
-      }),
-    }))
+      })
+      persistScopes(scopes)
+      return { scopes }
+    })
     persistMemories(get().scopes)
     return true
   },
@@ -288,8 +480,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   updateMemory: (scopeId, index, text) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    set((state) => ({
-      scopes: state.scopes.map((s) => {
+    set((state) => {
+      const scopes = state.scopes.map((s) => {
         if (s.id !== scopeId) return s
         if (isPersonalScope(s)) {
           const privateMemory = [...s.privateMemory]
@@ -304,14 +496,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           return { ...s, sharedMemory }
         }
         return s
-      }),
-    }))
+      })
+      persistScopes(scopes)
+      return { scopes }
+    })
     persistMemories(get().scopes)
   },
 
   removeMemory: (scopeId, index) => {
-    set((state) => ({
-      scopes: state.scopes.map((s) => {
+    set((state) => {
+      const scopes = state.scopes.map((s) => {
         if (s.id !== scopeId) return s
         if (isPersonalScope(s)) {
           return {
@@ -326,8 +520,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           }
         }
         return s
-      }),
-    }))
+      })
+      persistScopes(scopes)
+      return { scopes }
+    })
     persistMemories(get().scopes)
   },
 }))
@@ -344,8 +540,14 @@ function persistMemories(scopes: Scope[]) {
   }
 }
 
-/** Hydrate memories from localStorage (call once from client). */
+/** Hydrate scopes + memories from localStorage (call once from client). */
 export function hydrateScopeMemories() {
+  try {
+    const scopes = loadPersistedScopes()
+    useWorkspaceStore.setState({ scopes })
+  } catch {
+    /* ignore */
+  }
   try {
     const raw = localStorage.getItem('ab-scope-memories')
     if (!raw) return

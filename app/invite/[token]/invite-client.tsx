@@ -77,6 +77,27 @@ export default function InviteJoinPage() {
       try {
         localStorage.setItem('ab-active-scope', scopeId)
         localStorage.setItem('ab-display-name', nameAr.trim())
+        // Ensure invited room appears under «مساحات مشتركة» after reload.
+        const { useWorkspaceStore } = await import(
+          '@/lib/scopes/workspace-store'
+        )
+        useWorkspaceStore.getState().upsertScope({
+          id: scopeId,
+          nameAr:
+            (data as { nameAr?: string }).nameAr ||
+            (scopeId.startsWith('assoc-')
+              ? 'غرفة الجمعية'
+              : 'غرفة مشتركة'),
+          descriptionAr: 'غرفة انضممت إليها عبر دعوة.',
+          members: ['user-1'],
+          memberLabelsAr: [],
+          agentLabelsAr: ['وكيل التقارير'],
+          sharedMemory: [
+            'انضممت عبر دعوة — ارفع ملفاً من جهازك واطلب التعديل.',
+          ],
+          skills: [],
+        })
+        useWorkspaceStore.getState().setActiveScopeId(scopeId)
       } catch {
         /* ignore */
       }

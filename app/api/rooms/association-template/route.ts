@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser } from '@/lib/auth/session'
 import { ASSOCIATION_ROLE_SLOTS } from '@/lib/rooms/association-template-data'
 import { seedAssociationStarterDeadlines } from '@/lib/rooms/association-template'
+import {
+  addRoomMember,
+  listRoomMembers,
+  roomNameNotes,
+  updateRoomMember,
+} from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +27,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as {
     scopeId?: string
+    nameAr?: string
     seedDeadlines?: boolean
   }
   const scopeId = body.scopeId?.trim()
@@ -29,6 +36,43 @@ export async function POST(req: NextRequest) {
       { error: 'يلزم scopeId' },
       { status: 400 }
     )
+  }
+
+  const nameAr =
+    body.nameAr?.trim() ||
+    (scopeId.startsWith('assoc-') ? 'غرفة الجمعية' : scopeId)
+  const displayName =
+    auth.user.user_metadata?.full_name ||
+    auth.user.user_metadata?.name ||
+    auth.user.email?.split('@')[0] ||
+    'مالك الغرفة'
+
+  // Register creator as owner so the room appears in /api/rooms/mine after reload.
+  const { members } = await listRoomMembers(scopeId)
+  const email = auth.user.email?.trim().toLowerCase() || null
+  const existing =
+    members.find((m) => m.userId === auth.user.id) ||
+    (email
+      ? members.find((m) => m.email?.toLowerCase() === email)
+      : undefined)
+
+  if (existing) {
+    await updateRoomMember({
+      scopeId,
+      memberId: existing.id,
+      role: 'owner',
+      displayNameAr: existing.displayNameAr || String(displayName),
+      notesAr: roomNameNotes(nameAr, existing.notesAr),
+    })
+  } else {
+    await addRoomMember({
+      scopeId,
+      displayNameAr: String(displayName),
+      email,
+      userId: auth.user.id,
+      role: 'owner',
+      notesAr: roomNameNotes(nameAr),
+    })
   }
 
   let deadlines = { seeded: 0, labelsAr: [] as string[] }
@@ -43,6 +87,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     scopeId,
+    nameAr,
     deadlines,
     messageAr:
       deadlines.seeded > 0

@@ -265,20 +265,14 @@ export function FilesPanel() {
     source === 'local' || source === 'mac'
       ? 'خزنة الماك المشتركة — الجميع يضيف ويعدّل ويحذف'
       : source === 'cloud'
-        ? 'تخزين سحابي'
-        : 'لا مصدر بعد'
+        ? 'ملفات الغرفة (سحابة) — بلا Drive إلزامي'
+        : 'لا ملفات بعد — ارفع من جهازك'
 
   const emptyHint =
-    source === 'local' || source === 'mac'
-      ? 'ارفع أول ملف — يظهر فوراً لجميع أعضاء المساحة عبر خزنة الماك.'
-      : source === 'cloud'
-        ? 'ارفع أول ملف — يُحفظ في التخزين السحابي لهذه المساحة.'
-        : 'ارفع ملفاً للسحابة، أو اربط وكيل الماك للملفات الكبيرة والخزنة المشتركة.'
+    'ارفع من جهازك (Word / Excel / PDF / صور) — يُحفظ في الغرفة ويعدّله الوكيل في الشات. Google Drive اختياري.'
 
   const uploadHint =
-    source === 'local' || source === 'mac'
-      ? 'زملاؤك يرفعون ويستبدلون ويحذفون هنا — الملفات تُحفظ على الماك كسحابة مشتركة طالما وكيل المزامنة يعمل.'
-      : 'على الموقع السحابي تُحفظ الملفات الصغيرة في التخزين السحابي. للملفات الكبيرة اربط وكيل مزامنة الماك من الإعدادات.'
+    'ارفع من أي جهاز بعد تسجيل الدخول. الوكيل يقرأ ويعدّل ويرجع تنزيلاً في الشات. PowerPoint: إعادة بناء نصية للشرائح. عقل الشركة (Drive) للمزامنة الاختيارية فقط.'
 
   if (authPending) {
     return (
@@ -344,8 +338,21 @@ export function FilesPanel() {
       </div>
 
       <div className="mb-6 rounded-xl border border-ab-border bg-ab-surface p-4">
-        <p className="mb-2 text-xs font-semibold text-ab-ink">رفع ملف</p>
-        <LocalUploadPanel scopeId={scopeId} onUploaded={() => void load()} />
+        <p className="mb-2 text-xs font-semibold text-ab-ink">
+          ارفع من جهازك
+        </p>
+        <LocalUploadPanel
+          scopeId={scopeId}
+          onUploaded={() => void load()}
+          onFileReady={(f) =>
+            openFilePreviewInChat({
+              fileId: f.fileId,
+              scopeId: f.scopeId,
+              name: f.name,
+              mimeType: f.mimeType,
+            })
+          }
+        />
         <p className="mt-2 text-[11px] text-stone-500">
           {uploadHint}
         </p>

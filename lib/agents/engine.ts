@@ -125,12 +125,12 @@ export function getNativeAiTools(opts?: {
     }),
     edit_document: tool({
       description:
-        'إنشاء ملف جديد أو تعديل ملف موجود (Word/Excel/PowerPoint/نص/PDF) وإظهار زر تنزيل في الشات. لإنشاء ملف: لا تمرّر fileId ومرّر format + body/paragraphs. لتعديل ملف غرفة: اقرأ بـ read_document أولاً. لملفات عقل الشركة (Drive): brain_open_document ثم عدّل ثم brain_save_document.',
+        'إنشاء أو تعديل ملف غرفة وإظهار زر تنزيل. الأفضل لـ Word/PowerPoint الموجود: replacements (استبدال نص مع الحفاظ على التنسيق/الصور) أو templateData لتعبئة {placeholders}. إعادة بناء كاملة: body/paragraphs (Word/PDF/نص)، sheets (Excel)، slides (PPT — يعيد بناء الشرائح). لخلايا Excel مع الحفاظ على البنية استخدم edit_excel.',
       inputSchema: z.object({
         fileId: z
           .string()
           .optional()
-          .describe('الملف المصدر (اختياري إن أنشأت ملفاً جديداً)'),
+          .describe('الملف المصدر (مطلوب لـ replacements/templateData)'),
         outputName: z
           .string()
           .optional()
@@ -142,7 +142,7 @@ export function getNativeAiTools(opts?: {
         body: z
           .string()
           .optional()
-          .describe('نص Word/Markdown الكامل بعد التعديل'),
+          .describe('نص Word/Markdown الكامل بعد التعديل (إعادة بناء)'),
         paragraphs: z.array(z.string()).optional(),
         sheets: z
           .array(
@@ -162,7 +162,27 @@ export function getNativeAiTools(opts?: {
             })
           )
           .optional()
-          .describe('شرائح PowerPoint'),
+          .describe(
+            'شرائح PowerPoint (إعادة بناء: عنوان + نقاط). للتعديل مع الحفاظ على التصميم استخدم replacements.'
+          ),
+        replacements: z
+          .array(
+            z.object({
+              find: z.string().describe('النص الحرفي للبحث'),
+              replace: z.string().describe('النص البديل'),
+              all: z.boolean().optional().describe('true = كل التكرارات (افتراضي)'),
+            })
+          )
+          .optional()
+          .describe(
+            'تعديل موضعي DOCX/PPTX مع الحفاظ على التنسيق (JSZip OOXML). فضّله على body عند وجود ملف مصدر.'
+          ),
+        templateData: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe(
+            'تعبئة قالب docx/pptx فيه {placeholders} عبر docxtemplater (يحافظ على التخطيط).'
+          ),
         replaceSource: z
           .boolean()
           .optional()
@@ -180,14 +200,18 @@ export function getNativeAiTools(opts?: {
     }),
     convert_document: tool({
       description:
-        'تحويل PDF ↔ Word (docx) مع الحفاظ على النص العربي عبر إعادة بناء نصية. استخدمه عندما يطلب المستخدم تحويل الصيغة. النتيجة تظهر كملف قابل للتنزيل في الشات.',
+        'تحويل صيغ المستندات. مجاني: PDF↔Word/txt/md بإعادة بناء نصية عربية. مع CLOUDCONVERT_API_KEY (اختياري مدفوع): تحويل عالي الدقة يشمل xlsx/pptx/doc. النتيجة للتنزيل في الشات.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
-          .enum(['docx', 'pdf', 'txt', 'md'])
-          .describe('الصيغة الهدف — docx لـ Word، pdf لـ PDF'),
+          .enum(['docx', 'pdf', 'txt', 'md', 'xlsx', 'pptx', 'doc', 'ppt', 'xls'])
+          .describe('الصيغة الهدف'),
         outputName: z.string().optional(),
         title: z.string().optional(),
+        engine: z
+          .enum(['auto', 'free', 'cloudconvert'])
+          .optional()
+          .describe('auto يستخدم CloudConvert إن وُجد المفتاح'),
       }),
       execute: async (params) =>
         interceptToolExecution({

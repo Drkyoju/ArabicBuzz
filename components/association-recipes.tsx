@@ -62,12 +62,16 @@ export function AssociationRecipes({
         const res = await fetch('/api/rooms/association-template', {
           method: 'POST',
           headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ scopeId: id, seedDeadlines: true }),
+          body: JSON.stringify({
+            scopeId: id,
+            nameAr: nameAr.trim() || 'غرفة الجمعية',
+            seedDeadlines: true,
+          }),
         })
         const data = (await res.json()) as { messageAr?: string; error?: string }
         if (res.ok) deadlineNote = data.messageAr || ''
       } catch {
-        /* guest / offline — room still created locally */
+        /* guest / offline — room still created locally + persisted in browser */
       }
       setMsg(
         [
