@@ -72,6 +72,7 @@ import {
   agentsForSharedRoomMessage,
   resolveRoomMessageIntent,
   roomIntentPromptNudge,
+  VOICE_HOW_TO_AR,
 } from '@/lib/rooms/voice-intent'
 import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import type {
@@ -1917,6 +1918,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 {micNote}
               </p>
             )}
+            <details className="mb-1.5 rounded-md border border-ab-border/70 bg-stone-50/80 px-2.5 py-1.5 text-[10px] text-stone-600">
+              <summary className="cursor-pointer select-none font-medium text-stone-700">
+                كيف يعمل الصوت؟ الكلام يظهر أثناء الحديث
+              </summary>
+              <p className="mt-1.5 whitespace-pre-line leading-relaxed">
+                {VOICE_HOW_TO_AR}
+              </p>
+            </details>
             {(isGuest || sendBlockedAr) && (
               <div
                 className="mb-1.5 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2"

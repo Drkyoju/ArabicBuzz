@@ -171,18 +171,18 @@ export const LocalUploadPanel = forwardRef<
       window.removeEventListener('resize', repositionPanel)
       window.removeEventListener('scroll', repositionPanel, true)
     }
-  }, [open, repositionPanel, files.length, message, needsGoogle, progress, pendingVoice])
+  }, [open, repositionPanel, files.length, message, needsGoogle, progress, pendingVoice, recording, liveCaption])
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (pendingVoice) return
+        if (pendingVoice || recording) return
         setOpen(false)
       }
     }
     const onPointer = (e: MouseEvent | PointerEvent) => {
-      if (pendingVoice) return
+      if (pendingVoice || recording) return
       const t = e.target as Node | null
       if (!t) return
       if (triggerRef.current?.contains(t)) return
@@ -195,7 +195,7 @@ export const LocalUploadPanel = forwardRef<
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('pointerdown', onPointer, true)
     }
-  }, [open, pendingVoice])
+  }, [open, pendingVoice, recording])
 
   useEffect(() => {
     return () => {
@@ -615,6 +615,7 @@ export const LocalUploadPanel = forwardRef<
       mediaRef.current = active
       setRecording(true)
       setLiveCaption('')
+      if (compact) setOpen(true)
       liveCaptionRef.current = startLiveCaptions({
         getPartialBlob: () => active.snapshot(),
         onStatus: setMessage,
