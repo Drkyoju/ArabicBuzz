@@ -10,11 +10,16 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# ── Deploy note ─────────────────────────────────────────────────────────────
+# Primary production is CranL (Dockerfile / standalone). See docs/cranl-deploy.md.
+# This Netlify OpenNext config is retained as a fallback while credits allow.
+#
 # ── Cron (external scheduler → Next.js API routes) ──────────────────────────
 # Netlify OpenNext does not run stdio MCP or in-process cron daemons.
-# Production uses GitHub Actions (.github/workflows/cron-runner.yml) every ~15 min:
+# Production uses GitHub Actions (.github/workflows/cron-runner.yml) every ~15 min.
+# After CranL cutover, APP_URL in that workflow must be the *.cranl.net host.
 #
-#   POST https://arabicbuzz.netlify.app/api/crons/runner
+#   POST https://<APP_URL>/api/crons/runner
 #   Authorization: Bearer $CRON_SECRET
 #
 # Runner covers: heartbeats · Thursday director digest (Asia/Riyadh) ·
