@@ -45,14 +45,106 @@ export function extractPausedApprovalId(toolOut: unknown): string | null {
   return null
 }
 
+const TOOL_LABEL_AR: Record<string, string> = {
+  gmail_search: 'بحث Gmail',
+  gmail_read: 'قراءة رسالة',
+  gmail_send: 'إرسال بريد',
+  calendar_list_events: 'تقويم Google',
+  calendar_create_event: 'إنشاء موعد Google',
+  calendar_scan_email: 'مسح بريد للمواعيد',
+  room_calendar_list: 'تقويم الغرفة',
+  room_calendar_create: 'إضافة موعد غرفة',
+  room_tasks_list: 'مهام الغرفة',
+  room_memory_list: 'ذاكرة الغرفة',
+  memory_search: 'بحث الذاكرة',
+  search_knowledge_base: 'قاعدة المعرفة',
+  list_workspace_files: 'قائمة الملفات',
+  list_files: 'قائمة الملفات',
+  read_file: 'قراءة ملف',
+  read_document: 'قراءة مستند',
+  brain_open_document: 'فتح مستند العقل',
+  send_message: 'تيليجرام',
+  web_search: 'بحث ويب',
+  web_fetch: 'جلب صفحة',
+}
+
+function summarizeToolOutput(name: string, out: unknown): string {
+  if (out == null) return 'تم الاستدعاء'
+  if (typeof out === 'string') {
+    const t = out.replace(/\s+/g, ' ').trim()
+    return t ? t.slice(0, 140) : 'تم الاستدعاء'
+  }
+  if (typeof out !== 'object') return String(out).slice(0, 140)
+  const o = out as Record<string, unknown>
+  const nested =
+    o.output && typeof o.output === 'object'
+      ? (o.output as Record<string, unknown>)
+      : o
+  if (nested.status === 'paused' && nested.approvalId) {
+    return 'بانتظار موافقة بشرية'
+  }
+  if (typeof nested.error === 'string') return `خطأ: ${nested.error.slice(0, 100)}`
+  if (typeof nested.messageAr === 'string') return nested.messageAr.slice(0, 140)
+  if (typeof nested.message === 'string') return nested.message.slice(0, 140)
+  for (const key of [
+    'events',
+    'messages',
+    'items',
+    'tasks',
+    'files',
+    'documents',
+    'results',
+    'memories',
+  ] as const) {
+    const arr = nested[key]
+    if (Array.isArray(arr)) {
+      const label =
+        key === 'events'
+          ? 'موعد'
+          : key === 'messages'
+            ? 'رسالة'
+            : key === 'tasks'
+              ? 'مهمة'
+              : key === 'files'
+                ? 'ملف'
+                : key === 'documents'
+                  ? 'مستند'
+                  : key === 'memories'
+                    ? 'ذكرى'
+                    : 'عنصر'
+      return arr.length === 0
+        ? `لا ${label === 'عنصر' ? 'نتائج' : label + 'ات'}`
+        : `${arr.length} ${label}${arr.length > 1 && label !== 'عنصر' ? '' : ''}`
+    }
+  }
+  if (typeof nested.count === 'number') return `${nested.count} نتيجة`
+  if (typeof nested.id === 'string' || typeof nested.messageId === 'string') {
+    return 'تم بنجاح'
+  }
+  if (name === 'send_message' && (nested.ok === true || nested.sent === true)) {
+    return 'أُرسلت رسالة تيليجرام'
+  }
+  return 'تم الاستدعاء'
+}
+
+export type UsedToolCall = {
+  name: string
+  labelAr: string
+  summaryAr: string
+}
+
 /** Walk generateText / streamText step tool results. */
 export function extractFromAgentSteps(steps: unknown): {
   citations: RoomCitation[]
   pendingApprovalIds: string[]
+  usedTools: UsedToolCall[]
 } {
   const citations: RoomCitation[] = []
   const pendingApprovalIds: string[] = []
-  if (!Array.isArray(steps)) return { citations, pendingApprovalIds }
+  const usedTools: UsedToolCall[] = []
+  if (!Array.isArray(steps)) {
+    return { citations, pendingApprovalIds, usedTools }
+  }
 
   for (const step of steps) {
     if (!step || typeof step !== 'object') continue
@@ -63,14 +155,50 @@ export function extractFromAgentSteps(steps: unknown): {
       if (!tr || typeof tr !== 'object') continue
       const row = tr as Record<string, unknown>
       const out = row.output ?? row.result ?? row
+      const name = String(
+        row.toolName ||
+          row.name ||
+          (row.type === 'tool-result' && row.toolName) ||
+          ''
+      ).trim()
+      if (name && name !== 'undefined') {
+        usedTools.push({
+          name,
+          labelAr: TOOL_LABEL_AR[name] || name,
+          summaryAr: summarizeToolOutput(name, out),
+        })
+      }
       for (const c of extractCitationsFromToolOutput(out)) {
         if (!citations.some((x) => x.labelAr === c.labelAr)) citations.push(c)
       }
       const aid = extractPausedApprovalId(out)
       if (aid && !pendingApprovalIds.includes(aid)) pendingApprovalIds.push(aid)
     }
+
+    // Fallback: toolCalls without paired results still count as used
+    const calls = s.toolCalls
+    if (Array.isArray(calls)) {
+      for (const c of calls) {
+        if (!c || typeof c !== 'object') continue
+        const row = c as Record<string, unknown>
+        const name = String(row.toolName || row.name || '').trim()
+        if (
+          name &&
+          !usedTools.some((u) => u.name === name && u.summaryAr === 'تم الاستدعاء')
+        ) {
+          const already = usedTools.some((u) => u.name === name)
+          if (!already) {
+            usedTools.push({
+              name,
+              labelAr: TOOL_LABEL_AR[name] || name,
+              summaryAr: 'تم الاستدعاء',
+            })
+          }
+        }
+      }
+    }
   }
-  return { citations, pendingApprovalIds }
+  return { citations, pendingApprovalIds, usedTools }
 }
 
 /** Format citations as Telegram / plain-text footer. */

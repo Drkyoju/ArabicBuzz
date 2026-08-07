@@ -4,6 +4,7 @@ export type {
   AssistantCatalogItem,
   AssistantRunResult,
   AssistantRequirement,
+  AssistantUsedTool,
 } from '@/lib/assistants/types'
 export {
   ASSISTANTS,

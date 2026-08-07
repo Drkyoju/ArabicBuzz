@@ -58,7 +58,7 @@ const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'محضر / Zoom' },
-  { id: 'external', labelAr: 'Google (اختياري)' },
+  { id: 'external', labelAr: 'Google / Gmail' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
@@ -490,10 +490,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
               {calendarTab === 'external' && (
                 <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+                  <h3 className="mb-1 text-sm font-semibold text-ab-ink">
+                    ربط بريد Google Workspace (Gmail)
+                  </h3>
                   <p className="mb-3 text-xs text-stone-500">
-                    تقويم الفريق المشترك يبقى في تبويب «تقويم الغرفة». Google هنا
-                    اختياري لدعوات خارجية أو Zoom من حسابك أنت فقط — لا يستبدل
-                    التقويم المشترك ولا يكتب في تقويم عضو آخر.
+                    هنا تربط بريد الجمعية الرسمي عبر Google (تقويم + Gmail قراءة
+                    وإرسال). تقويم الفريق المشترك يبقى في «تقويم الغرفة» —
+                    Google لا يستبدله. Microsoft 365 و IMAP غير مدعومين؛ إن كان
+                    البريد على مزوّد آخر: انقل النطاق إلى Workspace أو وجّه
+                    البريد إلى Gmail ثم اربط ذلك الحساب.
                   </p>
                   <GoogleCalendarPanel hideTitle />
                 </div>
@@ -774,10 +779,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
                 <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
                   <h3 className="mb-1 font-semibold">
-                    تقويم ومهام الغرفة · Google اختياري
+                    تقويم الغرفة · ربط Gmail الجمعية
                   </h3>
                   <p className="mb-3 text-xs text-stone-500">
-                    المواعيد والمهام مشتركة للغرفة. Google اختياري لدعوات خارجية.
+                    المواعيد والمهام مشتركة للغرفة. لربط بريد الجمعية الرسمي
+                    (Google Workspace / Gmail) افتح تبويب «Google / Gmail».
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -787,6 +793,18 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                     >
                       تقويم ومهام الفريق
                     </button>
+                    {signedIn && canAccessOpsUi && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSection('calendar')
+                          setCalendarTab('external')
+                        }}
+                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-semibold"
+                      >
+                        ربط Google / Gmail
+                      </button>
+                    )}
                     {signedIn && canAccessOpsUi && mode === 'admin' && (
                       <>
                         <button

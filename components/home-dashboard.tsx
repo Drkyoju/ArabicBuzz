@@ -13,6 +13,8 @@ import {
   Video,
   ListTodo,
   Rocket,
+  Bot,
+  Compass,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -529,8 +531,8 @@ export function HomeDashboard({
             سجّل الدخول للعمل
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-amber-950/80">
-            الزائر يرى معاينة فقط. بعد الدخول تظهر المواعيد والمهام والموافقات
-            الحقيقية — بلا بيانات وهمية.
+            بعد الدخول: مساعد العمل (بريد · تقويم · تيليجرام) من «المساعدون»،
+            ثم المواعيد والمهام والموافقات الحقيقية — بلا بيانات وهمية.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -542,10 +544,10 @@ export function HomeDashboard({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate?.('calendar')}
+              onClick={() => onNavigate?.('assistants')}
               className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs font-medium text-ab-ink"
             >
-              تصفّح التقويم
+              معاينة المساعدين
             </button>
           </div>
         </div>
@@ -589,6 +591,79 @@ export function HomeDashboard({
           </button>
         </div>
       </header>
+
+      {/* مساعد العمل — highly visible entry (Energy-like) */}
+      <div className="rounded-2xl border-2 border-ab-accent/45 bg-gradient-to-l from-ab-accent/12 via-white to-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ab-accent/15 text-ab-accent">
+                <Bot className="h-5 w-5" aria-hidden />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold text-ab-ink sm:text-xl">
+                  مساعد العمل — بريد · تقويم · تيليجرام
+                </h2>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-stone-600 sm:text-[13px]">
+                  كابتن اليوم يفرز الوارد ويجمع مواعيدك ويقترح ملخص تيليجرام —
+                  من الشريط الجانبي: «المساعدون».
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem('ab-assistant-focus', 'day-captain')
+                } catch {
+                  /* ignore */
+                }
+                onNavigate?.('assistants')
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3.5 py-2 text-[12px] font-bold text-white"
+            >
+              <Compass className="h-3.5 w-3.5" aria-hidden />
+              كابتن اليوم
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate?.('assistants')}
+              className="rounded-lg border border-ab-border bg-white px-3.5 py-2 text-[12px] font-semibold text-ab-ink"
+            >
+              كل المساعدين
+            </button>
+          </div>
+        </div>
+        <ul className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+          {(
+            [
+              ['day-captain', 'كابتن اليوم'],
+              ['inbox-zero', 'صفر البريد'],
+              ['daily-brief', 'ملخص يومي'],
+              ['telegram-captain', 'كابتن تيليجرام'],
+            ] as const
+          ).map(([id, label]) => (
+            <li key={id}>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem('ab-assistant-focus', id)
+                  } catch {
+                    /* ignore */
+                  }
+                  onNavigate?.('assistants')
+                }}
+                className="rounded-full border border-ab-border/80 bg-white/90 px-2.5 py-1 font-medium text-stone-700 hover:border-ab-accent hover:text-ab-accent"
+              >
+                {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {!authPending && <TelegramHomePanel />}
 
@@ -953,29 +1028,6 @@ export function HomeDashboard({
               className="rounded-lg border border-ab-border bg-white p-3 text-sm"
             />
           ) : null}
-        </div>
-      )}
-
-      {!isEmptyWorkspace && (
-        <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-ab-ink">
-                المساعدون — نواة العمل
-              </h2>
-              <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-stone-500">
-                مساعدون جاهزون (صفر البريد · ملخص يومي · بحث ملفات · كابتن
-                تيليجرام · مساعد عام). قوالب الجمعية تبقى منفصلة أدناه.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('assistants')}
-              className="rounded-md bg-ab-ink px-3 py-1.5 text-[11px] font-semibold text-white"
-            >
-              فتح المساعدين
-            </button>
-          </div>
         </div>
       )}
 

@@ -21,16 +21,19 @@ export type GmailMessageDetail = GmailMessageSummary & {
 async function gmailFetch(
   userId: string,
   pathAndQuery: string,
-  init?: RequestInit
+  init?: RequestInit & { accountEmail?: string | null }
 ): Promise<Response> {
-  const tok = await getValidGoogleAccessToken(userId)
+  const accountEmail = init?.accountEmail
+  const { accountEmail: _drop, ...rest } = init || {}
+  void _drop
+  const tok = await getValidGoogleAccessToken(userId, accountEmail)
   if (!tok.ok) throw new Error(tok.error)
-  const headers = new Headers(init?.headers)
+  const headers = new Headers(rest.headers)
   headers.set('Authorization', `Bearer ${tok.accessToken}`)
-  if (init?.body && !headers.has('Content-Type')) {
+  if (rest.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  return fetch(`${GMAIL_BASE}${pathAndQuery}`, { ...init, headers })
+  return fetch(`${GMAIL_BASE}${pathAndQuery}`, { ...rest, headers })
 }
 
 function headerOf(
@@ -97,16 +100,19 @@ function toSummary(msg: {
  */
 export async function searchGmailMessages(
   userId: string,
-  opts: { query: string; maxResults?: number }
+  opts: { query: string; maxResults?: number; accountEmail?: string | null }
 ): Promise<GmailMessageSummary[]> {
   const q = opts.query.trim()
   if (!q) throw new Error('يلزم استعلام بحث (query) لـ Gmail.')
+  const accountEmail = opts.accountEmail || null
 
   const listParams = new URLSearchParams({
     q,
     maxResults: String(Math.min(Math.max(opts.maxResults || 10, 1), 25)),
   })
-  const listRes = await gmailFetch(userId, `/users/me/messages?${listParams}`)
+  const listRes = await gmailFetch(userId, `/users/me/messages?${listParams}`, {
+    accountEmail,
+  })
   const listData = (await listRes.json()) as {
     messages?: Array<{ id: string }>
     error?: { message?: string }
@@ -122,7 +128,8 @@ export async function searchGmailMessages(
   for (const m of listData.messages || []) {
     const msgRes = await gmailFetch(
       userId,
-      `/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`
+      `/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`,
+      { accountEmail }
     )
     if (!msgRes.ok) continue
     const msg = (await msgRes.json()) as Parameters<typeof toSummary>[0]
@@ -134,12 +141,15 @@ export async function searchGmailMessages(
 /** Read one Gmail message body (plain text preferred). */
 export async function readGmailMessage(
   userId: string,
-  messageId: string
+  messageId: string,
+  opts?: { accountEmail?: string | null }
 ): Promise<GmailMessageDetail> {
   const id = messageId.trim()
   if (!id) throw new Error('يلزم messageId.')
 
-  const res = await gmailFetch(userId, `/users/me/messages/${id}?format=full`)
+  const res = await gmailFetch(userId, `/users/me/messages/${id}?format=full`, {
+    accountEmail: opts?.accountEmail || null,
+  })
   const data = (await res.json()) as {
     id?: string
     threadId?: string
@@ -245,6 +255,8 @@ export async function sendGmailMessage(
     bodyHtml?: string
     cc?: string
     bcc?: string
+    /** Linked Workspace / Gmail account to send from (multi-account). */
+    accountEmail?: string | null
   }
 ): Promise<{ id: string; threadId?: string; labelIds?: string[] }> {
   const to = opts.to.trim()
@@ -271,6 +283,7 @@ export async function sendGmailMessage(
   const res = await gmailFetch(userId, '/users/me/messages/send', {
     method: 'POST',
     body: JSON.stringify({ raw }),
+    accountEmail: opts.accountEmail || null,
   })
   const data = (await res.json()) as {
     id?: string

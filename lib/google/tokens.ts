@@ -246,7 +246,7 @@ export async function getValidGoogleAccessToken(
     return {
       ok: false,
       error:
-        'تقويم Google غير مربوط. اربط حساب بريد من الإعدادات → تقويم Google.',
+        'Google / Gmail غير مربوط. من الشريط: تقويم الفريق → تبويب «Google / Gmail» → «ربط بريد Google (Gmail)»، واختر بريد الجمعية (Workspace) إن وُجد.',
     }
   }
   return tokenFromRow(row)

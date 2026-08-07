@@ -18,25 +18,35 @@ function requireUser(params: Record<string, unknown>) {
   return userId
 }
 
+function accountEmailOf(params: Record<string, unknown>): string | undefined {
+  const raw = params.accountEmail || params.email
+  if (raw == null) return undefined
+  const email = String(raw).trim().toLowerCase()
+  return email.includes('@') ? email : undefined
+}
+
 export async function executeGmailSearch(
   _name: string,
   params: Record<string, unknown>
 ) {
   const userId = requireUser(params)
   const query = String(params.query || params.q || '').trim()
+  const accountEmail = accountEmailOf(params)
   const messages = await searchGmailMessages(userId, {
     query,
     maxResults:
       typeof params.maxResults === 'number' ? params.maxResults : undefined,
+    accountEmail,
   })
   return {
     ok: true,
     count: messages.length,
+    accountEmail: accountEmail || null,
     messages,
     messageAr:
       messages.length === 0
-        ? `لا نتائج لـ «${query}».`
-        : `وُجد ${messages.length} رسالة مطابقة.`,
+        ? `لا نتائج لـ «${query}»${accountEmail ? ` على ${accountEmail}` : ''}.`
+        : `وُجد ${messages.length} رسالة مطابقة${accountEmail ? ` على ${accountEmail}` : ''}.`,
   }
 }
 
@@ -46,9 +56,11 @@ export async function executeGmailRead(
 ) {
   const userId = requireUser(params)
   const messageId = String(params.messageId || params.id || '').trim()
-  const message = await readGmailMessage(userId, messageId)
+  const accountEmail = accountEmailOf(params)
+  const message = await readGmailMessage(userId, messageId, { accountEmail })
   return {
     ok: true,
+    accountEmail: accountEmail || null,
     message,
     messageAr: `قُرئت الرسالة: ${message.subject || messageId}`,
   }
@@ -63,6 +75,7 @@ export async function executeGmailSend(
   const subject = String(params.subject || '').trim()
   const bodyText = params.bodyText != null ? String(params.bodyText) : undefined
   const bodyHtml = params.bodyHtml != null ? String(params.bodyHtml) : undefined
+  const accountEmail = accountEmailOf(params)
   const result = await sendGmailMessage(userId, {
     to,
     subject,
@@ -70,13 +83,17 @@ export async function executeGmailSend(
     bodyHtml,
     cc: params.cc != null ? String(params.cc) : undefined,
     bcc: params.bcc != null ? String(params.bcc) : undefined,
+    accountEmail,
   })
   return {
     ok: true,
     ...result,
     to,
     subject,
-    messageAr: `أُرسل البريد إلى ${to} — الموضوع: ${subject}`,
+    accountEmail: accountEmail || null,
+    messageAr: `أُرسل البريد إلى ${to} — الموضوع: ${subject}${
+      accountEmail ? ` (من ${accountEmail})` : ''
+    }`,
   }
 }
 

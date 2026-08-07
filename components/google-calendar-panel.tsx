@@ -211,8 +211,8 @@ export function GoogleCalendarPanel({
     if (
       !window.confirm(
         email
-          ? `فصل حساب التقويم ${email}؟`
-          : 'فصل كل حسابات تقويم Google المرتبطة؟'
+          ? `فصل حساب Google / Gmail ${email}؟`
+          : 'فصل كل حسابات Google / Gmail المرتبطة؟'
       )
     ) {
       return
@@ -419,22 +419,35 @@ export function GoogleCalendarPanel({
           <div>
             <h3 className="flex items-center gap-2 font-semibold">
               <CalendarDays className="h-4 w-4 text-ab-accent" aria-hidden />
-              تقويم الجمعية · Zoom
+              Google / Gmail · تقويم · Zoom
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-stone-600">
-              <strong>أنت</strong> تربط Google مرة واحدة. أضف بريد
-              الأصدقاء/الموظفين أدناه — <strong>بدون</strong> تسجيل دخولهم. الـ
-              AI يقترح الوقت ثم تُرسل دعوة (+ رابط Zoom إن لصقته). لنشر مواعيدك
-              في «تقويم الفريق» فعّل الخيار من تبويب تقويم الغرفة (متوقف
-              افتراضياً للخصوصية).
+              اربط حساب Google Workspace لبريد الجمعية (مثل{' '}
+              <span dir="ltr" className="font-mono">
+                info@…
+              </span>
+              ) لقراءة Gmail وإرسال الدعوات. يمكنك ربط أكثر من بريد — في شاشة
+              Google اختر الحساب الصحيح دون استبدال تسجيل دخولك. أضف بريد
+              المدعوّين أدناه <strong>بدون</strong> تسجيل دخولهم.
             </p>
           </div>
           {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
         </div>
       )}
-      {hideTitle && busy && (
-        <div className="mb-2 flex justify-end">
-          <Loader2 className="h-4 w-4 animate-spin text-stone-400" />
+      {hideTitle && (
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <p className="text-xs leading-relaxed text-stone-600">
+            لربط بريد الجمعية الرسمي: اضغط «
+            {status?.connected ? 'ربط بريد Google إضافي' : 'ربط بريد Google (Gmail)'}
+            » ثم في شاشة Google اختر حساب{' '}
+            <strong>Workspace</strong> (مثل{' '}
+            <span dir="ltr" className="font-mono">
+              info@…
+            </span>
+            ) ووافق على صلاحيات Gmail والتقويم. Microsoft 365 / IMAP غير
+            مدعومين هنا.
+          </p>
+          {busy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-stone-400" />}
         </div>
       )}
 
@@ -446,7 +459,9 @@ export function GoogleCalendarPanel({
           className="inline-flex items-center gap-1.5 rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
         >
           <Link2 className="h-3.5 w-3.5" />
-          {status?.connected ? 'ربط بريد إضافي' : 'ربط تقويم Google'}
+          {status?.connected
+            ? 'ربط بريد Google إضافي'
+            : 'ربط بريد Google (Gmail)'}
         </button>
         {status?.connected && (
           <>

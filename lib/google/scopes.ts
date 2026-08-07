@@ -1,10 +1,10 @@
 /**
  * OAuth scopes for Calendar, Gmail (read + send), Sheets, and Drive company brain.
  *
- * Re-consent required when scopes expand (e.g. gmail.send added after gmail.readonly):
- * Settings → «ربط تقويم Google». OAuth uses prompt=consent select_account so Google
- * issues a fresh grant including gmail.send. Existing tokens without send will fail
- * gmail_send until the user re-links.
+ * Re-consent / multi-account: تقويم الفريق → «Google / Gmail» → «ربط بريد Google (Gmail)»
+ * (or «ربط بريد Google إضافي»). OAuth uses prompt=consent select_account so the owner
+ * can pick the association Workspace mailbox (e.g. info@…) without replacing login,
+ * and so gmail.send is granted after scope expansions.
  */
 export const GOOGLE_CALENDAR_SCOPES = [
   'openid',

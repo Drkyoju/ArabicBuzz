@@ -10,16 +10,26 @@ import {
   Loader2,
   ShieldAlert,
   Link2,
+  Compass,
+  CheckCircle2,
   type LucideIcon,
 } from 'lucide-react'
-import { authHeaders } from '@/lib/supabase/browser'
+import {
+  authHeaders,
+  connectGoogleCalendar,
+} from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { cn } from '@/lib/utils'
-import type { AssistantCatalogItem, AssistantId } from '@/lib/assistants/types'
+import type {
+  AssistantCatalogItem,
+  AssistantId,
+  AssistantUsedTool,
+} from '@/lib/assistants/types'
 
 const ICONS: Record<AssistantId, LucideIcon> = {
+  'day-captain': Compass,
   'inbox-zero': Inbox,
   'daily-brief': CalendarDays,
   'file-search': FolderSearch,
@@ -43,6 +53,7 @@ type RunOk = {
   hasPendingApprovals?: boolean
   steps?: number
   toolNames?: string[]
+  usedTools?: AssistantUsedTool[]
 }
 
 type RunBlocked = {
@@ -53,8 +64,10 @@ type RunBlocked = {
 
 export function AssistantsCorePanel({
   onNavigate,
+  initialAssistantId,
 }: {
   onNavigate?: (section: string) => void
+  initialAssistantId?: string | null
 }) {
   const signedIn = useSignedIn()
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -66,6 +79,7 @@ export function AssistantsCorePanel({
   const [selectedId, setSelectedId] = useState<AssistantId | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [connectingGoogle, setConnectingGoogle] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<RunOk | null>(null)
 
@@ -74,14 +88,32 @@ export function AssistantsCorePanel({
       .then((r) => r.json())
       .then((d: CatalogResponse) => {
         setCatalog(d)
-        const first = d.assistants?.[0]
+        const preferred =
+          (initialAssistantId &&
+            d.assistants?.find((a) => a.id === initialAssistantId)) ||
+          null
+        const focus =
+          preferred ||
+          (() => {
+            try {
+              const raw = sessionStorage.getItem('ab-assistant-focus')
+              if (raw) {
+                sessionStorage.removeItem('ab-assistant-focus')
+                return d.assistants?.find((a) => a.id === raw) || null
+              }
+            } catch {
+              /* ignore */
+            }
+            return null
+          })()
+        const first = focus || d.assistants?.[0]
         if (first) {
           setSelectedId(first.id)
           setMessage(first.starterPromptAr)
         }
       })
       .catch(() => setCatalog({ assistants: [] }))
-  }, [])
+  }, [initialAssistantId])
 
   useEffect(() => {
     if (signedIn !== true) {
@@ -133,6 +165,8 @@ export function AssistantsCorePanel({
 
   const assistants = catalog?.assistants || []
   const selected = assistants.find((a) => a.id === selectedId) || null
+  const needsGoogle =
+    selected?.requires === 'google' && googleConnected === false
 
   const selectAssistant = useCallback((a: AssistantCatalogItem) => {
     setSelectedId(a.id)
@@ -144,12 +178,25 @@ export function AssistantsCorePanel({
   const requirementBlocked = (a: AssistantCatalogItem | null): string | null => {
     if (!a) return null
     if (a.requires === 'google' && googleConnected === false) {
-      return a.emptyStateAr || 'يلزم ربط Google من الإعدادات.'
+      return a.emptyStateAr || 'يلزم ربط Google أولاً.'
     }
     if (a.requires === 'telegram' && telegramReady === false) {
       return a.emptyStateAr || null
     }
     return null
+  }
+
+  async function linkGoogle() {
+    setConnectingGoogle(true)
+    setError('')
+    try {
+      await connectGoogleCalendar()
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'تعذّر بدء ربط Google — حاول من الإعدادات'
+      )
+      setConnectingGoogle(false)
+    }
   }
 
   async function run() {
@@ -163,9 +210,11 @@ export function AssistantsCorePanel({
       setError('اختر مساعداً واكتب النتيجة المطلوبة.')
       return
     }
-    const soft = requirementBlocked(selected)
-    if (selected?.requires === 'google' && soft) {
-      setError(soft)
+    if (selected?.requires === 'google' && needsGoogle) {
+      setError(
+        selected.emptyStateAr ||
+          'اربط Google أولاً — لن يعمل المساعد بدون Gmail/تقويم.'
+      )
       return
     }
     setBusy(true)
@@ -211,11 +260,11 @@ export function AssistantsCorePanel({
     <section className="mx-auto max-w-5xl space-y-5 px-6 py-8" dir="rtl">
       <div>
         <h2 className="text-xl font-bold text-ab-ink">
-          {catalog?.titleAr || 'المساعدون — نواة العمل'}
+          {catalog?.titleAr || 'مساعد العمل — بريد · تقويم · تيليجرام'}
         </h2>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-stone-500">
           {catalog?.subtitleAr ||
-            'نواة عامة للعمل اليومي عبر أدوات API — ليست تحكماً بسطح المكتب، وقوالب الجمعية تبقى منفصلة في الغرف.'}
+            'مساعدون تنفيذيون يستدعون الأدوات ويعيدون أفعالاً ملموسة — ليست دردشة فارغة.'}
         </p>
         {canAccessOpsUi && catalog?.telegramHintAr ? (
           <p className="mt-2 text-[12px] text-stone-500">
@@ -248,6 +297,48 @@ export function AssistantsCorePanel({
         </div>
       )}
 
+      {signedIn === true && googleConnected === false && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-950">
+                Google غير مربوط — المساعدون الذين يعتمدون على البريد والتقويم
+                لن يعملوا
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-amber-900/90">
+                اربط حسابك لتشغيل «كابتن اليوم» و«صفر البريد» وقراءة Gmail
+                وتقويم Google. (تقويم الغرفة الداخلي يعمل بدون Google.)
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={connectingGoogle}
+              onClick={() => void linkGoogle()}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {connectingGoogle ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  جاري التوجيه…
+                </>
+              ) : (
+                <>
+                  <Link2 className="h-4 w-4" aria-hidden />
+                  اربط Google الآن
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {signedIn === true && googleConnected === true && (
+        <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-800">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+          Google مربوط — البريد والتقويم جاهزان للمساعدين
+        </p>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {assistants.map((a) => {
           const Icon = ICONS[a.id] || Sparkles
@@ -255,6 +346,7 @@ export function AssistantsCorePanel({
           const warn =
             (a.requires === 'google' && googleConnected === false) ||
             (a.requires === 'telegram' && telegramReady === false)
+          const featured = a.id === 'day-captain'
           return (
             <button
               key={a.id}
@@ -264,32 +356,39 @@ export function AssistantsCorePanel({
                 'rounded-xl border p-4 text-right transition',
                 active
                   ? 'border-ab-accent bg-ab-accent/5 shadow-sm'
-                  : 'border-ab-border bg-ab-surface hover:border-stone-300'
+                  : featured
+                    ? 'border-ab-accent/50 bg-ab-accent/[0.03] hover:border-ab-accent'
+                    : 'border-ab-border bg-ab-surface hover:border-stone-300'
               )}
             >
               <div className="flex items-start gap-2">
                 <span
                   className={cn(
                     'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                    active ? 'bg-ab-accent/15 text-ab-accent' : 'bg-stone-100 text-stone-600'
+                    active
+                      ? 'bg-ab-accent/15 text-ab-accent'
+                      : featured
+                        ? 'bg-ab-accent/10 text-ab-accent'
+                        : 'bg-stone-100 text-stone-600'
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-ab-ink">{a.nameAr}</p>
+                  <p className="text-sm font-bold text-ab-ink">
+                    {a.nameAr}
+                    {featured ? (
+                      <span className="ms-1.5 text-[10px] font-semibold text-ab-accent">
+                        موصى به
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="mt-0.5 text-[11px] text-stone-500">
                     {a.taglineAr}
                   </p>
-                  {canAccessOpsUi ? (
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-stone-600">
-                      {a.descriptionAr}
-                    </p>
-                  ) : (
-                    <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-stone-600">
-                      {a.descriptionAr}
-                    </p>
-                  )}
+                  <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-stone-600">
+                    {a.descriptionAr}
+                  </p>
                   {warn ? (
                     <p className="mt-2 flex items-center gap-1 text-[10px] font-medium text-amber-800">
                       <Link2 className="h-3 w-3" aria-hidden />
@@ -321,24 +420,58 @@ export function AssistantsCorePanel({
                 تشغيل: {selected.nameAr}
               </p>
               <p className="text-[11px] text-stone-500">
-                اكتب أو عدّل النتيجة المطلوبة ثم اضغط «شغّل».
+                عدّل النتيجة إن لزم ثم اضغط «شغّل» — المساعد يستدعي الأدوات
+                ويعيد ما نُفّذ.
               </p>
             </div>
-            {selected.requires === 'google' && googleConnected === false && (
-              <button
-                type="button"
-                onClick={() => onNavigate?.('settings')}
-                className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
-              >
-                ربط Google من الإعدادات
-              </button>
-            )}
           </div>
 
-          {requirementBlocked(selected) && selected.requires === 'google' ? (
-            <div className="mb-3 flex gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-[12px] text-amber-950">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <p>{requirementBlocked(selected)}</p>
+          {needsGoogle ? (
+            <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-4">
+              <div className="flex gap-2">
+                <ShieldAlert
+                  className="mt-0.5 h-5 w-5 shrink-0 text-amber-800"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-amber-950">
+                    لا يمكن التشغيل بدون Google
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-amber-900">
+                    {requirementBlocked(selected)}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={connectingGoogle}
+                      onClick={() => void linkGoogle()}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                    >
+                      {connectingGoogle ? (
+                        <>
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden
+                          />
+                          جاري التوجيه…
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-4 w-4" aria-hidden />
+                          اربط Google الآن
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('settings')}
+                      className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-950"
+                    >
+                      أو من الإعدادات
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -357,7 +490,8 @@ export function AssistantsCorePanel({
               onChange={(e) => setMessage(e.target.value)}
               rows={canAccessOpsUi ? 4 : 3}
               dir="rtl"
-              className="w-full resize-y rounded-lg border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink outline-none focus:border-ab-accent"
+              disabled={Boolean(needsGoogle)}
+              className="w-full resize-y rounded-lg border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink outline-none focus:border-ab-accent disabled:bg-stone-50 disabled:text-stone-400"
               placeholder="صف النتيجة…"
             />
           </label>
@@ -365,7 +499,7 @@ export function AssistantsCorePanel({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={busy || signedIn !== true}
+              disabled={busy || signedIn !== true || Boolean(needsGoogle)}
               onClick={() => void run()}
               className="inline-flex items-center gap-1.5 rounded-lg bg-ab-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
@@ -395,29 +529,55 @@ export function AssistantsCorePanel({
             </p>
           ) : null}
 
-          {result?.text ? (
-            <div className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
-              <p className="mb-2 text-[11px] font-semibold text-emerald-900">
-                نتيجة — {result.nameAr}
-                {canAccessOpsUi && result.steps
-                  ? ` · ${result.steps} خطوة`
-                  : ''}
-              </p>
-              <div
-                className="whitespace-pre-wrap text-sm leading-relaxed text-ab-ink"
-                dir="rtl"
-              >
-                {result.text}
-              </div>
-              {canAccessOpsUi &&
-              result.toolNames &&
-              result.toolNames.length > 0 ? (
-                <p
-                  dir="ltr"
-                  className="mt-3 text-left font-mono text-[10px] text-stone-400"
-                >
-                  tools: {result.toolNames.join(', ')}
+          {result?.text || (result?.usedTools && result.usedTools.length > 0) ? (
+            <div className="mt-4 space-y-3">
+              {result.usedTools && result.usedTools.length > 0 ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50/80 p-3">
+                  <p className="mb-2 text-[11px] font-bold text-stone-700">
+                    ما نُفّذ عبر الأدوات
+                    {result.steps ? ` · ${result.steps} خطوة` : ''}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {result.usedTools.map((t, i) => (
+                      <li
+                        key={`${t.name}-${i}`}
+                        className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]"
+                      >
+                        <span className="font-semibold text-ab-ink">
+                          {t.labelAr}
+                        </span>
+                        <span className="text-stone-600">{t.summaryAr}</span>
+                        {canAccessOpsUi ? (
+                          <span
+                            dir="ltr"
+                            className="font-mono text-[10px] text-stone-400"
+                          >
+                            {t.name}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : result.text ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900">
+                  لم يُسجَّل استدعاء أدوات في هذه الجولة — إن كانت النتيجة عامة
+                  جداً، أعد التشغيل أو تحقق من ربط Google.
                 </p>
+              ) : null}
+
+              {result.text ? (
+                <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4">
+                  <p className="mb-2 text-[11px] font-semibold text-emerald-900">
+                    نتيجة — {result.nameAr}
+                  </p>
+                  <div
+                    className="whitespace-pre-wrap text-sm leading-relaxed text-ab-ink"
+                    dir="rtl"
+                  >
+                    {result.text}
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}

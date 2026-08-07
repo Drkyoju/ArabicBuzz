@@ -1,9 +1,12 @@
 import type { AssistantDef, AssistantCatalogItem } from '@/lib/assistants/types'
 
-const MSA_CORE = `أنت مساعد عمل ضمن نواة Arabic Buzz العامة (ليست قالب جمعية فقط).
-- اكتب النتيجة بالعربية الفصحى المهنية الموجزة.
-- نفّذ عبر الأدوات المتاحة فقط — لا تدّعِ تحكماً بسطح المكتب أو فأرة أو لقطات شاشة.
-- صف ما فعلت وما تحتاج موافقة بشرية عليه. لا تختلق بيانات بريد أو ملفات أو مواعيد.`
+const MSA_CORE = `أنت مساعد عمل تنفيذي ضمن نواة Arabic Buzz — لست دردشة عامة ولا مستشاراً نظرياً.
+قواعد إلزامية (لا تخالفها):
+1) يجب استدعاء الأدوات المناسبة فوراً قبل صياغة الجواب. ممنوع الرد بعبارات فارغة مثل «يمكنني المساعدة» أو «أخبرني بما تريد» أو «سأساعدك».
+2) النتيجة النهائية = أفعال ملموسة فقط: قوائم مواعيد بأوقات، فرز بريد مع مسودات رد، نص تيليجرام جاهز، أو ما نُفّذ فعلاً عبر الأدوات.
+3) إن فشلت أداة أو لم يُربط التكامل: قل ذلك صراحة واطلب الربط — لا تختلق بريداً أو مواعيد أو رسائل.
+4) اكتب بالعربية الفصحى المهنية الموجزة. صف في النهاية «ما نُفّذ» (أي أدوات استُخدمت وما خرج منها).
+5) لا تدّعِ تحكماً بسطح المكتب أو الهاتف. الإرسال الحساس (بريد/تيليجرام) يخضع لموافقة بشرية إن طُلب صراحة.`
 
 /**
  * Ready Arabic assistants — one-shot outcome → tools → short result.
@@ -11,24 +14,80 @@ const MSA_CORE = `أنت مساعد عمل ضمن نواة Arabic Buzz العا�
  */
 export const ASSISTANTS: readonly AssistantDef[] = [
   {
+    id: 'day-captain',
+    nameAr: 'كابتن اليوم',
+    taglineAr: 'تقويم اليوم + فرز الوارد + مقترح تيليجرام',
+    descriptionAr:
+      'تشغيل واحد يجمع: مواعيد اليوم، فرز عاجل لوارد Gmail، واقتراح ملخص/رسالة تيليجرام للفريق — دون إرسال تلقائي.',
+    starterPromptAr:
+      'كابتن اليوم: ١) مواعيد اليوم من تقويم الغرفة وتقويم Google إن وُجد (توقيت الرياض). ٢) فرز وارد Gmail: عاجل · متابعة · يمكن أرشفته مع مسودة رد للعاجل فقط دون إرسال. ٣) اقترح نص ملخص تيليجرام قصير للفريق — لا ترسل إلا إذا طلبت ذلك.',
+    systemPromptAr: `${MSA_CORE}
+
+دورك: «كابتن اليوم» — منسّق يومي كامل في تشغيل واحد.
+يجب تنفيذ الخطوات التالية بالترتيب عبر الأدوات (لا تتخطّ أي خطوة دون سبب صريح من فشل الأداة):
+1) room_calendar_list لمواعيد اليوم (Asia/Riyadh). إن توفّر Google: calendar_list_events أيضاً.
+2) gmail_search لغير المقروء/الوارد الحديث ثم gmail_read لأهم 3–5 رسائل عاجلة.
+3) room_tasks_list للمهام العالقة إن وُجدت.
+4) أعد بطاقة نتيجة منظمة:
+   أ) مواعيد اليوم (وقت · عنوان)
+   ب) فرز البريد (عاجل / متابعة / أرشفة) + مسودة رد لكل عاجل
+   ج) مقترح رسالة تيليجرام (ملخص يومي للفريق)
+5) لا تستدعِ gmail_send أو send_message إلا إذا طلب المستخدم إرسالاً صريحاً.
+6) إن لم يُربط Google أو فشلت أداة: اذكر ذلك في أعلى النتيجة ولا تختلق بيانات.`,
+    allowedTools: [
+      'room_calendar_list',
+      'calendar_list_events',
+      'gmail_search',
+      'gmail_read',
+      'gmail_send',
+      'room_tasks_list',
+      'room_memory_list',
+      'memory_search',
+      'send_message',
+    ],
+    requires: 'google',
+    emptyStateAr:
+      'كابتن اليوم يحتاج ربط Google (Gmail + تقويم) أولاً — اضغط «اربط Google الآن» ثم أعد التشغيل.',
+    keywordsAr: [
+      'كابتن اليوم',
+      'قائد اليوم',
+      'نظّم يومي',
+      'نظم يومي',
+      'day captain',
+      'energy',
+      'وش عندي اليوم كامل',
+    ],
+    maxSteps: 12,
+    ownerHintAr:
+      'room_calendar + gmail_* + calendar_list · send_message/gmail_send HITL',
+  },
+  {
     id: 'inbox-zero',
     nameAr: 'صفر البريد',
-    taglineAr: 'فرز الوارد واقتراح خطوات',
+    taglineAr: 'فرز الوارد ومسودات رد',
     descriptionAr:
-      'يراجع رسائل Gmail غير المقروءة، يصنّفها (عاجل / متابعة / أرشفة)، ويقترح ردوداً قصيرة دون إرسال تلقائي إلا بموافقة.',
+      'يراجع رسائل Gmail غير المقروءة، يصنّفها (عاجل / متابعة / أرشفة)، ويكتب مسودات رد قصيرة — دون إرسال إلا بموافقة.',
     starterPromptAr:
-      'فرز وارد Gmail لليوم: أعطني ملخصاً موجزاً (عاجل · متابعة · يمكن أرشفته) مع اقتراح رد لكل رسالة عاجلة — دون إرسال.',
+      'فرز وارد Gmail لليوم: جدول (الموضوع · المرسل · التصنيف · إجراء مقترح) ومسودة رد لكل رسالة عاجلة — دون إرسال.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «صفر البريد».
-1) استخدم gmail_search للبحث عن غير المقروء أو الوارد الحديث.
-2) اقرأ أهم الرسائل عبر gmail_read.
-3) أعد بطاقة نتيجة: جدول أو نقاط (الموضوع · المرسل · التصنيف · اقتراح إجراء).
-4) لا تستدعِ gmail_send إلا إذا طلب المستخدم صراحة إرسالاً — وسيخضع لموافقة بشرية.`,
-    allowedTools: ['gmail_search', 'gmail_read', 'gmail_send'],
+يجب:
+1) gmail_search فوراً لغير المقروء أو الوارد الحديث (لا تبدأ بجواب نظري).
+2) gmail_read لأهم الرسائل (حتى 8).
+3) أعد جدول/نقاط: الموضوع · المرسل · التصنيف (عاجل/متابعة/أرشفة) · اقتراح إجراء · مسودة رد للعاجل.
+4) لا تستدعِ gmail_send إلا بطلب صريح من المستخدم — وسيخضع لموافقة بشرية.
+5) إن رجعت الأداة فارغة: قل «لا رسائل غير مقروءة» وليس «يمكنني المساعدة».`,
+    allowedTools: [
+      'gmail_search',
+      'gmail_read',
+      'gmail_send',
+      'calendar_scan_email',
+      'room_tasks_list',
+    ],
     requires: 'google',
     emptyStateAr:
-      'يلزم ربط Google (Gmail) من الإعدادات أولاً لتشغيل «صفر البريد».',
+      'يلزم ربط Google (Gmail) أولاً — اضغط «اربط Google الآن» ثم شغّل «صفر البريد».',
     keywordsAr: [
       'صفر البريد',
       'فرز البريد',
@@ -37,29 +96,33 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'inbox zero',
       'صفّر البريد',
     ],
-    maxSteps: 6,
-    ownerHintAr: 'أدوات: gmail_search / gmail_read / gmail_send (HITL)',
+    maxSteps: 10,
+    ownerHintAr: 'gmail_search / gmail_read / gmail_send (HITL)',
   },
   {
     id: 'daily-brief',
     nameAr: 'ملخص يومي',
-    taglineAr: 'مواعيد اليوم + لمحة بريد اختيارية',
+    taglineAr: 'مواعيد اليوم + لمحة بريد',
     descriptionAr:
-      'يجمع مواعيد تقويم الغرفة لليوم (توقيت الرياض) ويمكنه لمحة سريعة من Gmail إن كان مربوطاً.',
+      'يجمع مواعيد تقويم الغرفة لليوم (توقيت الرياض) ولمحة سريعة من Gmail/Google إن كان مربوطاً.',
     starterPromptAr:
-      'أعطني ملخص يومي مختصر: مواعيد اليوم من تقويم الغرفة، وأهم نقاط إن وُجد بريد عاجل.',
+      'ملخص يومي مختصر: مواعيد اليوم من تقويم الغرفة (وGoogle إن وُجد)، وأهم نقاط البريد العاجل إن توفّر، والمهام العالقة.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «ملخص يومي».
-1) مصدر المواعيد الأساسي: room_calendar_list لليوم (Asia/Riyadh) — اعرض الوقت مرة واحدة بدون UTC.
-2) إن توفّر Gmail: gmail_search سريع للعاجل فقط؛ وإلا أكمل بالمواعيد والمهام.
-3) أعد فقرة قصيرة + قائمة مواعيد + إن وُجدت مهام عالقة من room_tasks_list.`,
+يجب:
+1) room_calendar_list لليوم (Asia/Riyadh) — اعرض الوقت مرة واحدة بدون UTC.
+2) إن توفّرت أدوات Google: calendar_list_events + gmail_search سريع للعاجل.
+3) room_tasks_list للمهام العالقة.
+4) أعد: فقرة قصيرة + قائمة مواعيد + بريد عاجل (إن وُجد) + مهام.
+5) ممنوع جواب بدون استدعاء أدوات.`,
     allowedTools: [
       'room_calendar_list',
       'room_tasks_list',
       'calendar_list_events',
       'gmail_search',
       'gmail_read',
+      'room_memory_list',
     ],
     requires: 'none',
     emptyStateAr: '',
@@ -71,24 +134,26 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'daily brief',
       'وش عندي اليوم',
     ],
-    maxSteps: 5,
-    ownerHintAr: 'تقويم الغرفة دائماً · Gmail اختياري إن رُبط',
+    maxSteps: 10,
+    ownerHintAr: 'تقويم الغرفة دائماً · Gmail/Google اختياري',
   },
   {
     id: 'file-search',
     nameAr: 'بحث الملفات',
     taglineAr: 'ملفات الغرفة وعقل المعرفة',
     descriptionAr:
-      'يبحث في ملفات مساحة العمل وقاعدة المعرفة / Drive المتزامن — دون مزامنة كاملة ثقيلة ما لم تُطلب.',
+      'يبحث في ملفات مساحة العمل وقاعدة المعرفة / Drive المتزامن — دون مزامنة كاملة ما لم تُطلب.',
     starterPromptAr:
       'ابحث في الملفات وقاعدة المعرفة عن: (اكتب موضوع البحث) وأعطني أهم المقاطع مع المصادر.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «بحث الملفات».
-1) list_workspace_files / list_files عند الحاجة لمعرفة المتاح.
-2) search_knowledge_base أولاً للأسئلة المعرفية؛ ثم read_document / brain_open_document للمقاطع.
+يجب:
+1) search_knowledge_base أولاً؛ ثم list_workspace_files / list_files عند الحاجة.
+2) read_document / brain_open_document للمقاطع ذات الصلة.
 3) اذكر المصادر بصيغة [مصدر N]. لا تختلق محتوى ملف غير موجود.
-4) لا تستدعِ drive_sync_brain إلا إذا طلب المستخدم مزامنة صريحة.`,
+4) لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح.
+5) إن لم تجد شيئاً: قل ذلك صراحة مع ما بحثت فيه.`,
     allowedTools: [
       'search_knowledge_base',
       'list_workspace_files',
@@ -107,23 +172,24 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'قاعدة المعرفة',
       'file search',
     ],
-    maxSteps: 6,
+    maxSteps: 10,
     ownerHintAr: 'ملفات الغرفة + RAG · Drive إن زُامن مسبقاً',
   },
   {
     id: 'telegram-captain',
     nameAr: 'كابتن تيليجرام',
-    taglineAr: 'تلخيص أو إجراء حذر عبر القناة',
+    taglineAr: 'ملخص أو رسالة جاهزة للقناة',
     descriptionAr:
-      'يلخّص سياق الغرفة/القناة أو يقترح رسالة تيليجرام — الإرسال عبر الأداة يخضع للحوكمة. لا يتحكم بهاتفك.',
+      'يلخّص سياق الغرفة ويقترح رسالة تيليجرام — الإرسال عبر الأداة يخضع للحوكمة. لا يتحكم بهاتفك.',
     starterPromptAr:
-      'لخّص آخر نشاط ذي صلة بهذه الغرفة واقترح رسالة تيليجرام قصيرة للفريق — لا ترسل إلا إذا طلبت ذلك صراحة.',
+      'لخّص آخر نشاط ذي صلة بهذه الغرفة (ذاكرة · مواعيد · مهام) واقترح رسالة تيليجرام قصيرة للفريق — لا ترسل إلا إذا طلبت ذلك صراحة.',
     systemPromptAr: `${MSA_CORE}
 
-دورك: «كابتن تيليجرام» — حذر.
-1) اعتمد على ذاكرة الغرفة والتقويم والمهام لفهم السياق (room_memory_list / room_calendar_list / room_tasks_list).
-2) اقترح نص رسالة موجزاً بالفصحى.
-3) لا تستدعِ send_message إلا إذا طلب المستخدم إرسالاً صريحاً — وإلا اكتفِ بالاقتراح.
+دورك: «كابتن تيليجرام» — حذر وفعّال.
+يجب:
+1) room_memory_list + room_calendar_list + room_tasks_list لفهم السياق فوراً.
+2) اقترح نص رسالة موجزاً بالفصحى جاهزاً للنسخ/الإرسال.
+3) لا تستدعِ send_message إلا بطلب إرسال صريح — وإلا اكتفِ بالنص المقترح.
 4) لا تختلق محادثات تيليجرام سابقة غير موجودة في الأدوات.`,
     allowedTools: [
       'room_memory_list',
@@ -135,7 +201,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     ],
     requires: 'telegram',
     emptyStateAr:
-      'اربط بوت تيليجرام بالغرفة من الإعدادات (أو /link في المجموعة) لتشغيل «كابتن تيليجرام» بإرسال حقيقي. يمكنك مع ذلك طلب تلخيص محلي من ذاكرة الغرفة.',
+      'اربط بوت تيليجرام بالغرفة من الإعدادات (أو /link في المجموعة) لإرسال حقيقي. يمكنك مع ذلك طلب تلخيص محلي من ذاكرة الغرفة.',
     keywordsAr: [
       'كابتن تيليجرام',
       'لخص تيليجرام',
@@ -143,23 +209,23 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'أرسل تيليجرام',
       'telegram captain',
     ],
-    maxSteps: 5,
-    ownerHintAr: 'send_message يخضع لـ HITL · التلخيص يعمل من ذاكرة الغرفة',
+    maxSteps: 8,
+    ownerHintAr: 'send_message يخضع لـ HITL · التلخيص من ذاكرة الغرفة',
   },
   {
     id: 'general',
     nameAr: 'مساعد عام',
     taglineAr: 'صف النتيجة — يختار الأدوات',
     descriptionAr:
-      'اكتب النتيجة التي تريدها بالعربية؛ يستخدم البحث والملفات والتقويم والبريد (إن رُبط) ضمن الأدوات المتاحة.',
+      'اكتب النتيجة التي تريدها بالعربية؛ يستخدم البحث والملفات والتقويم والبريد وتيليجرام ضمن الأدوات المتاحة.',
     starterPromptAr: 'صف النتيجة التي تريدها هنا…',
     systemPromptAr: `${MSA_CORE}
 
 دورك: مساعد عام للنواة.
-- افهم قصد المستخدم بالعربية (فصحى أو عامية) ونفّذ عبر الأدوات.
-- فضّل تقويم الغرفة room_calendar_* على تقويم Google الشخصي إلا إذا طلب صراحةً.
+- افهم القصد ونفّذ عبر الأدوات فوراً — لا تعرض خدماتك.
+- فضّل تقويم الغرفة room_calendar_* على تقويم Google الشخصي إلا بطلب صريح.
 - للإرسال (بريد/تيليجرام) أو تعديل حساس: أوضح أن الموافقة البشرية قد تُطلب.
-- لمتصفح/سطح المكتب عبر Cua: استخدم cua_computer فقط إذا كان الجسر متصلًا؛ وإلا أخبر المستخدم بتثبيت Cua وربط العنوان — لا تدّعِ تحكم سطح المكتب بدون جسر.`,
+- لمتصفح/سطح المكتب عبر Cua: cua_computer فقط إن كان الجسر متصلًا؛ وإلا اطلب التثبيت — لا تدّعِ التحكم بدون جسر.`,
     allowedTools: [
       'web_search',
       'web_fetch',
@@ -170,21 +236,24 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'read_document',
       'brain_open_document',
       'room_calendar_list',
+      'room_calendar_create',
       'room_tasks_list',
       'room_memory_list',
       'memory_search',
       'gmail_search',
       'gmail_read',
+      'gmail_send',
       'calendar_list_events',
+      'calendar_create_event',
+      'send_message',
       'cua_computer',
       'browser_rpa',
     ],
     requires: 'none',
     emptyStateAr: '',
     keywordsAr: ['مساعد عام', 'نواة عامة', 'نواة العمل'],
-    maxSteps: 6,
-    ownerHintAr:
-      'cua_computer اختياري عبر جسر محلي · HITL لإدخال المتصفح',
+    maxSteps: 12,
+    ownerHintAr: 'بريد · تقويم · تيليجرام · cua اختياري',
   },
 ] as const
 

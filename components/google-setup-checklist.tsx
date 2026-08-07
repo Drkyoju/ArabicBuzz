@@ -12,10 +12,10 @@ export function GoogleSetupChecklist({
 }) {
   const lastStep =
     focus === 'calendar'
-      ? 'ثم اضغط «ربط تقويم Google» من قسم التقويم'
+      ? 'ثم من تقويم الفريق → «Google / Gmail» اضغط «ربط بريد Google (Gmail)» واختر بريد Workspace للجمعية'
       : focus === 'drive'
         ? 'ثم اربط Google وزامن مجلد العقل من الإعدادات'
-        : 'ثم اربط Google من التقويم أو Drive'
+        : 'ثم اربط Google من تقويم الفريق → «Google / Gmail» أو Drive'
 
   return (
     <details className={className} dir="rtl">

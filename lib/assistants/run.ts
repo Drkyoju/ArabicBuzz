@@ -28,47 +28,57 @@ async function googleConnected(requesterId: string): Promise<boolean> {
   }
 }
 
+function emptyResult(
+  partial: Pick<AssistantRunResult, 'assistantId' | 'nameAr' | 'toolNames'> & {
+    blocked: NonNullable<AssistantRunResult['blocked']>
+  }
+): AssistantRunResult {
+  return {
+    assistantId: partial.assistantId,
+    nameAr: partial.nameAr,
+    text: '',
+    modelSlug: '',
+    toolNames: partial.toolNames,
+    usedTools: [],
+    steps: 0,
+    citations: [],
+    pendingApprovalIds: [],
+    blocked: partial.blocked,
+  }
+}
+
 /**
  * Run a catalog assistant one-shot via the existing engine (tool-scoped).
  * Telegram captain is soft-gated in the UI (summarize works; send needs bind).
+ * Assistants use their own maxSteps (8–12) — not Telegram fast-path limits.
  */
 export async function runAssistant(
   input: RunAssistantInput
 ): Promise<AssistantRunResult> {
   const assistant = getAssistant(input.assistantId)
   if (!assistant) {
-    return {
+    return emptyResult({
       assistantId: input.assistantId as AssistantId,
       nameAr: 'غير معروف',
-      text: '',
-      modelSlug: '',
       toolNames: [],
-      steps: 0,
-      citations: [],
-      pendingApprovalIds: [],
       blocked: {
         reason: 'auth',
         messageAr: 'المساعد غير موجود في النواة العامة.',
       },
-    }
+    })
   }
 
   const prompt = input.message.trim()
   if (!prompt) {
-    return {
+    return emptyResult({
       assistantId: assistant.id,
       nameAr: assistant.nameAr,
-      text: '',
-      modelSlug: '',
       toolNames: [...assistant.allowedTools],
-      steps: 0,
-      citations: [],
-      pendingApprovalIds: [],
       blocked: {
         reason: 'auth',
         messageAr: 'اكتب النتيجة المطلوبة بالعربية قبل التشغيل.',
       },
-    }
+    })
   }
 
   if (
@@ -76,23 +86,21 @@ export async function runAssistant(
     assistant.requires === 'google' &&
     !(await googleConnected(input.requesterId))
   ) {
-    return {
+    return emptyResult({
       assistantId: assistant.id,
       nameAr: assistant.nameAr,
-      text: '',
-      modelSlug: '',
       toolNames: [...assistant.allowedTools],
-      steps: 0,
-      citations: [],
-      pendingApprovalIds: [],
       blocked: {
         reason: 'google',
         messageAr:
           assistant.emptyStateAr ||
-          'يلزم ربط Google من الإعدادات أولاً (تقويم / Gmail / Drive).',
+          'يلزم ربط Google أولاً (Gmail / تقويم) — اضغط «اربط Google الآن».',
       },
-    }
+    })
   }
+
+  // Assistants need room to call tools — never inherit Telegram fast-path (2–3).
+  const maxSteps = Math.max(8, Math.min(16, assistant.maxSteps ?? 10))
 
   const result = await runAgentEngine({
     prompt,
@@ -102,7 +110,7 @@ export async function runAssistant(
     requesterId: input.requesterId,
     mode: input.mode,
     includeMcpTools: false,
-    maxSteps: assistant.maxSteps ?? 5,
+    maxSteps,
     allowedTools: [...assistant.allowedTools],
   })
 
@@ -112,6 +120,7 @@ export async function runAssistant(
     text: result.text,
     modelSlug: result.modelSlug,
     toolNames: result.toolNames,
+    usedTools: result.usedTools || [],
     steps: result.steps,
     citations: result.citations,
     pendingApprovalIds: result.pendingApprovalIds,

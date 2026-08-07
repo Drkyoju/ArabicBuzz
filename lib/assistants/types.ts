@@ -4,6 +4,7 @@
  */
 
 export type AssistantId =
+  | 'day-captain'
   | 'inbox-zero'
   | 'daily-brief'
   | 'file-search'
@@ -11,6 +12,12 @@ export type AssistantId =
   | 'general'
 
 export type AssistantRequirement = 'none' | 'google' | 'telegram'
+
+export type AssistantUsedTool = {
+  name: string
+  labelAr: string
+  summaryAr: string
+}
 
 export type AssistantDef = {
   id: AssistantId
@@ -52,7 +59,10 @@ export type AssistantRunResult = {
   nameAr: string
   text: string
   modelSlug: string
+  /** Tools bound for this run (allow-list). */
   toolNames: string[]
+  /** Tools actually invoked during the run. */
+  usedTools: AssistantUsedTool[]
   steps: number
   citations: import('@/lib/scopes/types').RoomCitation[]
   pendingApprovalIds: string[]
