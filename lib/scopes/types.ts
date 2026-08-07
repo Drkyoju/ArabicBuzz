@@ -74,4 +74,6 @@ export type RoomPost = {
   postKind?: RoomPostKind
   /** App user ids mentioned via @member */
   mentionUserIds?: string[]
+  /** Directed @agent seat for this turn (wake / handoff). */
+  mentionAgentId?: string
 }

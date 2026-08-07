@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import { FolderOpen, Loader2, RefreshCw, Link2 } from 'lucide-react'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import {
   authHeaders,
   connectGoogleCalendar,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
+import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
 
 const BRAIN_FOLDER_URL =
   'https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW'
@@ -200,25 +201,23 @@ export function GoogleDriveBrainPanel() {
       </p>
 
       {!preview?.connected && !isGuest && (
-        <div className="mb-3 rounded-xl border border-ab-accent/25 bg-ab-accent/5 px-3 py-2.5">
-          <p className="text-[12px] font-semibold text-ab-ink">
-            مطلوب منك: اضغط «ربط Google» مرة واحدة
+        <div className="mb-3 rounded-xl border border-ab-accent/30 bg-gradient-to-bl from-ab-accent/10 to-white px-3 py-3 shadow-sm">
+          <p className="flex items-center gap-1.5 text-[13px] font-bold text-ab-ink">
+            <Link2 className="h-4 w-4 text-ab-accent" aria-hidden />
+            Drive غير مربوط — اضغط الزر مرة واحدة
           </p>
-          <ol className="mt-1.5 list-decimal space-y-1 pe-4 text-[11px] leading-relaxed text-stone-600">
-            <li>اضغط الزر أدناه واختر حساباً يرى مجلد «ملفات الجمعية»</li>
-            <li>وافق على الصلاحيات (Drive / التقويم / Gmail حسب الشاشة)</li>
-            <li>
-              بعدها يعمل تحويل PDF→Word النظيف في الشات + فهرسة العقل — بلا
-              CloudConvert
-            </li>
+          <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
+            بدون الربط: لا فهرسة لعقل الشركة ولا تحويل PDF→Word النظيف عبر Google.
+            اختر حساباً يرى مجلد «ملفات الجمعية» ثم وافق على الصلاحيات.
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pe-4 text-[11px] leading-relaxed text-stone-600">
+            <li>اضغط «١) ربط Google (Drive)» أدناه</li>
+            <li>وافق على Drive / التقويم / Gmail حسب الشاشة</li>
+            <li>ارجع هنا واضغط «٢) أعد المزامنة» لفهرسة المجلد</li>
           </ol>
-          <p className="mt-1.5 text-[10px] leading-snug text-stone-500">
-            إن ظهرت شاشة «تطبيق غير موثّق»: Advanced → Continue، أو اطلب من
-            المالك نشر التطبيق إلى Production (انظر الإعدادات /{' '}
-            <span dir="ltr" className="font-mono">
-              docs/google-oauth-ar.md
-            </span>
-            ).
+          <p className="mt-2 text-[10px] leading-snug text-stone-500">
+            إن ظهرت «تطبيق غير موثّق»: Advanced → Continue، أو اطلب من المالك
+            Publish في Google Console (القائمة أدناه).
           </p>
         </div>
       )}
@@ -227,7 +226,7 @@ export function GoogleDriveBrainPanel() {
         {isGuest ? (
           <Link
             href="/auth/login"
-            className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+            className="ab-btn-primary inline-flex items-center gap-1.5 !px-3 !py-2 text-xs"
           >
             سجّل الدخول لربط Drive
           </Link>
@@ -250,8 +249,9 @@ export function GoogleDriveBrainPanel() {
                 )
               })
             }}
-            className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
+            className="ab-btn-primary inline-flex items-center gap-1.5 !px-4 !py-2.5 text-sm shadow-sm"
           >
+            <Link2 className="h-4 w-4" aria-hidden />
             ١) ربط Google (Drive) — اضغط هنا
           </button>
         ) : (
@@ -264,7 +264,7 @@ export function GoogleDriveBrainPanel() {
               type="button"
               onClick={() => void sync()}
               disabled={syncing}
-              className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              className="ab-btn-accent-soft inline-flex !px-3 !py-1.5 text-xs disabled:opacity-40"
               title="أعد فهرسة ملفات Drive إلى عقل المعرفة (بحث عربي)"
             >
               {syncing
@@ -274,6 +274,14 @@ export function GoogleDriveBrainPanel() {
           </>
         )}
       </div>
+
+      {!preview?.connected && !isGuest ? (
+        <GoogleSetupChecklist
+          className="mb-3 rounded-lg border border-ab-border/80 bg-white/80 px-3 py-2"
+          focus="drive"
+          defaultOpen
+        />
+      ) : null}
 
       {note && (
         <p className="mb-2 text-[11px] leading-snug text-stone-600">{note}</p>

@@ -30,6 +30,18 @@ import type { RoomCitation } from '@/lib/scopes/types'
 import { transcribeArabicSpeech } from '@/lib/audio/transcribe'
 import { generateArabicAudioBuffer } from '@/lib/audio/tts'
 import {
+  shouldReplyWithTelegramVoice,
+  clipForTelegramTts,
+} from '@/lib/telegram/voice-reply'
+import {
+  buildVoiceQuickKeyboard,
+  rememberVoiceTranscript,
+  takeVoiceTranscript,
+  parseVoiceQuickCallback,
+  voiceQuickPrompt,
+  VOICE_QUICK_HINT_AR,
+} from '@/lib/telegram/voice-quick'
+import {
   extractAttachmentsFromToolOutput,
   ingestTelegramDocumentToWorkspace,
   ingestTelegramPhotoToWorkspace,
@@ -128,7 +140,7 @@ async function ensureBotCommands(instance: Bot) {
   if (commandsRegistered) return
   try {
     await instance.api.setMyCommands([
-      { command: 'link', description: 'ربط المجموعة/المحادثة بغرفة الموقع' },
+      { command: 'link', description: 'ربط المجموعة/اللجنة بغرفة الموقع' },
       { command: 'start', description: 'بدء الربط أو إظهار المعرّف' },
       { command: 'help', description: 'شرح الاستخدام بدون أوامر' },
       { command: 'status', description: 'حالة الربط' },
@@ -278,6 +290,16 @@ export function buildApprovalKeyboard(actionId: string) {
   return new InlineKeyboard()
     .text('✅ موافقة', 'approve_' + actionId)
     .text('❌ رفض', 'reject_' + actionId)
+}
+
+async function maybeSendTelegramVoiceReply(ctx: Context, text: string) {
+  if (!shouldReplyWithTelegramVoice(text)) return
+  try {
+    const audioOut = await generateArabicAudioBuffer(clipForTelegramTts(text))
+    await ctx.replyWithVoice(new InputFile(audioOut, 'reply.ogg'))
+  } catch {
+    /* TTS optional / cheap path may fail without keys */
+  }
 }
 
 async function bindTelegramTools(opts: {
@@ -528,6 +550,7 @@ async function runTelegramAgentTurn(opts: {
         kind: fastKind,
         totalMs: Date.now() - t0,
       })
+      await maybeSendTelegramVoiceReply(opts.ctx, text)
       return {
         text,
         citations: [] as RoomCitation[],
@@ -615,6 +638,7 @@ async function runTelegramAgentTurn(opts: {
         assistantId: routed.assistantId,
         totalMs: Date.now() - t0,
       })
+      await maybeSendTelegramVoiceReply(opts.ctx, text)
       return {
         text,
         citations: run.citations || [],
@@ -697,6 +721,7 @@ async function runTelegramAgentTurn(opts: {
     agentReplyAr: out.text,
   })
 
+  await maybeSendTelegramVoiceReply(opts.ctx, out.text)
   return out
   } finally {
     if (seatId) markTelegramSeatFree(scopeId, seatId)
@@ -877,13 +902,61 @@ export function getTelegramBot() {
       const payload = bindCmd.args.split(/\s+/)[0] || ''
       let boundScopeId = scope.scope.id
       let boundName = scope.scope.nameAr
+      const {
+        parseCommitteeStartPayload,
+        upsertCommitteeChannel,
+        COMMITTEE_LABELS_AR,
+        COMMITTEE_KEYS,
+      } = await import('@/lib/rooms/committee-channels')
+
+      // Bare /link — explain multi-committee options
+      if (!payload && bindCmd.cmd === 'link') {
+        const defaultScope =
+          process.env.TELEGRAM_DEFAULT_SCOPE_ID?.trim() || 'shared-demo'
+        const tag = botUsername ? `@${botUsername}` : ''
+        await upsertChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+          scopeId: boundScopeId,
+          userId,
+        })
+        await ctx.reply(
+          [
+            'تم ربط هذه المحادثة بالغرفة الافتراضية.',
+            `المساحة: ${boundName} (${boundScopeId})`,
+            `معرّف المحادثة: ${chatId}`,
+            '',
+            'عدة لجان؟ كل مجموعة تربط لوحدها:',
+            `/link${tag} scope_${defaultScope}`,
+            `/link${tag} scope_${defaultScope}__c_finance — اللجنة المالية`,
+            `/link${tag} scope_${defaultScope}__c_programs — لجنة البرامج`,
+            `/link${tag} scope_${defaultScope}__c_board — مجلس الإدارة`,
+            'أو اختصار داخل المجموعة: /link finance | programs | board',
+            '',
+            inGroup
+              ? [
+                  'اكتب بالعربية العادية — بدون /ask.',
+                  privacyHintAr(botUsername),
+                ].join('\n')
+              : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
+          ].join('\n')
+        )
+        return
+      }
+
       if (payload) {
-        const {
-          parseCommitteeStartPayload,
-          upsertCommitteeChannel,
-          COMMITTEE_LABELS_AR,
-        } = await import('@/lib/rooms/committee-channels')
-        const parsed = parseCommitteeStartPayload(payload)
+        // Shorthand: /link finance|programs|board → current/default scope + committee
+        const shorthand = payload.toLowerCase()
+        let parsed = parseCommitteeStartPayload(payload)
+        if (
+          !parsed?.committeeKey &&
+          (COMMITTEE_KEYS as readonly string[]).includes(shorthand)
+        ) {
+          parsed = {
+            scopeId: boundScopeId,
+            committeeKey: shorthand as (typeof COMMITTEE_KEYS)[number],
+          }
+        }
         const scopeId = parsed?.scopeId || payload.replace(/^scope[_-]/i, '')
         const resolved = await resolveTelegramScope({
           chatId,
@@ -911,6 +984,7 @@ export function getTelegramBot() {
                 'مرحباً — بوت Arabic Buzz جاهز.',
                 `رُبطت قناة «${COMMITTEE_LABELS_AR[parsed.committeeKey]}» بالغرفة: ${boundName}`,
                 `معرّف المحادثة: ${chatId}`,
+                'يمكن ربط مجموعات لجان أخرى بنفس الغرفة — كل مجموعة /link خاص بها.',
                 inGroup
                   ? 'اكتب بالعربية العادية — بدون /ask. الصوت والملفات مدعومان.'
                   : 'الرسائل هنا تظهر في نفس الغرفة على الموقع.',
@@ -942,6 +1016,7 @@ export function getTelegramBot() {
             ? [
                 'الآن المجموعة مثل الموقع: اكتب طلبك بالعربي العادي — بدون /ask.',
                 'الصوت والملفات (Word/Excel/PDF/صور) تدخل وتُعدَّل وتُرجَع هنا.',
+                'عدة لجان: /link finance أو /link scope_…__c_programs في مجموعة أخرى.',
                 privacyHintAr(botUsername),
               ].join('\n')
             : 'أضِف TELEGRAM_OWNER_CHAT_ID على Netlify إن أردت تثبيت مالك التنبيهات.',
@@ -961,17 +1036,21 @@ export function getTelegramBot() {
           '',
           'بعد /link:',
           '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله مثل غرفة الموقع',
-          '• أرسل رسالة صوتية → تفريغ عربي → قصد (موعد/مهمة/ملف/سؤال) → تنفيذ',
+          '• أرسل رسالة صوتية → تفريغ عربي → أزرار سريعة (موعد/مهمة/ملف) → تنفيذ',
           '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل/يحوّل ويرجع الملف',
           '• اطلب ملفاً من Drive أو خزنة الغرفة → يفتح/يعدّل ويرسل النتيجة هنا',
-          '• موعد بالصوت أو النص → يُضاف لتقويم الغرفة',
-          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → OCR (جودة أعلى مع جسر ماك إن وُجد)',
+          '• موعد بالصوت أو النص → يُضاف لتقويم الغرفة · تذكير ≈ ساعة قبل الموعد',
+          '• ملخص صباحي يومي للمجموعة (توقيت السعودية) — مهام + مواعيد',
+          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → OCR',
+          '',
+          'عدة لجان/مجموعات:',
+          `/link${tag} scope_<id>__c_finance|programs|board`,
+          'أو /link finance داخل مجموعة اللجنة',
           '',
           'لا حاجة لـ /ask. الموافقة البشرية للحذف فقط.',
-          'إيقاظ الوكلاء: وكيل١ أولاً، ثم ٢ إن كان الأول مشغولاً (مثل الموقع).',
           '',
           'أوامر اختيارية:',
-          '/link أو /start — الربط مرة واحدة',
+          '/link أو /start — الربط مرة واحدة لكل مجموعة',
           '/help · /status · /rooms · /approve',
           '',
           'مجموعة:',
@@ -1179,6 +1258,18 @@ export function getTelegramBot() {
         `🎤 تم التحويل (${stt.providerLabelAr}) · القصد: ${voiceWork.labelAr}:\n${transcript.slice(0, 3400)}`
       )
 
+      rememberVoiceTranscript({
+        chatId,
+        transcript,
+        scopeId: scope.scope.id,
+        userId,
+      })
+
+      // Quick action buttons — user can override/clarify after STT
+      await ctx.reply(VOICE_QUICK_HINT_AR, {
+        reply_markup: buildVoiceQuickKeyboard(),
+      })
+
       const promptSource = [
         transcript,
         needsTranslate
@@ -1198,7 +1289,9 @@ export function getTelegramBot() {
         .filter(Boolean)
         .join('\n')
 
-      const out = await runTelegramAgentTurn({
+      // For clear appointment/task/file intent, run immediately.
+      // Casual/question: buttons alone are enough; still run a short turn.
+      await runTelegramAgentTurn({
         ctx,
         promptSource,
         chatId,
@@ -1207,16 +1300,7 @@ export function getTelegramBot() {
         forceHeavy: voiceWork.forceHeavy,
         workLabelAr: voiceWork.labelAr,
       })
-
-      // TTS adds 1–3s — opt-in only (TELEGRAM_VOICE_REPLY=1).
-      if (process.env.TELEGRAM_VOICE_REPLY === '1') {
-        try {
-          const audioOut = await generateArabicAudioBuffer(out.text.slice(0, 800))
-          await ctx.replyWithVoice(new InputFile(audioOut, 'reply.ogg'))
-        } catch {
-          /* TTS optional */
-        }
-      }
+      // TTS is handled inside runTelegramAgentTurn (short summaries / TELEGRAM_VOICE_REPLY).
     } catch (e) {
       console.error('[telegram] voice', e)
       try {
@@ -1380,6 +1464,76 @@ export function getTelegramBot() {
 
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data || ''
+
+    // Voice quick buttons: أضِف موعد / مهمة / ابحث عن الملف
+    const voiceAction = parseVoiceQuickCallback(data)
+    if (voiceAction) {
+      const chatId = String(ctx.chat?.id || ctx.callbackQuery.message?.chat.id || '')
+      const userId = String(ctx.from?.id || 'user-1')
+      const cached = takeVoiceTranscript(chatId)
+      if (!cached?.transcript) {
+        await ctx.answerCallbackQuery({
+          text: 'انتهت صلاحية النص الصوتي — أعد إرسال الصوت',
+          show_alert: true,
+        })
+        return
+      }
+      try {
+        await ctx.answerCallbackQuery({
+          text:
+            voiceAction === 'appointment'
+              ? 'جاري إضافة موعد…'
+              : voiceAction === 'task'
+                ? 'جاري تسجيل مهمة…'
+                : 'جاري البحث عن الملف…',
+        })
+      } catch {
+        /* already answered */
+      }
+      try {
+        const scope = await resolveTelegramScope({
+          chatId,
+          userId,
+          preferredScopeId: cached.scopeId,
+          autoBind: true,
+        })
+        if (!scope) {
+          await ctx.reply('تعذّر ربط المحادثة بالغرفة.')
+          return
+        }
+        const q = voiceQuickPrompt(voiceAction, cached.transcript)
+        // Keep transcript for other buttons
+        rememberVoiceTranscript({
+          chatId,
+          transcript: cached.transcript,
+          scopeId: scope.scope.id,
+          userId,
+        })
+        try {
+          await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } })
+        } catch {
+          /* ignore */
+        }
+        await runTelegramAgentTurn({
+          ctx,
+          promptSource: q.prompt,
+          chatId,
+          userId,
+          scope,
+          forceHeavy: q.forceHeavy,
+          workLabelAr: q.labelAr,
+        })
+      } catch (e) {
+        console.error('[telegram] voice-quick', e)
+        await ctx.reply(
+          e instanceof Error
+            ? `تعذّر تنفيذ الزر: ${e.message}`
+            : 'تعذّر تنفيذ الزر.'
+        )
+      }
+      return
+    }
+
     let decision: 'APPROVE' | 'REJECT' | null = null
     let actionId = ''
 

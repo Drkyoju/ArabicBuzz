@@ -83,13 +83,19 @@ export function TelegramConnectCard() {
           <code dir="ltr">/start</code>.
         </li>
         <li>
-          مجموعة: أضف البوت كمشرف (رسائل + وسائط) → من داخل المجموعة أرسل{' '}
-          <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code> — مرة واحدة
-          فقط للربط.
+          مجموعة رئيسية: أضف البوت كمشرف →{' '}
+          <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code>
+        </li>
+        <li>
+          لجان متعددة: في مجموعة كل لجنة أرسل{' '}
+          <code dir="ltr">/link finance</code> أو{' '}
+          <code dir="ltr">programs</code> أو <code dir="ltr">board</code> (أو
+          استخدم بطاقة اللجان أدناه).
         </li>
         <li>
           بعد الربط اكتب بالعربية العادية — بدون{' '}
-          <code dir="ltr">/ask</code>. الصوت والملفات مدعومان.
+          <code dir="ltr">/ask</code>. الصوت والملفات مدعومان. تذكير المواعيد ≈
+          ساعة قبل + ملخص صباحي للمجموعة.
         </li>
         <li>
           ضروري: BotFather → Group Privacy →{' '}

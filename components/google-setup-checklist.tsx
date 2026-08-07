@@ -3,13 +3,17 @@
 /**
  * Google OAuth setup + Production publish checklist (Arabic).
  * Ops only — end users just click «ربط Google» in-app.
+ * Publish app in Google Console cannot be done by code — owner must click.
  */
 export function GoogleSetupChecklist({
   className,
   focus = 'all',
+  defaultOpen = false,
 }: {
   className?: string
   focus?: 'all' | 'calendar' | 'drive'
+  /** Open the details by default (e.g. when Drive is not linked). */
+  defaultOpen?: boolean
 }) {
   const lastStep =
     focus === 'calendar'
@@ -19,10 +23,27 @@ export function GoogleSetupChecklist({
         : 'ثم اربط Google من تقويم الفريق أو Drive (زر الربط داخل التطبيق)'
 
   return (
-    <details className={className} dir="rtl">
+    <details className={className} dir="rtl" open={defaultOpen || undefined}>
       <summary className="cursor-pointer text-sm font-semibold text-stone-600">
-        إعداد Google للمسؤول (نشر Production + خصوصية)
+        إعداد Google للمسؤول — انشر التطبيق (Publish) في Console
       </summary>
+      <div className="mt-2 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] leading-relaxed text-amber-950">
+        <p className="font-semibold">مهم — لا يمكن للكود نشر التطبيق نيابةً عنك</p>
+        <p className="mt-1">
+          يجب أن يفتح المالك Google Cloud Console ويضغط{' '}
+          <strong>Publish app</strong> مرة واحدة. بدونها يظهر «تطبيق غير موثّق»
+          لغير Test users.
+        </p>
+        <a
+          href="https://console.cloud.google.com/apis/credentials/consent"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1.5 inline-block font-semibold text-ab-accent underline"
+          dir="ltr"
+        >
+          فتح OAuth consent screen → Publish
+        </a>
+      </div>
       <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
         للمالك الذي يملك حساب Google Cloud فقط. المستخدم العادي يضغط «ربط
         Google» داخل الموقع — لا يحتاج هذه القائمة.
@@ -44,10 +65,10 @@ export function GoogleSetupChecklist({
           <span dir="ltr">supabase.co</span>
         </li>
         <li>
-          <strong className="text-ab-ink">نشر التطبيق:</strong> Consent Screen →
-          Publishing status → إن كان Testing فاضغط{' '}
-          <strong>Publish app</strong> → Production (أو أضف كل زميل كـ Test
-          user)
+          <strong className="text-ab-ink">نشر التطبيق (إلزامي):</strong>{' '}
+          Consent Screen → Publishing status → إن كان Testing فاضغط{' '}
+          <strong className="text-ab-ink">Publish app</strong> → Production
+          (أو أضف كل زميل كـ Test user مؤقتاً)
         </li>
         <li>
           Credentials: OAuth Web Client — Redirect فقط{' '}

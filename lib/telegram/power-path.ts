@@ -280,7 +280,7 @@ export function buildTelegramPowerPrompt(opts: {
   const parts = [
     roomIntent.cleanPrompt || opts.raw,
     roomIntentPromptNudge(roomIntent),
-    workKindNudge(opts.work),
+    workKindNudge(opts.work.kind),
     runAgent
       ? `\n[مقعد الغرفة: ${runAgent.nameAr} @${runAgent.slug} — نفس قدرات وكلاء الموقع]`
       : '',

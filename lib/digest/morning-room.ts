@@ -120,6 +120,10 @@ export async function buildMorningDigestAr(scopeId: string): Promise<{
   const overdue = open.filter(
     (t) => t.dueAt && new Date(t.dueAt).getTime() < now
   )
+  const todayEvents = events.filter((e) => {
+    const t = new Date(e.startsAt).getTime()
+    return t >= today.start.getTime() && t <= today.end.getTime()
+  })
   const tomorrowEvents = events.filter((e) => {
     const t = new Date(e.startsAt).getTime()
     return t >= tomorrow.start.getTime() && t <= tomorrow.end.getTime()
@@ -131,6 +135,7 @@ export async function buildMorningDigestAr(scopeId: string): Promise<{
   const hasContent =
     overdue.length > 0 ||
     open.length > 0 ||
+    todayEvents.length > 0 ||
     tomorrowEvents.length > 0 ||
     scopedPending.length > 0
 
@@ -141,9 +146,18 @@ export async function buildMorningDigestAr(scopeId: string): Promise<{
   const base = appBaseUrl()
   const lines = [
     '☀️ ملخص صباحي — Arabic Buzz',
-    `الغرفة: ${scopeId}`,
+    `الغرفة: ${scopeId} · توقيت السعودية`,
+    `اليوم: ${today.ymd}`,
     '',
   ]
+
+  if (todayEvents.length) {
+    lines.push('── مواعيد اليوم ──')
+    for (const e of todayEvents.slice(0, 10)) {
+      lines.push(`• ${e.titleAr} · ${fmtWhen(e.startsAt)}`)
+    }
+    lines.push('')
+  }
 
   if (overdue.length) {
     lines.push('── مهام متأخرة ──')

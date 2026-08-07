@@ -218,6 +218,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showMore, setShowMore] = useState(false)
   /** Integrated Telegram live pane (side split) — not a floating mini widget. */
   const [showTelegram, setShowTelegram] = useState(false)
+  /** Collapsed model/effort/font controls — keeps غرفة الفريق header clean. */
+  const [showRoomTools, setShowRoomTools] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
@@ -1499,20 +1501,20 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border/80 bg-gradient-to-l from-white via-white to-ab-accent/[0.04] px-3 py-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="truncate text-[15px] font-bold tracking-tight text-ab-ink">
-                  {activeScope.nameAr}
-                </h2>
-                <p className="mt-0.5 truncate text-[11px] text-stone-500">
-                  {shared
-                    ? 'الوكلاء نائمون · الرسالة توقظ وكيل١'
-                    : `${PERSONAL_DESK_COPY.taglineAr} — خاص بك فقط`}
-                  {' · '}
-                  الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
-                </p>
-                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <header className="border-b border-ab-border/60 bg-ab-surface px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h2 className="truncate text-[15px] font-semibold tracking-tight text-ab-ink">
+                    {activeScope.nameAr}
+                  </h2>
+                  <span className="truncate text-[11px] text-stone-400">
+                    {shared
+                      ? 'غرفة الفريق'
+                      : PERSONAL_DESK_COPY.taglineAr}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
                     typing={typing}
@@ -1547,8 +1549,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   {deletingToday
                     ? 'جاري الحذف…'
                     : confirmDeleteToday
-                      ? 'تأكيد حذف شات اليوم'
-                      : 'شات اليوم'}
+                      ? 'تأكيد'
+                      : 'مسح اليوم'}
                 </button>
                 {confirmDeleteToday && (
                   <button
@@ -1564,9 +1566,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   </button>
                 )}
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
-                <ModelPicker compact scopeId={activeScopeId} />
-                <EffortPicker compact scopeId={activeScopeId} />
-                <FontScalePicker compact />
+                <button
+                  type="button"
+                  onClick={() => setShowRoomTools((v) => !v)}
+                  className={cn(
+                    '!py-1 text-[11px]',
+                    showRoomTools ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
+                  )}
+                  aria-expanded={showRoomTools}
+                  aria-label="أدوات النموذج والجهد"
+                >
+                  أدوات
+                </button>
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -1596,7 +1607,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     }
                   >
                     <PanelRightOpen className="h-3 w-3" />
-                    {canvasOpen || isCanvasFullscreen ? 'إخفاء اللوحة' : 'اللوحة'}
+                    {canvasOpen || isCanvasFullscreen ? 'إخفاء' : 'لوحة'}
                   </button>
                 )}
                 {previewOpen && (
@@ -1643,7 +1654,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     aria-controls="room-telegram-live-pane"
                   >
                     <MessageCircle className="h-3 w-3" aria-hidden />
-                    {showTelegram ? 'إخفاء تيليجرام' : 'تيليجرام'}
+                    تيليجرام
                   </button>
                 )}
                 {shared && (
@@ -1673,15 +1684,28 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         return next
                       })
                     }}
-                    className="ab-btn-secondary !py-1 text-[11px]"
+                    className={cn(
+                      '!py-1 text-[11px]',
+                      showMore ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
+                    )}
                     aria-label="الأعضاء والسجل"
                     aria-expanded={showMore}
                   >
-                    {showMore ? 'إخفاء' : 'الأعضاء'}
+                    أعضاء
                   </button>
                 )}
               </div>
             </div>
+            {showRoomTools ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ab-border/50 pt-2">
+                <ModelPicker compact scopeId={activeScopeId} />
+                <EffortPicker compact scopeId={activeScopeId} />
+                <FontScalePicker compact />
+                <span className="ms-auto text-[10px] text-stone-400">
+                  الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
+                </span>
+              </div>
+            ) : null}
           </header>
 
           {deleteTodayNote ? (

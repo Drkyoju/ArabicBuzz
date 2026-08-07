@@ -91,10 +91,15 @@ export function CommitteeTelegramPanel() {
           (يمكنه إرسال الرسائل).
         </li>
         <li>
-          من داخل المجموعة أرسل{' '}
-          <code dir="ltr">/link@alhuda14bot</code> — أو اضغط «ربط من تيليجرام»
-          ثم الصق المعرّف السالب (<span dir="ltr">-100…</span>) أدناه. لا نخترع
-          معرّفات.
+          من داخل المجموعة أرسل أحد الأوامر:{' '}
+          <code dir="ltr">/link@alhuda14bot finance</code> أو{' '}
+          <code dir="ltr">programs</code> أو <code dir="ltr">board</code> — أو
+          اضغط «ربط من تيليجرام» ثم الصق المعرّف السالب (
+          <span dir="ltr">-100…</span>) أدناه.
+        </li>
+        <li>
+          كل لجنة = مجموعة منفصلة مربوطة بنفس الغرفة. يمكن ربط أكثر من مجموعة
+          معاً.
         </li>
         <li>
           بعد الربط اكتب بالعربية العادية — بدون{' '}

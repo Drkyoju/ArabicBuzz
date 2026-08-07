@@ -179,6 +179,19 @@ export async function POST(req: NextRequest) {
     details: [e instanceof Error ? e.message : 'deadline reminder error'],
   }))
 
+  let appointmentReminders: unknown = null
+  try {
+    const { runAppointmentTelegramReminders } = await import(
+      '@/lib/rooms/appointment-reminders'
+    )
+    appointmentReminders = await runAppointmentTelegramReminders({ now })
+  } catch (e) {
+    appointmentReminders = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'appointment reminder error',
+    }
+  }
+
   let directorDigest: unknown = null
   try {
     const { isDirectorDigestDay, sendDirectorWeeklyDigest } = await import(
@@ -306,6 +319,7 @@ export async function POST(req: NextRequest) {
     ran,
     scheduledCount: scheduled.length,
     deadlineReminders,
+    appointmentReminders,
     directorDigest,
     driveBrainSync,
     morningDigest,

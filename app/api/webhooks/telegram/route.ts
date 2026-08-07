@@ -100,12 +100,14 @@ export async function GET() {
       maxStepsChat: 4,
       maxStepsHeavy: 6,
       mcpDefault: process.env.TELEGRAM_INCLUDE_MCP === '1',
-      voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY === '1',
+      voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY || 'auto',
+      voiceQuickButtons: ['appointment', 'task', 'file'],
       fastPath: ['greeting', 'calendar_count', 'tasks_count'],
       updateDedupe: 'update_id_ttl_10m',
       calendarDisplayTz: 'Asia/Riyadh',
       wakePolicy: 'agent1_cascade',
       workIntents: ['appointment', 'task', 'file', 'question'],
+      multiCommitteeLink: ['/link finance', '/link programs', '/link board'],
     },
   })
 }

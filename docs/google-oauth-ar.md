@@ -112,6 +112,18 @@
 
 الحساب المتوقع: `ryodan71@gmail.com`
 
+> **لا يمكن للكود أو للموقع الضغط على Publish نيابةً عنك.** هذه النقرة في Google Cloud Console إلزامية من حساب المالك.
+
+### قائمة تحقق سريعة (انسخها)
+
+- [ ] فتحت [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+- [ ] App name = `Arabic Buzz` · Privacy = `https://arabicbuzz.netlify.app/privacy`
+- [ ] تحت **Publishing status**: إن كان **Testing** → ضغطت **Publish app** → **In production**
+- [ ] (اختياري قبل النشر) أضفت الزملاء في **Test users**
+- [ ] داخل Arabic Buzz: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم يضغط هذا بنفسه مرة واحدة
+
+### التفصيل
+
 1. افتح [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
 2. تأكد من:
    - App name = `Arabic Buzz`
@@ -123,4 +135,6 @@
 5. داخل Arabic Buzz: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم يضغط هذا بنفسه مرة واحدة لتحويل PDF→Word والفهرسة
 
 الكود لا يستطيع نشر التطبيق في Google Cloud نيابةً عنك — هذه النقرة في Console إلزامية من حساب المالك.
+
+بعد النشر: إن بقي تحذير «غير موثّق» عند ربط Drive فقط، فهذا طبيعي لصلاحيات حساسة حتى Verification — استخدم Advanced → Continue أو أكمل التحقق لاحقاً.
 

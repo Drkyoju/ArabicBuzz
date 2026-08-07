@@ -12,12 +12,14 @@
 
 # ── Cron (external scheduler → Next.js API routes) ──────────────────────────
 # Netlify OpenNext does not run stdio MCP or in-process cron daemons.
-# Point a Netlify Scheduled Function, cron-job.org, or GitHub Actions at:
+# Production uses GitHub Actions (.github/workflows/cron-runner.yml) every ~15 min:
 #
 #   POST https://arabicbuzz.netlify.app/api/crons/runner
 #   Authorization: Bearer $CRON_SECRET
-#   Suggested: hourly (heartbeats + Thursday director digest Asia/Riyadh
-#   + room chat retention prune — default 4 days via ROOM_CHAT_RETENTION_DAYS)
+#
+# Runner covers: heartbeats · Thursday director digest (Asia/Riyadh) ·
+# morning room digest (06–10 Riyadh) · ~1h appointment Telegram reminders ·
+# Drive brain sync · room chat retention (ROOM_CHAT_RETENTION_DAYS, default 4)
 #
 # Or Thursday-only director digest:
 #   POST https://arabicbuzz.netlify.app/api/crons/director-digest
@@ -26,6 +28,7 @@
 #
 # Env on Netlify: CRON_SECRET, DIRECTOR_EMAIL, RESEND_API_KEY, RESEND_FROM
 # Optional: DIGEST_EMAIL, DIGEST_NAME_AR, TELEGRAM_* for digest channels
+# Optional: TELEGRAM_VOICE_REPLY=0|1|auto — short Arabic TTS (default auto)
 # Optional: ROOM_CHAT_RETENTION_DAYS=4 (prunes room_posts only; keeps workspace_files)
 # Optional search/MCP: BRAVE_API_KEY, BRAVE_MCP_URL, MCP_REMOTE_SERVERS,
 #   SUPABASE_MCP_URL, FIRECRAWL_API_KEY (stdio MCPs need Mac bridge / remote URL)
