@@ -11,6 +11,7 @@ import {
 } from '@/lib/rooms/agents'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 import { defaultSeatNameAr } from '@/lib/rooms/agent-names'
+import { parseRunEffort, type RunEffort } from '@/lib/ai/run-effort'
 import {
   agentsAlwaysPresentInRoom,
   mergeScopeRosterSlice,
@@ -20,7 +21,26 @@ import {
 export type AgentOverride = Partial<
   Pick<
     RoomAgent,
-    'nameAr' | 'slug' | 'systemPromptAr' | 'preferredModel' | 'taskAr' | 'avatarHue'
+    | 'nameAr'
+    | 'slug'
+    | 'systemPromptAr'
+    | 'preferredModel'
+    | 'preferredEffort'
+    | 'taskAr'
+    | 'avatarHue'
+  >
+>
+
+type AgentEditableFields = Partial<
+  Pick<
+    RoomAgent,
+    | 'nameAr'
+    | 'slug'
+    | 'systemPromptAr'
+    | 'avatarHue'
+    | 'preferredModel'
+    | 'preferredEffort'
+    | 'taskAr'
   >
 >
 
@@ -40,43 +60,21 @@ export type AgentRosterState = {
     systemPromptAr?: string
     taskAr?: string
     preferredModel?: string
+    preferredEffort?: RunEffort
     scopeId?: string
   }) => RoomAgent
   addTeamBatch: (input: {
     scopeId: string
-    provider: 'google' | 'glm'
+    /** @deprecated Prefer preferredModel — maps to default Gemini/GLM slug. */
+    provider?: 'google' | 'glm' | 'agentrouter'
+    preferredModel?: string
+    preferredEffort?: RunEffort
     count: number
     namePrefixAr?: string
   }) => RoomAgent[]
-  updateAgent: (
-    id: string,
-    patch: Partial<
-      Pick<
-        RoomAgent,
-        | 'nameAr'
-        | 'slug'
-        | 'systemPromptAr'
-        | 'avatarHue'
-        | 'preferredModel'
-        | 'taskAr'
-      >
-    >
-  ) => void
+  updateAgent: (id: string, patch: AgentEditableFields) => void
   /** @deprecated use updateAgent */
-  updateCustomAgent: (
-    id: string,
-    patch: Partial<
-      Pick<
-        RoomAgent,
-        | 'nameAr'
-        | 'slug'
-        | 'systemPromptAr'
-        | 'avatarHue'
-        | 'preferredModel'
-        | 'taskAr'
-      >
-    >
-  ) => void
+  updateCustomAgent: (id: string, patch: AgentEditableFields) => void
   clearAgentOverride: (id: string) => void
   deleteCustomAgent: (id: string) => void
   removeAgentFromScope: (scopeId: string, agentId: string) => void
@@ -138,7 +136,25 @@ function mergeBuiltin(agent: RoomAgent, override?: AgentOverride): RoomAgent {
         ? override.taskAr.trim() || undefined
         : agent.taskAr,
     preferredModel: override.preferredModel || agent.preferredModel,
+    preferredEffort: override.preferredEffort || agent.preferredEffort,
   }
+}
+
+function resolveBatchModel(input: {
+  preferredModel?: string
+  provider?: 'google' | 'glm' | 'agentrouter'
+}): string {
+  if (input.preferredModel?.trim()) return input.preferredModel.trim()
+  if (input.provider === 'glm') return GLM_DEFAULT
+  if (input.provider === 'agentrouter') return 'claude-opus-5'
+  return GEMINI_DEFAULT
+}
+
+function slugPrefixForModel(model: string): string {
+  if (model.startsWith('glm')) return 'glm'
+  if (model.startsWith('claude') || model.startsWith('gpt')) return 'ar'
+  if (model.startsWith('gemini')) return 'gemini'
+  return 'agent'
 }
 
 export const useAgentRosterStore = create<AgentRosterState>()(
@@ -276,20 +292,20 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         const taken = new Set(get().allAgents().map((a) => a.slug))
         const slug = uniqueSlug(input.slug || input.nameAr, taken)
         const taskAr = input.taskAr?.trim() || ''
+        const nameAr =
+          input.nameAr.trim() ||
+          defaultSeatNameAr((get().customAgents?.length || 0) + 1)
         const systemPromptAr =
           input.systemPromptAr?.trim() ||
-          (taskAr
-            ? `أنت وكيل في غرفة Arabic Buzz. مهمتك المعيّنة: ${taskAr}. أجب بالعربية الفصحى المهنية ونفّذ هذه المهمة بدقة.`
-            : 'أنت وكيل في غرفة Arabic Buzz. أجب بالعربية الفصحى المهنية.')
+          `أنت «${nameAr}» في غرفة Arabic Buzz. نفّذ الطلبات التي تُوجَّه إليك (مثل @mention) بالعربية الفصحى المهنية.`
         const agent: RoomAgent = {
           id,
-          nameAr:
-            input.nameAr.trim() ||
-            defaultSeatNameAr((get().customAgents?.length || 0) + 1),
+          nameAr,
           slug,
           systemPromptAr,
           taskAr: taskAr || undefined,
           preferredModel: input.preferredModel || GEMINI_DEFAULT,
+          preferredEffort: parseRunEffort(input.preferredEffort),
           avatarHue: hueFromId(id),
           custom: true,
         }
@@ -310,12 +326,13 @@ export const useAgentRosterStore = create<AgentRosterState>()(
 
       addTeamBatch: (input) => {
         const count = Math.max(1, Math.min(10, Math.floor(input.count) || 1))
-        const model =
-          input.provider === 'glm' ? GLM_DEFAULT : GEMINI_DEFAULT
+        const model = resolveBatchModel(input)
+        const effort = parseRunEffort(input.preferredEffort)
         const seatedCount = get().agentsForScope(input.scopeId).length
         const created: RoomAgent[] = []
         const taken = new Set(get().allAgents().map((a) => a.slug))
         const useCustomPrefix = Boolean(input.namePrefixAr?.trim())
+        const slugBase = slugPrefixForModel(model)
 
         for (let i = 1; i <= count; i++) {
           const id = `custom-${crypto.randomUUID().slice(0, 8)}`
@@ -323,18 +340,14 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           const nameAr = useCustomPrefix
             ? `${input.namePrefixAr!.trim()} ${i}`
             : defaultSeatNameAr(seatIndex)
-          const slug = uniqueSlug(
-            input.provider === 'glm' ? `glm-${i}` : `gemini-${i}`,
-            taken
-          )
-          const taskAr = `مهمة ${i} — حدّدها من إدارة الوكلاء`
+          const slug = uniqueSlug(`${slugBase}-${i}`, taken)
           const agent: RoomAgent = {
             id,
             nameAr,
             slug,
-            taskAr,
             preferredModel: model,
-            systemPromptAr: `أنت «${nameAr}» في غرفة عمل مشتركة. مهمتك المعيّنة: ${taskAr}. نفّذها بالعربية الفصحى. في وضع التعاون اطّلع على ملاحظات زملائك الوكلاء وساعدهم دون تكرار عملهم.`,
+            preferredEffort: effort,
+            systemPromptAr: `أنت «${nameAr}» في غرفة عمل مشتركة. نفّذ الطلبات التي تُوجَّه إليك بالعربية الفصحى. في وضع التعاون اطّلع على ملاحظات زملائك الوكلاء وساعدهم دون تكرار عملهم.`,
             avatarHue: hueFromId(id),
             custom: true,
           }
@@ -378,6 +391,10 @@ export const useAgentRosterStore = create<AgentRosterState>()(
                         ? patch.taskAr.trim() || undefined
                         : a.taskAr,
                     preferredModel: patch.preferredModel || a.preferredModel,
+                    preferredEffort:
+                      patch.preferredEffort !== undefined
+                        ? parseRunEffort(patch.preferredEffort)
+                        : a.preferredEffort,
                   }
                 : a
             ),
@@ -405,6 +422,10 @@ export const useAgentRosterStore = create<AgentRosterState>()(
                   : s.agentOverrides[id]?.taskAr,
               preferredModel:
                 patch.preferredModel || s.agentOverrides[id]?.preferredModel,
+              preferredEffort:
+                patch.preferredEffort !== undefined
+                  ? parseRunEffort(patch.preferredEffort)
+                  : s.agentOverrides[id]?.preferredEffort,
             },
           },
         }))

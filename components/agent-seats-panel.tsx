@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  AGENT_MODEL_PRESETS,
+  agentModelLabelAr,
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
@@ -11,15 +11,14 @@ import { AgentProfileDrawer } from '@/components/agent-profile-drawer'
 import { CollabModeToggle } from '@/components/collab-mode-toggle'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { RUN_EFFORT_LABELS_AR, parseRunEffort } from '@/lib/ai/run-effort'
 import { cn } from '@/lib/utils'
 
 function shortCapability(slug?: string) {
   if (!slug) return ''
-  const preset = AGENT_MODEL_PRESETS.find((m) => m.slug === slug)
-  if (preset) return preset.labelAr.split('·')[0]?.trim() || preset.labelAr
-  if (slug.includes('flash') || slug.includes('mini')) return 'سريع'
-  if (slug.includes('ollama')) return 'محلي'
-  return 'دقة'
+  const label = agentModelLabelAr(slug)
+  // Keep seat chip short: "Gemini · …" → first provider token
+  return label.split('·')[0]?.trim() || label
 }
 
 export function AgentSeatsPanel({
@@ -114,6 +113,8 @@ export function AgentSeatsPanel({
           const active = activeAgentId === agent.id
           const answering = answeringAgentId === agent.id
           const model = shortCapability(agent.preferredModel)
+          const power =
+            RUN_EFFORT_LABELS_AR[parseRunEffort(agent.preferredEffort)]
           const statusAr = !agentsEnabled
             ? 'طافي'
             : answering
@@ -121,7 +122,8 @@ export function AgentSeatsPanel({
               : 'جاهز'
           const tip = [
             `اضغط للإشارة بـ @${agent.slug} — يبدأ فوراً`,
-            agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
+            model ? `نموذج: ${model}` : null,
+            `قوة: ${power}`,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
             statusAr,
             signedIn ? 'حضور حي' : 'معاينة',
@@ -199,15 +201,6 @@ export function AgentSeatsPanel({
           اضغط مقعد وكيل لـ @mention — يبدأ العمل فوراً ·{' '}
           {collabMode === 'team' ? 'تعاون نشط' : 'منفصل'}
           {signedIn ? ' · حضور حي' : ''}
-        </p>
-      )}
-      {agents.some((a) => a.taskAr) && (
-        <p className="truncate text-[10px] text-stone-400">
-          مهام:{' '}
-          {agents
-            .filter((a) => a.taskAr)
-            .map((a) => `${a.nameAr}: ${a.taskAr}`)
-            .join(' · ')}
         </p>
       )}
 

@@ -1,3 +1,10 @@
+import type { RunEffort } from '@/lib/ai/run-effort'
+import {
+  HARNESS_TIER_LABELS_AR,
+  listAvailableHarnessModels,
+  type HarnessModelMeta,
+} from '@/lib/ai/harness-catalog'
+
 /** Named room agents (Buzz/qm-style participants). */
 export type RoomAgent = {
   id: string
@@ -7,22 +14,54 @@ export type RoomAgent = {
   avatarHue: number
   /** User-created agent (can be deleted). */
   custom?: boolean
-  /** Preferred harness model slug (shares Gemini/GLM API keys). */
+  /** Preferred harness model slug (Gemini / GLM / AgentRouter). */
   preferredModel?: string
-  /** Short task assignment shown in UI and injected into the system prompt. */
+  /** Per-agent run power — LOW | MEDIUM | HIGH | MAX */
+  preferredEffort?: RunEffort
+  /**
+   * Optional legacy short task label. Seats are request-driven via @mention;
+   * new UI no longer sets a fixed mission on the seat.
+   */
   taskAr?: string
 }
 
 export type AgentCollabMode = 'solo' | 'team'
 
-export const AGENT_MODEL_PRESETS = [
-  { slug: 'claude-opus-5', labelAr: 'أعلى دقة · Opus 5', provider: 'agentrouter' },
-  { slug: 'gemini-3.1-pro', labelAr: 'أعلى دقة', provider: 'google' },
-  { slug: 'claude-opus-4-8', labelAr: 'أعلى دقة · تحليل', provider: 'agentrouter' },
-  { slug: 'gpt-5.6-sol', labelAr: 'متوازن · عام', provider: 'agentrouter' },
-  { slug: 'glm-4.5', labelAr: 'متوازن · تكلفة', provider: 'glm' },
-  { slug: 'gemini-2.5-flash', labelAr: 'استجابة سريعة', provider: 'google' },
-] as const
+const PROVIDER_LABEL_AR: Record<string, string> = {
+  google: 'Gemini',
+  glm: 'GLM',
+  agentrouter: 'AgentRouter',
+  ollama: 'محلي',
+}
+
+/** Room seat models — same cloud catalog as the room composer (no Ollama). */
+export function roomAgentModelCatalog(): HarnessModelMeta[] {
+  return listAvailableHarnessModels(false).filter(
+    (m) =>
+      m.provider === 'google' ||
+      m.provider === 'glm' ||
+      m.provider === 'agentrouter'
+  )
+}
+
+export function agentModelOptionLabelAr(m: HarnessModelMeta): string {
+  const provider = PROVIDER_LABEL_AR[m.provider] || m.provider
+  return `${provider} · ${m.labelEn} (${HARNESS_TIER_LABELS_AR[m.tier]})`
+}
+
+export function agentModelLabelAr(slug?: string): string {
+  if (!slug) return 'نموذج الغرفة'
+  const m = roomAgentModelCatalog().find((x) => x.slug === slug)
+  if (m) return agentModelOptionLabelAr(m)
+  return slug
+}
+
+/** @deprecated Prefer roomAgentModelCatalog() — kept for older call sites. */
+export const AGENT_MODEL_PRESETS = roomAgentModelCatalog().map((m) => ({
+  slug: m.slug,
+  labelAr: agentModelOptionLabelAr(m),
+  provider: m.provider,
+}))
 
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
   {

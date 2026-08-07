@@ -716,6 +716,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     const { model: roomModel, effort: roomEffort } =
       resolveModelPrefs(activeScopeId)
+    // Seat prefs win when set; room composer is the default fallback.
+    const modelId = opts.agent.preferredModel || roomModel
+    const effortLevel = opts.agent.preferredEffort || roomEffort
 
     let res: Response
     try {
@@ -725,9 +728,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         signal: opts.signal,
         body: JSON.stringify({
           prompt: opts.prompt,
-          // Room ModelPicker is the run control; agent preferredModel is fallback only.
-          modelId: roomModel || opts.agent.preferredModel,
-          effortLevel: roomEffort,
+          modelId,
+          effortLevel,
           scopeId: activeScopeId,
           agentId: opts.agent.id,
           agentProfile: {
@@ -737,6 +739,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             systemPromptAr: opts.agent.systemPromptAr,
             taskAr: opts.agent.taskAr,
             preferredModel: opts.agent.preferredModel,
+            preferredEffort: opts.agent.preferredEffort,
           },
           peerContextAr: opts.peerContextAr,
           collabMode,

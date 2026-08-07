@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Plus, Trash2, X } from 'lucide-react'
 import {
-  AGENT_MODEL_PRESETS,
+  agentModelLabelAr,
+  agentModelOptionLabelAr,
   BUILTIN_ROOM_AGENTS,
+  roomAgentModelCatalog,
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import {
@@ -14,7 +16,17 @@ import {
 } from '@/lib/rooms/agent-names'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
+import {
+  RUN_EFFORT_HINTS_AR,
+  RUN_EFFORT_LABELS_AR,
+  RUN_EFFORT_ORDER,
+  parseRunEffort,
+  type RunEffort,
+} from '@/lib/ai/run-effort'
 import { cn } from '@/lib/utils'
+
+const MODEL_OPTIONS = roomAgentModelCatalog()
+const DEFAULT_MODEL: string = MODEL_OPTIONS[0]?.slug || 'gemini-3.1-pro'
 
 export function AgentsManagePanel({
   scopeId,
@@ -48,9 +60,11 @@ export function AgentsManagePanel({
   const [open, setOpen] = useState(false)
   const [nameAr, setNameAr] = useState('')
   const [slug, setSlug] = useState('')
-  const [taskAr, setTaskAr] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState('gemini-3.1-pro')
+  const [model, setModel] = useState(DEFAULT_MODEL)
+  const [effort, setEffort] = useState<RunEffort>('MEDIUM')
+  const [batchModel, setBatchModel] = useState(DEFAULT_MODEL)
+  const [batchEffort, setBatchEffort] = useState<RunEffort>('MEDIUM')
   const [batchCount, setBatchCount] = useState(5)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -71,9 +85,9 @@ export function AgentsManagePanel({
   function resetForm() {
     setNameAr('')
     setSlug('')
-    setTaskAr('')
     setPrompt('')
-    setModel('gemini-3.1-pro')
+    setModel(DEFAULT_MODEL)
+    setEffort('MEDIUM')
     setEditingId(null)
   }
 
@@ -81,9 +95,9 @@ export function AgentsManagePanel({
     setEditingId(agent.id)
     setNameAr(agent.nameAr)
     setSlug(agent.slug)
-    setTaskAr(agent.taskAr || '')
     setPrompt(agent.systemPromptAr)
-    setModel(agent.preferredModel || 'gemini-3.1-pro')
+    setModel(agent.preferredModel || DEFAULT_MODEL)
+    setEffort(parseRunEffort(agent.preferredEffort))
     setOpen(true)
   }
 
@@ -97,17 +111,17 @@ export function AgentsManagePanel({
       if (!canRename) {
         updateAgent(editingId, {
           systemPromptAr: prompt,
-          taskAr,
           preferredModel: model,
+          preferredEffort: effort,
         })
-        setNote('تم تحديث المهمة/النموذج. الاسم ثابت — يحدّده المدير فقط.')
+        setNote('تم تحديث النموذج والقوة. الاسم ثابت — يحدّده المدير فقط.')
       } else {
         updateAgent(editingId, {
           nameAr,
           slug: slug || undefined,
           systemPromptAr: prompt,
-          taskAr,
           preferredModel: model,
+          preferredEffort: effort,
         })
         setNote(
           sharedFixed
@@ -124,20 +138,27 @@ export function AgentsManagePanel({
         nameAr: nameAr.trim() || defaultSeatNameAr(seated.length + 1),
         slug: slug || undefined,
         systemPromptAr: prompt,
-        taskAr,
         preferredModel: model,
+        preferredEffort: effort,
         scopeId,
       })
-      setNote(`أُضيف «${agent.nameAr}» (@${agent.slug}) · ${model}`)
+      setNote(
+        `أُضيف «${agent.nameAr}» (@${agent.slug}) · ${agentModelLabelAr(model)} · قوة ${RUN_EFFORT_LABELS_AR[effort]}`
+      )
     }
     resetForm()
   }
 
-  function modelLabel(slugName?: string) {
-    return (
-      AGENT_MODEL_PRESETS.find((m) => m.slug === slugName)?.labelAr ||
-      slugName ||
-      'نموذج الغرفة'
+  function addBatch() {
+    const n = Math.min(10, Math.max(1, batchCount))
+    const created = addTeamBatch({
+      scopeId,
+      preferredModel: batchModel,
+      preferredEffort: batchEffort,
+      count: n,
+    })
+    setNote(
+      `أُضيف ${created.length} مقعد · ${agentModelLabelAr(batchModel)} · قوة ${RUN_EFFORT_LABELS_AR[batchEffort]} — وُضع وضع تعاون.`
     )
   }
 
@@ -201,63 +222,74 @@ export function AgentsManagePanel({
               <p className="rounded-md border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-2 text-[11px] leading-snug text-stone-600">
                 {renameHint}
                 {' · '}
-                الافتراضي: وكيل١، وكيل٢… · الإشارة بـ @slug أو الاسم الحالي.
+                الافتراضي: وكيل١، وكيل٢… · المهمة تُحدَّد لاحقاً عبر @mention.
               </p>
               <p className="text-[11px] text-stone-500">
-                حتى 8 وكيل/مهمة معاً (سقف Netlify 20) · تعاون = عدة وكلاء ·
-                منفصل = واحد · @الجميع للفريق.
+                حتى 8 وكيل معاً (سقف Netlify 20) · تعاون = عدة وكلاء · منفصل =
+                واحد · @الجميع للفريق.
               </p>
 
               {(canRename || !sharedFixed) && (
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const n = Math.min(10, Math.max(1, batchCount))
-                      const created = addTeamBatch({
-                        scopeId,
-                        provider: 'google',
-                        count: n,
-                      })
-                      setNote(
-                        `أُضيف ${created.length} وكيل (وكيل١…) — وُضع وضع تعاون.`
-                      )
-                    }}
-                    className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
-                  >
-                    + فريق Gemini ({batchCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const n = Math.min(10, Math.max(1, batchCount))
-                      const created = addTeamBatch({
-                        scopeId,
-                        provider: 'glm',
-                        count: n,
-                      })
-                      setNote(
-                        `أُضيف ${created.length} وكيل GLM — وُضع وضع تعاون.`
-                      )
-                    }}
-                    className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
-                  >
-                    + فريق GLM ({batchCount})
-                  </button>
-                  <label className="inline-flex items-center gap-1 text-[11px] text-stone-500">
-                    العدد
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={batchCount}
-                      onChange={(e) =>
-                        setBatchCount(Number(e.target.value) || 1)
-                      }
-                      className="w-12 rounded border border-ab-border px-1 py-0.5 text-center"
-                      dir="ltr"
-                    />
-                  </label>
+                <div className="space-y-2 rounded-lg border border-ab-border bg-stone-50/80 p-2.5">
+                  <p className="text-[11px] font-semibold text-stone-600">
+                    إضافة بعدد (نفس النموذج والقوة)
+                  </p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex min-w-[10rem] flex-1 flex-col gap-0.5 text-[10px] text-stone-500">
+                      النموذج
+                      <select
+                        value={batchModel}
+                        onChange={(e) => setBatchModel(e.target.value)}
+                        className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                        aria-label="نموذج الدفعة"
+                      >
+                        {MODEL_OPTIONS.map((m) => (
+                          <option key={m.slug} value={m.slug}>
+                            {agentModelOptionLabelAr(m)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex min-w-[7rem] flex-col gap-0.5 text-[10px] text-stone-500">
+                      القوة
+                      <select
+                        value={batchEffort}
+                        onChange={(e) =>
+                          setBatchEffort(parseRunEffort(e.target.value))
+                        }
+                        className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                        aria-label="قوة الدفعة"
+                        title={RUN_EFFORT_HINTS_AR[batchEffort]}
+                      >
+                        {RUN_EFFORT_ORDER.map((level) => (
+                          <option key={level} value={level}>
+                            {RUN_EFFORT_LABELS_AR[level]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="inline-flex flex-col gap-0.5 text-[10px] text-stone-500">
+                      العدد
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={batchCount}
+                        onChange={(e) =>
+                          setBatchCount(Number(e.target.value) || 1)
+                        }
+                        className="w-14 rounded-md border border-ab-border bg-white px-1 py-1.5 text-center text-xs"
+                        dir="ltr"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addBatch}
+                      className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] font-medium hover:bg-stone-50"
+                    >
+                      + إضافة {batchCount}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -267,52 +299,80 @@ export function AgentsManagePanel({
                   {editingId
                     ? canRename
                       ? 'تعديل وكيل / إعادة تسمية'
-                      : 'تعديل مهمة الوكيل'
+                      : 'تعديل نموذج وقوة الوكيل'
                     : 'وكيل واحد'}
                 </h4>
+                <p className="mb-2 text-[10px] text-stone-500">
+                  يكفي الاسم — الطلبات تصل لاحقاً عبر الإشارة (@). اختر النموذج
+                  والقوة لكل مقعد.
+                </p>
                 <div className="space-y-2">
-                  <input
-                    value={nameAr}
-                    onChange={(e) => setNameAr(e.target.value)}
-                    placeholder={`الاسم (مثل: ${defaultSeatNameAr(seated.length + 1)})`}
-                    disabled={Boolean(editingId) && !canRename}
-                    className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs disabled:bg-stone-50 disabled:text-stone-500"
-                  />
-                  <input
-                    value={taskAr}
-                    onChange={(e) => setTaskAr(e.target.value)}
-                    placeholder="المهمة المعيّنة (مثل: مراجعة البنود القانونية)"
-                    className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
-                  />
-                  <div className="flex flex-wrap gap-2">
+                  <label className="flex flex-col gap-0.5 text-[10px] text-stone-500">
+                    الاسم
                     <input
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
-                      placeholder="@slug"
-                      dir="ltr"
+                      value={nameAr}
+                      onChange={(e) => setNameAr(e.target.value)}
+                      placeholder={`مثل: ${defaultSeatNameAr(seated.length + 1)}`}
                       disabled={Boolean(editingId) && !canRename}
-                      className="min-w-[8rem] flex-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono disabled:bg-stone-50"
+                      className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs disabled:bg-stone-50 disabled:text-stone-500"
                     />
-                    <select
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-                      aria-label="نموذج الوكيل"
-                    >
-                      {AGENT_MODEL_PRESETS.map((m) => (
-                        <option key={m.slug} value={m.slug}>
-                          {m.labelAr}
-                        </option>
-                      ))}
-                    </select>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <label className="flex min-w-[8rem] flex-1 flex-col gap-0.5 text-[10px] text-stone-500">
+                      @slug (اختياري)
+                      <input
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        placeholder="@slug"
+                        dir="ltr"
+                        disabled={Boolean(editingId) && !canRename}
+                        className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono disabled:bg-stone-50"
+                      />
+                    </label>
+                    <label className="flex min-w-[10rem] flex-[1.4] flex-col gap-0.5 text-[10px] text-stone-500">
+                      النموذج
+                      <select
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                        aria-label="نموذج الوكيل"
+                      >
+                        {MODEL_OPTIONS.map((m) => (
+                          <option key={m.slug} value={m.slug}>
+                            {agentModelOptionLabelAr(m)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex min-w-[7rem] flex-col gap-0.5 text-[10px] text-stone-500">
+                      القوة
+                      <select
+                        value={effort}
+                        onChange={(e) =>
+                          setEffort(parseRunEffort(e.target.value))
+                        }
+                        className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                        aria-label="قوة الوكيل"
+                        title={RUN_EFFORT_HINTS_AR[effort]}
+                      >
+                        {RUN_EFFORT_ORDER.map((level) => (
+                          <option key={level} value={level}>
+                            {RUN_EFFORT_LABELS_AR[level]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    rows={2}
-                    placeholder="تعليمات إضافية (اختياري)…"
-                    className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
-                  />
+                  <label className="flex flex-col gap-0.5 text-[10px] text-stone-500">
+                    تعليمات إضافية (اختياري)
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      rows={2}
+                      placeholder="أسلوب الرد أو قيود دائمة لهذا المقعد…"
+                      className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
+                    />
+                  </label>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
@@ -322,7 +382,7 @@ export function AgentsManagePanel({
                       {editingId
                         ? canRename
                           ? 'حفظ التعديل'
-                          : 'حفظ المهمة'
+                          : 'حفظ النموذج والقوة'
                         : 'إضافة للغرفة'}
                     </button>
                     {editingId && (
@@ -345,8 +405,7 @@ export function AgentsManagePanel({
                 </p>
                 {seated.length === 0 ? (
                   <p className="rounded-md border border-dashed border-ab-border bg-stone-50 px-3 py-3 text-[11px] text-stone-500">
-                    لا وكلاء في المقاعد — أضف من القائمة أدناه أو أنشئ وكيلاً
-                    جديداً.
+                    لا وكلاء في المقاعد — أضف وكيلاً واحداً أو دفعة أعلاه.
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
@@ -360,14 +419,14 @@ export function AgentsManagePanel({
                             {agent.nameAr}
                             <span className="ms-1 text-[10px] text-stone-400">
                               {agent.custom ? 'مخصص' : 'افتراضي'} ·{' '}
-                              {modelLabel(agent.preferredModel)}
+                              {agentModelLabelAr(agent.preferredModel)} · قوة{' '}
+                              {
+                                RUN_EFFORT_LABELS_AR[
+                                  parseRunEffort(agent.preferredEffort)
+                                ]
+                              }
                             </span>
                           </p>
-                          {agent.taskAr && (
-                            <p className="text-[10px] text-stone-500">
-                              مهمة: {agent.taskAr}
-                            </p>
-                          )}
                           <p
                             className="font-mono text-[10px] text-stone-400"
                             dir="ltr"
@@ -381,7 +440,7 @@ export function AgentsManagePanel({
                             onClick={() => startEdit(agent)}
                             className="rounded-md border border-ab-border px-2 py-1 text-[10px]"
                           >
-                            {canRename ? 'تعديل / إعادة تسمية' : 'مهمة'}
+                            {canRename ? 'تعديل / إعادة تسمية' : 'نموذج/قوة'}
                           </button>
                           {canRename &&
                             !agent.custom &&

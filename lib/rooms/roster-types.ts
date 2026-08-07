@@ -19,6 +19,7 @@ export type AgentRosterPayload = {
         | 'slug'
         | 'systemPromptAr'
         | 'preferredModel'
+        | 'preferredEffort'
         | 'taskAr'
         | 'avatarHue'
       >

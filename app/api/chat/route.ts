@@ -83,6 +83,7 @@ type ChatBody = {
     systemPromptAr: string
     taskAr?: string
     preferredModel?: string
+    preferredEffort?: string
   }
   /** Notes from peer agents in collaborative mode. */
   peerContextAr?: string
@@ -194,8 +195,7 @@ export async function POST(req: Request) {
 
     const body = (await req.json()) as ChatBody
     const profile = body.agentProfile
-    // Room composer modelId wins over agent preferredModel so the UI picker
-    // actually changes the run (custom agents always have a preferredModel).
+    // Client sends seat preferredModel as modelId when set; profile is fallback.
     const modelId =
       body.modelId ||
       body.modelSlug ||
@@ -251,6 +251,12 @@ export async function POST(req: Request) {
             systemPromptAr: profile.systemPromptAr,
             taskAr: profile.taskAr,
             preferredModel: profile.preferredModel,
+            preferredEffort: profile.preferredEffort as
+              | 'LOW'
+              | 'MEDIUM'
+              | 'HIGH'
+              | 'MAX'
+              | undefined,
             avatarHue: 160,
           }
         : null) ||

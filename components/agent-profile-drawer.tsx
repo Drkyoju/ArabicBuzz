@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Shield, X, Fingerprint, Bot, History } from 'lucide-react'
 import type { RoomAgent } from '@/lib/rooms/agents'
-import { AGENT_MODEL_PRESETS } from '@/lib/rooms/agents'
+import { agentModelLabelAr } from '@/lib/rooms/agents'
 import {
   agentRenameHintAr,
   sharedAgentNamesAreFixed,
@@ -11,24 +11,12 @@ import {
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { DEMO_AGENT_PROFILES } from '@/lib/demo/guest-digest'
+import { RUN_EFFORT_LABELS_AR, parseRunEffort } from '@/lib/ai/run-effort'
 import { cn } from '@/lib/utils'
 
 function modelCapabilityAr(slug?: string) {
   if (!slug) return 'نموذج الغرفة الافتراضي'
-  if (slug.includes('ollama') || slug.includes('local')) {
-    return 'خصوصية عالية — محلي على الجهاز'
-  }
-  if (slug.includes('flash') || slug.includes('mini')) {
-    return 'استجابة سريعة — تكلفة أقل'
-  }
-  if (slug.includes('opus') || slug.includes('pro') || slug.includes('sonnet')) {
-    return 'أعلى دقة — تحليل معمق'
-  }
-  if (slug.includes('glm') || slug.includes('gpt-5.6') || slug.includes('4o')) {
-    return 'متوازن — دقة وتكلفة'
-  }
-  const preset = AGENT_MODEL_PRESETS.find((m) => m.slug === slug)
-  return preset?.labelAr || 'قدرة مخصّصة'
+  return agentModelLabelAr(slug)
 }
 
 export function AgentProfileDrawer({
@@ -221,16 +209,23 @@ export function AgentProfileDrawer({
                 {agent.preferredModel}
               </p>
             )}
+            <p className="mt-2 text-[12px] text-stone-600">
+              القوة:{' '}
+              <span className="font-medium text-ab-ink">
+                {RUN_EFFORT_LABELS_AR[parseRunEffort(agent.preferredEffort)]}
+              </span>
+            </p>
           </div>
 
-          {agent.taskAr && (
-            <div>
-              <p className="mb-1 text-[11px] font-semibold text-stone-500">
-                المهمة المعيّنة
-              </p>
-              <p className="text-[13px] text-ab-ink">{agent.taskAr}</p>
-            </div>
-          )}
+          <div>
+            <p className="mb-1 text-[11px] font-semibold text-stone-500">
+              الطلبات
+            </p>
+            <p className="text-[13px] text-ab-ink">
+              لا مهمة ثابتة على المقعد — وجّه الطلب عبر @{agent.slug} في
+              الغرفة.
+            </p>
+          </div>
 
           <div>
             <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-stone-500">
