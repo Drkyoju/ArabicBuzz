@@ -32,7 +32,12 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const ok = await ensureSupabaseBrowserConfig()
+      let ok = false
+      for (let i = 0; i < 6; i++) {
+        ok = await ensureSupabaseBrowserConfig()
+        if (ok || cancelled) break
+        await new Promise((r) => setTimeout(r, 400 * (i + 1)))
+      }
       if (!cancelled) setConfigured(ok)
     })()
     return () => {

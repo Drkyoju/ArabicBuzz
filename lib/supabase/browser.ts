@@ -40,16 +40,23 @@ export async function ensureSupabaseBrowserConfig(): Promise<boolean> {
       supabaseUrl?: string | null
       supabaseAnonKey?: string | null
       appUrl?: string | null
+      supabaseConfigured?: boolean
     }
-    if (!data.supabaseUrl || !data.supabaseAnonKey) return false
+    const url = (data.supabaseUrl || '').trim()
+    const anon = (data.supabaseAnonKey || '').trim()
+    if (!url || !anon) return false
     const cfg: AbPublicConfig = {
-      supabaseUrl: data.supabaseUrl,
-      supabaseAnonKey: data.supabaseAnonKey,
-      appUrl: data.appUrl || '',
+      supabaseUrl: url,
+      supabaseAnonKey: anon,
+      appUrl: (data.appUrl || '').trim(),
     }
     applyBrowserPublicConfig(cfg)
     browserClient = null
-    return isSupabaseConfigured()
+    // Prefer runtime window config even if build inlined empty NEXT_PUBLIC_*.
+    return Boolean(
+      readBrowserPublicConfig()?.supabaseUrl &&
+        readBrowserPublicConfig()?.supabaseAnonKey
+    )
   } catch {
     return false
   }

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from 'next'
 import { IBM_Plex_Sans_Arabic } from 'next/font/google'
-import Script from 'next/script'
+import { PublicConfigBoot } from '@/components/public-config-boot'
 import { readServerPublicConfig } from '@/lib/public-runtime-config'
 import './globals.css'
+
+/** CranL runtime env must be read per request — never bake empty NEXT_PUBLIC_*. */
+export const dynamic = 'force-dynamic'
 
 const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
@@ -42,7 +45,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Runtime inject — CranL Docker may not bake NEXT_PUBLIC_* at build time.
+  // Prefer inline boot when server sees runtime env (force-dynamic).
   const publicConfig = readServerPublicConfig()
   const publicBoot =
     publicConfig.supabaseUrl && publicConfig.supabaseAnonKey
@@ -55,10 +58,13 @@ export default function RootLayout({
         className={`${ibmPlexSansArabic.variable} ${ibmPlexSansArabic.className} bg-ab-bg text-ab-ink antialiased`}
       >
         {publicBoot ? (
-          <Script id="ab-public-config" strategy="beforeInteractive">
-            {publicBoot}
-          </Script>
+          <script
+            // Inline before hydration — Script beforeInteractive was omitted when
+            // the layout was statically rendered with empty build-time env.
+            dangerouslySetInnerHTML={{ __html: publicBoot }}
+          />
         ) : null}
+        <PublicConfigBoot />
         {children}
       </body>
     </html>
