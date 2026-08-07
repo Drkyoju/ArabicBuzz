@@ -619,13 +619,6 @@ export function HomeDashboard({
             <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
             تحديث
           </button>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('calendar')}
-            className="ab-btn-secondary"
-          >
-            التقويم
-          </button>
         </div>
       </header>
 
@@ -722,14 +715,7 @@ export function HomeDashboard({
                 onClick={() => onNavigate?.('calendar:full')}
                 className="text-[11px] font-semibold text-ab-accent underline"
               >
-                التقويم الكامل
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate?.('calendar')}
-                className="text-[11px] font-semibold text-stone-500 underline"
-              >
-                فتح تقويم الفريق
+                القائمة الكاملة
               </button>
             </div>
           </div>
@@ -990,7 +976,20 @@ export function HomeDashboard({
           )}
           {canAccessOpsUi ? (
             <FirstRunChecklist
+              scopeId={scopeId}
+              knownRoomPosts={
+                Array.isArray(liveData?.recentPosts)
+                  ? liveData.recentPosts.length
+                  : 0
+              }
               onNavigate={onNavigate}
+              onDismiss={() => {
+                try {
+                  localStorage.setItem('ab-onboarded', '1')
+                } catch {
+                  /* ignore */
+                }
+              }}
               className="rounded-lg border border-ab-border bg-white p-3 text-sm"
             />
           ) : null}

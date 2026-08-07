@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
+import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 type AuditRow = {
   id: string
@@ -13,6 +14,19 @@ type AuditRow = {
   scopeId?: string
   modelUsed?: string
   approvedBy?: string | null
+  source?: 'sdaia' | 'room'
+  titleAr?: string
+  actorAr?: string
+  detailAr?: string
+}
+
+type RoomActivityEvent = {
+  id: string
+  kind: string
+  titleAr: string
+  detailAr: string
+  actorAr: string
+  at: number
 }
 
 const RISK_LABEL: Record<string, string> = {
@@ -20,9 +34,11 @@ const RISK_LABEL: Record<string, string> = {
   TIER_2_MEDIUM: 'متوسط',
   TIER_3_HIGH: 'مرتفع',
   TIER_4_CRITICAL: 'حرج',
+  ROOM: 'نشاط غرفة',
 }
 
 function riskBadgeClass(tier: string) {
+  if (tier === 'ROOM') return 'bg-sky-50 text-sky-900'
   if (tier.includes('CRITICAL') || tier.includes('4'))
     return 'bg-red-100 text-red-800'
   if (tier.includes('HIGH') || tier.includes('3'))
@@ -50,8 +66,12 @@ function formatWhen(iso: string) {
   }
 }
 
+/**
+ * Audit timeline: SDAIA watermarks + live room activity (same events the room shows).
+ */
 export function SdaiaAuditViewer() {
   const signedIn = useSignedIn()
+  const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
   const [logs, setLogs] = useState<AuditRow[]>([])
   const [scopeId, setScopeId] = useState('')
   const [risk, setRisk] = useState('')
@@ -61,32 +81,93 @@ export function SdaiaAuditViewer() {
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
-  async function load() {
+  useEffect(() => {
+    if (!scopeId.trim() && activeScopeId) {
+      setScopeId(activeScopeId)
+    }
+  }, [activeScopeId, scopeId])
+
+  async function load(overrideScope?: string) {
     setErr('')
     setBusy(true)
+    const effectiveScope = (overrideScope ?? scopeId).trim() || activeScopeId
     try {
       const qs = new URLSearchParams()
-      if (scopeId.trim()) qs.set('scopeId', scopeId.trim())
+      if (effectiveScope) qs.set('scopeId', effectiveScope)
       if (from) qs.set('from', new Date(from).toISOString())
       if (to) {
         const end = new Date(to)
         end.setHours(23, 59, 59, 999)
         qs.set('to', end.toISOString())
       }
-      const res = await fetch(`/api/audit/export?${qs.toString()}`, {
-        headers: await authHeaders(),
-      })
-      if (!res.ok) {
+
+      const headers = await authHeaders()
+      const [auditRes, roomRes] = await Promise.all([
+        fetch(`/api/audit/export?${qs.toString()}`, { headers }),
+        effectiveScope
+          ? fetch(
+              `/api/rooms/activity?scopeId=${encodeURIComponent(effectiveScope)}&limit=200`,
+              { headers }
+            )
+          : Promise.resolve(null),
+      ])
+
+      const merged: AuditRow[] = []
+
+      if (auditRes.ok) {
+        const data = await auditRes.json()
+        for (const l of data.logs || []) {
+          merged.push({ ...l, source: 'sdaia' as const })
+        }
+      } else if (signedIn === false) {
+        setLogs([])
+        setErr('سجّل الدخول لعرض سجل التدقيق الحقيقي.')
+        return
+      }
+
+      if (roomRes?.ok) {
+        const roomData = (await roomRes.json()) as {
+          events?: RoomActivityEvent[]
+          scopeId?: string
+        }
+        const fromMs = from ? new Date(from).getTime() : 0
+        const toMs = to
+          ? (() => {
+              const end = new Date(to)
+              end.setHours(23, 59, 59, 999)
+              return end.getTime()
+            })()
+          : Number.POSITIVE_INFINITY
+
+        for (const ev of roomData.events || []) {
+          if (ev.at < fromMs || ev.at > toMs) continue
+          merged.push({
+            id: `room-${ev.id}`,
+            timestamp: new Date(ev.at).toISOString(),
+            riskTier: 'ROOM',
+            dataLocality: 'غرفة الفريق',
+            watermarkSignature: '',
+            scopeId: roomData.scopeId || effectiveScope,
+            source: 'room',
+            titleAr: ev.titleAr,
+            actorAr: ev.actorAr,
+            detailAr: ev.detailAr,
+          })
+        }
+      } else if (!auditRes.ok) {
         setLogs([])
         setErr(
-          signedIn === false
-            ? 'سجّل الدخول لعرض سجل التدقيق الحقيقي.'
-            : 'تعذّر تحميل السجل — تحقق من الصلاحيات أو أعد المحاولة.'
+          'تعذّر تحميل السجل — تحقق من الصلاحيات أو أعد المحاولة.'
         )
         return
       }
-      const data = await res.json()
-      setLogs(data.logs || [])
+
+      merged.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+      setLogs(merged)
+      if (!scopeId.trim() && effectiveScope) setScopeId(effectiveScope)
     } finally {
       setBusy(false)
       setLoaded(true)
@@ -95,9 +176,9 @@ export function SdaiaAuditViewer() {
 
   useEffect(() => {
     if (signedIn === null) return
-    void load()
+    void load(activeScopeId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn])
+  }, [signedIn, activeScopeId])
 
   const filtered = useMemo(
     () => logs.filter((l) => !risk || l.riskTier === risk),
@@ -141,8 +222,8 @@ export function SdaiaAuditViewer() {
             يلزم تسجيل الدخول لعرض سجل التدقيق
           </p>
           <p className="mt-1 text-xs text-stone-500">
-            يظهر هنا ختم الإجراءات الحساسة بعد تنفيذ الوكلاء — للجلسة الحقيقية
-            فقط، وليس معاينة الزائر.
+            يظهر هنا نشاط الغرفة وختم الإجراءات الحساسة بعد تنفيذ الوكلاء —
+            للجلسة الحقيقية فقط، وليس معاينة الزائر.
           </p>
           <button
             type="button"
@@ -166,7 +247,7 @@ export function SdaiaAuditViewer() {
         <div>
           <h2 className="text-xl font-bold">سجل التدقيق</h2>
           <p className="mt-0.5 text-[11px] text-stone-500">
-            خط زمني لإجراءات الوكلاء مع تصنيف الخطر وختم المحلية.
+            نشاط الغرفة (رسائل · لوحة · أعضاء) مع ختم SDAIA للإجراءات الحساسة.
           </p>
         </div>
         <button
@@ -174,7 +255,7 @@ export function SdaiaAuditViewer() {
           onClick={() => void exportCsv()}
           className="rounded-md bg-ab-ink px-3 py-2 text-sm text-white"
         >
-          تصدير CSV
+          تصدير CSV (SDAIA)
         </button>
       </div>
       {err && <p className="mb-3 text-xs text-amber-800">{err}</p>}
@@ -184,7 +265,7 @@ export function SdaiaAuditViewer() {
           <input
             value={scopeId}
             onChange={(e) => setScopeId(e.target.value)}
-            placeholder="shared-demo"
+            placeholder={activeScopeId || 'shared-demo'}
             className="rounded-md border border-ab-border px-3 py-2 text-sm"
             dir="ltr"
           />
@@ -217,6 +298,7 @@ export function SdaiaAuditViewer() {
             className="rounded-md border border-ab-border px-3 py-2 text-sm"
           >
             <option value="">كل التصنيفات</option>
+            <option value="ROOM">نشاط غرفة</option>
             <option value="TIER_1_LOW">منخفض (١)</option>
             <option value="TIER_2_MEDIUM">متوسط (٢)</option>
             <option value="TIER_3_HIGH">مرتفع (٣)</option>
@@ -237,8 +319,8 @@ export function SdaiaAuditViewer() {
         <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-8 text-center">
           <p className="text-sm font-medium text-stone-600">لا سجلات بعد</p>
           <p className="mt-1 text-xs text-stone-500">
-            ستظهر هنا بعد تنفيذ الوكلاء لإجراءات تُسجَّل في التدقيق. جرّب توسيع
-            نطاق التاريخ أو إزالة التصفية.
+            ستظهر هنا رسائل الغرفة وتعديلات اللوحة فور حدوثها، مع ختم التدقيق
+            للإجراءات الحساسة. تأكد من نطاق الغرفة الحالية.
           </p>
         </div>
       ) : (
@@ -255,16 +337,23 @@ export function SdaiaAuditViewer() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-[13px] font-semibold text-ab-ink">
-                        {when.hijri}
+                        {l.titleAr || when.hijri}
                         {when.time ? (
                           <span className="ms-2 text-[11px] font-normal text-stone-500">
                             {when.time}
                           </span>
                         ) : null}
                       </p>
-                      <p className="text-[10px] text-stone-400" dir="ltr">
-                        {when.full}
-                      </p>
+                      {l.titleAr ? (
+                        <p className="text-[10px] text-stone-400">
+                          {when.hijri}
+                          {when.time ? ` · ${when.time}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-stone-400" dir="ltr">
+                          {when.full}
+                        </p>
+                      )}
                     </div>
                     <span
                       className={`rounded px-2 py-0.5 text-[10px] font-semibold ${riskBadgeClass(l.riskTier)}`}
@@ -273,6 +362,18 @@ export function SdaiaAuditViewer() {
                     </span>
                   </div>
                   <dl className="mt-2 grid gap-1 text-[11px] text-stone-600 sm:grid-cols-2">
+                    {l.actorAr ? (
+                      <div>
+                        <dt className="inline text-stone-400">الفاعل · </dt>
+                        <dd className="inline">{l.actorAr}</dd>
+                      </div>
+                    ) : null}
+                    {l.detailAr ? (
+                      <div className="sm:col-span-2">
+                        <dt className="inline text-stone-400">التفاصيل · </dt>
+                        <dd className="inline">{l.detailAr}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="inline text-stone-400">النطاق · </dt>
                       <dd className="inline font-mono" dir="ltr">
@@ -299,12 +400,14 @@ export function SdaiaAuditViewer() {
                         </dd>
                       </div>
                     ) : null}
-                    <div className="sm:col-span-2">
-                      <dt className="inline text-stone-400">الختم · </dt>
-                      <dd className="inline font-mono text-[10px]" dir="ltr">
-                        {l.watermarkSignature?.slice(0, 32)}…
-                      </dd>
-                    </div>
+                    {l.source === 'sdaia' && l.watermarkSignature ? (
+                      <div className="sm:col-span-2">
+                        <dt className="inline text-stone-400">الختم · </dt>
+                        <dd className="inline font-mono text-[10px]" dir="ltr">
+                          {l.watermarkSignature.slice(0, 32)}…
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
                 </div>
               </li>

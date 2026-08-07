@@ -61,7 +61,7 @@ type CalendarTab =
   | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
-  { id: 'schedule', labelAr: 'تقويم الغرفة' },
+  { id: 'schedule', labelAr: 'أسبوع / قائمة' },
   { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'محضر الاجتماع' },

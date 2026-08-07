@@ -15,8 +15,18 @@ type Step = {
   actionLabelAr?: string
 }
 
+const STATUS_TIMEOUT_MS = 4500
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    p.then((v) => v).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 /**
  * Multi-step first-run checklist (Google, Drive, keys, first message).
+ * Auto-hides for active owners once room history or linked services are detected.
  */
 export function FirstRunChecklist({
   onNavigate,
@@ -24,11 +34,14 @@ export function FirstRunChecklist({
   className,
   /** Room already has chat history in this session — skip waiting on /api/rooms/home. */
   knownRoomPosts = 0,
+  /** Active workspace scope — home digest must match the room the user is in. */
+  scopeId,
 }: {
   onNavigate?: (section: string) => void
   onDismiss?: () => void
   className?: string
   knownRoomPosts?: number
+  scopeId?: string
 }) {
   const [googleOk, setGoogleOk] = useState(false)
   const [driveCount, setDriveCount] = useState(0)
@@ -37,9 +50,14 @@ export function FirstRunChecklist({
   const [loading, setLoading] = useState(true)
   const [chatted, setChatted] = useState(false)
   const [roomCollabOk, setRoomCollabOk] = useState(false)
+  const [activeOwner, setActiveOwner] = useState(false)
 
   useEffect(() => {
     try {
+      if (localStorage.getItem('ab-onboarded') === '1') {
+        onDismiss?.()
+        return
+      }
       setChatted(Boolean(localStorage.getItem('ab-first-chat')))
       setRoomCollabOk(Boolean(localStorage.getItem('ab-room-collab-seen')))
     } catch {
@@ -54,6 +72,7 @@ export function FirstRunChecklist({
       window.removeEventListener('ab-first-chat', onFirstChat)
       window.removeEventListener('ab-room-collab-seen', onRoomCollab)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -69,6 +88,10 @@ export function FirstRunChecklist({
 
   useEffect(() => {
     let cancelled = false
+    const hardStop = window.setTimeout(() => {
+      if (!cancelled) setLoading(false)
+    }, STATUS_TIMEOUT_MS + 800)
+
     void (async () => {
       try {
         await ensureSupabaseBrowserConfig()
@@ -79,26 +102,65 @@ export function FirstRunChecklist({
           if (cancelled) return
           h = await authHeaders()
         }
-        const [cal, drive, providers, integ, home] = await Promise.all([
-          fetch('/api/google/calendar?action=status', { headers: h }).then((r) =>
-            r.json()
+        const homeQs = scopeId
+          ? `?scopeId=${encodeURIComponent(scopeId)}`
+          : ''
+        const settled = await Promise.allSettled([
+          withTimeout(
+            fetch('/api/google/calendar?action=status', { headers: h }).then(
+              (r) => r.json()
+            ),
+            STATUS_TIMEOUT_MS
           ),
-          fetch('/api/google/drive/brain', { headers: h }).then((r) => r.json()),
-          fetch('/api/settings/providers').then((r) => r.json()),
-          fetch('/api/integrations/status').then((r) => r.json()),
-          fetch('/api/rooms/home', { headers: h }).then((r) => r.json()),
+          withTimeout(
+            fetch('/api/google/drive/brain', { headers: h }).then((r) =>
+              r.json()
+            ),
+            STATUS_TIMEOUT_MS
+          ),
+          withTimeout(
+            fetch('/api/settings/providers').then((r) => r.json()),
+            STATUS_TIMEOUT_MS
+          ),
+          withTimeout(
+            fetch('/api/integrations/status', { headers: h }).then((r) =>
+              r.json()
+            ),
+            STATUS_TIMEOUT_MS
+          ),
+          withTimeout(
+            fetch(`/api/rooms/home${homeQs}`, { headers: h }).then((r) =>
+              r.json()
+            ),
+            STATUS_TIMEOUT_MS
+          ),
         ])
         if (cancelled) return
-        setGoogleOk(
+
+        const cal =
+          settled[0].status === 'fulfilled' ? settled[0].value : null
+        const drive =
+          settled[1].status === 'fulfilled' ? settled[1].value : null
+        const providers =
+          settled[2].status === 'fulfilled' ? settled[2].value : null
+        const integ =
+          settled[3].status === 'fulfilled' ? settled[3].value : null
+        const home =
+          settled[4].status === 'fulfilled' ? settled[4].value : null
+
+        const nextGoogle =
           Boolean(cal?.connected) || Boolean(integ?.googleAutoLinked)
-        )
-        setDriveCount(Number(drive?.count || 0))
-        setKeysOk(Number(providers?.serviceableCount || 0) > 0)
-        setTelegramOk(
+        const nextDrive = Number(drive?.count || 0)
+        const nextKeys = Number(providers?.serviceableCount || 0) > 0
+        const nextTelegram =
           Boolean(integ?.telegramConfigured) ||
-            Boolean(integ?.telegramOwnerConfigured) ||
-            Boolean(integ?.telegramOutboundReady)
-        )
+          Boolean(integ?.telegramOwnerConfigured) ||
+          Boolean(integ?.telegramOutboundReady)
+
+        setGoogleOk(nextGoogle)
+        setDriveCount(nextDrive)
+        setKeysOk(nextKeys)
+        setTelegramOk(nextTelegram)
 
         // Returning users already have room history — don't keep the checklist stuck
         // on localStorage flags that only flip from this browser's future clicks.
@@ -106,11 +168,17 @@ export function FirstRunChecklist({
           knownRoomPosts > 0 ||
           (Array.isArray(home?.recentPosts)
             ? home.recentPosts.length > 0
-            : false)
+            : false) ||
+          (Array.isArray(home?.activity) ? home.activity.length > 0 : false)
         const hasCalendar =
           (Array.isArray(home?.agenda) && home.agenda.length > 0) ||
           Number(home?.beyondMonthCount || 0) > 0 ||
-          (Array.isArray(home?.calendar?.week) && home.calendar.week.length > 0)
+          (Array.isArray(home?.calendar?.week) &&
+            home.calendar.week.length > 0) ||
+          (Array.isArray(home?.calendar?.today) &&
+            home.calendar.today.length > 0) ||
+          (Array.isArray(home?.calendar?.tomorrow) &&
+            home.calendar.tomorrow.length > 0)
         if (hasPosts) {
           setChatted(true)
           try {
@@ -127,6 +195,12 @@ export function FirstRunChecklist({
             /* ignore */
           }
         }
+
+        // Active owner: linked services + room already in use → hide within seconds.
+        const linked = nextKeys || nextGoogle || nextTelegram || nextDrive > 0
+        if (linked && (hasPosts || hasCalendar || knownRoomPosts > 0)) {
+          setActiveOwner(true)
+        }
       } catch {
         /* ignore */
       } finally {
@@ -135,8 +209,9 @@ export function FirstRunChecklist({
     })()
     return () => {
       cancelled = true
+      window.clearTimeout(hardStop)
     }
-  }, [knownRoomPosts])
+  }, [knownRoomPosts, scopeId])
 
   const steps: Step[] = useMemo(
     () => [
@@ -181,20 +256,21 @@ export function FirstRunChecklist({
 
   const doneCount = steps.filter((s) => s.done).length
   const allCore = steps.slice(0, 2).every((s) => s.done)
+  const shouldHide = allCore || activeOwner
 
   useEffect(() => {
-    if (loading || !allCore) return
+    if (loading || !shouldHide) return
     try {
       localStorage.setItem('ab-onboarded', '1')
     } catch {
       /* ignore */
     }
     onDismiss?.()
-    // Only when core steps flip to complete — not on every parent re-render
+    // Only when core/active-owner flips — not on every parent re-render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, allCore])
+  }, [loading, shouldHide])
 
-  if (allCore) return null
+  if (shouldHide) return null
 
   return (
     <div

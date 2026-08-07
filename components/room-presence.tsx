@@ -536,6 +536,9 @@ export function RoomPresenceBar({
     : remoteAgentTyping?.name || 'الوكيل'
   const lastEdit = edits[0]
 
+  const viewingCount =
+    viewing.length || online.filter((p) => p.status !== 'away').length
+
   const summary = (
     <button
       ref={triggerRef}
@@ -551,9 +554,10 @@ export function RoomPresenceBar({
     >
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
         <Eye className="h-3 w-3" aria-hidden />
-        {viewing.length || online.filter((p) => p.status !== 'away').length} يشاهدون
+        <span className="md:hidden tabular-nums">{viewingCount}</span>
+        <span className="hidden md:inline">{viewingCount} يشاهدون</span>
       </span>
-      <span className="text-[11px] text-stone-400">
+      <span className="hidden text-[11px] text-stone-400 sm:inline">
         · متصلون {online.length}
         {away.length > 0 ? ` · بعيد ${away.length}` : ''}
       </span>
@@ -671,8 +675,11 @@ export function RoomPresenceBar({
   if (compact) {
     return (
       <div className="relative" dir="rtl">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center -space-x-1.5 space-x-reverse" aria-hidden>
+        <div className="flex flex-nowrap items-center gap-1 overflow-hidden">
+          <div
+            className="hidden items-center -space-x-1.5 space-x-reverse sm:flex"
+            aria-hidden
+          >
             {viewing.slice(0, 4).map((p, i) => (
               <span
                 key={p.key}
@@ -691,7 +698,7 @@ export function RoomPresenceBar({
           </div>
           {summary}
           {lastEdit && (
-            <span className="truncate text-[10px] text-stone-400">
+            <span className="hidden truncate text-[10px] text-stone-400 md:inline">
               · آخر تعديل: {lastEdit.actorAr} {relativeAr(lastEdit.at)}
             </span>
           )}

@@ -53,6 +53,8 @@ export async function executeCalendarList(
   const groups = findDuplicateGroups(events)
   return {
     ok: true,
+    source: 'google_personal',
+    isTeamCalendar: false,
     count: events.length,
     accounts: accounts.map((a) => a.email),
     events,
@@ -60,10 +62,10 @@ export async function executeCalendarList(
     duplicateGroups: groups.length,
     messageAr:
       events.length === 0
-        ? `لا مواعيد قادمة عبر ${accounts.length || 0} حساب مربوط.`
+        ? `لا مواعيد قادمة عبر ${accounts.length || 0} حساب Google شخصي مربوط. لأجندة الفريق استخدم تقويم الغرفة (room_calendar_list).`
         : groups.length > 0
-          ? `وُجد ${events.length} موعداً من ${accounts.length} بريد — و${groups.length} مجموعة تكرار/تعارض.`
-          : `وُجد ${events.length} موعداً من ${accounts.length} بريد مربوط.`,
+          ? `تقويم Google الشخصي: ${events.length} موعداً من ${accounts.length} بريد — و${groups.length} مجموعة تكرار/تعارض. هذه ليست مواعيد تقويم الغرفة المشترك.`
+          : `تقويم Google الشخصي: ${events.length} موعداً من ${accounts.length} بريد مربوط — ليست أجندة الفريق. استخدم room_calendar_list لمواعيد الغرفة.`,
   }
 }
 

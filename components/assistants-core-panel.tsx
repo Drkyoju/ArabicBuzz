@@ -731,9 +731,112 @@ export function AssistantsCorePanel({
           {catalog?.subtitleAr ||
             'مهام تشغيل للمساحة (بريد/تقويم) — غرفة الفريق = محادثة حية ووكلاء متواجدون بـ @.'}
         </p>
+      </div>
 
+      <div
+        className={cn(
+          'ab-composer',
+          composerDrag && 'ring-2 ring-ab-accent/40'
+        )}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (e.dataTransfer.types.includes(AB_FILE_DND)) {
+            setComposerDrag(true)
+          }
+        }}
+        onDragLeave={() => setComposerDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setComposerDrag(false)
+          const file = getBridgeDragData(e.dataTransfer)
+          if (file) attachPendingFile(file)
+        }}
+      >
+        <label className="block">
+          <span className="mb-2 block text-sm font-bold text-ab-ink">
+            ماذا تريد تنفيذه؟
+          </span>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            dir="rtl"
+            placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF — أو اسحب صوتاً من تيليجرام"
+            className="ab-input resize-y !py-3"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                void enqueue()
+              }
+            }}
+          />
+        </label>
+
+        {pendingFiles.length > 0 ? (
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {pendingFiles.map((f) => (
+              <li
+                key={f.fileId}
+                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2 py-1 text-[11px] font-semibold text-ab-accent"
+              >
+                <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{f.name}</span>
+                <button
+                  type="button"
+                  className="rounded p-0.5 hover:bg-ab-accent/20"
+                  aria-label="إزالة المرفق"
+                  onClick={() =>
+                    setPendingFiles((prev) =>
+                      prev.filter((p) => p.fileId !== f.fileId)
+                    )
+                  }
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <div className="ab-toolbar mt-3 flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <ModelPicker compact scopeId={scopeId} />
+            <EffortPicker compact scopeId={scopeId} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={enqueueBusy || signedIn !== true}
+              onClick={() => void enqueue()}
+              className="ab-btn-primary px-5 py-2.5 text-sm"
+            >
+              {enqueueBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  جاري الإضافة…
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" aria-hidden />
+                  إرسال
+                </>
+              )}
+            </button>
+            <span className="text-[11px] text-ab-muted">
+              ⌘/Ctrl + Enter
+            </span>
+          </div>
+        </div>
+        {error ? (
+          <p className="mt-3 text-sm text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+
+      <div>
         <AssistantsOpsSeatsStrip
-          className="mt-3"
+          className="mt-0"
           maxParallel={maxParallel}
           maxPerUser={maxPerUser}
           jobs={jobs}
@@ -841,107 +944,6 @@ export function AssistantsCorePanel({
           </p>
         )}
 
-      <div
-        className={cn(
-          'ab-composer',
-          composerDrag && 'ring-2 ring-ab-accent/40'
-        )}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (e.dataTransfer.types.includes(AB_FILE_DND)) {
-            setComposerDrag(true)
-          }
-        }}
-        onDragLeave={() => setComposerDrag(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setComposerDrag(false)
-          const file = getBridgeDragData(e.dataTransfer)
-          if (file) attachPendingFile(file)
-        }}
-      >
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold text-ab-ink">
-            ماذا تريد تنفيذه؟
-          </span>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={4}
-            dir="rtl"
-            placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF — أو اسحب صوتاً من تيليجرام"
-            className="ab-input resize-y !py-3"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                void enqueue()
-              }
-            }}
-          />
-        </label>
-
-        {pendingFiles.length > 0 ? (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {pendingFiles.map((f) => (
-              <li
-                key={f.fileId}
-                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2 py-1 text-[11px] font-semibold text-ab-accent"
-              >
-                <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{f.name}</span>
-                <button
-                  type="button"
-                  className="rounded p-0.5 hover:bg-ab-accent/20"
-                  aria-label="إزالة المرفق"
-                  onClick={() =>
-                    setPendingFiles((prev) =>
-                      prev.filter((p) => p.fileId !== f.fileId)
-                    )
-                  }
-                >
-                  <X className="h-3 w-3" aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <div className="ab-toolbar mt-3 flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <ModelPicker compact scopeId={scopeId} />
-            <EffortPicker compact scopeId={scopeId} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={enqueueBusy || signedIn !== true}
-              onClick={() => void enqueue()}
-              className="ab-btn-primary px-5 py-2.5 text-sm"
-            >
-              {enqueueBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  جاري الإضافة…
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" aria-hidden />
-                  إرسال
-                </>
-              )}
-            </button>
-            <span className="text-[11px] text-ab-muted">
-              ⌘/Ctrl + Enter
-            </span>
-          </div>
-        </div>
-        {error ? (
-          <p className="mt-3 text-sm text-red-700" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
-
       {/* Multi-task grid — one small pane per job */}
       {gridJobs.length > 0 ? (
         <div>
@@ -967,8 +969,8 @@ export function AssistantsCorePanel({
         </div>
       ) : (
         <p className="ab-empty text-[13px] !text-ab-muted">
-          لا مهام بعد — اختر النموذج والقوة، اكتب طلبك، ثم اضغط إرسال. كل مهمة
-          تظهر كورقة صغيرة هنا.
+          لا مهام بعد — اكتب طلبك أعلاه ثم اضغط إرسال. كل مهمة تظهر كورقة صغيرة
+          هنا.
         </p>
       )}
         </div>

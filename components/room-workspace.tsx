@@ -9,6 +9,7 @@ import {
   Eye,
   X,
   Trash2,
+  MoreHorizontal,
 } from 'lucide-react'
 import {
   isPostInRiyadhToday,
@@ -1493,6 +1494,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           {showOnboarding && (
             <div className="space-y-3 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
+                scopeId={activeScopeId}
                 knownRoomPosts={posts.length}
                 onNavigate={(section) => {
                   window.dispatchEvent(
@@ -1505,19 +1507,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
           )}
 
           <header className="border-b border-ab-border/60 bg-ab-surface px-3 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <div className="flex flex-nowrap items-center justify-between gap-x-2 gap-y-1.5 md:flex-wrap">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex min-w-0 items-baseline gap-x-2">
                   <h2 className="truncate text-[15px] font-semibold tracking-tight text-ab-ink">
                     {activeScope.nameAr}
                   </h2>
-                  <span className="truncate text-[11px] text-stone-400">
+                  <span className="hidden truncate text-[11px] text-stone-400 sm:inline">
                     {shared
                       ? 'غرفة الفريق'
                       : PERSONAL_DESK_COPY.taglineAr}
                   </span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
+                <div className="mt-1 hidden flex-wrap items-center gap-2 md:flex">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
                     typing={typing}
@@ -1535,46 +1537,36 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <ZoomLivePanel compact />
                 </div>
               </div>
-              <div className="ab-toolbar relative shrink-0 justify-end gap-1">
-                <AgentsWorkingToggle scopeId={activeScopeId} compact />
-                {shared && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMore((v) => {
-                        const next = !v
-                        if (next) {
-                          setShowTelegram(false)
-                          setShowHeaderMore(false)
-                          const mobile =
-                            typeof window !== 'undefined' &&
-                            window.matchMedia('(max-width: 767px)').matches
-                          const saved = readMembersPanePx(activeScopeId)
-                          setMembersPanePx(
-                            mobile
-                              ? clampMembersPanePx(
-                                  Math.max(
-                                    saved,
-                                    Math.round(window.innerHeight * 0.78)
-                                  )
-                                )
-                              : saved
-                          )
-                          if (mobile) setSeatsCollapsed(true)
-                        }
-                        return next
-                      })
-                    }}
-                    className={cn(
-                      '!py-1 text-[11px]',
-                      showMore ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
-                    )}
-                    aria-label="الأعضاء والسجل"
-                    aria-expanded={showMore}
-                  >
-                    أعضاء
-                  </button>
-                )}
+              <div className="ab-toolbar relative shrink-0 flex-nowrap justify-end gap-1 !flex-nowrap">
+                <div className="hidden md:contents">
+                  <AgentsWorkingToggle scopeId={activeScopeId} compact />
+                  {shared && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMore((v) => {
+                          const next = !v
+                          if (next) {
+                            setShowTelegram(false)
+                            setShowHeaderMore(false)
+                            const saved = readMembersPanePx(activeScopeId)
+                            setMembersPanePx(saved)
+                            setSeatsCollapsed(false)
+                          }
+                          return next
+                        })
+                      }}
+                      className={cn(
+                        '!py-1 text-[11px]',
+                        showMore ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
+                      )}
+                      aria-label="الأعضاء والسجل"
+                      aria-expanded={showMore}
+                    >
+                      أعضاء
+                    </button>
+                  )}
+                </div>
                 {previewOpen && (
                   <button
                     type="button"
@@ -1585,14 +1577,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     aria-label="إغلاق معاينة الملف"
                   >
                     <Eye className="h-3 w-3" />
-                    إغلاق
+                    <span className="hidden sm:inline">إغلاق</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setShowHeaderMore((v) => !v)}
                   className={cn(
-                    '!py-1 text-[11px]',
+                    'inline-flex h-8 w-8 items-center justify-center !p-0 md:!h-auto md:!w-auto md:!px-2 md:!py-1 md:text-[11px]',
                     showHeaderMore || showRoomTools
                       ? 'ab-btn-accent-soft'
                       : 'ab-btn-ghost'
@@ -1600,13 +1592,67 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   aria-expanded={showHeaderMore}
                   aria-label="المزيد من أدوات الغرفة"
                 >
-                  المزيد
+                  <MoreHorizontal className="h-4 w-4 md:hidden" aria-hidden />
+                  <span className="hidden md:inline">المزيد</span>
                 </button>
                 {showHeaderMore ? (
                   <div
-                    className="absolute end-0 top-full z-30 mt-1 min-w-[11rem] rounded-lg border border-ab-border bg-ab-surface p-1 shadow-ab-md"
+                    className="absolute end-0 top-full z-30 mt-1 min-w-[12rem] rounded-lg border border-ab-border bg-ab-surface p-1 shadow-ab-md"
                     role="menu"
                   >
+                    <div className="border-b border-ab-border/60 px-2 py-1.5 md:hidden">
+                      <RoomPresenceBar
+                        scopeId={activeScopeId}
+                        typing={typing}
+                        displayName={displayName}
+                        surface={presenceSurface}
+                        compact
+                        agentTyping={streaming}
+                        agentName={
+                          answeringAgentId
+                            ? roomAgents.find((a) => a.id === answeringAgentId)
+                                ?.nameAr || 'الوكيل'
+                            : 'الوكيل'
+                        }
+                      />
+                      <div className="mt-1.5">
+                        <AgentsWorkingToggle scopeId={activeScopeId} compact />
+                      </div>
+                    </div>
+                    {shared ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setShowMore((v) => {
+                            const next = !v
+                            if (next) {
+                              setShowTelegram(false)
+                              const mobile =
+                                typeof window !== 'undefined' &&
+                                window.matchMedia('(max-width: 767px)').matches
+                              const saved = readMembersPanePx(activeScopeId)
+                              setMembersPanePx(
+                                mobile
+                                  ? clampMembersPanePx(
+                                      Math.max(
+                                        saved,
+                                        Math.round(window.innerHeight * 0.78)
+                                      )
+                                    )
+                                  : saved
+                              )
+                              if (mobile) setSeatsCollapsed(true)
+                            }
+                            return next
+                          })
+                          setShowHeaderMore(false)
+                        }}
+                        className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px] md:hidden"
+                      >
+                        أعضاء
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       role="menuitem"

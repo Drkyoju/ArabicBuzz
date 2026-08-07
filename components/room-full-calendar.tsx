@@ -133,7 +133,7 @@ export function RoomFullCalendar({
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [viewYm, setViewYm] = useState(() => riyadhYm())
-  const [mode, setMode] = useState<'month' | 'all'>('month')
+  const [mode, setMode] = useState<'month' | 'all'>('all')
   const todayYmd = riyadhYmd(new Date().toISOString())
 
   const load = useCallback(async () => {
@@ -259,6 +259,19 @@ export function RoomFullCalendar({
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
+            onClick={() => setMode('all')}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold',
+              mode === 'all'
+                ? 'bg-ab-ink text-white'
+                : 'border border-ab-border bg-white text-stone-600'
+            )}
+          >
+            <List className="h-3.5 w-3.5" />
+            قائمة
+          </button>
+          <button
+            type="button"
             onClick={() => setMode('month')}
             className={cn(
               'inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold',
@@ -269,19 +282,6 @@ export function RoomFullCalendar({
           >
             <CalendarDays className="h-3.5 w-3.5" />
             شهر
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('all')}
-            className={cn(
-              'inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold',
-              mode === 'all'
-                ? 'bg-ab-ink text-white'
-                : 'border border-ab-border bg-white text-stone-600'
-            )}
-          >
-            <List className="h-3.5 w-3.5" />
-            كل المواعيد
           </button>
           <button
             type="button"

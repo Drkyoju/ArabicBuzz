@@ -20,23 +20,22 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     descriptionAr:
       'تشغيل واحد يجمع: مواعيد اليوم، فرز عاجل للوارد (IMAP أو Gmail)، واقتراح ملخص/رسالة تيليجرام للفريق — دون إرسال تلقائي.',
     starterPromptAr:
-      'كابتن اليوم: ١) مواعيد اليوم من تقويم الغرفة وتقويم Google إن وُجد (توقيت الرياض). ٢) زامن/افرز الوارد (IMAP أو Gmail): عاجل · متابعة · أرشفة مع مسودة رد للعاجل فقط دون إرسال. ٣) اقترح نص ملخص تيليجرام قصير للفريق — لا ترسل إلا إذا طلبت ذلك.',
+      'كابتن اليوم: ١) مواعيد اليوم من تقويم الغرفة فقط (توقيت الرياض) — لا تختلق مواعيد. ٢) زامن/افرز الوارد (IMAP أو Gmail): عاجل · متابعة · أرشفة مع مسودة رد للعاجل فقط دون إرسال. ٣) اقترح نص ملخص تيليجرام قصير للفريق — لا ترسل إلا إذا طلبت ذلك.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «كابتن اليوم» — منسّق يومي كامل في تشغيل واحد.
 يجب تنفيذ الخطوات التالية بالترتيب عبر الأدوات (لا تتخطّ أي خطوة دون سبب صريح من فشل الأداة):
-1) room_calendar_list لمواعيد اليوم (Asia/Riyadh). إن توفّر Google: calendar_list_events أيضاً.
+1) room_calendar_list لمواعيد اليوم (Asia/Riyadh) — مصدر الفريق الوحيد. إن رجعت فارغة فقل «لا مواعيد اليوم» دون اختلاق. لا تستخدم calendar_list_events لأجندة الفريق.
 2) mail_sync إن وُجد IMAP، ثم mail_search أو gmail_search لغير المقروء، ثم mail_read/gmail_read لأهم 3–5 رسائل عاجلة.
 3) room_tasks_list للمهام العالقة إن وُجدت.
 4) أعد بطاقة نتيجة منظمة:
-   أ) مواعيد اليوم (وقت · عنوان)
+   أ) مواعيد اليوم من تقويم الغرفة (وقت · عنوان)
    ب) فرز البريد (عاجل / متابعة / أرشفة) + مسودة رد كاملة (موضوع + نص) لكل عاجل
    ج) مقترح رسالة تيليجرام (ملخص يومي للفريق)
 5) لا تستدعِ mail_send / gmail_send أو send_message إلا إذا طلب المستخدم إرسالاً صريحاً.
 6) إن لم يُربط بريد (IMAP أو Google) أو فشلت أداة: اذكر ذلك في أعلى النتيجة مع CTA واضح — لا تختلق بيانات.`,
     allowedTools: [
       'room_calendar_list',
-      'calendar_list_events',
       'mail_sync',
       'mail_search',
       'mail_read',
@@ -62,8 +61,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'وش عندي اليوم كامل',
     ],
     maxSteps: 14,
-    ownerHintAr:
-      'room_calendar + mail_*/gmail_* + calendar_list · send HITL',
+    ownerHintAr: 'room_calendar + mail_*/gmail_* · send HITL',
   },
   {
     id: 'inbox-zero',
@@ -117,25 +115,24 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     nameAr: 'ملخص يومي',
     taglineAr: 'مواعيد اليوم + لمحة بريد',
     descriptionAr:
-      'يجمع مواعيد تقويم الغرفة لليوم (توقيت الرياض) ولمحة سريعة من Gmail/Google إن كان مربوطاً.',
+      'يجمع مواعيد تقويم الغرفة لليوم (توقيت الرياض) ولمحة سريعة من البريد إن كان مربوطاً.',
     starterPromptAr:
-      'ملخص يومي مختصر: مواعيد اليوم من تقويم الغرفة (وGoogle إن وُجد)، وأهم نقاط البريد العاجل إن توفّر، والمهام العالقة.',
+      'ملخص يومي مختصر: مواعيد اليوم من تقويم الغرفة فقط، وأهم نقاط البريد العاجل إن توفّر، والمهام العالقة.',
     systemPromptAr: `${MSA_CORE}
 
 دورك: «ملخص يومي».
 يجب:
-1) room_calendar_list لليوم (Asia/Riyadh) — اعرض الوقت مرة واحدة بدون UTC.
+1) room_calendar_list لليوم (Asia/Riyadh) — مصدر الفريق الوحيد. اعرض الوقت مرة واحدة بدون UTC. إن فارغ: قل ذلك صراحة دون اختلاق.
 2) إن طلب المستخدم إضافة موعد/اجتماع: room_calendar_create فوراً (توقيت السعودية) ثم أكّد.
-3) إن توفّر تقويم Google: calendar_list_events. للبريد: mail_search أو gmail_search سريع للعاجل.
+3) للبريد فقط: mail_search أو gmail_search سريع للعاجل — لا تخلط تقويم Google الشخصي بأجندة الفريق.
 4) room_tasks_list للمهام العالقة.
-5) أعد: فقرة قصيرة + قائمة مواعيد + بريد عاجل (إن وُجد) + مهام.
+5) أعد: فقرة قصيرة + قائمة مواعيد الغرفة + بريد عاجل (إن وُجد) + مهام.
 6) ممنوع جواب بدون استدعاء أدوات.`,
     allowedTools: [
       'room_calendar_list',
       'room_calendar_create',
       'room_calendar_update',
       'room_tasks_list',
-      'calendar_list_events',
       'mail_search',
       'mail_read',
       'gmail_search',
@@ -303,7 +300,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 
 دورك: مساعد عام للنواة.
 - افهم القصد ونفّذ عبر الأدوات فوراً — لا تعرض خدماتك.
-- فضّل تقويم الغرفة room_calendar_* على تقويم Google الشخصي إلا بطلب صريح.
+- فضّل تقويم الغرفة room_calendar_* كمصدر وحيد لأجندة الفريق. لا تعرض مواعيد Google الشخصية كأنها مواعيد الغرفة. إن رجعت room_calendar_list فارغة فقل ذلك — لا تختلق مواعيد.
 - للبريد: mail_sync ثم mail_search/mail_read (IMAP) أو gmail_* إن رُبط Google. مسودات الرد يجب أن تتضمن موضوعاً ونصاً — ممنوع كلام فارغ.
 - للإرسال (بريد/تيليجرام) أو تعديل حساس: أوضح أن الموافقة البشرية قد تُطلب.
 - إن لم يُربط بريد: CTA صريح لضبط IMAP من «بريد الجمعية» (info@alhuda-alhikma.sa).

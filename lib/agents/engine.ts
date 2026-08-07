@@ -819,7 +819,7 @@ export function getNativeAiTools(opts?: {
     }),
     calendar_list_events: tool({
       description:
-        'اختياري: مواعيد Google الشخصية. للعمل الجماعي استخدم room_calendar_list.',
+        'تقويم Google الشخصي فقط — ليس أجندة الفريق. لمواعيد الغرفة استخدم room_calendar_list حصراً ولا تختلق مواعيد.',
       inputSchema: z.object({
         query: z.string().optional().describe('بحث اختياري في العنوان'),
         maxResults: z.number().optional(),
