@@ -25,11 +25,19 @@ Or dashboard: Applications → New Application → `Drkyoju/ArabicBuzz` → Buil
 ## Env
 
 ```bash
-# From a sanitized env file (no CRANL_API_KEY in git):
-cranl apps env push <app-id> .env.cranl.local
+# From a sanitized env file (no CRANL_API_KEY in git).
+# Note: `cranl apps env push` currently hits POST→405; use PUT via API:
+#   curl -X PUT -H "Authorization: Bearer $CRANL_API_KEY" -H "Content-Type: application/json" \
+#     --data-binary @<(python3 -c 'import json,pathlib; print(json.dumps({"env": pathlib.Path(".env.cranl.local").read_text()}))') \
+#     https://app.cranl.com/api/applications/<app-id>/environment
+#
+# Or dashboard → Application → Environment → Raw mode.
+cranl apps env set <app-id> KEY=VALUE   # may also 405; prefer dashboard/API PUT
+```
 
+```bash
 # Always set public URL to the CranL hostname after first deploy:
-cranl apps env set <app-id> NEXT_PUBLIC_APP_URL=https://<app>.cranl.net APP_URL=https://<app>.cranl.net NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+# NEXT_PUBLIC_APP_URL / APP_URL = https://arabicbuzz-fooc9h.cranl.net
 ```
 
 Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
@@ -37,15 +45,15 @@ Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
 ## After go-live
 
 1. Point Telegram webhook:
-   `NEXT_PUBLIC_APP_URL=https://<app>.cranl.net npx tsx scripts/set-telegram-webhook.ts`
-2. Update GitHub Actions `.github/workflows/cron-runner.yml` `APP_URL` to the CranL URL.
-3. Update Google OAuth / Supabase redirect URLs to include the CranL host (see `docs/google-oauth-ar.md`).
+   `NEXT_PUBLIC_APP_URL=https://arabicbuzz-fooc9h.cranl.net npx tsx scripts/set-telegram-webhook.ts`
+2. Update GitHub Actions `.github/workflows/cron-runner.yml` `APP_URL` (already set to CranL).
+3. Update Google OAuth / Supabase redirect URLs to include `arabicbuzz-fooc9h.cranl.net` (see `docs/google-oauth-ar.md`).
 4. **Rotate** any API key that was pasted into chat.
 
 ## Smoke
 
-- `GET https://<app>.cranl.net/api/health/free`
-- `GET https://<app>.cranl.net/api/webhooks/telegram`
+- `GET https://arabicbuzz-fooc9h.cranl.net/api/health/free`
+- `GET https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram`
 
 ## Local Docker build (optional)
 
