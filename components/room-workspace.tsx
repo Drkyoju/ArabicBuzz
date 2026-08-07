@@ -1084,7 +1084,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         authorId: 'system',
         authorNameAr: 'النظام',
         content:
-          'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء»، أو أبقِ الوضع «بشر فقط».',
+          'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
         createdAt: Date.now(),
       })
       return
@@ -1508,10 +1508,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
           <div className="relative z-[1] shrink-0 border-b border-ab-border/70 px-3 py-1.5">
             {!agentsWorking ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] text-stone-600">
-                  وضع بشر فقط — محادثة وملاحظات الفريق بلا ردود وكلاء.
-                </p>
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
               </div>
             ) : seatsCollapsed ? (

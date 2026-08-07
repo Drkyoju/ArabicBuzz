@@ -5,7 +5,7 @@ import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
 import { cn } from '@/lib/utils'
 
 /**
- * Master room switch: agents reply with the team, or humans-only notes/chat.
+ * Master room switch: agents reply with the team, or notes/chat without agent replies.
  */
 export function AgentsWorkingToggle({
   scopeId,
@@ -49,7 +49,7 @@ export function AgentsWorkingToggle({
         </button>
         <button
           type="button"
-          title="محادثة وملاحظات بشرية فقط — بلا ردود من الوكلاء"
+          title="محادثة وملاحظات الفريق — بلا ردود من الوكلاء"
           aria-pressed={!enabled}
           onClick={() => setAgentsEnabled(scopeId, false)}
           className={cn(
@@ -62,7 +62,7 @@ export function AgentsWorkingToggle({
           <MessageSquareText
             className={cn(compact ? 'h-3 w-3' : 'h-3.5 w-3.5')}
           />
-          بشر فقط
+          محادثة فقط
         </button>
       </div>
       {!compact && (
