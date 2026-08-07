@@ -282,16 +282,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   }
 
   return (
-    <section className="mx-auto max-w-5xl space-y-5 px-6 py-8" dir="rtl">
+    <section className="ab-page" dir="rtl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-ab-ink">
+          <h2 className="ab-title flex items-center gap-2">
             <Mail className="h-5 w-5 text-ab-accent" aria-hidden />
             بريد الجمعية
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            ربط IMAP/SMTP لـ {DEFAULT_EMAIL} دون الاعتماد على Google — قراءة
-            عربية/إنجليزية على الموقع، ومزامنة دورية مع إشعار تيليجرام للجديد.
+          <p className="ab-subtitle">
+            IMAP/SMTP لـ {DEFAULT_EMAIL} — قراءة عربية/إنجليزية، ومزامنة مع إشعار
+            تيليجرام.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -299,7 +299,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             <button
               type="button"
               onClick={() => setShowSettings((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+              className="ab-btn-secondary"
             >
               <Settings2 className="h-3.5 w-3.5" aria-hidden />
               إعدادات الربط
@@ -310,7 +310,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
               type="button"
               disabled={busy === 'sync'}
               onClick={() => void syncNow()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-600 disabled:opacity-50"
+              className="ab-btn-ghost"
               title="اختياري — المزامنة تعمل بالخلفية"
             >
               <RefreshCw
@@ -528,15 +528,18 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             </li>
           ))}
           {!loading && messages.length === 0 && configured && (
-            <li className="rounded-lg border border-dashed border-ab-border px-3 py-6 text-center text-xs text-stone-500">
-              لا رسائل مخزّنة — اضغط «زامن الآن».
+            <li className="ab-empty !py-8">
+              <p className="text-xs font-semibold text-ab-ink">لا رسائل بعد</p>
+              <p className="mt-1 text-[11px] text-ab-muted">
+                اضغط «حدّث الوارد» لمزامنة صندوق الجمعية.
+              </p>
             </li>
           )}
         </ul>
 
-        <div className="min-h-[16rem] rounded-xl border border-ab-border bg-white p-4 lg:col-span-3">
+        <div className="min-h-[16rem] rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm lg:col-span-3">
           {!selected ? (
-            <p className="text-sm text-stone-400">اختر رسالة لعرضها.</p>
+            <p className="text-sm text-ab-muted">اختر رسالة لعرضها.</p>
           ) : (
             <div className="space-y-3">
               <div>

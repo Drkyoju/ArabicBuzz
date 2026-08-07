@@ -422,40 +422,26 @@ export function AssistantsCorePanel({
 
   return (
     <section
-      className="relative mx-auto max-w-3xl space-y-5 px-6 pb-36 pt-8"
+      className="ab-page-narrow relative pb-36"
       dir="rtl"
     >
       <div>
-        <h2 className="text-xl font-bold text-ab-ink">
+        <h2 className="ab-title">
           {catalog?.titleAr || 'المساعدون'}
         </h2>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-stone-500">
+        <p className="ab-subtitle">
           {catalog?.subtitleAr ||
             'اكتب ما تريده — ننفّذ. مهام متعددة تدخل الطابور.'}
         </p>
-        <p className="mt-2 text-[12px] leading-relaxed text-stone-600">
-          {catalog?.howToAr ||
-            'اكتب طلبك واضغط إرسال. كل طلب مهمة. إن أرسلت أكثر من واحدة يعملون معاً حتى الحد، والباقي بالانتظار.'}
-        </p>
-        <p className="mt-1.5 text-[12px] font-medium text-ab-accent">
+        <p className="mt-2 text-[12px] font-medium text-ab-accent">
           {hintAr}
         </p>
-        {catalog?.parallelNoteAr ? (
-          <p className="mt-1 text-[11px] text-stone-500">
-            {catalog.parallelNoteAr}
-          </p>
-        ) : null}
-        {canAccessOpsUi && catalog?.telegramHintAr ? (
-          <p className="mt-2 text-[12px] text-stone-500">
-            {catalog.telegramHintAr}
-          </p>
-        ) : null}
         {canAccessOpsUi && cuaStatusAr !== null ? (
-          <p className="mt-2 text-[12px] text-stone-600">
+          <p className="mt-2 text-[12px] text-ab-muted">
             جسر Cua:{' '}
             <span
               className={
-                cuaStatusAr === 'متصل' ? 'text-emerald-700' : 'text-stone-500'
+                cuaStatusAr === 'متصل' ? 'text-emerald-700' : 'text-ab-muted-soft'
               }
             >
               {cuaStatusAr}
@@ -483,7 +469,7 @@ export function AssistantsCorePanel({
                 <button
                   type="button"
                   onClick={() => onNavigate?.('mail')}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ab-accent px-3 py-1.5 text-[12px] font-bold text-white"
+                  className="ab-btn-primary"
                 >
                   بريد الجمعية (IMAP)
                 </button>
@@ -491,7 +477,7 @@ export function AssistantsCorePanel({
                   type="button"
                   disabled={connectingGoogle}
                   onClick={() => void linkGoogle()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-900 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60"
+                  className="ab-btn-secondary"
                 >
                   {connectingGoogle ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -508,7 +494,7 @@ export function AssistantsCorePanel({
       {signedIn === true && imapConnected === true && (
         <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-800">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-          بريد IMAP مربوط — الوارد والردود جاهزة (Google اختياري للتقويم)
+          بريد IMAP مربوط — الوارد والردود جاهزة
         </p>
       )}
 
@@ -517,13 +503,12 @@ export function AssistantsCorePanel({
         googleConnected === true && (
           <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-800">
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-            Google مربوط — البريد والتقويم جاهزان · يُفضّل أيضاً IMAP لبريد
-            الجمعية
+            Google مربوط — يُفضّل أيضاً IMAP لبريد الجمعية
           </p>
         )}
 
       {/* Single composer */}
-      <div className="rounded-2xl border-2 border-ab-accent/40 bg-ab-surface p-4 shadow-sm sm:p-5">
+      <div className="ab-composer">
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-ab-ink">
             وش تبي؟
@@ -534,7 +519,7 @@ export function AssistantsCorePanel({
             rows={4}
             dir="rtl"
             placeholder="مثال: فرّز بريدي اليوم… أو ملخص مواعيدي… أو حوّل الملف إلى PDF"
-            className="w-full resize-y rounded-xl border border-ab-border bg-white px-3 py-3 text-sm text-ab-ink outline-none focus:border-ab-accent"
+            className="ab-input resize-y !py-3"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
@@ -548,7 +533,7 @@ export function AssistantsCorePanel({
             type="button"
             disabled={enqueueBusy || signedIn !== true}
             onClick={() => void enqueue()}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-ab-ink px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            className="ab-btn-primary px-5 py-2.5 text-sm"
           >
             {enqueueBusy ? (
               <>
@@ -562,7 +547,7 @@ export function AssistantsCorePanel({
               </>
             )}
           </button>
-          <span className="text-[11px] text-stone-500">
+          <span className="text-[11px] text-ab-muted">
             ⌘/Ctrl + Enter للإرسال السريع
           </span>
         </div>
@@ -678,8 +663,8 @@ export function AssistantsCorePanel({
               {running.length === 0 &&
               waiting.length === 0 &&
               done.length === 0 ? (
-                <p className="py-2 text-[12px] text-stone-500">
-                  لا مهام بعد — اكتب طلبك أعلاه.
+                <p className="ab-empty !py-3 text-[12px] !text-ab-muted">
+                  لا مهام بعد — اكتب طلبك أعلاه ثم اضغط إرسال.
                 </p>
               ) : null}
 

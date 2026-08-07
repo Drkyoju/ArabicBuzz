@@ -37,19 +37,14 @@ export function EffortPicker({
         className
       )}
     >
-      <span
-        className={cn(
-          'inline-flex items-center gap-1 font-medium text-stone-600',
-          compact ? 'text-[10px]' : 'text-[11px]'
-        )}
-      >
+      <span className="ab-toolbar-label">
         القوة
         <HelpTip textAr="تتحكم بعدد خطوات الأدوات وعمق الرد: منخفضة أسرع، أقصى أعمق وأبطأ." />
       </span>
       <div
         role="radiogroup"
         aria-label="قوة التشغيل"
-        className="inline-flex flex-wrap gap-0.5 rounded-md border border-ab-border bg-white p-0.5"
+        className="ab-seg"
       >
         {RUN_EFFORT_ORDER.map((level) => {
           const active = effort === level
@@ -62,10 +57,8 @@ export function EffortPicker({
               title={RUN_EFFORT_HINTS_AR[level]}
               onClick={() => setEffort(level as RunEffort, scopeId)}
               className={cn(
-                'rounded px-1.5 py-1 text-[10px] font-medium transition-colors sm:text-[11px]',
-                active
-                  ? 'bg-ab-accent text-white'
-                  : 'text-stone-600 hover:bg-stone-50'
+                'ab-seg-item',
+                compact ? 'px-1.5 py-1 text-[10px] sm:text-[11px]' : 'px-2 py-1'
               )}
             >
               {RUN_EFFORT_LABELS_AR[level]}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   getHijriPrimaryPreference,
 } from '@/components/hijri-preference'
+import { cn } from '@/lib/utils'
 
 /** Hijri + Gregorian — order follows settings preference. */
 export function DateDual({
@@ -43,10 +44,10 @@ export function DateDual({
   const secondaryDir = hijriPrimary ? 'ltr' : undefined
 
   return (
-    <div className={className}>
+    <div className={cn('flex flex-wrap items-baseline gap-x-2 gap-y-0.5', className)}>
       <p className="text-[13px] font-medium text-ab-ink">{primary}</p>
       <p
-        className="text-[11px] text-stone-400"
+        className="text-[11px] text-ab-muted"
         dir={secondaryDir}
       >
         {secondary}

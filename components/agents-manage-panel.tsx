@@ -125,7 +125,7 @@ export function AgentsManagePanel({
             resetForm()
             setOpen(true)
           }}
-          className="inline-flex items-center gap-1 rounded-md border border-dashed border-ab-border bg-white px-2 py-0.5 text-[11px] text-ab-ink hover:bg-stone-50"
+          className="ab-btn-secondary !py-0.5 text-[11px]"
         >
           <Plus className="h-3 w-3" />
           إدارة الوكلاء

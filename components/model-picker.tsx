@@ -111,12 +111,7 @@ export function ModelPicker({
           : 'اختر النموذج'
       }
     >
-      <span
-        className={cn(
-          'inline-flex items-center gap-1 font-medium text-stone-600',
-          compact ? 'text-[10px]' : 'text-[11px]'
-        )}
-      >
+      <span className="ab-toolbar-label">
         النموذج
         <HelpTip textAr="اختر نموذج الرد (Gemini / GLM / AgentRouter). يظهر فقط المزوّدون الذين لديهم مفتاح يعمل." />
       </span>
@@ -124,7 +119,7 @@ export function ModelPicker({
         aria-label="النموذج"
         dir="rtl"
         className={cn(
-          'w-full truncate rounded-md border border-ab-border bg-white outline-none ring-ab-accent focus:ring-2',
+          'ab-select',
           compact ? 'px-1.5 py-1 text-[11px]' : 'max-w-[280px] px-3 py-1.5 text-sm'
         )}
         value={
@@ -152,7 +147,7 @@ export function ModelPicker({
         )}
       </select>
       {!compact && active && (
-        <span className="text-[10px] text-stone-400" dir="ltr">
+        <span className="text-[10px] text-ab-muted-soft" dir="ltr">
           {active.slug}
         </span>
       )}

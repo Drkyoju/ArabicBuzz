@@ -17,7 +17,7 @@ const STORAGE_KEY = 'arabicbuzz-telegram-panel-open'
 
 const SOURCE_TONE: Record<TelegramFeedItem['source'], string> = {
   site: 'bg-sky-50 text-sky-900 border-sky-200',
-  telegram: 'bg-violet-50 text-violet-900 border-violet-200',
+  telegram: 'bg-stone-100 text-stone-800 border-stone-300',
   bot: 'bg-emerald-50 text-emerald-900 border-emerald-200',
 }
 
@@ -197,7 +197,7 @@ export function TelegramHomePanel() {
       <button
         type="button"
         onClick={() => setOpenPersist(true)}
-        className="pointer-events-auto fixed bottom-3 left-3 z-[70] inline-flex items-center gap-1.5 rounded-full border border-ab-border bg-white px-3.5 py-2.5 text-[12px] font-semibold text-ab-ink shadow-lg transition hover:bg-stone-50 md:bottom-4 md:left-4"
+        className="pointer-events-auto fixed bottom-3 left-3 z-[70] inline-flex items-center gap-1.5 rounded-full border border-ab-border bg-white px-3.5 py-2.5 text-[12px] font-semibold text-ab-ink shadow-ab transition hover:bg-stone-50 md:bottom-4 md:left-4"
         aria-label="فتح تيليجرام"
         aria-expanded={false}
         data-telegram-fab="1"
@@ -210,14 +210,14 @@ export function TelegramHomePanel() {
 
   return (
     <section
-      className="pointer-events-auto fixed bottom-3 left-3 z-[70] flex h-[min(18rem,58vh)] w-[min(18.5rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-ab-border bg-white shadow-xl md:bottom-4 md:left-4"
+      className="pointer-events-auto fixed bottom-3 left-3 z-[70] flex h-[min(18rem,58vh)] w-[min(18.5rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl border border-ab-border bg-white shadow-ab md:bottom-4 md:left-4"
       dir="rtl"
       aria-label="نافذة تيليجرام"
       aria-expanded={true}
       data-telegram-panel="1"
     >
       {/* Header: always-visible close */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-ab-border bg-stone-50/90 px-2.5 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-ab-border bg-ab-stage/80 px-2.5 py-2">
         <h2 className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-bold text-ab-ink">
           <MessageCircle
             className="h-3.5 w-3.5 shrink-0 text-ab-accent"
@@ -225,7 +225,7 @@ export function TelegramHomePanel() {
           />
           <span className="truncate">تيليجرام</span>
           {!statusKnown ? (
-            <span className="shrink-0 text-[10px] font-normal text-stone-500">
+            <span className="shrink-0 text-[10px] font-normal text-ab-muted">
               · جاري التحقق…
             </span>
           ) : linked ? (
@@ -242,7 +242,7 @@ export function TelegramHomePanel() {
           type="button"
           disabled={busy}
           onClick={() => void load()}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-ab-border bg-white text-stone-600 hover:bg-stone-100 disabled:opacity-40"
+          className="ab-btn-ghost !h-8 !w-8 !px-0"
           title="تحديث"
           aria-label="تحديث"
         >
@@ -251,7 +251,7 @@ export function TelegramHomePanel() {
         <button
           type="button"
           onClick={() => setOpenPersist(false)}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-stone-300 bg-white px-2.5 text-[12px] font-bold text-ab-ink shadow-sm transition hover:border-ab-danger hover:bg-red-50 hover:text-ab-danger"
+          className="ab-btn-secondary !h-8 gap-1 !px-2.5 text-[12px] hover:!border-ab-danger hover:!bg-red-50 hover:!text-ab-danger"
           aria-label="إغلاق نافذة تيليجرام"
           title="إغلاق"
           data-telegram-close="1"
@@ -389,13 +389,13 @@ export function TelegramHomePanel() {
                   ? 'اكتب رسالة…'
                   : 'اربط تيليجرام أولاً'
             }
-            className="min-h-[2rem] flex-1 resize-none rounded-md border border-ab-border bg-white px-2 py-1.5 text-[12px] text-ab-ink placeholder:text-stone-400 disabled:bg-stone-50 disabled:opacity-60"
+            className="ab-input min-h-[2rem] flex-1 resize-none !rounded-md !px-2 !py-1.5 text-[12px] disabled:bg-stone-50 disabled:opacity-60"
           />
           <button
             type="button"
             disabled={!linked || sending || !text.trim()}
             onClick={() => void send()}
-            className="inline-flex shrink-0 items-center gap-1 self-end rounded-md bg-ab-accent px-2 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
+            className="ab-btn-primary shrink-0 self-end !px-2 !py-1.5 text-[11px]"
           >
             <Send className="h-3 w-3" aria-hidden />
             إرسال

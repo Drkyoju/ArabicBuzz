@@ -300,16 +300,15 @@ function SidebarBody({
                 {labelAr ? <RoleBadge labelAr={labelAr} /> : null}
               </div>
               {canAccessOpsUi ? (
-                <div className="flex gap-1 rounded-md border border-ab-border bg-white p-0.5">
+                <div className="ab-seg">
                   <button
                     type="button"
                     onClick={() => setMode('employee')}
                     className={cn(
-                      'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                      mode === 'employee'
-                        ? 'bg-ab-accent/15 font-semibold text-ab-accent'
-                        : 'text-stone-500'
+                      'ab-seg-item flex-1 !py-1.5',
+                      mode === 'employee' && 'ab-seg-item-active'
                     )}
+                    aria-pressed={mode === 'employee'}
                   >
                     واجهة بسيطة
                   </button>
@@ -317,11 +316,11 @@ function SidebarBody({
                     type="button"
                     onClick={() => setMode('admin')}
                     className={cn(
-                      'flex-1 rounded px-1.5 py-1.5 text-[11px]',
-                      mode === 'admin'
-                        ? 'bg-ab-ink font-semibold text-white'
-                        : 'text-stone-500'
+                      'ab-seg-item flex-1 !py-1.5',
+                      mode === 'admin' &&
+                        '!bg-ab-ink !font-semibold !text-white hover:!bg-ab-ink/90'
                     )}
+                    aria-pressed={mode === 'admin'}
                   >
                     إدارة كاملة
                   </button>

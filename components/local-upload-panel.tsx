@@ -426,10 +426,9 @@ export function LocalUploadPanel({
   ) : null
 
   const dropZoneClass = cn(
-    'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-3 py-6 text-center transition-colors',
-    dragOver
-      ? 'border-ab-accent bg-ab-accent/10'
-      : 'border-ab-accent/40 bg-ab-accent/5 hover:border-ab-accent hover:bg-ab-accent/10',
+    'ab-dropzone',
+    dragOver && 'data-[active=true]',
+    dragOver && '!border-ab-accent !bg-ab-accent/15',
     busy && 'pointer-events-none opacity-50'
   )
 

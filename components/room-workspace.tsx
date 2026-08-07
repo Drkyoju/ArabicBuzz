@@ -1214,10 +1214,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
+          <header className="border-b border-ab-border bg-white/80 px-3 py-2.5 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <h2 className="truncate text-[15px] font-bold text-ab-ink">
+                <h2 className="truncate text-[15px] font-bold tracking-tight text-ab-ink">
                   {activeScope.nameAr}
                 </h2>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -1238,7 +1238,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <ZoomLivePanel compact />
                 </div>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <div className="ab-toolbar shrink-0 justify-end">
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
                 <ModelPicker compact scopeId={activeScopeId} />
                 <EffortPicker compact scopeId={activeScopeId} />
@@ -1263,7 +1263,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         setSideTab('canvas')
                       }
                     }}
-                    className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
+                    className="ab-btn-secondary !py-1 text-[11px]"
                     aria-label={
                       canvasOpen || isCanvasFullscreen
                         ? 'إخفاء اللوحة'
@@ -1280,7 +1280,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     onClick={() => {
                       closePreview()
                     }}
-                    className="inline-flex items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800 hover:bg-emerald-100"
+                    className="ab-btn-accent-soft !py-1 text-[11px]"
                     aria-label="إغلاق معاينة الملف"
                   >
                     <Eye className="h-3 w-3" />
@@ -1313,7 +1313,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         return next
                       })
                     }}
-                    className="rounded-md border border-ab-border px-2 py-1 text-[11px] text-stone-600 hover:bg-stone-50"
+                    className="ab-btn-secondary !py-1 text-[11px]"
                     aria-label="الأعضاء والسجل"
                     aria-expanded={showMore}
                   >
@@ -1477,10 +1477,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
               </div>
             ) : seatsCollapsed ? (
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[11px] text-stone-600">
+                <span className="truncate text-[11px] text-ab-muted">
                   مقاعد الوكلاء
                   {roomAgents.length > 0 ? (
-                    <span className="text-stone-400">
+                    <span className="text-ab-muted-soft">
                       {' '}
                       · {roomAgents.length}
                     </span>
@@ -1495,7 +1495,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   ) : null}
                   <button
                     type="button"
-                    className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
+                    className="ab-btn-ghost !px-2 !py-0.5 text-[10px]"
                     onClick={() => setSeatsCollapsed(false)}
                   >
                     توسيع
@@ -1505,12 +1505,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
             ) : (
               <div style={{ maxHeight: seatsMaxPx, overflow: 'auto' }}>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-stone-500">
+                  <span className="text-[10px] text-ab-muted">
                     مقاعد الوكلاء
                   </span>
                   <button
                     type="button"
-                    className="rounded border border-ab-border px-1.5 py-0.5 text-[10px]"
+                    className="ab-btn-ghost !px-2 !py-0.5 text-[10px]"
                     onClick={() => setSeatsCollapsed(true)}
                   >
                     طي
@@ -1577,21 +1577,21 @@ export function RoomWorkspace({ className }: { className?: string }) {
           >
             <div className="mx-auto w-full max-w-2xl">
               {posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center px-4 py-6 text-center">
+                <div className="ab-empty mx-auto my-4 max-w-md !py-8">
                   <MessageSquare
-                    className="mb-2 h-7 w-7 text-stone-300"
+                    className="mb-2.5 h-8 w-8 text-ab-accent/45"
                     aria-hidden
                   />
-                  <p className="text-sm font-semibold text-ab-ink">
+                  <p className="text-sm font-bold text-ab-ink">
                     ابدأ المحادثة
                   </p>
-                  <p className="mt-1 max-w-sm text-xs leading-relaxed text-stone-500">
+                  <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ab-muted">
                     {isGuest
                       ? 'سجّل الدخول للكتابة والإرسال. المعاينة للقراءة فقط.'
                       : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو @الجميع.'}
                   </p>
                   {!isGuest && (
-                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <button
                         type="button"
                         disabled={streaming}
@@ -1600,7 +1600,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                             'لخّص قرارات وأعمال هذا الأسبوع بالعربية الفصحى في نقاط قصيرة.'
                           )
                         }
-                        className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] hover:bg-stone-50 disabled:opacity-40"
+                        className="ab-btn-secondary"
                       >
                         ملخص قرارات
                       </button>
@@ -1612,7 +1612,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                             'استخدم search_knowledge_base فقط: ابحث في معرفة الفريق عن أهم الملفات، ولخّص ما تجده مع ذكر المصادر.'
                           )
                         }
-                        className="rounded-md border border-ab-accent/40 bg-ab-accent/5 px-3 py-1.5 text-[11px] font-medium text-ab-accent hover:bg-ab-accent/10 disabled:opacity-40"
+                        className="ab-btn-accent-soft"
                       >
                         اسأل ملفات الفريق
                       </button>
@@ -1838,7 +1838,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                             ? 'اكتب @ واسم الوكيل — أو اسحب ملفاً / 📎'
                             : 'اسحب ملفاً أو 📎 أو تكلم بالميكروفون…'
                 }
-                className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
+                className="ab-input max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl !py-2.5 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
               />
               {streaming ? (
@@ -1854,7 +1854,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   type="submit"
                   disabled={(!input.trim() && !composerFiles.length) || isGuest}
                   title={isGuest ? 'سجّل الدخول للإرسال' : undefined}
-                  className="h-10 shrink-0 rounded-xl bg-ab-accent px-4 text-sm font-semibold text-white disabled:opacity-40"
+                  className="ab-btn-primary h-10 shrink-0 rounded-xl px-4 text-sm"
                 >
                   إرسال
                 </button>

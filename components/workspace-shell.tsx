@@ -48,6 +48,7 @@ import { RoleBadge } from '@/components/role-badge'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { Fingerprint } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type CalendarTab =
   | 'schedule'
@@ -473,20 +474,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'files' && <FilesPanel />}
 
         {section === 'calendar' && (
-          <section className="mx-auto max-w-5xl space-y-5 px-6 py-8" dir="rtl">
+          <section className="ab-page" dir="rtl">
             <div>
-              <h2 className="text-xl font-bold text-ab-ink">تقويم الفريق</h2>
-              <p className="mt-1 text-sm text-stone-500">
-                تقويم الغرفة المشترك للجميع — أي عضو مسجّل يضيف أو يعدّل، والمواعيد
-                تظهر لكل الأعضاء هنا. ليس تقويماً شخصياً، ولا يُضاف تلقائياً إلى
-                Google. باقي التبويبات اختيارية.
+              <h2 className="ab-title">تقويم الفريق</h2>
+              <p className="ab-subtitle">
+                تقويم الغرفة المشترك — أي عضو مسجّل يضيف أو يعدّل، والمواعيد تظهر
+                للجميع. ليس تقويماً شخصياً.
               </p>
             </div>
 
             <div
               role="tablist"
               aria-label="أقسام المواعيد"
-              className="flex flex-wrap gap-1.5 rounded-xl border border-ab-border bg-ab-surface p-1.5"
+              className="ab-seg flex-wrap gap-0.5 !p-1"
             >
               {calendarTabs.map((t) => (
                 <button
@@ -495,11 +495,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   role="tab"
                   aria-selected={calendarTab === t.id}
                   onClick={() => setCalendarTab(t.id)}
-                  className={
-                    calendarTab === t.id
-                      ? 'rounded-lg bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white'
-                      : 'rounded-lg px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-100'
-                  }
+                  className={cn(
+                    'ab-seg-item !rounded-lg px-3 py-1.5 text-xs',
+                    calendarTab === t.id &&
+                      '!bg-ab-ink !text-white hover:!bg-ab-ink/90'
+                  )}
                 >
                   {t.labelAr}
                 </button>
@@ -786,21 +786,21 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'settings' && (
-          <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-            <h2 className="mb-1 text-xl font-bold">الإعدادات</h2>
-            <p className="mb-6 text-sm text-stone-500">
+          <section className="ab-page-narrow" dir="rtl">
+            <h2 className="ab-title">الإعدادات</h2>
+            <p className="ab-subtitle mb-2">
               {mode === 'employee' || !canAccessOpsUi
                 ? 'حسابك وتفضيلات التاريخ — الربط التقني تلقائي من المالك.'
                 : 'الحالة فقط — النظام يربط الخدمات تلقائياً من الإعدادات المخزّنة.'}
             </p>
 
-            <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4 text-sm">
+            <div className="ab-section-pad text-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="font-semibold">الحساب</h3>
                 <AirGapBadge airGapped={airGapped} />
               </div>
               <AccountStatus />
-              <p className="mb-3 mt-2 text-xs text-stone-600">
+              <p className="mb-3 mt-2 text-xs text-ab-muted">
                 {signedIn
                   ? 'يمكنك تسجيل الخروج من الزر أدناه.'
                   : 'سجّل الدخول بحساب Google للعمل في الغرفة.'}

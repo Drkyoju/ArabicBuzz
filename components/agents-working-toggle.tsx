@@ -23,17 +23,14 @@ export function AgentsWorkingToggle({
 
   return (
     <div
-      className={cn(
-        'inline-flex flex-col items-stretch gap-0.5',
-        className
-      )}
+      className={cn('inline-flex flex-col items-stretch gap-0.5', className)}
       dir="rtl"
     >
+      {!compact && (
+        <span className="ab-toolbar-label">وضع الغرفة</span>
+      )}
       <div
-        className={cn(
-          'inline-flex items-center rounded-md border border-ab-border bg-white p-0.5',
-          compact ? 'text-[10px]' : 'text-[11px]'
-        )}
+        className={cn('ab-seg', compact ? 'text-[10px]' : 'text-[11px]')}
         role="group"
         aria-label="الوكلاء يعملون معنا"
       >
@@ -43,14 +40,12 @@ export function AgentsWorkingToggle({
           aria-pressed={enabled}
           onClick={() => setAgentsEnabled(scopeId, true)}
           className={cn(
-            'inline-flex items-center gap-1 rounded px-2 py-0.5 transition-colors',
-            enabled
-              ? 'bg-ab-accent font-semibold text-white'
-              : 'text-stone-600 hover:bg-stone-50'
+            'ab-seg-item inline-flex items-center gap-1',
+            compact ? 'px-1.5 py-0.5' : 'px-2 py-1'
           )}
         >
           <Bot className={cn(compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
-          الوكلاء يعملون معنا
+          الوكلاء معنا
         </button>
         <button
           type="button"
@@ -58,10 +53,10 @@ export function AgentsWorkingToggle({
           aria-pressed={!enabled}
           onClick={() => setAgentsEnabled(scopeId, false)}
           className={cn(
-            'inline-flex items-center gap-1 rounded px-2 py-0.5 transition-colors',
-            !enabled
-              ? 'bg-ab-ink font-semibold text-white'
-              : 'text-stone-600 hover:bg-stone-50'
+            'ab-seg-item inline-flex items-center gap-1',
+            !enabled &&
+              '!bg-ab-ink !text-white hover:!bg-ab-ink/90',
+            compact ? 'px-1.5 py-0.5' : 'px-2 py-1'
           )}
         >
           <MessageSquareText
@@ -71,9 +66,9 @@ export function AgentsWorkingToggle({
         </button>
       </div>
       {!compact && (
-        <p className="text-[10px] leading-snug text-stone-500">
+        <p className="text-[10px] leading-snug text-ab-muted">
           {enabled
-            ? 'مفعّل: الوكلاء يردّون هنا — نفس المقاعد لكل الموظفين، حتى 8 وكيل/مهمة معاً.'
+            ? 'مفعّل: الوكلاء يردّون هنا — حتى 8 وكيل/مهمة معاً.'
             : 'موقوف: محادثة وملاحظات الفريق فقط — بلا ردود وكلاء.'}
         </p>
       )}

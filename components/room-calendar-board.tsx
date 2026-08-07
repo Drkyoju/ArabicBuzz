@@ -829,9 +829,9 @@ export function RoomCalendarBoard({
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
           تقويم الغرفة المشترك
         </h2>
-        <p className="text-sm text-stone-500">
-          تقويم الفريق للجميع — أي عضو مسجّل يضيف موعداً هنا فيراه الجميع فوراً.
-          مواعيد Google الشخصية لا تُنشر للفريق إلا إذا فعّلت الخيار أدناه بنفسك.
+        <p className="ab-subtitle !mt-0">
+          أي عضو مسجّل يضيف موعداً هنا فيراه الجميع. Google الشخصي اختياري ولا يُنشر
+          إلا إذا فعّلته.
         </p>
       </div>
 

@@ -174,16 +174,16 @@ function DayBlock({
   return (
     <div
       className={cn(
-        'rounded-xl border border-ab-border bg-white p-3',
+        'rounded-xl border border-ab-border bg-white p-3.5 shadow-ab-sm',
         accent
       )}
     >
       <p className="text-sm font-bold text-ab-ink">{title}</p>
       {subtitle && (
-        <p className="text-[10px] text-stone-400">{subtitle}</p>
+        <p className="text-[10px] text-ab-muted-soft">{subtitle}</p>
       )}
       {events.length === 0 ? (
-        <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
+        <p className="mt-3 text-[12px] text-ab-muted">لا مواعيد — أضف من التقويم</p>
       ) : (
         <ul className="mt-2 space-y-2">
           {events.map((e) => (
@@ -192,7 +192,7 @@ function DayBlock({
               className="rounded-lg border border-ab-border/70 bg-stone-50/80 px-2.5 py-2"
             >
               <p className="text-[13px] font-semibold text-ab-ink">{e.titleAr}</p>
-              <p className="mt-0.5 text-[10px] text-stone-500">
+              <p className="mt-0.5 text-[10px] text-ab-muted">
                 {e.startsAtAr}
                 {e.hasZoom ? ' · Zoom' : ''}
                 {e.locationAr ? ` · ${e.locationAr}` : ''}
@@ -582,11 +582,11 @@ export function HomeDashboard({
   }
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-5 px-4 py-5 md:px-6" dir="rtl">
+    <section className="ab-page pb-24" dir="rtl">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ab-ink">لوحة اليوم</h1>
-          <p className="mt-1 max-w-lg text-sm text-stone-500">
+          <h1 className="ab-title">لوحة اليوم</h1>
+          <p className="ab-subtitle">
             مواعيد اليوم والأيام القادمة أولاً — ثم ما ينتظر قرارك ومن يعمل الآن.
           </p>
           <DateDual className="mt-2" />
@@ -596,23 +596,23 @@ export function HomeDashboard({
             <button
               type="button"
               onClick={() => onNavigate?.('mail')}
-              className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+              className="ab-btn-secondary"
             >
               <Inbox className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
               البريد
               {mailUnread > 0 ? (
-                <span className="rounded-full bg-ab-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className="ab-badge-accent tabular-nums">
                   {mailUnread}
                 </span>
               ) : (
-                <span className="text-stone-400">٠</span>
+                <span className="text-ab-muted-soft">٠</span>
               )}
             </button>
           )}
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
-            className="rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
+            className="ab-btn-primary"
           >
             أضف موعد
           </button>
@@ -620,7 +620,7 @@ export function HomeDashboard({
             type="button"
             disabled={busy}
             onClick={() => void load()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs text-stone-700 disabled:opacity-40"
+            className="ab-btn-ghost"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
             تحديث
@@ -628,7 +628,7 @@ export function HomeDashboard({
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
-            className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+            className="ab-btn-secondary"
           >
             التقويم
           </button>
@@ -636,18 +636,18 @@ export function HomeDashboard({
       </header>
 
       {/* مساعد العمل — single composer entry */}
-      <div className="rounded-2xl border-2 border-ab-accent/45 bg-gradient-to-l from-ab-accent/12 via-white to-white p-4 shadow-sm sm:p-5">
+      <div className="ab-composer bg-gradient-to-l from-ab-accent/[0.09] via-white to-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ab-accent/15 text-ab-accent">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ab-accent/15 text-ab-accent">
                 <Bot className="h-5 w-5" aria-hidden />
               </span>
               <div>
                 <h2 className="text-lg font-bold text-ab-ink sm:text-xl">
                   وش تبي؟
                 </h2>
-                <p className="mt-0.5 text-[12px] leading-relaxed text-stone-600 sm:text-[13px]">
+                <p className="mt-0.5 text-[12px] leading-relaxed text-ab-muted sm:text-[13px]">
                   اكتب طلبك — بريد · تقويم · ملفات · تيليجرام. مهام متعددة تدخل
                   الطابور وتعمل معاً حتى الحد.
                 </p>
@@ -657,7 +657,7 @@ export function HomeDashboard({
           <button
             type="button"
             onClick={() => onNavigate?.('assistants')}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3.5 py-2 text-[12px] font-bold text-white"
+            className="ab-btn-primary px-3.5 py-2 text-[12px]"
           >
             <Compass className="h-3.5 w-3.5" aria-hidden />
             افتح المساعدين
