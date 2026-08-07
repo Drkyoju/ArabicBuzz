@@ -11,7 +11,14 @@ import {
   type DragEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { FileUp, Mic, Paperclip, Link2, Loader2 } from 'lucide-react'
+import {
+  FileUp,
+  Mic,
+  Paperclip,
+  Link2,
+  Loader2,
+  UploadCloud,
+} from 'lucide-react'
 import {
   checkBrowserRecordSupport,
   extForAudioMime,
@@ -29,7 +36,10 @@ import {
   fileFromDataTransfer,
   pickDeviceFile,
 } from '@/lib/files/pick-device-file'
-import { getBridgeDragData } from '@/lib/files/workspace-bridge'
+import {
+  getBridgeDragData,
+  type BridgeFilePayload,
+} from '@/lib/files/workspace-bridge'
 import {
   coordsForAnchoredFloating,
   type AnchoredFloatingCoords,
@@ -72,6 +82,11 @@ type LocalUploadPanelProps = {
   /** Fired when a file is saved to the room vault — attach to chat for the agent. */
   onFileReady?: (file: UploadedRoomFile) => void
   compact?: boolean
+  /**
+   * vault = ملفات الفريق: منطقة إسقاط واضحة؛ سحب من تيليجرام → أرشيف + Drive.
+   * room = شريط الإرفاق في الغرفة (افتراضي).
+   */
+  mode?: 'room' | 'vault'
 }
 
 /**
@@ -81,7 +96,7 @@ export const LocalUploadPanel = forwardRef<
   LocalUploadHandle,
   LocalUploadPanelProps
 >(function LocalUploadPanel(
-  { scopeId, onUploaded, onFileReady, compact },
+  { scopeId, onUploaded, onFileReady, compact, mode = 'room' },
   ref
 ) {
   const mediaRef = useRef<ActiveRecording | null>(null)
@@ -495,6 +510,40 @@ export const LocalUploadPanel = forwardRef<
     setDragOver(false)
   }
 
+  async function acceptBridgeToVault(bridge: BridgeFilePayload) {
+    setBusy(true)
+    setMessage(`جاري إضافة «${bridge.name}» للأرشيف ومزامنة Drive…`)
+    setProgress(40)
+    try {
+      const payload: UploadedRoomFile = {
+        fileId: bridge.fileId,
+        name: bridge.name,
+        mimeType: bridge.mimeType,
+        scopeId: bridge.scopeId || scopeId,
+      }
+      onFileReady?.(payload)
+      setProgress(70)
+      const brain = await syncToCompanyBrain(bridge.fileId)
+      setProgress(100)
+      if (brain.needsGoogle) {
+        setMessage(
+          `في الأرشيف: «${bridge.name}» — اربط Google لمزامنة عقل الشركة فوراً`
+        )
+      } else if (brain.ok) {
+        setMessage(`أُضيف «${bridge.name}» للأرشيف · ${brain.message}`)
+      } else {
+        setMessage(`في الأرشيف: «${bridge.name}» · ${brain.message}`)
+      }
+      await refresh()
+      onUploaded?.()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'تعذّرت إضافة الملف من تيليجرام')
+    } finally {
+      setBusy(false)
+      setTimeout(() => setProgress(null), 800)
+    }
+  }
+
   function onDropZoneDrop(e: DragEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -502,6 +551,10 @@ export const LocalUploadPanel = forwardRef<
     if (busy) return
     const bridge = getBridgeDragData(e.dataTransfer)
     if (bridge) {
+      if (mode === 'vault') {
+        void acceptBridgeToVault(bridge)
+        return
+      }
       const payload: UploadedRoomFile = {
         fileId: bridge.fileId,
         name: bridge.name,
@@ -920,22 +973,68 @@ export const LocalUploadPanel = forwardRef<
   return (
     <div
       className={cn(
-        'rounded-md border border-ab-border bg-stone-50 p-2 transition-colors',
-        dragOver && 'border-ab-accent bg-ab-accent/10 ring-2 ring-ab-accent/30',
-        busy && 'opacity-60'
+        'transition-colors',
+        mode === 'vault'
+          ? cn(
+              'flex min-h-[9.5rem] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed bg-ab-stage/40 px-4 py-6 text-center',
+              dragOver
+                ? 'border-ab-accent bg-ab-accent/10 ring-2 ring-ab-accent/25'
+                : 'border-ab-border/90',
+              busy && 'opacity-60'
+            )
+          : cn(
+              'rounded-md border border-ab-border bg-stone-50 p-2',
+              dragOver &&
+                'border-ab-accent bg-ab-accent/10 ring-2 ring-ab-accent/30',
+              busy && 'opacity-60'
+            )
       )}
       dir="rtl"
       onDragOver={onDropZoneDragOver}
       onDragLeave={onDropZoneDragLeave}
       onDrop={onDropZoneDrop}
+      aria-label={
+        mode === 'vault' ? 'منطقة إسقاط ملفات الفريق' : 'رفع ملف للغرفة'
+      }
     >
-      <p className="mb-2 text-[11px] leading-relaxed text-stone-600">
-        <span className="font-semibold text-ab-ink">ارفع من جهازك</span>
-        {' — '}
-        Word / Excel / PDF / صور. يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة
-        (Drive).
-      </p>
-      <div className="flex flex-wrap gap-2">
+      {mode === 'vault' ? (
+        <>
+          <UploadCloud
+            className={cn(
+              'h-9 w-9 shrink-0',
+              dragOver ? 'text-ab-accent' : 'text-ab-accent/70'
+            )}
+            aria-hidden
+          />
+          <div className="max-w-md space-y-1">
+            <p className="text-sm font-bold text-ab-ink">
+              {dragOver
+                ? 'أفلت هنا — يُحفظ في الأرشيف ويُزامن مع Drive'
+                : busy
+                  ? 'جاري الرفع والمزامنة…'
+                  : 'أسقط الملفات هنا من جهازك'}
+            </p>
+            <p className="text-[11px] leading-snug text-ab-muted">
+              اسحب من Finder / مستكشف الملفات، أو من نافذة تيليجرام بجانب الصفحة
+              (ملف أو صوت) — يُضاف لملفات الفريق ويُرفع فوراً لعقل الشركة عند ربط
+              Google.
+            </p>
+          </div>
+        </>
+      ) : (
+        <p className="mb-2 text-[11px] leading-relaxed text-stone-600">
+          <span className="font-semibold text-ab-ink">ارفع من جهازك</span>
+          {' — '}
+          Word / Excel / PDF / صور. يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة
+          (Drive).
+        </p>
+      )}
+      <div
+        className={cn(
+          'flex flex-wrap gap-2',
+          mode === 'vault' && 'justify-center'
+        )}
+      >
         <button
           type="button"
           disabled={busy}
@@ -967,14 +1066,28 @@ export const LocalUploadPanel = forwardRef<
       {liveCaptionBox}
       {voiceReviewBox}
       {progress != null && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
+        <div
+          className={cn(
+            'h-1.5 overflow-hidden rounded-full bg-stone-100',
+            mode === 'vault' ? 'mt-1 w-full max-w-xs' : 'mt-2'
+          )}
+        >
           <div
             className="h-full rounded-full bg-ab-accent transition-all"
             style={{ width: `${Math.min(100, progress)}%` }}
           />
         </div>
       )}
-      {message && <p className="mt-1 text-[11px] text-stone-500">{message}</p>}
+      {message && (
+        <p
+          className={cn(
+            'text-[11px] text-stone-500',
+            mode === 'vault' ? 'mt-0 max-w-md' : 'mt-1'
+          )}
+        >
+          {message}
+        </p>
+      )}
       {googleBanner}
     </div>
   )

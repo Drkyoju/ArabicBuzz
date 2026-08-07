@@ -49,6 +49,8 @@ export type TelegramMirrorChatProps = {
   headerExtra?: ReactNode
   onSendToAssistants?: (file: BridgeFilePayload) => void
   onSendToRoom?: (file: BridgeFilePayload) => void
+  /** Team files vault: attach + Drive sync (ملفات الفريق). */
+  onSendToVault?: (file: BridgeFilePayload) => void
   /** Called after a drop/send to Telegram succeeds. */
   onOutboundSent?: () => void
 }
@@ -64,6 +66,7 @@ export function TelegramMirrorChat({
   headerExtra,
   onSendToAssistants,
   onSendToRoom,
+  onSendToVault,
   onOutboundSent,
 }: TelegramMirrorChatProps) {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -373,7 +376,9 @@ export function TelegramMirrorChat({
               ? 'جاري الإرسال للمجموعة…'
               : dragOver
                 ? 'أفلت هنا لإرسال الملف لتيليجرام'
-                : onSendToRoom && !onSendToAssistants
+                : onSendToVault && !onSendToRoom && !onSendToAssistants
+                  ? 'اسحب ملفاً/صوتاً من الرسالة إلى منطقة الأرشيف بجانب الصفحة — أو اضغط «لملفات الفريق»'
+                  : onSendToRoom && !onSendToAssistants
                   ? 'اسحب ملفاً/صوتاً من رسائل الغرفة أو المرفقات إلى هنا — أو اسحب من هنا إلى مربع الكتابة'
                   : onSendToAssistants && !onSendToRoom
                     ? 'اسحب ملفاً معدَّلاً من المهام إلى هنا · أو اسحب صوتاً/ملفاً من الرسالة إلى المساعدين'
@@ -463,6 +468,15 @@ export function TelegramMirrorChat({
                               onClick={() => onSendToRoom(a)}
                             >
                               لغرفة الفريق
+                            </button>
+                          ) : null}
+                          {onSendToVault ? (
+                            <button
+                              type="button"
+                              className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-900"
+                              onClick={() => onSendToVault(a)}
+                            >
+                              لملفات الفريق
                             </button>
                           ) : null}
                         </li>

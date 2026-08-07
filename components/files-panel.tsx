@@ -19,12 +19,14 @@ import {
 import { authHeaders } from '@/lib/supabase/browser'
 import { LocalUploadPanel } from '@/components/local-upload-panel'
 import { BrainPrivacyNote } from '@/components/brain-privacy-note'
+import { TelegramMirrorChat } from '@/components/telegram-mirror-chat'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
 import { parseFileMarkersFromText } from '@/lib/files/file-markers'
 import { isFileEdited, looksLikeEditedBackfill } from '@/lib/files/edited-status'
 import { FileEditedBadge } from '@/components/file-edited-badge'
+import type { BridgeFilePayload } from '@/lib/files/workspace-bridge'
 
 type ListedFile = {
   id?: string
@@ -231,6 +233,57 @@ export function FilesPanel() {
     }
   }
 
+  /** Telegram attachment → already in vault; sync Drive immediately. */
+  async function ingestFromTelegram(file: BridgeFilePayload) {
+    if (!file.fileId) return
+    setBusyId(file.fileId)
+    setNote(`جاري إضافة «${file.name}» للأرشيف ومزامنة Drive…`)
+    try {
+      openFilePreviewInChat({
+        fileId: file.fileId,
+        scopeId: file.scopeId || scopeId,
+        name: file.name,
+        mimeType: file.mimeType,
+      })
+      if (scopeId.startsWith('personal-')) {
+        setNote(`في الأرشيف: «${file.name}» — المساحة الشخصية لا تُزامن مع Drive`)
+        await load()
+        return
+      }
+      const res = await fetch('/api/google/drive/brain/upload', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId: file.scopeId || scopeId,
+          localFileId: file.fileId,
+        }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        needsGoogle?: boolean
+        ok?: boolean
+      }
+      if (data.needsGoogle) {
+        setNote(
+          `في الأرشيف: «${file.name}» — اربط Google لمزامنة عقل الشركة فوراً`
+        )
+      } else if (!res.ok) {
+        throw new Error(data.error || data.messageAr || `HTTP ${res.status}`)
+      } else {
+        setNote(
+          data.messageAr ||
+            `أُضيف «${file.name}» لملفات الفريق · رُفع إلى Drive`
+        )
+      }
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'تعذّرت إضافة الملف من تيليجرام')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function renameFile(f: ListedFile) {
     const id = f.id
     if (!id) return
@@ -425,14 +478,14 @@ export function FilesPanel() {
           : 'لا ملفات بعد — اختر ملفاً للرفع'
 
   const emptyHint =
-    'الأرشيف فارغ — ارفع من هنا أو من غرفة الفريق. كل الملفات والصوتيات تظهر هنا بلا ضجيج المحادثة.'
+    'الأرشيف فارغ — أسقط ملفاً في المنطقة أعلاه، أو اسحب من نافذة تيليجرام، أو ارفع من غرفة الفريق.'
 
   const uploadHint =
-    'أرشيف الملفات والصوت فقط (كل الأنواع) — بلا رسائل الشات. الاستخدام اليومي من غرفة الفريق؛ هنا عندما تضيع الملفات في ضجيج المحادثة. الرفع يُزامن مع عقل الشركة (Drive).'
+    'منطقة الإسقاط أعلى القائمة: من جهازك مباشرة، أو اسحب ملحقاً/صوتاً من تيليجرام الحي بجانب الصفحة. الرفع يُزامن مع عقل الشركة (Drive) عند ربط Google. لا نحذف رسائل تيليجرام.'
 
   if (authPending) {
     return (
-      <section className="ab-page-narrow" dir="rtl">
+      <section className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 md:px-6" dir="rtl">
         <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
         <p className="ab-section-pad text-sm text-ab-muted">
           جاري التحقق من الحساب…
@@ -443,7 +496,7 @@ export function FilesPanel() {
 
   if (isGuest) {
     return (
-      <section className="ab-page-narrow" dir="rtl">
+      <section className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 md:px-6" dir="rtl">
         <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-6 text-center">
           <p className="text-sm font-semibold text-ab-ink">
@@ -463,8 +516,27 @@ export function FilesPanel() {
     )
   }
 
+  const telegramPane = (
+    <div className="flex flex-col gap-1.5">
+      <TelegramMirrorChat
+        variant="embedded"
+        className="min-h-[22rem] lg:min-h-0 lg:sticky lg:top-3 lg:h-[min(34rem,calc(100dvh-5rem))]"
+        onSendToVault={(file) => void ingestFromTelegram(file)}
+      />
+      <p className="px-0.5 text-[10px] leading-snug text-ab-muted">
+        اسحب الملصق (ملف/صوت) من الرسالة إلى{' '}
+        <span className="font-semibold text-ab-ink">منطقة الإسقاط</span> بجانب
+        هذه النافذة — أو اضغط «لملفات الفريق». يُحفظ في الأرشيف ويُزامن Drive
+        فوراً. رسائل تيليجرام لا تُحذف.
+      </p>
+    </div>
+  )
+
   return (
-    <section className="ab-page-narrow" dir="rtl">
+    <section
+      className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 md:px-6"
+      dir="rtl"
+    >
       <input
         ref={replaceRef}
         type="file"
@@ -472,245 +544,257 @@ export function FilesPanel() {
         onChange={(e) => void onReplaceSelected(e.target.files)}
       />
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
-          <p className="ab-subtitle">
-            {scope?.nameAr || scopeId} — {sourceLabel}
-          </p>
-          <p className="mt-1 max-w-xl text-[11px] leading-snug text-ab-muted">
-            قائمة الملفات والصوت المرفوعة من الغرفة — بلا محادثة. افتح/شغّل الملف
-            من غرفة الفريق مباشرة؛ استخدم هذا الأرشيف عندما يضيع المرفق وسط الرسائل.
-          </p>
-          <p className="mt-1.5 flex items-start gap-1.5 max-w-xl text-[11px] leading-snug text-emerald-800">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            أرشيف دائم: حذف شات اليوم أو الاحتفاظ التلقائي للرسائل لا يمس هذه
-            الملفات. صدّر الفهرس أدناه كنسخة احتياطية للأسماء والمعرّفات.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => void exportVaultManifest()}
-            disabled={backingUp || files.length === 0}
-            className="ab-btn-secondary"
-            title="تنزيل JSON بأسماء ومعرّفات كل ملفات الأرشيف"
-          >
-            <Download className="h-3 w-3" />
-            {backingUp ? 'جاري التصدير…' : 'نسخ احتياطي للفهرس'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="ab-btn-secondary"
-          >
-            <RefreshCw className="h-3 w-3" />
-            تحديث
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <BrainPrivacyNote compact />
-      </div>
-
-      <div className="ab-section-pad">
-        <p className="mb-2 text-xs font-semibold text-ab-ink">
-          ارفع من جهازك
-        </p>
-        <LocalUploadPanel
-          scopeId={scopeId}
-          onUploaded={() => void load()}
-          onFileReady={(f) =>
-            openFilePreviewInChat({
-              fileId: f.fileId,
-              scopeId: f.scopeId,
-              name: f.name,
-              mimeType: f.mimeType,
-            })
-          }
-        />
-        <p className="mt-2 text-[11px] text-ab-muted">
-          {uploadHint}
-        </p>
-      </div>
-
-      {error && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          {error}
-        </p>
-      )}
-      {note && (
-        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          {note}
-        </p>
-      )}
-      {syncNote && !note ? (
-        <p className="rounded-md border border-ab-border bg-ab-surface px-3 py-2 text-xs text-ab-muted">
-          {syncNote}
-        </p>
-      ) : null}
-
-      {loading && files.length === 0 ? (
-        <p className="text-sm text-ab-muted">جاري التحميل…</p>
-      ) : files.length === 0 ? (
-        <div className="ab-empty">
-          <FileText
-            className="mb-3 h-10 w-10 text-ab-accent/40"
-            aria-hidden
-          />
-          <p className="text-base font-semibold text-ab-ink">لا ملفات بعد</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-ab-muted">
-            {emptyHint}
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {files.map((f, i) => {
-            const name =
-              f.originalName || f.name || f.relativePath || `ملف ${i + 1}`
-            const id = f.id || ''
-            const size = f.sizeBytes ?? f.size
-            const href = id
-              ? `/api/storage/file?id=${encodeURIComponent(id)}&scopeId=${encodeURIComponent(scopeId)}`
-              : undefined
-            const busy = busyId === id
-            const edited =
-              isFileEdited(f) ||
-              looksLikeEditedBackfill(id, name)
-            return (
-              <li
-                key={id || String(i)}
-                className="flex flex-col gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5 shadow-ab-sm sm:flex-row sm:items-center sm:justify-between"
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1 space-y-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
+              <p className="ab-subtitle">
+                {scope?.nameAr || scopeId} — {sourceLabel}
+              </p>
+              <p className="mt-1 max-w-xl text-[11px] leading-snug text-ab-muted">
+                قائمة الملفات والصوت المرفوعة من الغرفة — بلا محادثة. افتح/شغّل
+                الملف من غرفة الفريق مباشرة؛ استخدم هذا الأرشيف عندما يضيع المرفق
+                وسط الرسائل.
+              </p>
+              <p className="mt-1.5 flex max-w-xl items-start gap-1.5 text-[11px] leading-snug text-emerald-800">
+                <ShieldCheck
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  aria-hidden
+                />
+                أرشيف دائم: حذف شات اليوم أو الاحتفاظ التلقائي للرسائل لا يمس هذه
+                الملفات. صدّر الفهرس أدناه كنسخة احتياطية للأسماء والمعرّفات.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => void exportVaultManifest()}
+                disabled={backingUp || files.length === 0}
+                className="ab-btn-secondary"
+                title="تنزيل JSON بأسماء ومعرّفات كل ملفات الأرشيف"
               >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    {(f.mimeType || '').startsWith('audio/') ||
-                    /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(name) ? (
-                      <Mic
-                        className="h-3.5 w-3.5 shrink-0 text-ab-accent"
-                        aria-hidden
-                      />
-                    ) : (
-                      <FileText
-                        className="h-3.5 w-3.5 shrink-0 text-ab-accent/70"
-                        aria-hidden
-                      />
-                    )}
-                    <p className="truncate text-sm font-medium text-ab-ink">
-                      {name}
-                    </p>
-                    <FileEditedBadge show={edited} />
-                  </div>
-                  <p className="text-[11px] text-ab-muted-soft">
-                    {fmtSize(size)}
-                    {f.mimeType ? ` · ${f.mimeType}` : ''}
-                  </p>
-                </div>
-                <div className="flex flex-wrap shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={!id || busy}
-                    onClick={() => {
-                      if (!id) return
-                      openFilePreviewInChat({
-                        fileId: id,
-                        scopeId,
-                        name,
-                        mimeType: f.mimeType,
-                      })
-                    }}
-                    className="ab-btn-accent-soft !py-1 text-[11px]"
+                <Download className="h-3 w-3" />
+                {backingUp ? 'جاري التصدير…' : 'نسخ احتياطي للفهرس'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="ab-btn-secondary"
+              >
+                <RefreshCw className="h-3 w-3" />
+                تحديث
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <BrainPrivacyNote compact />
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold text-ab-ink">
+              منطقة الإسقاط · من الجهاز أو تيليجرام
+            </p>
+            <LocalUploadPanel
+              mode="vault"
+              scopeId={scopeId}
+              onUploaded={() => void load()}
+              onFileReady={(f) =>
+                openFilePreviewInChat({
+                  fileId: f.fileId,
+                  scopeId: f.scopeId,
+                  name: f.name,
+                  mimeType: f.mimeType,
+                })
+              }
+            />
+            <p className="mt-2 text-[11px] text-ab-muted">{uploadHint}</p>
+          </div>
+
+          <div className="lg:hidden">{telegramPane}</div>
+
+          {error && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {error}
+            </p>
+          )}
+          {note && (
+            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              {note}
+            </p>
+          )}
+          {syncNote && !note ? (
+            <p className="rounded-md border border-ab-border bg-ab-surface px-3 py-2 text-xs text-ab-muted">
+              {syncNote}
+            </p>
+          ) : null}
+
+          {loading && files.length === 0 ? (
+            <p className="text-sm text-ab-muted">جاري التحميل…</p>
+          ) : files.length === 0 ? (
+            <div className="ab-empty">
+              <FileText
+                className="mb-3 h-10 w-10 text-ab-accent/40"
+                aria-hidden
+              />
+              <p className="text-base font-semibold text-ab-ink">لا ملفات بعد</p>
+              <p className="mx-auto mt-1.5 max-w-sm text-sm text-ab-muted">
+                {emptyHint}
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {files.map((f, i) => {
+                const name =
+                  f.originalName || f.name || f.relativePath || `ملف ${i + 1}`
+                const id = f.id || ''
+                const size = f.sizeBytes ?? f.size
+                const href = id
+                  ? `/api/storage/file?id=${encodeURIComponent(id)}&scopeId=${encodeURIComponent(scopeId)}`
+                  : undefined
+                const busy = busyId === id
+                const edited =
+                  isFileEdited(f) || looksLikeEditedBackfill(id, name)
+                return (
+                  <li
+                    key={id || String(i)}
+                    className="flex flex-col gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2.5 shadow-ab-sm sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <Eye className="h-3 w-3" />
-                    معاينة
-                  </button>
-                  {/\.pdf$/i.test(name) ||
-                  (f.mimeType || '').includes('pdf') ? (
-                    <button
-                      type="button"
-                      disabled={!id || busy}
-                      onClick={() => void convertCleanPdf(f)}
-                      className="ab-btn-secondary !py-1 text-[11px]"
-                      title="تحويل PDF→Word عبر Google Drive (المسار النظيف)"
-                    >
-                      <FileType2 className="h-3 w-3" />
-                      حوّل نظيف
-                    </button>
-                  ) : null}
-                  {postByFileId[id] ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent('ab-nav', { detail: 'chats' })
-                        )
-                        window.dispatchEvent(
-                          new CustomEvent('ab-focus-room-post', {
-                            detail: { postId: postByFileId[id] },
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        {(f.mimeType || '').startsWith('audio/') ||
+                        /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(name) ? (
+                          <Mic
+                            className="h-3.5 w-3.5 shrink-0 text-ab-accent"
+                            aria-hidden
+                          />
+                        ) : (
+                          <FileText
+                            className="h-3.5 w-3.5 shrink-0 text-ab-accent/70"
+                            aria-hidden
+                          />
+                        )}
+                        <p className="truncate text-sm font-medium text-ab-ink">
+                          {name}
+                        </p>
+                        <FileEditedBadge show={edited} />
+                      </div>
+                      <p className="text-[11px] text-ab-muted-soft">
+                        {fmtSize(size)}
+                        {f.mimeType ? ` · ${f.mimeType}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => {
+                          if (!id) return
+                          openFilePreviewInChat({
+                            fileId: id,
+                            scopeId,
+                            name,
+                            mimeType: f.mimeType,
                           })
-                        )
-                      }}
-                      className="ab-btn-ghost !py-1 text-[11px]"
-                      title="الرسالة في غرفة الفريق"
-                    >
-                      <MessageSquare className="h-3 w-3" />
-                      في الغرفة
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={!id || busy}
-                    onClick={() => void sendToBrain(f)}
-                    className="ab-btn-secondary !py-1 text-[11px]"
-                  >
-                    <Brain className="h-3 w-3" />
-                    عقل
-                  </button>
-                  {href && (
-                    <a
-                      href={href}
-                      className="ab-btn-secondary !py-1 text-[11px]"
-                      download
-                    >
-                      <Download className="h-3 w-3" />
-                      تنزيل
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    disabled={!id || busy}
-                    onClick={() => void renameFile(f)}
-                    className="ab-btn-ghost !py-1 text-[11px]"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    إعادة تسمية
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!id || busy}
-                    onClick={() => startReplace(f)}
-                    className="ab-btn-ghost !py-1 text-[11px]"
-                  >
-                    <Replace className="h-3 w-3" />
-                    استبدال
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!id || busy}
-                    onClick={() => void deleteFile(f)}
-                    className="ab-btn-danger !py-1 text-[11px]"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    حذف
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                        }}
+                        className="ab-btn-accent-soft !py-1 text-[11px]"
+                      >
+                        <Eye className="h-3 w-3" />
+                        معاينة
+                      </button>
+                      {/\.pdf$/i.test(name) ||
+                      (f.mimeType || '').includes('pdf') ? (
+                        <button
+                          type="button"
+                          disabled={!id || busy}
+                          onClick={() => void convertCleanPdf(f)}
+                          className="ab-btn-secondary !py-1 text-[11px]"
+                          title="تحويل PDF→Word عبر Google Drive (المسار النظيف)"
+                        >
+                          <FileType2 className="h-3 w-3" />
+                          حوّل نظيف
+                        </button>
+                      ) : null}
+                      {postByFileId[id] ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            window.dispatchEvent(
+                              new CustomEvent('ab-nav', { detail: 'chats' })
+                            )
+                            window.dispatchEvent(
+                              new CustomEvent('ab-focus-room-post', {
+                                detail: { postId: postByFileId[id] },
+                              })
+                            )
+                          }}
+                          className="ab-btn-ghost !py-1 text-[11px]"
+                          title="الرسالة في غرفة الفريق"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          في الغرفة
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => void sendToBrain(f)}
+                        className="ab-btn-secondary !py-1 text-[11px]"
+                      >
+                        <Brain className="h-3 w-3" />
+                        عقل
+                      </button>
+                      {href && (
+                        <a
+                          href={href}
+                          className="ab-btn-secondary !py-1 text-[11px]"
+                          download
+                        >
+                          <Download className="h-3 w-3" />
+                          تنزيل
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => void renameFile(f)}
+                        className="ab-btn-ghost !py-1 text-[11px]"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        إعادة تسمية
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => startReplace(f)}
+                        className="ab-btn-ghost !py-1 text-[11px]"
+                      >
+                        <Replace className="h-3 w-3" />
+                        استبدال
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!id || busy}
+                        onClick={() => void deleteFile(f)}
+                        className="ab-btn-danger !py-1 text-[11px]"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        حذف
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        <aside className="hidden w-full shrink-0 lg:block lg:w-[min(22rem,36%)]">
+          {telegramPane}
+        </aside>
+      </div>
     </section>
   )
 }
