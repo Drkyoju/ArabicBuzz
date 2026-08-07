@@ -9,7 +9,7 @@ import {
   estimateAssistantEtaSeconds,
   routeAssistantIntent,
 } from '@/lib/assistants/intent-router'
-import { getAssistantMaxParallel } from '@/lib/assistants/parallel'
+import { getAssistantMaxParallel, getAssistantMaxPerUser } from '@/lib/assistants/parallel'
 import type {
   AssistantId,
   AssistantJob,
@@ -64,6 +64,8 @@ function rowToJob(r: DbRow): AssistantJob {
     startedAt: r.started_at != null ? String(r.started_at) : null,
     finishedAt: r.finished_at != null ? String(r.finished_at) : null,
     durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
+    modelSlug: r.model_slug != null ? String(r.model_slug) : null,
+    effortLevel: r.effort_level != null ? String(r.effort_level) : null,
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
   }
@@ -87,6 +89,8 @@ function jobToRow(job: AssistantJob): Record<string, unknown> {
     started_at: job.startedAt,
     finished_at: job.finishedAt,
     duration_ms: job.durationMs,
+    model_slug: job.modelSlug,
+    effort_level: job.effortLevel,
     created_at: job.createdAt,
     updated_at: job.updatedAt,
   }
@@ -130,12 +134,27 @@ export async function countRunningJobs(scopeId: string): Promise<number> {
   return jobs.filter((j) => j.status === 'running').length
 }
 
+export async function countRunningJobsForUser(
+  scopeId: string,
+  userId: string
+): Promise<number> {
+  if (!userId) return 0
+  const jobs = await listAssistantJobs(scopeId, { includeDone: false, limit: 100 })
+  return jobs.filter((j) => j.status === 'running' && j.userId === userId).length
+}
+
 export async function enqueueAssistantJob(opts: {
   scopeId: string
   userId: string
   message: string
   assistantId?: string | null
-}): Promise<{ job: AssistantJob; maxParallel: number }> {
+  modelSlug?: string | null
+  effortLevel?: string | null
+}): Promise<{
+  job: AssistantJob
+  maxParallel: number
+  maxPerUser: number
+}> {
   const message = opts.message.trim()
   if (!message) throw new Error('اكتب ما تريده بالعربية')
 
@@ -158,13 +177,22 @@ export async function enqueueAssistantJob(opts: {
     startedAt: null,
     finishedAt: null,
     durationMs: null,
+    modelSlug: opts.modelSlug?.trim() || null,
+    effortLevel: opts.effortLevel?.trim() || null,
     createdAt: now,
     updatedAt: now,
   }
 
   const sb = getSupabaseAdmin()
   if (sb) {
-    const { error } = await sb.from('assistant_jobs').insert(jobToRow(job))
+    const row = jobToRow(job)
+    let { error } = await sb.from('assistant_jobs').insert(row)
+    if (error && /model_slug|effort_level|column/i.test(error.message)) {
+      const legacy = { ...row }
+      delete legacy.model_slug
+      delete legacy.effort_level
+      ;({ error } = await sb.from('assistant_jobs').insert(legacy))
+    }
     if (error) {
       console.error('[assistant_jobs] insert', error.message)
       mem.set(job.id, job)
@@ -173,7 +201,11 @@ export async function enqueueAssistantJob(opts: {
     mem.set(job.id, job)
   }
 
-  return { job, maxParallel: getAssistantMaxParallel() }
+  return {
+    job,
+    maxParallel: getAssistantMaxParallel(),
+    maxPerUser: getAssistantMaxPerUser(),
+  }
 }
 
 export async function getAssistantJob(
@@ -199,7 +231,7 @@ export async function getAssistantJob(
   return m
 }
 
-/** Claim waiting → running if under parallel cap. */
+/** Claim waiting → running if under scope + per-user parallel caps. */
 export async function claimAssistantJob(
   jobId: string,
   scopeId: string
@@ -208,6 +240,7 @@ export async function claimAssistantJob(
   | { ok: false; reason: 'not_found' | 'not_waiting' | 'at_capacity'; job?: AssistantJob }
 > {
   const max = getAssistantMaxParallel()
+  const maxPerUser = getAssistantMaxPerUser()
   const job = await getAssistantJob(jobId, scopeId)
   if (!job) return { ok: false, reason: 'not_found' }
   if (job.status === 'running') return { ok: true, job }
@@ -215,6 +248,13 @@ export async function claimAssistantJob(
 
   const running = await countRunningJobs(scopeId)
   if (running >= max) return { ok: false, reason: 'at_capacity', job }
+
+  if (job.userId) {
+    const userRunning = await countRunningJobsForUser(scopeId, job.userId)
+    if (userRunning >= maxPerUser) {
+      return { ok: false, reason: 'at_capacity', job }
+    }
+  }
 
   const now = new Date().toISOString()
   const next: AssistantJob = {
@@ -261,9 +301,18 @@ async function persistJob(job: AssistantJob): Promise<void> {
   mem.set(job.id, job)
   const sb = getSupabaseAdmin()
   if (!sb) return
-  const { error } = await sb
+  const row = jobToRow(job)
+  let { error } = await sb
     .from('assistant_jobs')
-    .upsert(jobToRow(job), { onConflict: 'id' })
+    .upsert(row, { onConflict: 'id' })
+  if (error && /model_slug|effort_level|column/i.test(error.message)) {
+    const legacy = { ...row }
+    delete legacy.model_slug
+    delete legacy.effort_level
+    ;({ error } = await sb
+      .from('assistant_jobs')
+      .upsert(legacy, { onConflict: 'id' }))
+  }
   if (error) console.error('[assistant_jobs] upsert', error.message)
 }
 

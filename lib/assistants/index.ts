@@ -25,6 +25,7 @@ export {
 } from '@/lib/assistants/intent-router'
 export {
   getAssistantMaxParallel,
+  getAssistantMaxPerUser,
   assistantParallelHintAr,
 } from '@/lib/assistants/parallel'
 export {

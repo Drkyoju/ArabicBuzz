@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     scopeId?: string
     securityPosture?: string
     modelSlug?: string
+    effortLevel?: string
+    effort?: string
   }
   try {
     body = await req.json()
@@ -62,6 +64,7 @@ export async function POST(req: NextRequest) {
       requesterId: auth.user.id,
       mode,
       modelSlug: body.modelSlug ? String(body.modelSlug) : undefined,
+      effortLevel: body.effortLevel || body.effort,
     })
 
     if (result.blocked) {

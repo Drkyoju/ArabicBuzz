@@ -7,13 +7,15 @@ import {
 import {
   assistantParallelHintAr,
   getAssistantMaxParallel,
+  getAssistantMaxPerUser,
 } from '@/lib/assistants/parallel'
+import { parseRunEffort } from '@/lib/ai/run-effort'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET ?scopeId= — list queue for room (waiting / running / recent done).
- * POST { message, scopeId?, assistantId? } — enqueue; intent router picks worker.
+ * POST { message, scopeId?, assistantId?, modelSlug?, effortLevel? } — enqueue.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireRealUser(req)
@@ -23,12 +25,14 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get('scopeId')?.trim() || 'shared-demo'
   const jobs = await listAssistantJobs(scopeId, { limit: 60 })
   const maxParallel = getAssistantMaxParallel()
+  const maxPerUser = getAssistantMaxPerUser()
 
   return NextResponse.json({
     ok: true,
     scopeId,
     maxParallel,
-    hintAr: assistantParallelHintAr(maxParallel),
+    maxPerUser,
+    hintAr: assistantParallelHintAr(maxPerUser),
     jobs,
     counts: {
       waiting: jobs.filter((j) => j.status === 'waiting').length,
@@ -48,6 +52,9 @@ export async function POST(req: NextRequest) {
     prompt?: string
     scopeId?: string
     assistantId?: string
+    modelSlug?: string
+    effortLevel?: string
+    effort?: string
   }
   try {
     body = await req.json()
@@ -64,20 +71,25 @@ export async function POST(req: NextRequest) {
   }
 
   const scopeId = String(body.scopeId || 'shared-demo').trim() || 'shared-demo'
+  const effortLevel = parseRunEffort(body.effortLevel || body.effort)
+  const modelSlug = body.modelSlug ? String(body.modelSlug).trim() : null
 
   try {
-    const { job, maxParallel } = await enqueueAssistantJob({
+    const { job, maxParallel, maxPerUser } = await enqueueAssistantJob({
       scopeId,
       userId: auth.user.id,
       message,
       assistantId: body.assistantId ? String(body.assistantId) : null,
+      modelSlug,
+      effortLevel,
     })
 
     return NextResponse.json({
       ok: true,
       job,
       maxParallel,
-      hintAr: assistantParallelHintAr(maxParallel),
+      maxPerUser,
+      hintAr: assistantParallelHintAr(maxPerUser),
     })
   } catch (e) {
     console.error('[assistants/queue]', e)

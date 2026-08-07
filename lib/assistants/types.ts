@@ -98,6 +98,10 @@ export type AssistantJob = {
   startedAt: string | null
   finishedAt: string | null
   durationMs: number | null
+  /** Harness model for this run (Gemini / GLM / AgentRouter). */
+  modelSlug: string | null
+  /** Run power: LOW | MEDIUM | HIGH | MAX */
+  effortLevel: string | null
   createdAt: string
   updatedAt: string
 }

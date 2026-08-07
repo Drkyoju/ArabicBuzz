@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Send,
   Loader2,
@@ -11,6 +11,7 @@ import {
   Clock,
   ListTodo,
   X,
+  Maximize2,
 } from 'lucide-react'
 import {
   authHeaders,
@@ -19,6 +20,14 @@ import {
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
+import { useModelPickerStore } from '@/lib/ai/model-picker-store'
+import { ModelPicker } from '@/components/model-picker'
+import { EffortPicker } from '@/components/effort-picker'
+import {
+  RUN_EFFORT_LABELS_AR,
+  parseRunEffort,
+} from '@/lib/ai/run-effort'
+import { HARNESS_MODEL_CATALOG } from '@/lib/ai/harness-catalog'
 import { cn } from '@/lib/utils'
 import type {
   AssistantCatalogItem,
@@ -34,6 +43,7 @@ type CatalogResponse = {
   hintAr?: string
   parallelNoteAr?: string
   maxParallel?: number
+  maxPerUser?: number
   telegramHintAr?: string
   assistants?: AssistantCatalogItem[]
 }
@@ -42,6 +52,7 @@ type QueueListResponse = {
   ok?: boolean
   jobs?: AssistantJob[]
   maxParallel?: number
+  maxPerUser?: number
   hintAr?: string
   counts?: {
     waiting: number
@@ -66,6 +77,17 @@ function formatEtaAr(seconds: number, elapsedMs?: number | null): string {
     return `≈ ${left} ث متبقية`
   }
   return `≈ ${seconds} ث`
+}
+
+function modelLabelAr(slug: string | null | undefined): string | null {
+  if (!slug) return null
+  const hit = HARNESS_MODEL_CATALOG.find((m) => m.slug === slug)
+  return hit ? `${hit.labelEn}` : slug
+}
+
+function effortLabelAr(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  return RUN_EFFORT_LABELS_AR[parseRunEffort(raw)]
 }
 
 function loadLocalQueue(scopeId: string): AssistantJob[] {
@@ -99,6 +121,142 @@ function mergeJobs(prev: AssistantJob[], incoming: AssistantJob[]): AssistantJob
   )
 }
 
+function TaskPane({
+  job,
+  expanded,
+  onToggle,
+  onNavigate,
+}: {
+  job: AssistantJob
+  expanded: boolean
+  onToggle: () => void
+  onNavigate?: (section: string) => void
+}) {
+  const elapsed =
+    job.status === 'running' && job.startedAt
+      ? Date.now() - Date.parse(job.startedAt)
+      : null
+  const model = modelLabelAr(job.modelSlug)
+  const effort = effortLabelAr(job.effortLevel)
+
+  return (
+    <article
+      className={cn(
+        'flex min-h-[9.5rem] flex-col rounded-xl border p-3 text-start shadow-sm transition-shadow',
+        job.status === 'failed'
+          ? 'border-red-200 bg-red-50/50'
+          : job.status === 'running'
+            ? 'border-ab-accent/35 bg-ab-accent/5'
+            : job.status === 'waiting'
+              ? 'border-stone-200 bg-stone-50/80'
+              : 'border-emerald-200/80 bg-emerald-50/40'
+      )}
+    >
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-bold text-ab-ink">
+            {job.assistantNameAr}
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-stone-700">
+            {job.message}
+          </p>
+        </div>
+        <span
+          className={cn(
+            'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
+            job.status === 'running'
+              ? 'bg-ab-accent/15 text-ab-accent'
+              : job.status === 'waiting'
+                ? 'bg-stone-200/80 text-stone-700'
+                : job.status === 'failed'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-emerald-100 text-emerald-800'
+          )}
+        >
+          {job.status === 'running'
+            ? 'نشط'
+            : job.status === 'waiting'
+              ? 'انتظار'
+              : job.status === 'failed'
+                ? 'فشل'
+                : 'منجز'}
+        </span>
+      </div>
+
+      <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-stone-500">
+        {model ? <span dir="ltr">{model}</span> : null}
+        {effort ? <span>القوة: {effort}</span> : null}
+        {job.status === 'running' ? (
+          <span className="inline-flex items-center gap-1 text-ab-accent">
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            {formatEtaAr(job.etaSeconds, elapsed)}
+          </span>
+        ) : job.status === 'waiting' ? (
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3" aria-hidden />
+            {formatEtaAr(job.etaSeconds)}
+          </span>
+        ) : job.durationMs != null ? (
+          <span>{formatDurationAr(job.durationMs)}</span>
+        ) : null}
+      </p>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {job.errorAr ? (
+          <p className="line-clamp-4 text-[12px] text-red-800">{job.errorAr}</p>
+        ) : job.resultText ? (
+          <div
+            className={cn(
+              'whitespace-pre-wrap text-[12px] leading-relaxed text-ab-ink',
+              expanded ? 'max-h-48 overflow-y-auto' : 'line-clamp-4'
+            )}
+            dir="rtl"
+          >
+            {job.resultText}
+          </div>
+        ) : job.status === 'running' ? (
+          <p className="text-[12px] text-stone-500">جاري التنفيذ…</p>
+        ) : job.status === 'waiting' ? (
+          <p className="text-[12px] text-stone-500">في الطابور…</p>
+        ) : null}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-black/5 pt-2">
+        {(job.resultText && job.resultText.length > 160) ||
+        (job.usedTools && job.usedTools.length > 0) ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-ab-accent hover:bg-ab-accent/10"
+          >
+            <Maximize2 className="h-3 w-3" aria-hidden />
+            {expanded ? 'طيّ' : 'توسيع'}
+          </button>
+        ) : null}
+        {job.pendingApprovalIds?.length ? (
+          <button
+            type="button"
+            onClick={() => onNavigate?.('approvals')}
+            className="rounded-md border border-ab-warn/40 bg-ab-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-ab-warn"
+          >
+            موافقة معلّقة
+          </button>
+        ) : null}
+        {expanded && job.usedTools && job.usedTools.length > 0 ? (
+          <ul className="w-full space-y-0.5 pt-1">
+            {job.usedTools.map((t, i) => (
+              <li key={`${t.name}-${i}`} className="text-[10px] text-stone-600">
+                <span className="font-semibold text-ab-ink">{t.labelAr}</span>{' '}
+                {t.summaryAr}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
 export function AssistantsCorePanel({
   onNavigate,
   initialAssistantId,
@@ -109,6 +267,7 @@ export function AssistantsCorePanel({
   const signedIn = useSignedIn()
   const scopeId = useWorkspaceStore((s) => s.activeScopeId) || 'shared-demo'
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const resolvePrefs = useModelPickerStore((s) => s.resolveForScope)
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null)
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null)
   const [imapConnected, setImapConnected] = useState<boolean | null>(null)
@@ -118,24 +277,33 @@ export function AssistantsCorePanel({
   const [error, setError] = useState('')
   const [jobs, setJobs] = useState<AssistantJob[]>([])
   const [maxParallel, setMaxParallel] = useState(8)
+  const [maxPerUser, setMaxPerUser] = useState(8)
   const [hintAr, setHintAr] = useState(
-    'حتى 8 وكيل/مهمة معاً؛ الباقي بالانتظار.'
+    'حتى 8 مهام معاً لكل موظف؛ الباقي بالانتظار.'
   )
   const [enqueueBusy, setEnqueueBusy] = useState(false)
   const [barOpen, setBarOpen] = useState(true)
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
   const inFlight = useRef(new Set<string>())
   const drainLock = useRef(false)
 
-  // Catalog + optional focus → seed composer (no card grid)
+  const applyLimits = useCallback(
+    (data: { maxParallel?: number; maxPerUser?: number; hintAr?: string }) => {
+      if (typeof data.maxParallel === 'number') setMaxParallel(data.maxParallel)
+      if (typeof data.maxPerUser === 'number') setMaxPerUser(data.maxPerUser)
+      else if (typeof data.maxParallel === 'number') setMaxPerUser(data.maxParallel)
+      if (data.hintAr) setHintAr(data.hintAr)
+    },
+    []
+  )
+
   useEffect(() => {
     void fetch('/api/assistants')
       .then((r) => r.json())
       .then((d: CatalogResponse) => {
         setCatalog(d)
-        if (typeof d.maxParallel === 'number') setMaxParallel(d.maxParallel)
-        if (d.hintAr) setHintAr(d.hintAr)
+        applyLimits(d)
         try {
           const focus =
             initialAssistantId ||
@@ -148,7 +316,7 @@ export function AssistantsCorePanel({
         }
       })
       .catch(() => setCatalog({ assistants: [] }))
-  }, [initialAssistantId])
+  }, [initialAssistantId, applyLimits])
 
   useEffect(() => {
     setJobs(loadLocalQueue(scopeId))
@@ -218,13 +386,12 @@ export function AssistantsCorePanel({
       )
       const data = (await res.json()) as QueueListResponse
       if (!res.ok || !data.jobs) return
-      if (typeof data.maxParallel === 'number') setMaxParallel(data.maxParallel)
-      if (data.hintAr) setHintAr(data.hintAr)
+      applyLimits(data)
       setJobs((prev) => mergeJobs(prev, data.jobs || []))
     } catch {
       /* local cache still shown */
     }
-  }, [scopeId, signedIn])
+  }, [scopeId, signedIn, applyLimits])
 
   useEffect(() => {
     void refreshQueue()
@@ -263,15 +430,14 @@ export function AssistantsCorePanel({
           hasPendingApprovals?: boolean
           atCapacity?: boolean
           maxParallel?: number
+          maxPerUser?: number
           hintAr?: string
           blocked?: { messageAr: string }
           error?: string
         }
-        if (typeof data.maxParallel === 'number') setMaxParallel(data.maxParallel)
-        if (data.hintAr) setHintAr(data.hintAr)
+        applyLimits(data)
         if (data.job) {
           setJobs((prev) => mergeJobs(prev, [data.job!]))
-          setSelectedJobId(data.job.id)
           if (data.hasPendingApprovals) {
             window.dispatchEvent(new Event('ab-approvals-changed'))
           }
@@ -317,8 +483,10 @@ export function AssistantsCorePanel({
         inFlight.current.delete(jobId)
       }
     },
-    [scopeId]
+    [scopeId, applyLimits]
   )
+
+  const drainCap = Math.min(maxPerUser, maxParallel)
 
   const drainQueue = useCallback(async () => {
     if (signedIn !== true || drainLock.current) return
@@ -331,7 +499,7 @@ export function AssistantsCorePanel({
         ...jobs.filter((j) => j.status === 'running').map((j) => j.id),
         ...inFlight.current,
       ])
-      const slots = Math.max(0, maxParallel - activeIds.size)
+      const slots = Math.max(0, drainCap - activeIds.size)
       const batch = waiting.slice(0, slots)
       for (const j of batch) {
         void processJob(j.id)
@@ -339,7 +507,7 @@ export function AssistantsCorePanel({
     } finally {
       drainLock.current = false
     }
-  }, [jobs, maxParallel, processJob, signedIn])
+  }, [jobs, drainCap, processJob, signedIn])
 
   useEffect(() => {
     void drainQueue()
@@ -373,6 +541,7 @@ export function AssistantsCorePanel({
     }
     setEnqueueBusy(true)
     try {
+      const prefs = resolvePrefs(scopeId)
       const headers = {
         ...(await authHeaders()),
         'Content-Type': 'application/json',
@@ -380,12 +549,18 @@ export function AssistantsCorePanel({
       const res = await fetch('/api/assistants/queue', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ message: text, scopeId }),
+        body: JSON.stringify({
+          message: text,
+          scopeId,
+          modelSlug: prefs.model,
+          effortLevel: prefs.effort,
+        }),
       })
       const data = (await res.json()) as {
         ok?: boolean
         job?: AssistantJob
         maxParallel?: number
+        maxPerUser?: number
         hintAr?: string
         error?: string
       }
@@ -393,10 +568,8 @@ export function AssistantsCorePanel({
         setError(data.error || 'تعذّر إضافة المهمة')
         return
       }
-      if (typeof data.maxParallel === 'number') setMaxParallel(data.maxParallel)
-      if (data.hintAr) setHintAr(data.hintAr)
+      applyLimits(data)
       setJobs((prev) => mergeJobs(prev, [data.job!]))
-      setSelectedJobId(data.job.id)
       setMessage('')
       setBarOpen(true)
     } catch {
@@ -412,30 +585,44 @@ export function AssistantsCorePanel({
     .filter((j) => j.status === 'done' || j.status === 'failed')
     .slice()
     .reverse()
-  const selected =
-    jobs.find((j) => j.id === selectedJobId) ||
-    running[0] ||
-    done[0] ||
-    null
 
-  void tick // keep ETA clocks live
+  const gridJobs = useMemo(() => {
+    const active = [...running, ...waiting]
+    const recent = done.slice(0, 12)
+    const seen = new Set<string>()
+    const out: AssistantJob[] = []
+    for (const j of [...active, ...recent]) {
+      if (seen.has(j.id)) continue
+      seen.add(j.id)
+      out.push(j)
+    }
+    return out
+  }, [running, waiting, done])
+
+  void tick
 
   return (
-    <section
-      className="ab-page-narrow relative pb-36"
-      dir="rtl"
-    >
+    <section className="ab-page-narrow relative pb-36" dir="rtl">
       <div>
-        <h2 className="ab-title">
-          {catalog?.titleAr || 'مهام التشغيل'}
-        </h2>
+        <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
         <p className="ab-subtitle">
           {catalog?.subtitleAr ||
             'مهام تشغيل عامة للمساحة (بريد/تقويم) — غرفة الفريق للمحادثة والوكلاء بـ @.'}
         </p>
-        <p className="mt-2 text-[12px] font-medium text-ab-accent">
-          {hintAr}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2.5 py-1 text-[12px] font-bold text-ab-accent"
+            title={catalog?.parallelNoteAr || hintAr}
+          >
+            حدّ لكل موظف: {maxPerUser} متوازية
+            {maxParallel !== maxPerUser ? (
+              <span className="font-medium text-ab-accent/80">
+                · مساحة {maxParallel}
+              </span>
+            ) : null}
+          </span>
+          <span className="text-[11px] text-ab-muted">{hintAr}</span>
+        </div>
         {canAccessOpsUi && cuaStatusAr !== null ? (
           <p className="mt-2 text-[12px] text-ab-muted">
             جسر Cua:{' '}
@@ -507,7 +694,6 @@ export function AssistantsCorePanel({
           </p>
         )}
 
-      {/* Single composer */}
       <div className="ab-composer">
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-ab-ink">
@@ -528,28 +714,35 @@ export function AssistantsCorePanel({
             }}
           />
         </label>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={enqueueBusy || signedIn !== true}
-            onClick={() => void enqueue()}
-            className="ab-btn-primary px-5 py-2.5 text-sm"
-          >
-            {enqueueBusy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                جاري الإضافة…
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" aria-hidden />
-                إرسال
-              </>
-            )}
-          </button>
-          <span className="text-[11px] text-ab-muted">
-            ⌘/Ctrl + Enter للإرسال السريع
-          </span>
+
+        <div className="ab-toolbar mt-3 flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <ModelPicker compact scopeId={scopeId} />
+            <EffortPicker compact scopeId={scopeId} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={enqueueBusy || signedIn !== true}
+              onClick={() => void enqueue()}
+              className="ab-btn-primary px-5 py-2.5 text-sm"
+            >
+              {enqueueBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  جاري الإضافة…
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" aria-hidden />
+                  إرسال
+                </>
+              )}
+            </button>
+            <span className="text-[11px] text-ab-muted">
+              ⌘/Ctrl + Enter
+            </span>
+          </div>
         </div>
         {error ? (
           <p className="mt-3 text-sm text-red-700" role="alert">
@@ -558,78 +751,36 @@ export function AssistantsCorePanel({
         ) : null}
       </div>
 
-      {/* Selected / latest result */}
-      {selected && (selected.resultText || selected.errorAr || selected.status === 'running') ? (
-        <div
-          className={cn(
-            'rounded-xl border p-4',
-            selected.status === 'failed'
-              ? 'border-red-200 bg-red-50/40'
-              : selected.status === 'running'
-                ? 'border-ab-accent/30 bg-ab-accent/5'
-                : 'border-emerald-200/80 bg-emerald-50/40'
-          )}
-        >
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold text-stone-700">
-              {selected.assistantNameAr}
-              {selected.status === 'running'
-                ? ' — جاري التنفيذ…'
-                : selected.status === 'failed'
-                  ? ' — فشلت'
-                  : ' — انتهت'}
-              {selected.durationMs != null
-                ? ` · ${formatDurationAr(selected.durationMs)}`
-                : null}
+      {/* Multi-task grid — one small pane per job */}
+      {gridJobs.length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-ab-ink">المهام</h3>
+            <p className="text-[11px] text-ab-muted">
+              نشط {running.length}/{drainCap} · انتظار {waiting.length}
             </p>
-            {selected.pendingApprovalIds?.length ? (
-              <button
-                type="button"
-                onClick={() => onNavigate?.('approvals')}
-                className="rounded-lg border border-ab-warn/40 bg-ab-warn/10 px-2.5 py-1 text-[11px] font-semibold text-ab-warn"
-              >
-                موافقة معلّقة
-              </button>
-            ) : null}
           </div>
-          {selected.errorAr ? (
-            <p className="text-sm text-red-800">{selected.errorAr}</p>
-          ) : null}
-          {selected.usedTools && selected.usedTools.length > 0 ? (
-            <ul className="mb-3 space-y-1">
-              {selected.usedTools.map((t, i) => (
-                <li
-                  key={`${t.name}-${i}`}
-                  className="text-[12px] text-stone-700"
-                >
-                  <span className="font-semibold text-ab-ink">{t.labelAr}</span>{' '}
-                  <span className="text-stone-600">{t.summaryAr}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {selected.resultText ? (
-            <div
-              className="whitespace-pre-wrap text-sm leading-relaxed text-ab-ink"
-              dir="rtl"
-            >
-              {selected.resultText}
-            </div>
-          ) : selected.status === 'running' ? (
-            <p className="flex items-center gap-2 text-sm text-stone-600">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {formatEtaAr(
-                selected.etaSeconds,
-                selected.startedAt
-                  ? Date.now() - Date.parse(selected.startedAt)
-                  : null
-              )}
-            </p>
-          ) : null}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {gridJobs.map((j) => (
+              <TaskPane
+                key={j.id}
+                job={j}
+                expanded={expandedId === j.id}
+                onToggle={() =>
+                  setExpandedId((id) => (id === j.id ? null : j.id))
+                }
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <p className="ab-empty text-[13px] !text-ab-muted">
+          لا مهام بعد — اختر النموذج والقوة، اكتب طلبك، ثم اضغط إرسال. كل مهمة
+          تظهر كورقة صغيرة هنا.
+        </p>
+      )}
 
-      {/* Bottom sticky queue bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ab-border bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md md:ms-[15.5rem]">
         <div className="mx-auto max-w-3xl px-4 py-2" dir="rtl">
           <button
@@ -641,7 +792,7 @@ export function AssistantsCorePanel({
               <ListTodo className="h-4 w-4 shrink-0 text-ab-accent" aria-hidden />
               <span className="font-bold text-ab-ink">طابور المهام</span>
               <span className="rounded-md bg-ab-accent/10 px-1.5 py-0.5 font-semibold text-ab-accent">
-                نشط {running.length}
+                نشط {running.length}/{drainCap}
               </span>
               <span className="rounded-md bg-stone-100 px-1.5 py-0.5 text-stone-700">
                 انتظار {waiting.length}
@@ -649,7 +800,6 @@ export function AssistantsCorePanel({
               <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-800">
                 منجز {done.filter((j) => j.status === 'done').length}
               </span>
-              <span className="hidden text-stone-500 sm:inline">{hintAr}</span>
             </div>
             {barOpen ? (
               <ChevronDown className="h-4 w-4 text-stone-500" aria-hidden />
@@ -659,7 +809,7 @@ export function AssistantsCorePanel({
           </button>
 
           {barOpen ? (
-            <div className="max-h-[40vh] space-y-2 overflow-y-auto pb-2 pt-1">
+            <div className="max-h-[28vh] space-y-1.5 overflow-y-auto pb-2 pt-1">
               {running.length === 0 &&
               waiting.length === 0 &&
               done.length === 0 ? (
@@ -668,66 +818,32 @@ export function AssistantsCorePanel({
                 </p>
               ) : null}
 
-              {running.map((j) => {
-                const elapsed = j.startedAt
-                  ? Date.now() - Date.parse(j.startedAt)
-                  : 0
-                return (
-                  <button
-                    key={j.id}
-                    type="button"
-                    onClick={() => setSelectedJobId(j.id)}
-                    className={cn(
-                      'flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-start',
-                      selectedJobId === j.id
-                        ? 'border-ab-accent bg-ab-accent/5'
-                        : 'border-ab-border bg-white'
-                    )}
-                  >
+              {[...running, ...waiting].map((j) => (
+                <div
+                  key={j.id}
+                  className="flex items-start gap-2 rounded-lg border border-ab-border bg-white px-3 py-2"
+                >
+                  {j.status === 'running' ? (
                     <Loader2
                       className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-ab-accent"
                       aria-hidden
                     />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-semibold text-ab-ink">
-                        {j.message}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-stone-500">
-                        {j.assistantNameAr} · نشط ·{' '}
-                        {formatEtaAr(j.etaSeconds, elapsed)} · مضى{' '}
-                        {formatDurationAr(elapsed)}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })}
-
-              {waiting.map((j, idx) => (
-                <button
-                  key={j.id}
-                  type="button"
-                  onClick={() => setSelectedJobId(j.id)}
-                  className={cn(
-                    'flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-start',
-                    selectedJobId === j.id
-                      ? 'border-ab-accent bg-ab-accent/5'
-                      : 'border-stone-200 bg-stone-50'
+                  ) : (
+                    <Clock
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400"
+                      aria-hidden
+                    />
                   )}
-                >
-                  <Clock
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400"
-                    aria-hidden
-                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12px] font-semibold text-ab-ink">
                       {j.message}
                     </p>
                     <p className="mt-0.5 text-[11px] text-stone-500">
-                      {j.assistantNameAr} · بالانتظار (#{idx + 1}) · تقدير{' '}
-                      {formatEtaAr(j.etaSeconds)}
+                      {j.assistantNameAr} ·{' '}
+                      {j.status === 'running' ? 'نشط' : 'انتظار'}
                     </p>
                   </div>
-                </button>
+                </div>
               ))}
 
               {done.length > 0 ? (
@@ -735,17 +851,10 @@ export function AssistantsCorePanel({
                   <p className="mb-1 text-[11px] font-bold text-stone-600">
                     منجَز سابقاً
                   </p>
-                  {done.slice(0, 8).map((j) => (
-                    <button
+                  {done.slice(0, 6).map((j) => (
+                    <div
                       key={j.id}
-                      type="button"
-                      onClick={() => setSelectedJobId(j.id)}
-                      className={cn(
-                        'mb-1 flex w-full items-start gap-2 rounded-lg border px-3 py-1.5 text-start',
-                        selectedJobId === j.id
-                          ? 'border-ab-accent bg-ab-accent/5'
-                          : 'border-transparent hover:bg-stone-50'
-                      )}
+                      className="mb-1 flex items-start gap-2 rounded-lg px-3 py-1.5"
                     >
                       {j.status === 'failed' ? (
                         <X
@@ -766,7 +875,7 @@ export function AssistantsCorePanel({
                           {j.assistantNameAr} · {formatDurationAr(j.durationMs)}
                         </p>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               ) : null}

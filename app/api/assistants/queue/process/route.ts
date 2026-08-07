@@ -9,21 +9,40 @@ import {
 import {
   assistantParallelHintAr,
   getAssistantMaxParallel,
+  getAssistantMaxPerUser,
 } from '@/lib/assistants/parallel'
 import { parsePosture } from '@/lib/security/posture'
+import { parseRunEffort } from '@/lib/ai/run-effort'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+function limitsPayload() {
+  const maxParallel = getAssistantMaxParallel()
+  const maxPerUser = getAssistantMaxPerUser()
+  return {
+    maxParallel,
+    maxPerUser,
+    hintAr: assistantParallelHintAr(maxPerUser),
+  }
+}
+
 /**
- * POST { jobId?, scopeId? } — claim a waiting job (or oldest) and run it.
- * Client keeps up to ASSISTANT_MAX_PARALLEL process calls in flight.
+ * POST { jobId?, scopeId?, modelSlug?, effortLevel? } — claim + run.
+ * Client keeps up to per-user / scope caps in flight.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
 
-  let body: { jobId?: string; scopeId?: string; securityPosture?: string }
+  let body: {
+    jobId?: string
+    scopeId?: string
+    securityPosture?: string
+    modelSlug?: string
+    effortLevel?: string
+    effort?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -31,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
 
   const scopeId = String(body.scopeId || 'shared-demo').trim() || 'shared-demo'
-  const maxParallel = getAssistantMaxParallel()
+  const limits = limitsPayload()
   let jobId = body.jobId ? String(body.jobId).trim() : ''
 
   if (!jobId) {
@@ -44,8 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         idle: true,
-        maxParallel,
-        hintAr: assistantParallelHintAr(maxParallel),
+        ...limits,
       })
     }
     jobId = next.id
@@ -58,8 +76,7 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           atCapacity: true,
-          maxParallel,
-          hintAr: assistantParallelHintAr(maxParallel),
+          ...limits,
           job: claimed.job,
         },
         { status: 409 }
@@ -73,13 +90,20 @@ export async function POST(req: NextRequest) {
       skipped: true,
       reason: claimed.reason,
       job: claimed.job,
-      maxParallel,
+      ...limits,
     })
   }
 
   const job = claimed.job
   const mode = parsePosture(
     body.securityPosture || process.env.DEFAULT_SECURITY_POSTURE
+  )
+  const modelSlug =
+    (body.modelSlug ? String(body.modelSlug).trim() : '') ||
+    job.modelSlug ||
+    undefined
+  const effortLevel = parseRunEffort(
+    body.effortLevel || body.effort || job.effortLevel
   )
 
   try {
@@ -89,6 +113,8 @@ export async function POST(req: NextRequest) {
       scopeId,
       requesterId: auth.user.id,
       mode,
+      modelSlug,
+      effortLevel,
     })
 
     if (result.blocked) {
@@ -103,8 +129,7 @@ export async function POST(req: NextRequest) {
         ok: false,
         blocked: result.blocked,
         job: failed,
-        maxParallel,
-        hintAr: assistantParallelHintAr(maxParallel),
+        ...limits,
       })
     }
 
@@ -115,16 +140,11 @@ export async function POST(req: NextRequest) {
       pendingApprovalIds: result.pendingApprovalIds || [],
     })
 
-    if (result.pendingApprovalIds.length > 0) {
-      // Client listens for ab-approvals-changed
-    }
-
     return NextResponse.json({
       ok: true,
       job: done,
       hasPendingApprovals: (result.pendingApprovalIds || []).length > 0,
-      maxParallel,
-      hintAr: assistantParallelHintAr(maxParallel),
+      ...limits,
     })
   } catch (e) {
     console.error('[assistants/queue/process]', e)
@@ -139,7 +159,7 @@ export async function POST(req: NextRequest) {
         error:
           e instanceof Error ? e.message : 'تعذّر تشغيل المساعد حالياً',
         job: failed,
-        maxParallel,
+        ...limits,
       },
       { status: 500 }
     )

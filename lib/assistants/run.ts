@@ -11,6 +11,11 @@ import {
   buildScopedSystemPrompt,
   scopeCtxForAssistant,
 } from '@/lib/skills/registry'
+import {
+  effortToRunParams,
+  parseRunEffort,
+  type RunEffort,
+} from '@/lib/ai/run-effort'
 
 export type RunAssistantInput = {
   assistantId: string
@@ -22,6 +27,8 @@ export type RunAssistantInput = {
   /** Skip Google/mail gate (e.g. Telegram path already validated). */
   skipRequirementCheck?: boolean
   modelSlug?: string
+  /** Run power — LOW | MEDIUM | HIGH | MAX */
+  effortLevel?: RunEffort | string
 }
 
 async function googleConnected(requesterId: string): Promise<boolean> {
@@ -123,10 +130,20 @@ export async function runAssistant(
   }
 
   // Assistants need room to call tools — never inherit Telegram fast-path (2–3).
-  const maxSteps = Math.max(10, Math.min(16, assistant.maxSteps ?? 12))
+  const effort = parseRunEffort(input.effortLevel)
+  const effortParams = effortToRunParams(effort)
+  const catalogSteps = Math.max(10, Math.min(16, assistant.maxSteps ?? 12))
+  const maxSteps =
+    effort === 'LOW'
+      ? Math.max(6, Math.min(catalogSteps, 8))
+      : effort === 'MEDIUM'
+        ? Math.max(8, Math.min(catalogSteps, 10))
+        : effort === 'HIGH'
+          ? catalogSteps
+          : Math.min(16, catalogSteps + 2)
 
   const system = await buildScopedSystemPrompt(
-    assistant.systemPromptAr,
+    `${assistant.systemPromptAr}\n\n${effortParams.systemHintAr}`,
     scopeCtxForAssistant(input.scopeId, input.requesterId)
   )
 
@@ -139,6 +156,7 @@ export async function runAssistant(
     mode: input.mode,
     includeMcpTools: false,
     maxSteps,
+    temperature: effortParams.temperature,
     allowedTools: [...assistant.allowedTools],
   })
 
