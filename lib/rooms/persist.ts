@@ -302,6 +302,34 @@ export async function getActorRoomRole(
   userId: string,
   email?: string | null
 ): Promise<RoomMemberRole | null> {
+  const {
+    isPersonalScopeId,
+    ownsPersonalScope,
+    isLegacySharedPersonalScope,
+  } = await import('@/lib/scopes/personal-desk')
+
+  // Private desks: only the owning user — workspace owner bypass does NOT apply.
+  if (isPersonalScopeId(scopeId)) {
+    if (isLegacySharedPersonalScope(scopeId)) return null
+    if (ownsPersonalScope(scopeId, userId)) return 'owner'
+    // Extra personal-* sessions: membership only (no org-owner bypass).
+    const { members } = await listRoomMembers(scopeId)
+    const byUser = members.find((m) => m.userId && m.userId === userId)
+    if (byUser?.role === 'owner') return 'owner'
+    if (
+      email &&
+      members.some(
+        (m) =>
+          m.email &&
+          m.email.toLowerCase() === email.toLowerCase() &&
+          m.role === 'owner'
+      )
+    ) {
+      return 'owner'
+    }
+    return null
+  }
+
   const { isWorkspaceOwnerEmail } = await import('@/lib/auth/roles')
   // Sole workspace owner always has room-owner powers (not every room member).
   if (isWorkspaceOwnerEmail(email)) return 'owner'
@@ -327,6 +355,15 @@ export async function assertRoomOwner(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    const role = await getActorRoomRole(scopeId, userId, email)
+    if (role === 'owner') return { ok: true }
+    return {
+      ok: false,
+      error: 'مساحتك الشخصية خاصة بك وحدك.',
+    }
+  }
   const { isWorkspaceOwnerEmail } = await import('@/lib/auth/roles')
   // Product owner email bypass — room-membership «owner» alone is separate.
   if (isWorkspaceOwnerEmail(email)) return { ok: true }
@@ -338,13 +375,45 @@ export async function assertRoomOwner(
   }
 }
 
-/** Demo scopes open to any real signed-in user (Buzz-style starter rooms). */
-export const DEMO_OPEN_SCOPES = new Set([
-  'shared-demo',
-  'shared-ops',
-  'personal-demo',
-  'personal-research',
-])
+/**
+ * Shared starter rooms open to any real signed-in user.
+ * Personal desks are NEVER open — they use per-user scope ids.
+ */
+export const DEMO_OPEN_SCOPES = new Set(['shared-demo', 'shared-ops'])
+
+/** Read / list room content (posts, files, memory, …). */
+export async function assertRoomCanAccess(
+  scopeId: string,
+  userId: string,
+  email?: string | null
+): Promise<{ ok: true; role: RoomMemberRole | null } | { ok: false; error: string }> {
+  const { isPersonalScopeId, isLegacySharedPersonalScope } = await import(
+    '@/lib/scopes/personal-desk'
+  )
+  if (isLegacySharedPersonalScope(scopeId)) {
+    return {
+      ok: false,
+      error:
+        'هذه المساحة القديمة لم تعد مشتركة — افتح «مساحتي الشخصية» الخاصة بحسابك.',
+    }
+  }
+  const role = await getActorRoomRole(scopeId, userId, email)
+  if (role) return { ok: true, role }
+  if (
+    !isPersonalScopeId(scopeId) &&
+    DEMO_OPEN_SCOPES.has(scopeId) &&
+    userId &&
+    userId !== 'local-owner'
+  ) {
+    return { ok: true, role: 'member' }
+  }
+  return {
+    ok: false,
+    error: isPersonalScopeId(scopeId)
+      ? 'مساحتك الشخصية خاصة بك وحدك — لا يمكن لعضو آخر فتحها.'
+      : 'لست عضواً في هذه الغرفة — اطلب دعوة من المالك.',
+  }
+}
 
 /** Canvas / content edits: owner, editor, member. */
 export async function assertRoomCanEdit(
@@ -352,7 +421,9 @@ export async function assertRoomCanEdit(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true; role: RoomMemberRole | null } | { ok: false; error: string }> {
-  const role = await getActorRoomRole(scopeId, userId, email)
+  const access = await assertRoomCanAccess(scopeId, userId, email)
+  if (!access.ok) return access
+  const role = access.role
   if (role === 'owner' || role === 'editor' || role === 'member') {
     return { ok: true, role }
   }
@@ -375,7 +446,9 @@ export async function assertRoomCanPost(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const role = await getActorRoomRole(scopeId, userId, email)
+  const access = await assertRoomCanAccess(scopeId, userId, email)
+  if (!access.ok) return access
+  const role = access.role
   if (
     role === 'owner' ||
     role === 'editor' ||

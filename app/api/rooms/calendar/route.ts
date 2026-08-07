@@ -18,15 +18,26 @@ export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
   const from = req.nextUrl.searchParams.get('from') || undefined
   const to = req.nextUrl.searchParams.get('to') || undefined
   const events = await listRoomCalendarEvents({ scopeId, from, to })
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
   return NextResponse.json({
     scopeId,
     count: events.length,
     events,
-    messageAr:
-      'تقويم الغرفة المشترك — للجميع وللوكيل. المصدر الرسمي لمواعيد الفريق؛ Google اختياري كنسخة خاصة لمن يفعّلها فقط.',
+    messageAr: isPersonalScopeId(scopeId)
+      ? 'تقويم مساحتك الشخصية — خاص بك وحدك، منفصل عن تقويم الفريق.'
+      : 'تقويم الغرفة المشترك — للجميع وللوكيل. المصدر الرسمي لمواعيد الفريق؛ Google اختياري كنسخة خاصة لمن يفعّلها فقط.',
   })
 }
 

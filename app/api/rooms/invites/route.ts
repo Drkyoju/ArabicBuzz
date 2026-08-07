@@ -16,6 +16,22 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
   const scopeId =
     new URL(req.url).searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error, invites: [] }, { status: 403 })
+  }
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    return Response.json({
+      invites: [],
+      messageAr: 'لا دعوات في المساحة الشخصية.',
+    })
+  }
   const result = await listRoomInvites(scopeId)
   return Response.json({
     invites: result.invites,
@@ -34,6 +50,16 @@ export async function POST(req: Request) {
     notifyChannels?: Array<'telegram' | 'whatsapp'>
   }
   const scopeId = body.scopeId || 'shared-demo'
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    return Response.json(
+      {
+        error:
+          'مساحتك الشخصية فردية — لا يمكن دعوة أعضاء إليها. استخدم غرفة الفريق للعمل المشترك.',
+      },
+      { status: 403 }
+    )
+  }
   const gate = await assertRoomOwner(scopeId, auth.user.id, auth.user.email)
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: 403 })

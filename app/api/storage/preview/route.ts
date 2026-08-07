@@ -26,6 +26,11 @@ function kindFrom(name: string, mime: string): string {
   )
     return 'docx'
   if (
+    m.startsWith('audio/') ||
+    /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(n)
+  )
+    return 'audio'
+  if (
     m.startsWith('text/') ||
     /\.(txt|md|markdown|json|csv|log)$/i.test(n)
   )
@@ -75,8 +80,8 @@ export async function GET(req: Request) {
     const kind = kindFrom(found.originalName, found.mimeType)
     const downloadPath = `/api/storage/file?id=${encodeURIComponent(found.id)}&scopeId=${encodeURIComponent(scopeId)}`
 
-    // Visual modes never need server-side extract/OCR — that was 502'ing Netlify (~40s).
-    if (kind === 'image' || kind === 'pdf') {
+    // Visual / audio modes never need server-side extract/OCR — that was 502'ing Netlify (~40s).
+    if (kind === 'image' || kind === 'pdf' || kind === 'audio') {
       return Response.json({
         ok: true,
         fileId: found.id,
@@ -89,7 +94,8 @@ export async function GET(req: Request) {
         extractMethod: null,
         charCount: 0,
         downloadPath,
-        previewMode: kind === 'image' ? 'image' : 'pdf',
+        previewMode:
+          kind === 'image' ? 'image' : kind === 'pdf' ? 'pdf' : 'audio',
       })
     }
 

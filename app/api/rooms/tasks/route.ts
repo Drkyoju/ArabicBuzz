@@ -15,12 +15,24 @@ export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
   const tasks = await listRoomTasks(scopeId)
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
   return NextResponse.json({
     scopeId,
     tasks,
     count: tasks.length,
-    messageAr: 'لوحة مهام الغرفة — مشتركة للجميع وللوكيل.',
+    messageAr: isPersonalScopeId(scopeId)
+      ? 'مهام مساحتك الشخصية — خاصة بك وحدك.'
+      : 'لوحة مهام الغرفة — مشتركة للجميع وللوكيل.',
   })
 }
 

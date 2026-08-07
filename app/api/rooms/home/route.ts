@@ -89,6 +89,15 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
   const yesterday = dayBounds(-1)
   const today = dayBounds(0)
   const tomorrow = dayBounds(1)

@@ -1,21 +1,18 @@
 /**
  * Shared team rooms store one agent roster for all members.
- * Personal desks stay per-user (same demo scope id across accounts).
+ * Personal desks (personal-u-* / personal-*) keep roster + history per user.
  */
 
-import { SCOPE_AGENT_IDS, type RoomAgent } from '@/lib/rooms/agents'
+import {
+  defaultAgentIdsForScope,
+  type RoomAgent,
+} from '@/lib/rooms/agents'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
-
-/** Personal desk ids — roster remains per signed-in user. */
-const PERSONAL_ROSTER_SCOPE_IDS = new Set([
-  'personal-demo',
-  'personal-research',
-])
+import { isPersonalScopeId } from '@/lib/scopes/personal-desk'
 
 export function usesSharedRoomRoster(scopeId: string): boolean {
   if (!scopeId) return false
-  if (PERSONAL_ROSTER_SCOPE_IDS.has(scopeId)) return false
-  if (scopeId.startsWith('personal-')) return false
+  if (isPersonalScopeId(scopeId)) return false
   return true
 }
 
@@ -34,7 +31,7 @@ export function exportScopeRosterSlice(
 ): AgentRosterPayload {
   const removed = full.removedFromScope?.[scopeId] || []
   const added = full.addedToScope?.[scopeId] || []
-  const base = SCOPE_AGENT_IDS[scopeId] || []
+  const base = defaultAgentIdsForScope(scopeId)
   const seated = new Set([
     ...base.filter((id) => !removed.includes(id)),
     ...added.filter((id) => !removed.includes(id)),

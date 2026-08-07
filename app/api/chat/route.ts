@@ -205,6 +205,15 @@ export async function POST(req: Request) {
 
     const model = getModel(modelId)
     const scopeId = body.scopeId || 'shared-demo'
+    const { assertRoomCanPost } = await import('@/lib/rooms/persist')
+    const roomGate = await assertRoomCanPost(
+      scopeId,
+      auth.user.id,
+      auth.user.email
+    )
+    if (!roomGate.ok) {
+      return Response.json({ error: roomGate.error }, { status: 403 })
+    }
     const rawPrompt = String(body.prompt || body.message || '').trim()
     const hasMessages = Array.isArray(body.messages) && body.messages.length > 0
 

@@ -53,6 +53,32 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+    if (isPersonalScopeId(scopeId)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          skipped: true,
+          personalOnly: true,
+          error:
+            'ملفات المساحة الشخصية لا تُرفع لعقل الشركة — تبقى خاصة بك وحدك.',
+          messageAr:
+            'حُفظ في مساحتك الشخصية فقط — لم يُشارك مع عقل الشركة ولا غرفة الفريق.',
+        },
+        { status: 200 }
+      )
+    }
+
+    const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+    const gate = await assertRoomCanAccess(
+      scopeId,
+      auth.user.id,
+      auth.user.email
+    )
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: 403 })
+    }
+
     const result = await uploadRoomFileToCompanyBrain({
       userId: auth.user.id,
       scopeId,

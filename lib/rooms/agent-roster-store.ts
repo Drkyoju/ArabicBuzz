@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware'
 import {
   BUILTIN_ROOM_AGENTS,
   SCOPE_AGENT_IDS,
+  defaultAgentIdsForScope,
   type AgentCollabMode,
   type RoomAgent,
 } from '@/lib/rooms/agents'
@@ -180,7 +181,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       },
 
       agentsForScope: (scopeId) => {
-        const base = SCOPE_AGENT_IDS[scopeId] || ['agent-desk']
+        const base = defaultAgentIdsForScope(scopeId)
         const removed = new Set(get().removedFromScope[scopeId] || [])
         const added = get().addedToScope[scopeId] || []
         const ids = [
@@ -442,7 +443,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           const removed = (s.removedFromScope[scopeId] || []).filter(
             (id) => id !== agentId
           )
-          const base = SCOPE_AGENT_IDS[scopeId] || []
+          const base = defaultAgentIdsForScope(scopeId)
           const added = [...(s.addedToScope[scopeId] || [])]
           if (!base.includes(agentId) && !added.includes(agentId)) {
             added.push(agentId)

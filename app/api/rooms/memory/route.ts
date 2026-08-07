@@ -12,6 +12,25 @@ export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
   const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 403 })
+  }
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    return NextResponse.json({
+      scopeId,
+      memories: [],
+      texts: [],
+      messageAr:
+        'ذاكرة المساحة الشخصية تُحفظ على جهازك فقط — ليست مشتركة مع الفريق.',
+    })
+  }
   const memories = await listRoomMemories(scopeId)
   return NextResponse.json({
     scopeId,

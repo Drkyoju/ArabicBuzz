@@ -4,7 +4,7 @@ import {
   requireSessionUser,
   isSyntheticUser,
 } from '@/lib/auth/session'
-import { insertRoomPost, assertRoomCanPost, getActorRoomRole, DEMO_OPEN_SCOPES } from '@/lib/rooms/persist'
+import { insertRoomPost, assertRoomCanPost } from '@/lib/rooms/persist'
 import {
   getTelegramLinkStatus,
   listTelegramFeed,
@@ -21,15 +21,8 @@ async function assertRoomCanRead(
   userId: string,
   email?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const role = await getActorRoomRole(scopeId, userId, email)
-  if (role) return { ok: true }
-  if (DEMO_OPEN_SCOPES.has(scopeId) && userId && userId !== 'local-owner') {
-    return { ok: true }
-  }
-  return {
-    ok: false,
-    error: 'لست عضواً في هذه الغرفة — اطلب دعوة من المالك.',
-  }
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  return assertRoomCanAccess(scopeId, userId, email)
 }
 
 /** List recent Telegram ↔ site mirror messages for the home window. */

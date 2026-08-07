@@ -26,7 +26,7 @@ type PreviewPayload = {
   truncated?: boolean
   charCount?: number
   downloadPath?: string
-  previewMode?: 'image' | 'pdf' | 'text' | 'binary'
+  previewMode?: 'image' | 'pdf' | 'text' | 'audio' | 'binary'
   error?: string
 }
 
@@ -86,12 +86,17 @@ export function FilePreviewPane({
       if (!cancelled) setMediaUrl(objectUrl)
     }
 
-    function guessVisualMode(): 'image' | 'pdf' | null {
+    function guessVisualMode(): 'image' | 'pdf' | 'audio' | null {
       const mime = (file!.mimeType || '').toLowerCase()
       const name = file!.name.toLowerCase()
       if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|tiff?)$/i.test(name))
         return 'image'
       if (mime.includes('pdf') || name.endsWith('.pdf')) return 'pdf'
+      if (
+        mime.startsWith('audio/') ||
+        /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(name)
+      )
+        return 'audio'
       return null
     }
 
@@ -149,7 +154,7 @@ export function FilePreviewPane({
         setPayload(meta)
 
         const mode = meta.previewMode || 'binary'
-        if (mode === 'image' || mode === 'pdf') {
+        if (mode === 'image' || mode === 'pdf' || mode === 'audio') {
           await loadBinary(meta.downloadPath)
         } else {
           setMediaUrl(null)
@@ -286,6 +291,18 @@ export function FilePreviewPane({
             src={mediaUrl}
             className="h-full min-h-[24rem] w-full rounded-md border border-ab-border bg-white"
           />
+        ) : mode === 'audio' && mediaUrl ? (
+          <div className="flex flex-col items-center gap-3 py-6">
+            <p className="text-sm text-ab-ink">رسالة صوتية / ملف صوتي</p>
+            <audio
+              controls
+              src={mediaUrl}
+              className="w-full max-w-md"
+              dir="ltr"
+            >
+              المتصفح لا يدعم تشغيل الصوت — استخدم التنزيل.
+            </audio>
+          </div>
         ) : mode === 'text' && payload?.text != null ? (
           <pre
             dir="auto"

@@ -20,6 +20,7 @@ import {
   fileFromDataTransfer,
   pickDeviceFile,
 } from '@/lib/files/pick-device-file'
+import { getBridgeDragData } from '@/lib/files/workspace-bridge'
 import { cn } from '@/lib/utils'
 
 type StoredFile = {
@@ -124,6 +125,14 @@ export function LocalUploadPanel({
   }
 
   async function syncToCompanyBrain(localFileId: string) {
+    if (scopeId.startsWith('personal-')) {
+      return {
+        ok: true as const,
+        needsGoogle: false as const,
+        message:
+          'حُفظ في مساحتك الشخصية فقط — لم يُشارك مع عقل الشركة ولا غرفة الفريق',
+      }
+    }
     try {
       const res = await fetch('/api/google/drive/brain/upload', {
         method: 'POST',
@@ -355,6 +364,18 @@ export function LocalUploadPanel({
     e.stopPropagation()
     setDragOver(false)
     if (busy) return
+    const bridge = getBridgeDragData(e.dataTransfer)
+    if (bridge) {
+      const payload: UploadedRoomFile = {
+        fileId: bridge.fileId,
+        name: bridge.name,
+        mimeType: bridge.mimeType,
+        scopeId: bridge.scopeId || scopeId,
+      }
+      onFileReady?.(payload)
+      setMessage(`أُرفق من تيليجرام: «${bridge.name}» — اكتب ثم أرسل`)
+      return
+    }
     const file = fileFromDataTransfer(e.dataTransfer)
     if (!file) {
       setMessage('لم يُعثر على ملف في السحب — جرّب ملفاً واحداً')

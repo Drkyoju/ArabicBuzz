@@ -13,6 +13,15 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error, artifacts: [] }, { status: 403 })
+  }
   if (url.searchParams.get('audit') === '1') {
     const audit = await listCanvasAudit(scopeId, 30)
     return Response.json({ audit: audit.rows, ok: audit.ok })

@@ -8,6 +8,10 @@ import {
 } from '@/lib/scopes/manager'
 import type { RoomPost, Scope, SharedScope } from '@/lib/scopes/types'
 import { DEFAULT_ROOM_SKILL_IDS } from '@/lib/skills/core-pack'
+import {
+  PERSONAL_DESK_COPY,
+  personalDeskScopeId,
+} from '@/lib/scopes/personal-desk'
 
 const SCOPES_STORAGE_KEY = 'ab-scopes-v1'
 
@@ -128,8 +132,10 @@ type WorkspaceState = {
   updatePost: (scopeId: string, postId: string, patch: Partial<RoomPost>) => void
   setPostsForScope: (scopeId: string, posts: RoomPost[]) => void
   mergePost: (post: RoomPost) => void
+  /** Ensure the signed-in user's private desk exists and return its scope id. */
+  ensurePersonalDesk: (userId: string) => string
   /** Create a fresh personal desk and activate it. Returns the new scope id. */
-  createPersonalDesk: (opts?: { nameAr?: string }) => string
+  createPersonalDesk: (opts?: { nameAr?: string; userId?: string }) => string
   /** One-click association room (مجلس / لجان / موظفين) from template. */
   createAssociationRoom: (opts?: { nameAr?: string }) => string
   /** Ensure a scope exists in the sidebar (invite / server sync). */
@@ -223,21 +229,77 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
     }),
 
+  ensurePersonalDesk: (userId) => {
+    const id = personalDeskScopeId(userId)
+    const existing = get().scopes.find((s) => s.id === id)
+    if (existing) {
+      if (isPersonalScope(existing) && existing.userId !== userId) {
+        set((state) => ({
+          scopes: state.scopes.map((s) =>
+            s.id === id && isPersonalScope(s)
+              ? { ...s, userId, nameAr: PERSONAL_DESK_COPY.nameAr }
+              : s
+          ),
+        }))
+      }
+      return id
+    }
+    const scope: Scope = {
+      id,
+      nameAr: PERSONAL_DESK_COPY.nameAr,
+      descriptionAr: PERSONAL_DESK_COPY.descriptionAr,
+      userId,
+      keychain: {},
+      privateMemory: [
+        'مساحتي الشخصية — خاصة بك وحدك.',
+        'الوكلاء والمسودات والملفات هنا لا تظهر لغرفة الفريق ولا لزملائك.',
+        'اربط بريدك الشخصي من اللوحة أدناه — بريد الجمعية يبقى منفصلاً في الإعدادات.',
+      ],
+    }
+    set((state) => {
+      const scopes = mergeScopesWithDemos([scope, ...state.scopes])
+      persistScopes(scopes)
+      return {
+        scopes,
+        postsByScope: {
+          ...state.postsByScope,
+          [id]: state.postsByScope[id] || [
+            {
+              id: `welcome-${id}`,
+              scopeId: id,
+              authorKind: 'system',
+              authorId: 'system-personal',
+              authorNameAr: 'النظام',
+              content:
+                'مرحباً في مساحتك الشخصية — خاصة بك وحدك. استخدم كل الوكلاء بحرية؛ لا يرى أحد محادثاتك أو ملفاتك هنا. اربط بريدك الشخصي عند الحاجة.',
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      }
+    })
+    return id
+  },
+
   createPersonalDesk: (opts) => {
     const n =
       get().scopes.filter((s) => 'userId' in s && s.id.startsWith('personal-'))
         .length + 1
-    const id = `personal-${Date.now().toString(36)}`
+    const ownerId = String(opts?.userId || '').trim()
+    const id = ownerId
+      ? `personal-u-${ownerId.replace(/[^a-zA-Z0-9_-]/g, '')}-x-${Date.now().toString(36)}`
+      : `personal-${Date.now().toString(36)}`
     const nameAr = opts?.nameAr?.trim() || `جلسة ${n}`
     const scope: Scope = {
       id,
       nameAr,
-      descriptionAr: 'مساحة شخصية جديدة — مهام وملفات وذاكرة خاصة بك.',
-      userId: 'user-1',
+      descriptionAr:
+        'جلسة شخصية إضافية — خاصة بك وحدك، منفصلة عن غرفة الفريق.',
+      userId: ownerId || 'user-1',
       keychain: {},
       privateMemory: [
-        'مساحة شخصية جديدة أنشأها المستخدم من «جلسة جديدة».',
-        'ارفع ملفاً من جهازك — يُحفظ في الغرفة ويُزامن مع عقل الشركة (Drive).',
+        'جلسة شخصية خاصة — لا تُشارك مع الفريق تلقائياً.',
+        'ارفع ملفاً من جهازك — يبقى في مساحتك الخاصة (لا يُرفع لعقل الشركة).',
       ],
     }
     set((state) => {
@@ -256,7 +318,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
               authorId: 'agent-desk',
               authorNameAr: 'الوكيل الشخصي',
               content:
-                'جلسة جديدة جاهزة. ارفع ملفاً من جهازك (📎) واكتب طلب التعديل — الملف يُحفظ في الغرفة ويظهر زر التنزيل بعد التعديل.',
+                'جلسة جديدة جاهزة وخاصة بك. ارفع ملفاً من جهازك (📎) واكتب طلبك — الملف يبقى هنا ولا يُشارك مع غرفة الفريق.',
               createdAt: Date.now(),
             },
           ],
@@ -380,12 +442,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           scopes = [
             {
               id,
-              nameAr: r.nameAr?.trim() || guessRoomName(id),
-              descriptionAr: 'جلسة شخصية مزامَنة من حسابك.',
+              nameAr:
+                r.nameAr?.trim() ||
+                (id.startsWith('personal-u-')
+                  ? PERSONAL_DESK_COPY.nameAr
+                  : guessRoomName(id)),
+              descriptionAr: PERSONAL_DESK_COPY.descriptionAr,
               userId: 'user-1',
               keychain: {},
               privateMemory: [
-                'جلسة مزامَنة — ارفع ملفاً من جهازك واطلب التعديل.',
+                'مساحة شخصية خاصة بك وحدك — منفصلة عن غرفة الفريق.',
               ],
             },
             ...scopes,

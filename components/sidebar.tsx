@@ -35,8 +35,6 @@ import { isPersonalScope, isSharedScope } from '@/lib/scopes/manager'
 import {
   HIDDEN_DEMO_SCOPE_IDS,
   PRIMARY_TEAM_SCOPE_ID,
-  isPinnedSidebarScope,
-  personalDeskScopeId,
   shouldRedirectLegacyPersonalDesk,
   shouldRedirectToPrimary,
 } from '@/lib/scopes/primary-room'
@@ -138,6 +136,15 @@ function SidebarBody({
     let cancelled = false
     void (async () => {
       try {
+        const { getBrowserSession } = await import('@/lib/supabase/browser')
+        const session = await getBrowserSession()
+        const uid = session?.user?.id
+        if (!uid || cancelled) return
+        const deskId = ensurePersonalDesk(uid)
+        if (cancelled) return
+        setPersonalDeskId(deskId)
+        const legacy = shouldRedirectLegacyPersonalDesk(activeScopeId, uid)
+        if (legacy) setActiveScopeId(legacy)
         const res = await fetch('/api/rooms/mine', {
           headers: await authHeaders(),
         })
@@ -148,6 +155,11 @@ function SidebarBody({
             nameAr?: string
             kind?: 'personal' | 'shared'
           }[]
+          personalDeskScopeId?: string
+        }
+        if (data.personalDeskScopeId) {
+          ensurePersonalDesk(uid)
+          setPersonalDeskId(data.personalDeskScopeId)
         }
         if (data.rooms?.length) {
           useWorkspaceStore.getState().syncRemoteRooms(data.rooms)
@@ -159,7 +171,21 @@ function SidebarBody({
     return () => {
       cancelled = true
     }
-  }, [signedIn])
+  }, [signedIn, ensurePersonalDesk, setActiveScopeId])
+
+  // Keep legacy personal-demo → private desk when scope changes
+  useEffect(() => {
+    if (signedIn !== true || !personalDeskId) return
+    if (
+      activeScopeId === 'personal-demo' ||
+      shouldRedirectLegacyPersonalDesk(activeScopeId, personalDeskId.replace(/^personal-u-/, ''))
+    ) {
+      // personalDeskId is already the target
+      if (activeScopeId === 'personal-demo') {
+        setActiveScopeId(personalDeskId)
+      }
+    }
+  }, [activeScopeId, personalDeskId, setActiveScopeId, signedIn])
 
   useEffect(() => {
     let cancelled = false
@@ -232,20 +258,29 @@ function SidebarBody({
     () => scopes.find((s) => s.id === PRIMARY_TEAM_SCOPE_ID && !s.archived),
     [scopes]
   )
-  const personalDesk = useMemo(
-    () => scopes.find((s) => s.id === PERSONAL_DESK_SCOPE_ID && !s.archived),
-    [scopes]
-  )
+  const personalDesk = useMemo(() => {
+    const id = personalDeskId
+    if (id) {
+      return scopes.find((s) => s.id === id && !s.archived)
+    }
+    return scopes.find(
+      (s) => s.id.startsWith('personal-u-') && !s.archived
+    )
+  }, [scopes, personalDeskId])
+  const deskScopeId = personalDesk?.id || personalDeskId
   /** Invite / custom rooms only — hide clutter demo cards. */
   const otherRooms = useMemo(
     () =>
       scopes.filter(
         (s) =>
           !s.archived &&
-          !isPinnedSidebarScope(s.id) &&
-          !HIDDEN_DEMO_SCOPE_IDS.has(s.id)
+          s.id !== PRIMARY_TEAM_SCOPE_ID &&
+          s.id !== deskScopeId &&
+          s.id !== 'personal-demo' &&
+          !HIDDEN_DEMO_SCOPE_IDS.has(s.id) &&
+          !(deskScopeId && s.id === deskScopeId)
       ),
-    [scopes]
+    [scopes, deskScopeId]
   )
   const [menuId, setMenuId] = useState<string | null>(null)
   const [showOtherRooms, setShowOtherRooms] = useState(false)
@@ -439,7 +474,7 @@ function SidebarBody({
           </li>
         </ul>
 
-        {personalDesk && (
+        {personalDesk && deskScopeId && (
           <>
             <p className="mb-1 flex items-center gap-1 px-2 text-[10px] font-semibold text-stone-400">
               <User className="h-3 w-3" aria-hidden />
@@ -450,31 +485,31 @@ function SidebarBody({
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveScopeId(PERSONAL_DESK_SCOPE_ID)
+                    setActiveScopeId(deskScopeId)
                     onSectionChange?.('chats')
                     onNavigate?.()
                   }}
                   className={cn(
                     'w-full rounded-md px-2.5 py-1.5 text-right text-[13px] transition-colors',
                     activeSection === 'chats' &&
-                      activeScopeId === PERSONAL_DESK_SCOPE_ID
+                      activeScopeId === deskScopeId
                       ? 'bg-ab-ink text-white'
                       : 'text-ab-ink hover:bg-stone-100'
                   )}
                 >
                   <span className="block font-medium">
-                    {personalDesk.nameAr}
+                    {personalDesk.nameAr || PERSONAL_DESK_COPY.nameAr}
                   </span>
                   <span
                     className={cn(
                       'mt-0.5 block text-[10px] leading-snug',
                       activeSection === 'chats' &&
-                        activeScopeId === PERSONAL_DESK_SCOPE_ID
+                        activeScopeId === deskScopeId
                         ? 'text-white/70'
                         : 'text-stone-400'
                     )}
                   >
-                    مسوداتك الخاصة قبل مشاركة الفريق
+                    {PERSONAL_DESK_COPY.sidebarHintAr}
                   </span>
                 </button>
                 <button
@@ -484,16 +519,14 @@ function SidebarBody({
                   onClick={(e) => {
                     e.stopPropagation()
                     setMenuId((v) =>
-                      v === PERSONAL_DESK_SCOPE_ID
-                        ? null
-                        : PERSONAL_DESK_SCOPE_ID
+                      v === deskScopeId ? null : deskScopeId
                     )
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
                 </button>
-                {menuId === PERSONAL_DESK_SCOPE_ID && (
+                {menuId === deskScopeId && (
                   <div
                     ref={menuRef}
                     className="absolute start-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
@@ -506,7 +539,7 @@ function SidebarBody({
                           'اسم المساحة',
                           personalDesk.nameAr
                         )
-                        if (name) renameScope(PERSONAL_DESK_SCOPE_ID, name)
+                        if (name) renameScope(deskScopeId, name)
                         setMenuId(null)
                       }}
                     >

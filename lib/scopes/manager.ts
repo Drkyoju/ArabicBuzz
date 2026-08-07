@@ -24,7 +24,7 @@ export function resolveActiveScope(opts: {
     throw new Error('النطاق المطلوب غير موجود')
   }
   if (isPersonalScope(scope)) {
-    // Demo desks: any signed-in user uses the personal room as their own.
+    // Private desk: only this userId — content must never leak to team room.
     return {
       kind: 'personal',
       scope: { ...scope, userId: opts.userId },
@@ -65,17 +65,19 @@ export function scopeKind(scope: Scope): 'personal' | 'shared' {
   return isPersonalScope(scope) ? 'personal' : 'shared'
 }
 
-/** Demo scopes — personal desks + shared rooms (qm / Buzz style). */
+/** Demo scopes — legacy templates; live personal desk is personal-u-{userId}. */
 export const DEMO_SCOPES: Scope[] = [
   {
     id: 'personal-demo',
     nameAr: 'مساحتي الشخصية',
-    descriptionAr: 'مسوداتك وملفاتك الخاصة — قبل مشاركة الفريق.',
+    descriptionAr:
+      'مساحتي الشخصية — خاصة بك وحدك. الرسائل والملفات والوكلاء لا تظهر لغرفة الفريق.',
     userId: 'user-1',
     keychain: {},
     privateMemory: [
       'يفضل المستخدم التقارير بالعربية الفصحى.',
       'أوقات العمل: الأحد–الخميس، توقيت الرياض.',
+      'هذه مساحة خاصة — لا تُشارك مع غرفة الفريق تلقائياً.',
     ],
   },
   {

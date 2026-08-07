@@ -32,6 +32,16 @@ export async function GET(req: Request) {
     return Response.json({ error: 'id مطلوب' }, { status: 400 })
   }
 
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error }, { status: 403 })
+  }
+
   try {
     if (macSyncConfigured()) {
       try {

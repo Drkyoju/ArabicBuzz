@@ -16,6 +16,25 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
   const scopeId =
     new URL(req.url).searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error, members: [] }, { status: 403 })
+  }
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    return Response.json({
+      members: [],
+      myRole: 'owner',
+      canManage: false,
+      source: 'personal',
+      messageAr: 'مساحتك الشخصية فردية — لا أعضاء ولا دعوات.',
+    })
+  }
   const result = await listRoomMembers(scopeId)
   const myRole = await getActorRoomRole(
     scopeId,
@@ -60,6 +79,16 @@ export async function POST(req: Request) {
     role?: 'member' | 'editor' | 'viewer' | 'guest'
   }
   const scopeId = body.scopeId || 'shared-demo'
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  if (isPersonalScopeId(scopeId)) {
+    return Response.json(
+      {
+        error:
+          'مساحتك الشخصية فردية — لا أعضاء إضافيين. للعمل مع الزملاء استخدم غرفة الفريق.',
+      },
+      { status: 403 }
+    )
+  }
   const gate = await assertRoomOwner(scopeId, auth.user.id, auth.user.email)
   if (!gate.ok) {
     return Response.json({ error: gate.error }, { status: 403 })

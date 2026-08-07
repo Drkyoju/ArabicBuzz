@@ -11,6 +11,8 @@ import {
   Eye,
   FileText,
   Gavel,
+  Image as ImageIcon,
+  Mic,
   Send,
   Sparkles,
   User,
@@ -18,40 +20,54 @@ import {
 import { QualityFlagBanner } from '@/components/quality-flag-banner'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
-import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useFilePreviewStore } from '@/lib/files/preview-store'
+import {
+  parseFileMarkersFromText,
+  sendWorkspaceFileToTelegram,
+  setBridgeDragData,
+  type BridgeFilePayload,
+} from '@/lib/files/workspace-bridge'
 import type { RoomFileAttachment, RoomPost } from '@/lib/scopes/types'
 import { cn } from '@/lib/utils'
 import { looksLikeDecisionOrMinutes } from '@/lib/rooms/item-acks'
 import { FileEditedBadge } from '@/components/file-edited-badge'
 
-function parseFileMarkers(content: string, scopeId: string): RoomFileAttachment[] {
-  const out: RoomFileAttachment[] = []
-  const re = /📎\s*ملف جاهز للتنزيل:\s*(.+?)\s*\(id:([^\)]+)\)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(content))) {
-    out.push({
-      name: m[1].trim(),
-      fileId: m[2].trim(),
-      scopeId,
-    })
+function attachmentKind(a: RoomFileAttachment): 'voice' | 'image' | 'file' {
+  const mime = (a.mimeType || '').toLowerCase()
+  const name = (a.name || '').toLowerCase()
+  if (
+    mime.startsWith('audio/') ||
+    /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(name)
+  ) {
+    return 'voice'
   }
-  return out
+  if (
+    mime.startsWith('image/') ||
+    /\.(png|jpe?g|gif|webp|tiff?)$/i.test(name)
+  ) {
+    return 'image'
+  }
+  return 'file'
+}
+
+function toBridge(a: RoomFileAttachment): BridgeFilePayload {
+  const kind = attachmentKind(a)
+  return {
+    fileId: a.fileId,
+    name: a.name,
+    mimeType: a.mimeType,
+    scopeId: a.scopeId,
+    kind: kind === 'voice' ? 'voice' : a.edited ? 'edited' : 'file',
+    edited: a.edited,
+  }
 }
 
 async function shareAttachmentTelegram(a: RoomFileAttachment) {
-  const res = await fetch('/api/rooms/outbound-file', {
-    method: 'POST',
-    headers: await authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({
-      scopeId: a.scopeId,
-      fileId: a.fileId,
-      channel: 'telegram',
-      captionAr: `ملف من الغرفة: ${a.name}`,
-    }),
-  })
-  const data = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) throw new Error(data.error || `تعذّر الإرسال (${res.status})`)
+  const sent = await sendWorkspaceFileToTelegram(
+    toBridge(a),
+    `من الغرفة: ${a.name}`
+  )
+  if (!sent.ok) throw new Error(sent.error || 'تعذّر الإرسال')
 }
 
 async function downloadAttachment(a: RoomFileAttachment) {
@@ -73,6 +89,165 @@ async function downloadAttachment(a: RoomFileAttachment) {
   el.click()
   el.remove()
   URL.revokeObjectURL(url)
+}
+
+function RoomMediaChip({
+  attachment,
+  busyId,
+  onBusy,
+  onError,
+}: {
+  attachment: RoomFileAttachment
+  busyId: string | null
+  onBusy: (id: string | null) => void
+  onError: (msg: string) => void
+}) {
+  const openPreview = useFilePreviewStore((s) => s.openPreview)
+  const kind = attachmentKind(attachment)
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (kind !== 'voice' && kind !== 'image') return
+    let cancelled = false
+    let objectUrl: string | null = null
+    void (async () => {
+      try {
+        const path =
+          attachment.downloadPath ||
+          `/api/storage/file?id=${encodeURIComponent(attachment.fileId)}&scopeId=${encodeURIComponent(attachment.scopeId)}`
+        const res = await fetch(path, { headers: await authHeaders() })
+        if (!res.ok || cancelled) return
+        const blob = await res.blob()
+        objectUrl = URL.createObjectURL(blob)
+        if (!cancelled) setMediaUrl(objectUrl)
+      } catch {
+        /* preview optional */
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [
+    attachment.downloadPath,
+    attachment.fileId,
+    attachment.scopeId,
+    kind,
+  ])
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        setBridgeDragData(e.dataTransfer, toBridge(attachment))
+      }}
+      title="اسحب إلى لوحة تيليجرام لإرساله للمجموعة"
+      className="flex max-w-full flex-col gap-1.5 rounded-lg border border-ab-accent/25 bg-white px-2 py-1.5 shadow-sm"
+    >
+      <div className="flex flex-wrap items-center gap-1.5" dir="ltr">
+        {kind === 'voice' ? (
+          <Mic className="h-3.5 w-3.5 shrink-0 text-ab-accent" aria-hidden />
+        ) : kind === 'image' ? (
+          <ImageIcon
+            className="h-3.5 w-3.5 shrink-0 text-ab-accent"
+            aria-hidden
+          />
+        ) : (
+          <FileText
+            className="h-3.5 w-3.5 shrink-0 text-ab-accent"
+            aria-hidden
+          />
+        )}
+        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-ab-ink">
+          {attachment.name}
+        </span>
+        <FileEditedBadge show={Boolean(attachment.edited)} />
+      </div>
+
+      {kind === 'image' && mediaUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={mediaUrl}
+          alt={attachment.name}
+          className="max-h-40 w-auto max-w-full cursor-pointer rounded-md border border-ab-border object-contain"
+          onClick={() =>
+            openPreview({
+              fileId: attachment.fileId,
+              scopeId: attachment.scopeId,
+              name: attachment.name,
+              mimeType: attachment.mimeType || 'image/*',
+            })
+          }
+        />
+      ) : null}
+
+      {kind === 'voice' && mediaUrl ? (
+        <audio controls src={mediaUrl} className="w-full max-w-xs" dir="ltr">
+          تشغيل الصوت غير متاح — استخدم التنزيل
+        </audio>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-1" dir="rtl">
+        <button
+          type="button"
+          title="معاينة في الغرفة"
+          onClick={() =>
+            openPreview({
+              fileId: attachment.fileId,
+              scopeId: attachment.scopeId,
+              name: attachment.name,
+              mimeType:
+                attachment.mimeType ||
+                (kind === 'voice'
+                  ? 'audio/ogg'
+                  : kind === 'image'
+                    ? 'image/*'
+                    : undefined),
+            })
+          }
+          className="inline-flex items-center gap-1 rounded-md border border-ab-accent/30 bg-ab-accent/5 px-1.5 py-0.5 text-[10px] font-medium text-ab-accent hover:bg-ab-accent/10"
+        >
+          <Eye className="h-3 w-3" aria-hidden />
+          فتح
+        </button>
+        <button
+          type="button"
+          disabled={busyId === attachment.fileId}
+          onClick={() => {
+            onError('')
+            onBusy(attachment.fileId)
+            void downloadAttachment(attachment)
+              .catch((e) =>
+                onError(e instanceof Error ? e.message : 'فشل التنزيل')
+              )
+              .finally(() => onBusy(null))
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+        >
+          <Download className="h-3 w-3" aria-hidden />
+          {busyId === attachment.fileId ? '…' : 'تنزيل'}
+        </button>
+        <button
+          type="button"
+          disabled={busyId === `tg-${attachment.fileId}`}
+          title="إرسال لتيليجرام"
+          onClick={() => {
+            onError('')
+            onBusy(`tg-${attachment.fileId}`)
+            void shareAttachmentTelegram(attachment)
+              .catch((e) =>
+                onError(e instanceof Error ? e.message : 'فشل الإرسال')
+              )
+              .finally(() => onBusy(null))
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-60"
+        >
+          <Send className="h-3 w-3" aria-hidden />
+          تيليجرام
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function LtrData({ children }: { children: React.ReactNode }) {
@@ -118,10 +293,6 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const isAgent = post.authorKind === 'agent'
   const isChannel =
     post.authorKind === 'channel' || post.authorKind === 'system'
-  const openPreview = useFilePreviewStore((s) => s.openPreview)
-  const canManageSkills = useWorkspaceModeStore(
-    (s) => s.canAccessOpsUi && s.mode === 'admin'
-  )
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [memNote, setMemNote] = useState('')
@@ -222,18 +393,30 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
 
   const attachments = (() => {
     const fromPost = post.attachments || []
-    const fromText = parseFileMarkers(post.content || '', post.scopeId)
+    const fromText = parseFileMarkersFromText(
+      post.content || '',
+      post.scopeId
+    ).map(
+      (p): RoomFileAttachment => ({
+        fileId: p.fileId,
+        name: p.name,
+        mimeType: p.mimeType,
+        scopeId: p.scopeId,
+        edited: p.edited,
+      })
+    )
     const map = new Map<string, RoomFileAttachment>()
     for (const a of [...fromPost, ...fromText]) {
-      if (a.fileId) map.set(a.fileId, a)
+      if (a.fileId) map.set(a.fileId, { ...map.get(a.fileId), ...a })
     }
     return [...map.values()]
   })()
 
   return (
     <article
+      id={`room-post-${post.id}`}
       className={cn(
-        'mb-3 px-1 py-1.5',
+        'mb-3 scroll-mt-24 px-1 py-1.5',
         isAgent
           ? 'border-e-2 border-ab-accent/40 pe-2.5'
           : isChannel
@@ -325,28 +508,28 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         <div className="mt-2 space-y-1" dir="rtl">
           <p className="text-[10px] font-semibold text-stone-500">المصادر</p>
           <div className="flex flex-wrap gap-1.5">
-          {post.citations.map((c, i) =>
-            c.url ? (
-              <a
-                key={`${c.labelAr}-${i}`}
-                href={c.url}
-                target="_blank"
-                rel="noreferrer"
-                title={c.excerpt || undefined}
-                className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent underline-offset-2 hover:underline"
-              >
-                <span className="truncate">{c.labelAr}</span>
-              </a>
-            ) : (
-              <span
-                key={`${c.labelAr}-${i}`}
-                title={c.excerpt || undefined}
-                className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent"
-              >
-                <span className="truncate">{c.labelAr}</span>
-              </span>
-            )
-          )}
+            {post.citations.map((c, i) =>
+              c.url ? (
+                <a
+                  key={`${c.labelAr}-${i}`}
+                  href={c.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={c.excerpt || undefined}
+                  className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent underline-offset-2 hover:underline"
+                >
+                  <span className="truncate">{c.labelAr}</span>
+                </a>
+              ) : (
+                <span
+                  key={`${c.labelAr}-${i}`}
+                  title={c.excerpt || undefined}
+                  className="inline-flex max-w-full items-center rounded-md border border-ab-accent/25 bg-ab-accent/5 px-2 py-0.5 text-[10px] font-medium text-ab-accent"
+                >
+                  <span className="truncate">{c.labelAr}</span>
+                </span>
+              )
+            )}
           </div>
         </div>
       )}
@@ -418,12 +601,13 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                 setMemBusy(true)
                 setMemNote('جاري الرفع إلى عقل الشركة…')
                 try {
-                  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-                  const file = new File(
-                    [text],
-                    `note-room-${stamp}.txt`,
-                    { type: 'text/plain;charset=utf-8' }
-                  )
+                  const stamp = new Date()
+                    .toISOString()
+                    .slice(0, 19)
+                    .replace(/[:T]/g, '-')
+                  const file = new File([text], `note-room-${stamp}.txt`, {
+                    type: 'text/plain;charset=utf-8',
+                  })
                   const body = new FormData()
                   body.append('scopeId', post.scopeId)
                   body.append('file', file)
@@ -441,10 +625,11 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                   const localFileId = upData.file?.id
                   if (!up.ok || !localFileId) {
                     throw new Error(
-                      upData.error || upData.messageAr || 'تعذّر حفظ الملف في الغرفة'
+                      upData.error ||
+                        upData.messageAr ||
+                        'تعذّر حفظ الملف في الغرفة'
                     )
                   }
-                  // Thin local cache so agents still see recent notes in-session.
                   useWorkspaceStore.getState().addMemory(post.scopeId, text)
                   const brain = await fetch('/api/google/drive/brain/upload', {
                     method: 'POST',
@@ -492,7 +677,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
             <BookmarkPlus className="h-3 w-3" />
             {memBusy ? 'جاري الحفظ…' : 'احفظ في عقل الشركة'}
           </button>
-          {canManageSkills && post.authorKind === 'agent' && (
+          {post.authorKind === 'agent' && (
             <button
               type="button"
               disabled={skillBusy}
@@ -501,11 +686,15 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
                   setSkillBusy(true)
                   setSkillNote('')
                   try {
-                    const posts = useWorkspaceStore
-                      .getState()
-                      .postsByScope[post.scopeId] || []
+                    const posts =
+                      useWorkspaceStore.getState().postsByScope[
+                        post.scopeId
+                      ] || []
                     const idx = posts.findIndex((p) => p.id === post.id)
-                    const windowPosts = posts.slice(Math.max(0, idx - 4), idx + 1)
+                    const windowPosts = posts.slice(
+                      Math.max(0, idx - 4),
+                      idx + 1
+                    )
                     const threadMessages = windowPosts
                       .filter(
                         (p) =>
@@ -562,66 +751,15 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         </div>
       ) : null}
       {attachments.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5" dir="rtl">
+        <div className="mt-2 flex flex-wrap gap-2" dir="rtl">
           {attachments.map((a) => (
-            <span key={a.fileId} className="inline-flex items-center gap-1">
-              <button
-                type="button"
-                dir="ltr"
-                title="معاينة جنب الشات"
-                onClick={() =>
-                  openPreview({
-                    fileId: a.fileId,
-                    scopeId: a.scopeId,
-                    name: a.name,
-                    mimeType: a.mimeType,
-                  })
-                }
-                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-ab-accent/30 bg-white px-2 py-1 text-[11px] font-medium text-ab-accent hover:bg-emerald-50"
-              >
-                <Eye className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">معاينة</span>
-              </button>
-              <button
-                type="button"
-                dir="ltr"
-                disabled={busyId === a.fileId}
-                onClick={() => {
-                  setDlError('')
-                  setBusyId(a.fileId)
-                  void downloadAttachment(a)
-                    .catch((e) =>
-                      setDlError(e instanceof Error ? e.message : 'فشل التنزيل')
-                    )
-                    .finally(() => setBusyId(null))
-                }}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-600/30 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-              >
-                <Download className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">
-                  {busyId === a.fileId ? 'جاري…' : a.name}
-                </span>
-              </button>
-              <FileEditedBadge show={Boolean(a.edited)} />
-              <button
-                type="button"
-                disabled={busyId === `tg-${a.fileId}`}
-                title="إرسال لتيليجرام"
-                onClick={() => {
-                  setDlError('')
-                  setBusyId(`tg-${a.fileId}`)
-                  void shareAttachmentTelegram(a)
-                    .then(() => setDlError(''))
-                    .catch((e) =>
-                      setDlError(e instanceof Error ? e.message : 'فشل الإرسال')
-                    )
-                    .finally(() => setBusyId(null))
-                }}
-                className="rounded-md border border-ab-border bg-white p-1.5 text-ab-accent hover:bg-stone-50 disabled:opacity-60"
-              >
-                <Send className="h-3 w-3" aria-hidden />
-              </button>
-            </span>
+            <RoomMediaChip
+              key={a.fileId}
+              attachment={a}
+              busyId={busyId}
+              onBusy={setBusyId}
+              onError={setDlError}
+            />
           ))}
         </div>
       )}

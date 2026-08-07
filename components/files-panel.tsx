@@ -7,6 +7,8 @@ import {
   Download,
   Eye,
   FileText,
+  MessageSquare,
+  Mic,
   Pencil,
   RefreshCw,
   Replace,
@@ -18,6 +20,7 @@ import { BrainPrivacyNote } from '@/components/brain-privacy-note'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
+import { parseFileMarkersFromText } from '@/lib/files/file-markers'
 import { isFileEdited, looksLikeEditedBackfill } from '@/lib/files/edited-status'
 import { FileEditedBadge } from '@/components/file-edited-badge'
 
@@ -56,8 +59,10 @@ export function FilesPanel() {
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const [postByFileId, setPostByFileId] = useState<Record<string, string>>({})
   const replaceRef = useRef<HTMLInputElement>(null)
   const replaceTargetId = useRef<string | null>(null)
+  const postsByScope = useWorkspaceStore((s) => s.postsByScope)
 
   const load = useCallback(async () => {
     if (signedIn !== true) {
@@ -100,10 +105,59 @@ export function FilesPanel() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    let cancelled = false
+    async function mapPosts() {
+      let posts = postsByScope[scopeId] || []
+      if (posts.length === 0 && signedIn === true) {
+        try {
+          const res = await fetch(
+            `/api/rooms/posts?scopeId=${encodeURIComponent(scopeId)}`,
+            { headers: await authHeaders() }
+          )
+          if (res.ok) {
+            const data = (await res.json()) as {
+              posts?: Array<{
+                id: string
+                content?: string
+                attachments?: Array<{ fileId: string }>
+              }>
+            }
+            posts = (data.posts || []) as typeof posts
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      for (const p of posts) {
+        const fromText = parseFileMarkersFromText(p.content || '', scopeId)
+        for (const a of fromText) {
+          if (a.fileId && !map[a.fileId]) map[a.fileId] = p.id
+        }
+        for (const a of p.attachments || []) {
+          if (a.fileId && !map[a.fileId]) map[a.fileId] = p.id
+        }
+      }
+      setPostByFileId(map)
+    }
+    void mapPosts()
+    return () => {
+      cancelled = true
+    }
+  }, [postsByScope, scopeId, signedIn])
+
   async function sendToBrain(f: ListedFile) {
     const fileId = f.id || ''
     if (!fileId) {
       setNote('معرّف الملف غير متاح — أعد الرفع ثم حاول.')
+      return
+    }
+    if (scopeId.startsWith('personal-')) {
+      setNote(
+        'ملفات المساحة الشخصية تبقى خاصة بك — لا تُرفع لعقل الشركة.'
+      )
       return
     }
     setBusyId(fileId)
@@ -278,15 +332,15 @@ export function FilesPanel() {
         : 'لا ملفات بعد — اسحب ملفاً هنا'
 
   const emptyHint =
-    'اسحب ملفاً إلى منطقة الرفع أعلاه (Word / Excel / PDF / صور) — يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة.'
+    'الأرشيف فارغ — ارفع من هنا أو من غرفة الفريق. كل الملفات والصوتيات تظهر هنا بلا ضجيج المحادثة.'
 
   const uploadHint =
-    'اسحب وأفلت أو اختر من جهازك. الملف يُحفظ في الغرفة ويُزامن تلقائياً مع عقل الشركة (Drive). يلزم ربط Google للمعرفة المشتركة.'
+    'أرشيف الملفات والصوت فقط (كل الأنواع) — بلا رسائل الشات. الاستخدام اليومي من غرفة الفريق؛ هنا عندما تضيع الملفات في ضجيج المحادثة. الرفع يُزامن مع عقل الشركة (Drive).'
 
   if (authPending) {
     return (
       <section className="ab-page-narrow" dir="rtl">
-        <h2 className="ab-title">ملفات الفريق · عقل الشركة</h2>
+        <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
         <p className="ab-section-pad text-sm text-ab-muted">
           جاري التحقق من الحساب…
         </p>
@@ -297,7 +351,7 @@ export function FilesPanel() {
   if (isGuest) {
     return (
       <section className="ab-page-narrow" dir="rtl">
-        <h2 className="ab-title">ملفات الفريق · عقل الشركة</h2>
+        <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-6 text-center">
           <p className="text-sm font-semibold text-ab-ink">
             سجّل الدخول لعرض ورفع ملفات الغرفة
@@ -327,9 +381,13 @@ export function FilesPanel() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="ab-title">ملفات الفريق · عقل الشركة</h2>
+          <h2 className="ab-title">ملفات الفريق · أرشيف</h2>
           <p className="ab-subtitle">
             {scope?.nameAr || scopeId} — {sourceLabel}
+          </p>
+          <p className="mt-1 max-w-xl text-[11px] leading-snug text-ab-muted">
+            قائمة الملفات والصوت المرفوعة من الغرفة — بلا محادثة. افتح/شغّل الملف
+            من غرفة الفريق مباشرة؛ استخدم هذا الأرشيف عندما يضيع المرفق وسط الرسائل.
           </p>
         </div>
         <button
@@ -412,6 +470,18 @@ export function FilesPanel() {
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-1.5">
+                    {(f.mimeType || '').startsWith('audio/') ||
+                    /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(name) ? (
+                      <Mic
+                        className="h-3.5 w-3.5 shrink-0 text-ab-accent"
+                        aria-hidden
+                      />
+                    ) : (
+                      <FileText
+                        className="h-3.5 w-3.5 shrink-0 text-ab-accent/70"
+                        aria-hidden
+                      />
+                    )}
                     <p className="truncate text-sm font-medium text-ab-ink">
                       {name}
                     </p>
@@ -440,6 +510,27 @@ export function FilesPanel() {
                     <Eye className="h-3 w-3" />
                     معاينة
                   </button>
+                  {postByFileId[id] ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent('ab-nav', { detail: 'chats' })
+                        )
+                        window.dispatchEvent(
+                          new CustomEvent('ab-focus-room-post', {
+                            detail: { postId: postByFileId[id] },
+                          })
+                        )
+                      }}
+                      className="ab-btn-ghost !py-1 text-[11px]"
+                      title="الرسالة في غرفة الفريق"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      في الغرفة
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={!id || busy}

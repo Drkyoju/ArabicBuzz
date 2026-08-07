@@ -96,6 +96,15 @@ export async function GET(req: Request) {
   }
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
   try {
+    const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+    const gate = await assertRoomCanAccess(
+      scopeId,
+      auth.user.id,
+      auth.user.email
+    )
+    if (!gate.ok) {
+      return Response.json({ error: gate.error, files: [] }, { status: 403 })
+    }
     let files: unknown[] = []
     let source: 'local' | 'mac' | 'cloud' | 'none' = 'none'
     let listError: string | undefined
@@ -165,6 +174,15 @@ export async function POST(req: Request) {
     const form = await req.formData()
     const file = form.get('file')
     const scopeId = String(form.get('scopeId') || 'shared-demo')
+    const { assertRoomCanPost } = await import('@/lib/rooms/persist')
+    const gate = await assertRoomCanPost(
+      scopeId,
+      auth.user.id,
+      auth.user.email
+    )
+    if (!gate.ok) {
+      return Response.json({ error: gate.error }, { status: 403 })
+    }
     if (!(file instanceof File)) {
       return Response.json({ error: 'أرفق ملفاً (file).' }, { status: 400 })
     }
@@ -333,7 +351,10 @@ export async function POST(req: Request) {
         auth.user.email ||
         auth.user.user_metadata?.full_name ||
         'مستخدم',
-      content: `📎 تم حفظ ${kindAr}: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)\nالمعرّف: ${meta!.id}`,
+      content:
+        meta!.kind === 'audio'
+          ? `🎤 رسالة صوتية: ${meta!.originalName} (id:${meta!.id})\nتم حفظ ملاحظة صوتية (${Math.round(Number(meta!.size) / 1024)} ك.ب)`
+          : `📎 ملف جاهز للتنزيل: ${meta!.originalName} (id:${meta!.id})\nتم حفظ ${kindAr}: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)`,
     })
 
     return Response.json({

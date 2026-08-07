@@ -23,6 +23,15 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
   const url = new URL(req.url)
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+  const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
+  const gate = await assertRoomCanAccess(
+    scopeId,
+    auth.user.id,
+    auth.user.email
+  )
+  if (!gate.ok) {
+    return Response.json({ error: gate.error, posts: [] }, { status: 403 })
+  }
   const result = await listRoomPosts(scopeId)
   if (!result.ok) {
     return Response.json(

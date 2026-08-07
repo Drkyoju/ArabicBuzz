@@ -22,6 +22,22 @@ export function formatDownloadMarker(
   return `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`
 }
 
+function kindFromNameMime(
+  name: string,
+  mime?: string
+): BridgeFileKind {
+  const m = (mime || '').toLowerCase()
+  const n = name.toLowerCase()
+  if (
+    m.startsWith('audio/') ||
+    /\.(ogg|opus|webm|mp3|m4a|wav|aac)$/i.test(n) ||
+    /voice|صوت|ملاحظة صوتية/i.test(name)
+  ) {
+    return 'voice'
+  }
+  return 'file'
+}
+
 /** Parse download / voice markers and telegram ingest lines from mirrored text. */
 export function parseFileMarkersFromText(
   content: string,
@@ -33,7 +49,17 @@ export function parseFileMarkersFromText(
     const id = raw.fileId.trim()
     if (!id || seen.has(id)) return
     seen.add(id)
-    out.push({ ...raw, fileId: id, scopeId: raw.scopeId || scopeId })
+    const kind =
+      raw.kind || kindFromNameMime(raw.name, raw.mimeType)
+    out.push({
+      ...raw,
+      fileId: id,
+      scopeId: raw.scopeId || scopeId,
+      kind,
+      mimeType:
+        raw.mimeType ||
+        (kind === 'voice' ? 'audio/ogg' : undefined),
+    })
   }
 
   const reReady =
@@ -56,6 +82,48 @@ export function parseFileMarkersFromText(
       scopeId,
       kind: 'voice',
       mimeType: 'audio/ogg',
+    })
+  }
+
+  // Human composer attach: «مرفق للتعديل: «name» (id:…)»
+  const reAttach =
+    /(?:📎\s*)?مرفق للتعديل:\s*(?:«([^»]+)»|([^\n(]+?))\s*\(id:([^\)]+)\)/g
+  while ((m = reAttach.exec(content))) {
+    const name = (m[1] || m[2] || '').trim()
+    push({
+      name: name || `ملف-${m[3].trim().slice(0, 8)}`,
+      fileId: m[3].trim(),
+      scopeId,
+      kind: kindFromNameMime(name),
+    })
+  }
+
+  // Upload system line: تم حفظ …: «name» … المعرّف: id
+  const reSaved =
+    /تم حفظ\s+([^:]+):\s*«([^»]+)»[\s\S]{0,120}?المعرّف:\s*([a-zA-Z0-9_-]{8,})/g
+  while ((m = reSaved.exec(content))) {
+    const kindAr = m[1].trim()
+    const name = m[2].trim()
+    const voice =
+      /صوت|ملاحظة صوتية|audio/i.test(kindAr) ||
+      kindFromNameMime(name) === 'voice'
+    push({
+      name,
+      fileId: m[3].trim(),
+      scopeId,
+      kind: voice ? 'voice' : 'file',
+      mimeType: voice ? 'audio/ogg' : undefined,
+    })
+  }
+
+  // Bare «name» (id:…) or (id:…) after file emoji — catch remaining room lines
+  const reParenId = /«([^»]+)»\s*\(id:([a-zA-Z0-9_-]{8,})\)/g
+  while ((m = reParenId.exec(content))) {
+    push({
+      name: m[1].trim(),
+      fileId: m[2].trim(),
+      scopeId,
+      kind: kindFromNameMime(m[1].trim()),
     })
   }
 
