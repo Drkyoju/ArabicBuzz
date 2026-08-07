@@ -18,6 +18,10 @@ import {
 } from '@/lib/supabase/browser'
 import { isSharedScope } from '@/lib/scopes/manager'
 import {
+  PRIMARY_TEAM_SCOPE_ID,
+  shouldRedirectToPrimary,
+} from '@/lib/scopes/primary-room'
+import {
   hydrateScopeMemories,
   useWorkspaceStore,
 } from '@/lib/scopes/workspace-store'
@@ -301,8 +305,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
         // Old clutter demo rooms redirect to the primary team room.
         const scope = localStorage.getItem('ab-active-scope')
         if (scope) {
-          const { shouldRedirectToPrimary, PRIMARY_TEAM_SCOPE_ID } =
-            await import('@/lib/scopes/primary-room')
           if (shouldRedirectToPrimary(scope)) {
             setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
           } else {

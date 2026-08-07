@@ -1,6 +1,4 @@
 import { isCoreAutoSkill } from '@/lib/skills/core-pack'
-import fs from 'fs'
-import path from 'path'
 
 export interface KSASkillItem {
   id: string
@@ -45,26 +43,9 @@ ${opts.body}
 `
 }
 
-function loadShippedSkillMarkdown(skillId: string): string | null {
-  try {
-    const filePath = path.join(
-      process.cwd(),
-      'skills',
-      skillId,
-      'SKILL.md'
-    )
-    if (fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf8')
-  } catch {
-    /* ignore */
-  }
-  return null
-}
-
-function shippedOrInline(
-  skillId: string,
-  fallback: string
-): string {
-  return loadShippedSkillMarkdown(skillId) || fallback
+/** Catalog is client-safe — SKILL.md on disk is loaded server-side by the skills API. */
+function shippedOrInline(_skillId: string, fallback: string): string {
+  return fallback
 }
 
 export const KSA_SKILL_CATALOG: KSASkillItem[] = [

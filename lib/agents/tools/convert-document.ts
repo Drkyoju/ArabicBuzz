@@ -268,10 +268,6 @@ export async function executeConvertDocument(
     )
   }
 
-  if (engine === 'google' || engine === 'cloudconvert') {
-    // Forced engines already threw above; reach here only if free formats remain
-  }
-
   const extracted = await extractDocumentText({
     buffer: hit.buffer,
     filename: hit.meta.originalName,
