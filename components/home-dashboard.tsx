@@ -531,8 +531,8 @@ export function HomeDashboard({
             سجّل الدخول للعمل
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-amber-950/80">
-            بعد الدخول: مساعد العمل (بريد · تقويم · تيليجرام) من «المساعدون»،
-            ثم المواعيد والمهام والموافقات الحقيقية — بلا بيانات وهمية.
+            بعد الدخول: اكتب «وش تبي؟» من «المساعدون»، ثم المواعيد والمهام
+            والموافقات الحقيقية — بلا بيانات وهمية.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -547,7 +547,7 @@ export function HomeDashboard({
               onClick={() => onNavigate?.('assistants')}
               className="rounded-md border border-ab-border bg-white px-3 py-2 text-xs font-medium text-ab-ink"
             >
-              معاينة المساعدين
+              وش تبي؟
             </button>
           </div>
         </div>
@@ -592,7 +592,7 @@ export function HomeDashboard({
         </div>
       </header>
 
-      {/* مساعد العمل — highly visible entry (Energy-like) */}
+      {/* مساعد العمل — single composer entry */}
       <div className="rounded-2xl border-2 border-ab-accent/45 bg-gradient-to-l from-ab-accent/12 via-white to-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -602,68 +602,24 @@ export function HomeDashboard({
               </span>
               <div>
                 <h2 className="text-lg font-bold text-ab-ink sm:text-xl">
-                  مساعد العمل — بريد · تقويم · تيليجرام
+                  وش تبي؟
                 </h2>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-stone-600 sm:text-[13px]">
-                  كابتن اليوم يفرز الوارد ويجمع مواعيدك ويقترح ملخص تيليجرام —
-                  من الشريط الجانبي: «المساعدون».
+                  اكتب طلبك — بريد · تقويم · ملفات · تيليجرام. مهام متعددة تدخل
+                  الطابور وتعمل معاً حتى الحد.
                 </p>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  sessionStorage.setItem('ab-assistant-focus', 'day-captain')
-                } catch {
-                  /* ignore */
-                }
-                onNavigate?.('assistants')
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3.5 py-2 text-[12px] font-bold text-white"
-            >
-              <Compass className="h-3.5 w-3.5" aria-hidden />
-              كابتن اليوم
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate?.('assistants')}
-              className="rounded-lg border border-ab-border bg-white px-3.5 py-2 text-[12px] font-semibold text-ab-ink"
-            >
-              كل المساعدين
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('assistants')}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3.5 py-2 text-[12px] font-bold text-white"
+          >
+            <Compass className="h-3.5 w-3.5" aria-hidden />
+            افتح المساعدين
+          </button>
         </div>
-        <ul className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
-          {(
-            [
-              ['day-captain', 'كابتن اليوم'],
-              ['inbox-zero', 'صفر البريد'],
-              ['daily-brief', 'ملخص يومي'],
-              ['file-office', 'مكتب الملفات'],
-              ['telegram-captain', 'كابتن تيليجرام'],
-            ] as const
-          ).map(([id, label]) => (
-            <li key={id}>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    sessionStorage.setItem('ab-assistant-focus', id)
-                  } catch {
-                    /* ignore */
-                  }
-                  onNavigate?.('assistants')
-                }}
-                className="rounded-full border border-ab-border/80 bg-white/90 px-2.5 py-1 font-medium text-stone-700 hover:border-ab-accent hover:text-ab-accent"
-              >
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
       </div>
 
       {!authPending && <TelegramHomePanel />}

@@ -45,7 +45,7 @@ import {
 } from '@/lib/telegram/fast-path'
 import { claimTelegramUpdate } from '@/lib/telegram/update-dedupe'
 import {
-  matchAssistantByKeyword,
+  routeAssistantIntent,
   runAssistant,
 } from '@/lib/assistants'
 
@@ -545,14 +545,15 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
-  // نواة عامة: keyword → catalog assistant (system + allowed tools)
-  const assistantMatch =
-    !opts.forceHeavy ? matchAssistantByKeyword(opts.promptSource) : null
-  if (assistantMatch) {
+  // نواة عامة: free text → intent router (keyword/heuristic; not default chat)
+  const routed = !opts.forceHeavy
+    ? routeAssistantIntent(opts.promptSource)
+    : null
+  if (routed && routed.matchedBy !== 'default') {
     try {
       const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
       const run = await runAssistant({
-        assistantId: assistantMatch.id,
+        assistantId: routed.assistantId,
         message: opts.promptSource,
         scopeId,
         requesterId,

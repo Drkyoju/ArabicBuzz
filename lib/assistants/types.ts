@@ -72,3 +72,32 @@ export type AssistantRunResult = {
     messageAr: string
   }
 }
+
+export type AssistantJobStatus =
+  | 'waiting'
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'cancelled'
+
+/** Persisted queue item for the composer → worker pool. */
+export type AssistantJob = {
+  id: string
+  scopeId: string
+  userId: string
+  message: string
+  assistantId: AssistantId
+  assistantNameAr: string
+  matchedBy: string
+  status: AssistantJobStatus
+  resultText: string | null
+  usedTools: AssistantUsedTool[]
+  pendingApprovalIds: string[]
+  errorAr: string | null
+  etaSeconds: number
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  createdAt: string
+  updatedAt: string
+}

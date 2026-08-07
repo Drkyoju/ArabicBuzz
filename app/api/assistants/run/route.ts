@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser } from '@/lib/auth/session'
 import { runAssistant } from '@/lib/assistants/run'
 import { getAssistant } from '@/lib/assistants/catalog'
+import { routeAssistantIntent } from '@/lib/assistants/intent-router'
 import { parsePosture } from '@/lib/security/posture'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * POST { assistantId, message, scopeId?, securityPosture? }
- * Runs a one-shot Arabic assistant via the shared agent engine.
+ * POST { message, assistantId?, scopeId?, securityPosture? }
+ * One-shot run. If assistantId omitted, intent router picks the worker.
+ * Prefer /api/assistants/queue for multi-task UX.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireRealUser(req)
@@ -29,18 +31,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'جسم الطلب غير صالح' }, { status: 400 })
   }
 
-  const assistantId = String(body.assistantId || '').trim()
-  if (!assistantId || !getAssistant(assistantId)) {
-    return NextResponse.json(
-      { error: 'معرّف المساعد غير معروف' },
-      { status: 400 }
-    )
-  }
-
   const message = String(body.message || body.prompt || '').trim()
   if (!message) {
     return NextResponse.json(
       { error: 'اكتب النتيجة المطلوبة بالعربية' },
+      { status: 400 }
+    )
+  }
+
+  const explicit = String(body.assistantId || '').trim()
+  const routed = routeAssistantIntent(message, explicit || null)
+  const assistantId = routed.assistantId
+  if (!getAssistant(assistantId)) {
+    return NextResponse.json(
+      { error: 'معرّف المساعد غير معروف' },
       { status: 400 }
     )
   }
@@ -75,6 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       ...result,
+      matchedBy: routed.matchedBy,
       hasPendingApprovals: result.pendingApprovalIds.length > 0,
     })
   } catch (e) {
