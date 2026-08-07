@@ -16,6 +16,7 @@ import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
+import { isTestCalendarTitle } from '@/lib/rooms/calendar-test-noise'
 import { cn } from '@/lib/utils'
 
 type RoomEvent = {
@@ -424,6 +425,11 @@ export function RoomCalendarBoard({
           return (a.createdByAr || '').localeCompare(b.createdByAr || '', 'ar')
         }),
     [events]
+  )
+
+  const hasTestCalendarNoise = useMemo(
+    () => upcoming.some((e) => isTestCalendarTitle(e.titleAr)),
+    [upcoming]
   )
 
   /** اليوم + غداً فقط — لوحات كبيرة دائماً */
@@ -1157,7 +1163,7 @@ export function RoomCalendarBoard({
                 رتّب وكشّف التعارض
               </button>
             )}
-            {signedIn === true && canAccessOpsUi && (
+            {signedIn === true && canAccessOpsUi && hasTestCalendarNoise && (
               <button
                 type="button"
                 disabled={busy}

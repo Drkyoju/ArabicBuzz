@@ -61,8 +61,8 @@ const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'schedule', labelAr: 'تقويم الغرفة' },
   { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
-  { id: 'meetings', labelAr: 'محضر / Zoom' },
-  { id: 'external', labelAr: 'Google / Gmail' },
+  { id: 'meetings', labelAr: 'محضر الاجتماع' },
+  { id: 'external', labelAr: 'تقويم Google' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
@@ -214,7 +214,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [hitlDisabled, setHitlDisabled] = useState<boolean | null>(null)
   const [cronReloadToken, setCronReloadToken] = useState(0)
   const [showDevOps, setShowDevOps] = useState(false)
-  const [showSdaia, setShowSdaia] = useState(false)
   const calendarTabs = visibleCalendarTabs(signedIn, canAccessOpsUi)
 
   useEffect(() => {
@@ -911,21 +910,16 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   )}
                 </details>
 
-                <details
-                  className="rounded-xl border border-ab-border bg-ab-surface p-4"
-                  onToggle={(e) =>
-                    setShowSdaia((e.currentTarget as HTMLDetailsElement).open)
-                  }
+                <button
+                  type="button"
+                  onClick={() => setSection('audit')}
+                  className="mb-5 flex w-full items-center justify-between rounded-xl border border-ab-border bg-ab-surface px-4 py-3 text-right text-sm font-semibold text-ab-ink hover:bg-stone-50"
                 >
-                  <summary className="cursor-pointer text-sm font-semibold text-ab-ink">
-                    سجل العمل
-                  </summary>
-                  {showSdaia && (
-                    <div className="mt-3">
-                      <SdaiaAuditViewer />
-                    </div>
-                  )}
-                </details>
+                  <span>سجل العمل</span>
+                  <span className="text-[11px] font-normal text-stone-500">
+                    افتح السجل الكامل
+                  </span>
+                </button>
               </>
             )}
           </section>

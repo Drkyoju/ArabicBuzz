@@ -467,7 +467,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         </div>
       )}
 
-      {!configured && !showSettings && (
+      {!loading && !configured && !showSettings && (
         <p className="rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-6 text-center text-sm text-stone-600">
           لم يُربط بريد بعد.
           {isOwner

@@ -1700,12 +1700,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </Link>
               </div>
             )}
-            {!isGuest && (
-              <div className="mb-1.5 flex flex-wrap items-end gap-2 rounded-lg border border-ab-border/80 bg-white/80 px-2 py-1.5">
-                <ModelPicker compact scopeId={activeScopeId} />
-                <EffortPicker compact scopeId={activeScopeId} />
-              </div>
-            )}
             {!isGuest && !streaming && agentsWorking && (
               <div className="mb-1.5 flex flex-wrap gap-1.5">
                 <button
