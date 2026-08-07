@@ -1,7 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { createPerplexity } from '@ai-sdk/perplexity'
 import { IS_AIR_GAPPED_MODE, validateNetworkAccess } from '@/lib/security/airgap'
 import type { HarnessModelSlug } from '@/lib/ai/harness-catalog'
 import { resolveProviderKeySync } from '@/lib/ai/provider-key-store'
@@ -80,18 +79,8 @@ export function getCloudProviders() {
       },
       name: 'agentrouter',
     }),
-    /** TokenRouter OpenAI-compatible gateway (https://api.tokenrouter.com/v1). */
-    tokenrouter: createOpenAI({
-      apiKey: resolveProviderKeySync('TOKENROUTER_API_KEY'),
-      baseURL:
-        process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.com/v1',
-      name: 'tokenrouter',
-    }),
     google: createGoogleGenerativeAI({
       apiKey: resolveProviderKeySync('GEMINI_API_KEY'),
-    }),
-    perplexity: createPerplexity({
-      apiKey: resolveProviderKeySync('PERPLEXITY_API_KEY'),
     }),
     openaiCloud: createOpenAI({
       apiKey: resolveProviderKeySync('OPENAI_API_KEY'),
@@ -116,20 +105,9 @@ export function assertModelKeyConfigured(modelId: string) {
       label: 'Gemini',
     },
     {
-      match: (s) =>
-        s.startsWith('openai') || s === 'gpt-4o' || s === 'gpt-4o-mini',
-      env: 'OPENAI_API_KEY',
-      label: 'OpenAI',
-    },
-    {
       match: (s) => s.startsWith('glm') || s === 'glm',
       env: 'GLM_API_KEY',
       label: 'GLM',
-    },
-    {
-      match: (s) => s.startsWith('perplexity') || s.startsWith('sonar'),
-      env: 'PERPLEXITY_API_KEY',
-      label: 'Perplexity',
     },
     {
       match: (s) =>
@@ -140,28 +118,15 @@ export function assertModelKeyConfigured(modelId: string) {
       env: 'AGENTROUTER_API_KEY',
       label: 'AgentRouter',
     },
-    {
-      match: (s) =>
-        s === 'kimi-k3-free' ||
-        s === 'moonshotai/kimi-k3-free' ||
-        s.startsWith('tokenrouter'),
-      env: 'TOKENROUTER_API_KEY',
-      label: 'TokenRouter',
-    },
-    {
-      match: (s) =>
-        s.includes('/') ||
-        (s.startsWith('claude') &&
-          s !== 'claude-opus-4-8' &&
-          s !== 'claude-opus-5') ||
-        s.startsWith('deepseek') ||
-        s.startsWith('qwen') ||
-        s.startsWith('kimi') ||
-        s.startsWith('hermes'),
-      env: 'OPENROUTER_API_KEY',
-      label: 'OpenRouter',
-    },
   ]
+  if (
+    /kimi|tokenrouter|perplexity|^sonar/i.test(id) ||
+    id === 'moonshotai/kimi-k3-free'
+  ) {
+    throw new Error(
+      'هذا النموذج مُزال من الكتالوج. اختر Gemini أو GLM أو بوابة الوكلاء.'
+    )
+  }
   if (IS_AIR_GAPPED_MODE || id === 'ollama-local') return
   for (const c of checks) {
     if (!c.match(id)) continue
@@ -191,12 +156,6 @@ const AGENTROUTER_IDS: Record<string, string> = {
   'gpt-5.6': 'gpt-5.6-sol',
 }
 
-/** TokenRouter model ids (OpenAI-compatible `/v1/chat/completions`). */
-const TOKENROUTER_IDS: Record<string, string> = {
-  'moonshotai/kimi-k3-free': 'moonshotai/kimi-k3-free',
-  'kimi-k3-free': 'moonshotai/kimi-k3-free',
-}
-
 const OPENROUTER_IDS: Record<string, string> = {
   'claude-3.5-sonnet': 'anthropic/claude-3.5-sonnet',
   'claude-sonnet-4': 'anthropic/claude-sonnet-4',
@@ -204,7 +163,6 @@ const OPENROUTER_IDS: Record<string, string> = {
   'deepseek-r1': 'deepseek/deepseek-r1',
   'qwen-2.5-72b': 'qwen/qwen-2.5-72b-instruct',
   'qwen-2.5': 'qwen/qwen-2.5-72b-instruct',
-  'kimi-k2': 'moonshotai/kimi-k2',
   'hermes-3-405b': 'nousresearch/hermes-3-llama-3.1-405b',
   'hermes-2-pro-8b': 'nousresearch/hermes-2-pro-llama-3-8b',
   // Allow raw OpenRouter ids: "anthropic/claude-3.5-sonnet"
@@ -240,12 +198,6 @@ const OPENAI_IDS: Record<string, string> = {
   'gpt-4o-mini': 'gpt-4o-mini',
 }
 
-const PERPLEXITY_IDS: Record<string, string> = {
-  'perplexity-sonar': 'sonar',
-  sonar: 'sonar',
-  'sonar-pro': 'sonar-pro',
-}
-
 export class UnknownModelError extends Error {
   constructor(modelId: string) {
     super(`Unknown model id: ${modelId}`)
@@ -255,30 +207,19 @@ export class UnknownModelError extends Error {
 
 /**
  * Unified multi-model gateway.
- * Returns a Vercel AI SDK model instance for OpenRouter / Gemini / Perplexity / OpenAI / Ollama.
+ * Returns a Vercel AI SDK model instance for Gemini / GLM / AgentRouter / Ollama.
  */
 export function getModel(modelId: string) {
   const id = (modelId || process.env.DEFAULT_HARNESS_MODEL || 'gemini-3.1-pro').trim()
   assertModelKeyConfigured(id)
 
-  if (IS_AIR_GAPPED_MODE || id === 'ollama-local') {
+  if (IS_AIR_GAPPED_MODE || id === 'ollama-local' || id === 'deepseek-r1') {
     const ollama = createOllamaProvider()
     const localId =
       id === 'deepseek-r1'
         ? resolveAirGapModelId('deepseek-r1')
         : resolveAirGapModelId(id === 'ollama-local' ? undefined : id)
     return ollama(localId)
-  }
-
-  const tokenRouterId = TOKENROUTER_IDS[id]
-  if (tokenRouterId) {
-    return getCloudProviders().tokenrouter(tokenRouterId)
-  }
-
-  // Raw OpenRouter path: provider/model (after TokenRouter map)
-  if (id.includes('/') && !GOOGLE_IDS[id] && !OPENAI_IDS[id]) {
-    const { openrouter } = getCloudProviders()
-    return openrouter.chat(id)
   }
 
   const googleId = GOOGLE_IDS[id]
@@ -291,19 +232,20 @@ export function getModel(modelId: string) {
     return getCloudProviders().glm(glmId)
   }
 
-  const pplxId = PERPLEXITY_IDS[id]
-  if (pplxId) {
-    return getCloudProviders().perplexity(pplxId)
+  const agentRouterId = AGENTROUTER_IDS[id]
+  if (agentRouterId) {
+    return getCloudProviders().agentrouter(agentRouterId)
+  }
+
+  // Legacy OpenRouter / OpenAI ids — only if those retired keys still exist in env.
+  if (id.includes('/') && !GOOGLE_IDS[id] && !OPENAI_IDS[id]) {
+    const { openrouter } = getCloudProviders()
+    return openrouter.chat(id)
   }
 
   const openaiId = OPENAI_IDS[id]
   if (openaiId) {
     return getCloudProviders().openaiCloud(openaiId)
-  }
-
-  const agentRouterId = AGENTROUTER_IDS[id]
-  if (agentRouterId) {
-    return getCloudProviders().agentrouter(agentRouterId)
   }
 
   const orId = OPENROUTER_IDS[id]

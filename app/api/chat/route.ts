@@ -27,6 +27,10 @@ import { getNativeAiTools } from '@/lib/agents/engine'
 import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { scheduleOtelFlush } from '@/lib/observability/langfuse'
+import {
+  effortToRunParams,
+  parseRunEffort,
+} from '@/lib/ai/run-effort'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -39,22 +43,26 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
 - المواعيد: المصدر الرسمي هو تقويم الغرفة المشترك — room_calendar_list / room_calendar_create / room_calendar_ingest (يدمج تواريخ عدة أشخاص) / room_calendar_reconcile (ترتيب حسب التاريخ ومن أضاف + تنبيه تعارض نفس الوقت). Google (calendar_*) اختياري فقط لدعوات خارجية/Zoom/مسح البريد.
 - المهام والطلبات: لوحة الغرفة room_tasks_list / room_tasks_create / room_tasks_reconcile (يعيد الترتيب ويؤجّل المتأخر). لا تعتمد على قائمة محلية لشخص واحد.
 - الذاكرة المشتركة: room_memory_list / room_memory_add للغرفة كلها.
-- عقل الشركة = ملفات Google Drive. بحث: search_knowledge_base. فتح/تعديل ملف من العقل: brain_open_document → read/edit → brain_save_document (يعيد الملف لـ Drive ويفهرسه). إضافة ملف جديد للعقل: brain_create_document. حذف من Drive: brain_delete_document. زامن المجلد بـ drive_sync_brain عند الحاجة.
-- الملفات في الشات (إنشاء / تعديل / حذف / تحويل / تنزيل) — نفّذ دائماً وأعد الملف بزر تنزيل:
-  1) إنشاء: edit_document بدون fileId (format=docx|pdf|xlsx|pptx…) أو write_file للنص.
-  2) تعديل Word/PowerPoint/نص/PDF كامل: list_workspace_files → read_document → edit_document (يظهر زر تنزيل).
-  3) تعديل Excel خلايا مع الحفاظ على البنية: read_excel → edit_excel(cells) ثم أخبر المستخدم بالتنزيل.
-  4) PDF متقدم: pdf_create / pdf_stamp / pdf_merge / pdf_list_fields / pdf_fill_form.
-  5) صور: edit_image (تدوير/تحجيم/نص) أو generate_image_edit (توليدي Gemini) ثم تنزيل في الشات.
-  6) صورة فيها كتابة أو PDF ممسوح (نص غير قابل للنسخ) + طلب «اقرأ» / «ابحث عن…»: arabic_ocr(fileId، وsearchQuery عند البحث). يحفظ النص في ذاكرة الغرفة وملف .txt — لاحقاً memory_search. قرارات طويلة: read_decision_document.
-  7) تحويل PDF↔Word: convert_document.
-  8) إعادة إرسال ملف موجود في الشات: return_file.
-  9) حذف من الغرفة: delete_file. حذف من Drive: brain_delete_document.
-  10) Drive: brain_open_document → عدّل → brain_save_document. تعبئة تدقيق Excel: fill_policy_audit.
-  11) لتيليجرام/بريد: send_file. ملخص المدير: send_director_digest.
-- بحث اللوائح على الويب: web_search (مجاني بدون مفتاح؛ Brave اختياري) ثم web_fetch / ingest_url_to_brain (Jina Reader مجاني؛ Firecrawl اختياري).
-- تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa (HITL عبر browser-use/ماك). متصفح/سطح مكتب عبر Cua: cua_computer عند اتصال CUA_BRIDGE_URL فقط.
-- بريد Google: gmail_search ثم gmail_read (قراءة). الإرسال: gmail_send (HITL قبل الإرسال). جداول: sheets_read / sheets_write (الكتابة HITL).
+- مصادر الملفات (لا تقتصر على Drive):
+  أ) ملف مرفوع من جهاز المستخدم إلى الغرفة (سحابة الغرفة / خزنة) — list_workspace_files / fileId المرفق في الرسالة.
+  ب) مرفق ظاهر في الشات أو المعاينة — استخدم fileId مباشرة.
+  ج) عقل الشركة = Google Drive (اختياري إن رُبط): search_knowledge_base أو brain_open_document → عدّل → brain_save_document.
+  لا ترفض طلب تعديل لأن الملف «ليس في Drive» — اعمل على ملف الغرفة أولاً.
+- عند إرفاق ملف أو ذكر fileId أو طلب «عدّل / غيّر / صحّح / استبدل» — نفّذ الأدوات فوراً وأعد نسخة قابلة للتنزيل. ممنوع الاكتفاء بوصف التعديل دون ملف.
+- حلقة العمل الإلزامية للملفات:
+  1) Word/PDF/نص: read_document → edit_document (format=docx|pdf|txt…) → يظهر زر تنزيل. أو return_file إن لم يتغيّر المحتوى.
+  2) Excel (خلايا مع الحفاظ على البنية): read_excel → edit_excel(cells) → تنزيل.
+  3) Excel كامل كجداول جديدة: edit_document(format=xlsx, sheets=…).
+  4) PowerPoint: edit_document(format=pptx, slides=[…]) — إعادة بناء شرائح (عنوان+نقاط). قل بصراحة إن التعديل إعادة بناء نصية وليس تحرير تصميم/صور الشريحة الأصلي.
+  5) صور: edit_image أو generate_image_edit ثم تنزيل في الشات.
+  6) PDF متقدم: pdf_create / pdf_stamp / pdf_merge / pdf_fill_form. تحويل PDF↔Word: convert_document.
+  7) صورة/PDF ممسوح + «اقرأ/ابحث»: arabic_ocr. قرارات طويلة: read_decision_document.
+  8) إنشاء من الصفر: edit_document بدون fileId. إعادة إرسال: return_file. حذف من الغرفة: delete_file.
+  9) Drive اختياري: brain_open_document → عدّل → brain_save_document. تعبئة تدقيق: fill_policy_audit.
+  10) لتيليجرام/بريد: send_file.
+- بحث اللوائح على الويب: web_search ثم web_fetch / ingest_url_to_brain.
+- تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa. متصفح/سطح مكتب عبر Cua: cua_computer عند اتصال CUA_BRIDGE_URL فقط.
+- بريد Google: gmail_search ثم gmail_read. الإرسال: gmail_send (HITL). جداول: sheets_read / sheets_write (الكتابة HITL).
 - عند إنتاج مسودة للمستند أو كود طويل للوحة المخرجات، غلّفه بوسم واحد:
   <artifact type="markdown|code|json|diff|html" title="عنوان عربي">المحتوى</artifact>`
 
@@ -84,6 +92,11 @@ type ChatBody = {
   enableTools?: boolean
   /** Client-side scope memories for tools + prompt */
   scopeMemory?: string[]
+  /** Power / effort: LOW | MEDIUM | HIGH | MAX */
+  effort?: string
+  effortLevel?: string
+  maxSteps?: number
+  temperature?: number
 }
 
 type StreamTextResult = ReturnType<typeof streamText>
@@ -136,13 +149,32 @@ function scopeSystemBlock(
     return `\n\n${buildPromptContext(ctx)}`
   } catch {
     const scope = DEMO_SCOPES.find((s) => s.id === scopeId)
-    if (!scope) return ''
     const mem =
       clientMemory && clientMemory.length
         ? `\nذاكرة المساحة:\n${clientMemory.map((m) => `• ${m}`).join('\n')}`
         : ''
-    return `\n\nأنت في مساحة العمل «${scope.nameAr}». ابنِ على سياق الغرفة.${mem}`
+    const nameAr = scope?.nameAr || scopeId
+    return `\n\nأنت في مساحة العمل «${nameAr}». ابنِ على سياق الغرفة. ملفات الغرفة متاحة بـ list_workspace_files حتى لو لم تكن من Drive.${mem}`
   }
+}
+
+function attachedFilesBlock(
+  files?: { fileId: string; name?: string; mimeType?: string }[]
+): string {
+  if (!files?.length) return ''
+  const lines = files
+    .filter((f) => f?.fileId)
+    .map((f) => {
+      const name = f.name || f.fileId
+      const mime = f.mimeType ? ` (${f.mimeType})` : ''
+      return `• «${name}»${mime} — fileId=${f.fileId}`
+    })
+  if (!lines.length) return ''
+  return `
+
+ملفات مرفقة من جهاز المستخدم / معاينة الغرفة (ليست بالضرورة من Drive):
+${lines.join('\n')}
+أمر إلزامي: اقرأ وعدّل هذه الملفات بالأدوات المناسبة (read_document / edit_document / read_excel / edit_excel / edit_image / convert_document / pdf_* حسب النوع) ثم أظهر النتيجة بزر تنزيل عبر edit_* أو return_file. لا تكتفِ بالوصف.`
 }
 
 export async function POST(req: Request) {
@@ -252,6 +284,7 @@ export async function POST(req: Request) {
       scopeId,
       body.scopeMemory
     )
+    const attachBlock = attachedFilesBlock(body.attachedFiles)
     const roomAgents = agentsForScope(scopeId)
       .map((a) => `• ${a.nameAr} (@${a.slug})`)
       .join('\n')
@@ -265,13 +298,35 @@ export async function POST(req: Request) {
       MSA_BASE +
       agentBlock +
       scopeBlock +
+      attachBlock +
       postureBlock +
       (roomAgents
         ? `\n\nوكلاء الغرفة المتاحون للإشارة بـ @slug:\n${roomAgents}`
         : '')
 
+    // When files are attached, nudge the user prompt so the model must act.
+    const promptWithFiles =
+      !hasMessages && attachBlock && prompt
+        ? `${prompt}\n\n[مرفق: عدّل الملف/الملفات المرفقة وأعد نسخة قابلة للتنزيل في الشات.]`
+        : prompt
+
     const persistAgent = body.persist !== false
     const enableTools = body.enableTools !== false
+    const effort = parseRunEffort(body.effortLevel || body.effort)
+    const effortParams = effortToRunParams(effort)
+    const maxSteps =
+      typeof body.maxSteps === 'number' &&
+      Number.isFinite(body.maxSteps) &&
+      body.maxSteps > 0
+        ? Math.min(16, Math.round(body.maxSteps))
+        : effortParams.maxSteps
+    const temperature =
+      typeof body.temperature === 'number' &&
+      Number.isFinite(body.temperature)
+        ? Math.min(1.2, Math.max(0, body.temperature))
+        : effortParams.temperature
+    const systemWithEffort = `${system}\n\n${effortParams.systemHintAr}`
+
     const tools = enableTools
       ? {
           ...getNativeAiTools({
@@ -287,11 +342,12 @@ export async function POST(req: Request) {
     const result = withDataStreamResponse(
       streamText({
         model,
-        system,
+        system: systemWithEffort,
+        temperature,
         ...(hasMessages
           ? { messages: await convertToModelMessages(body.messages!) }
           : { prompt }),
-        ...(tools ? { tools, stopWhen: stepCountIs(5) } : {}),
+        ...(tools ? { tools, stopWhen: stepCountIs(maxSteps) } : {}),
         abortSignal: req.signal,
         onFinish: async ({ text }) => {
           if (!persistAgent || !text) return

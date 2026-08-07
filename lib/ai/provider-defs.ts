@@ -46,23 +46,6 @@ export const PROVIDER_DEFS: ProviderDef[] = [
     docsUrl: 'https://agentrouter.org/console/token',
   },
   {
-    envName: 'TOKENROUTER_API_KEY',
-    labelAr: 'TokenRouter · Kimi Free',
-    labelEn: 'TokenRouter (Kimi Free)',
-    kind: 'llm',
-    hintAr:
-      'يفتح moonshotai/kimi-k3-free عند وجود رصيد في المفتاح. إن ظهر «الرصيد منتهٍ» أنشئ مفتاحاً جديداً من لوحة TokenRouter.',
-    docsUrl: 'https://docs.tokenrouter.io/',
-  },
-  {
-    envName: 'PERPLEXITY_API_KEY',
-    labelAr: 'Perplexity',
-    labelEn: 'Perplexity',
-    kind: 'llm',
-    hintAr: 'يفتح Sonar بعد التحقق',
-    docsUrl: 'https://www.perplexity.ai/settings/api',
-  },
-  {
     envName: 'HF_TOKEN',
     aliases: ['HUGGINGFACE_TOKEN', 'HUGGINGFACE_API_KEY'],
     labelAr: 'Hugging Face',
@@ -93,6 +76,8 @@ export const PROVIDER_DEFS: ProviderDef[] = [
 export const RETIRED_PROVIDER_ENV_NAMES = [
   'OPENAI_API_KEY',
   'OPENROUTER_API_KEY',
+  'TOKENROUTER_API_KEY',
+  'PERPLEXITY_API_KEY',
 ] as const
 
 export function findProviderDef(envName: string): ProviderDef | undefined {

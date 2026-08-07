@@ -85,7 +85,8 @@ export function ChatCanvas({
   items: ThreadItem[]
   className?: string
 }) {
-  const { selectedModel } = useModelPickerStore()
+  const selectedModel = useModelPickerStore((s) => s.selectedModel)
+  const effort = useModelPickerStore((s) => s.effort)
   const {
     upsertArtifact,
     splitRatio,
@@ -142,6 +143,7 @@ export function ChatCanvas({
         body: JSON.stringify({
           prompt,
           modelId: selectedModel,
+          effortLevel: effort,
         }),
       })
 

@@ -1,6 +1,6 @@
 import { PROVIDER_DEFS } from '@/lib/ai/provider-defs'
 import {
-  HARNESS_MODEL_CATALOG,
+  listAvailableHarnessModels,
   type HarnessModelMeta,
 } from '@/lib/ai/harness-catalog'
 import {
@@ -144,56 +144,6 @@ export async function validateProviderKey(
           return { ok: true, detail: 'صالح' }
         }
       }
-      case 'TOKENROUTER_API_KEY': {
-        if (key.startsWith('eyJ')) {
-          return { ok: false, detail: 'يبدو مفتاح جلسة وليس TokenRouter' }
-        }
-        const base = (
-          process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.com/v1'
-        ).replace(/\/$/, '')
-        const res = await fetch(`${base}/models`, {
-          headers: { Authorization: `Bearer ${key}` },
-          signal: AbortSignal.timeout(10000),
-        })
-        if (res.ok) {
-          return { ok: true, detail: 'صالح' }
-        }
-        const modelsBody = await res.text().catch(() => '')
-        const chat = await fetch(`${base}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'moonshotai/kimi-k3-free',
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: AbortSignal.timeout(15000),
-        })
-        const chatBody = await chat.text().catch(() => '')
-        const combined = `${modelsBody} ${chatBody}`
-        if (chat.ok || chat.status === 400) {
-          return { ok: true, detail: 'صالح' }
-        }
-        if (
-          /额度已用尽|RemainQuota\s*=\s*0|quota|insufficient/i.test(combined)
-        ) {
-          return {
-            ok: false,
-            detail:
-              'الرصيد منتهٍ على هذا المفتاح — أنشئ مفتاح TokenRouter جديداً برصيد، أو انتظر تجديد الباقة المجانية',
-          }
-        }
-        if (chat.status === 401 || res.status === 401) {
-          return { ok: false, detail: 'مفتاح TokenRouter مرفوض (401)' }
-        }
-        return {
-          ok: false,
-          detail: `رفض المزوّد (${chat.status || res.status})`,
-        }
-      }
       case 'GEMINI_API_KEY': {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
@@ -276,28 +226,6 @@ export async function validateProviderKey(
           /* ignore */
         }
         return { ok: false, detail }
-      }
-      case 'PERPLEXITY_API_KEY': {
-        if (key.startsWith('eyJ')) {
-          return { ok: false, detail: 'يبدو مفتاح جلسة وليس Perplexity' }
-        }
-        const res = await fetch('https://api.perplexity.ai/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'sonar',
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: AbortSignal.timeout(10000),
-        })
-        return {
-          ok: res.ok || res.status === 400,
-          detail: res.ok || res.status === 400 ? 'صالح' : `رفض (${res.status})`,
-        }
       }
       case 'OLLAMA_BASE_URL': {
         const base = key.replace(/\/$/, '').replace(/\/v1$/, '')
@@ -386,9 +314,7 @@ export async function getProvidersSnapshot(
     }
   })
 
-  const catalog = airGapped
-    ? HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)
-    : HARNESS_MODEL_CATALOG
+  const catalog = listAvailableHarnessModels(airGapped)
 
   const models: ModelAvailability[] = catalog.map((m) => {
     const hasKey = configured.has(m.requiresKey)
@@ -398,17 +324,12 @@ export async function getProvidersSnapshot(
     let blockedReasonAr: string | null = null
     if (!available) {
       if (m.unavailable || def?.degraded) {
-        blockedReasonAr =
-          def?.hintAr ||
-          'حدّث المفتاح أو الرصيد لدى TokenRouter ثم أعد التحقق'
+        blockedReasonAr = def?.hintAr || 'هذا النموذج غير متاح حالياً'
       } else if (!hasKey) blockedReasonAr = `أضف ${m.requiresKey} من صفحة مفاتيح API`
       else if (live === false) {
-        const detail =
+        blockedReasonAr =
           probes.get(m.requiresKey)?.detail ||
           `مفتاح ${m.requiresKey} مرفوض أو لا يستجيب`
-        blockedReasonAr = /رصيد|منته|quota|RemainQuota/i.test(detail)
-          ? 'رصيد منتهٍ — أنشئ مفتاح TokenRouter جديداً أو انتظر تجديد الباقة'
-          : detail
       } else blockedReasonAr = 'غير متاح'
     }
     return {

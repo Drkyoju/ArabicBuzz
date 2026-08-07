@@ -5,11 +5,9 @@ export type HarnessModelSlug =
   | 'gemini-3.1-pro'
   | 'gemini-2.5-pro'
   | 'gemini-2.5-flash'
-  | 'moonshotai/kimi-k3-free'
   | 'glm-4.5'
   | 'glm-5'
   | 'ollama-local'
-  | 'perplexity-sonar'
   | 'deepseek-r1'
 
 /** Three user-facing tiers — engineer model names stay in labelEn. */
@@ -34,19 +32,18 @@ export type HarnessModelMeta = {
   labelAr: string
   labelEn: string
   tier: HarnessTier
-  provider:
-    | 'google'
-    | 'agentrouter'
-    | 'ollama'
-    | 'perplexity'
-    | 'glm'
-    | 'tokenrouter'
+  provider: 'google' | 'agentrouter' | 'ollama' | 'glm'
   requiresKey: string
   airGapSafe: boolean
   /** Catalog entry kept for history/UI honesty — never selected or routed. */
   unavailable?: boolean
 }
 
+/**
+ * Live cloud catalog: Gemini + GLM + AgentRouter only.
+ * Kimi/TokenRouter and Perplexity were removed (quota-dead / unused).
+ * Ollama entries stay for air-gapped mode only.
+ */
 export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
   {
     slug: 'gemini-3.1-pro',
@@ -112,24 +109,6 @@ export const HARNESS_MODEL_CATALOG: HarnessModelMeta[] = [
     airGapSafe: false,
   },
   {
-    slug: 'moonshotai/kimi-k3-free',
-    tier: 'fast',
-    labelAr: 'Kimi K3 Free · سريع',
-    labelEn: 'Kimi K3 Free',
-    provider: 'tokenrouter',
-    requiresKey: 'TOKENROUTER_API_KEY',
-    airGapSafe: false,
-  },
-  {
-    slug: 'perplexity-sonar',
-    tier: 'fast',
-    labelAr: 'بحث حي · Perplexity',
-    labelEn: 'Perplexity Sonar',
-    provider: 'perplexity',
-    requiresKey: 'PERPLEXITY_API_KEY',
-    airGapSafe: false,
-  },
-  {
     slug: 'ollama-local',
     tier: 'fast',
     labelAr: 'خصوصية عالية — محلي',
@@ -157,7 +136,7 @@ export function listAvailableHarnessModels(
 ): HarnessModelMeta[] {
   const base = airGapped
     ? HARNESS_MODEL_CATALOG.filter((m) => m.airGapSafe)
-    : HARNESS_MODEL_CATALOG
+    : HARNESS_MODEL_CATALOG.filter((m) => !m.airGapSafe)
   return base.filter((m) => !m.unavailable)
 }
 

@@ -376,19 +376,7 @@ function ProviderEditor({
           <span className="ms-2 text-stone-400">· {p.liveDetail}</span>
         ) : null}
       </p>
-      {p.configured &&
-        p.liveOk === false &&
-        /رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '') && (
-          <p className="mb-2 text-[11px] text-amber-800">
-            المسار جاهز — أنشئ مفتاح TokenRouter جديداً برصيد مجاني والصقه هنا،
-            أو انتظر تجديد الباقة. باقي النماذج (Gemini / GLM / AgentRouter)
-            تعمل بدون Kimi.
-          </p>
-        )}
-      {p.configured &&
-        p.liveOk === false &&
-        p.source === 'environment' &&
-        !/رصيد|منته|quota|RemainQuota/i.test(p.liveDetail || '') && (
+      {p.configured && p.liveOk === false && p.source === 'environment' && (
           <p className="mb-2 text-[11px] text-amber-800">
             المفتاح من الاستضافة غير صالح — الصق مفتاحاً صالحاً هنا (يُحفظ
             كتجاوز) أو حدّثه لدى المسؤول.

@@ -29,7 +29,7 @@ import { AgentsManagePanel } from '@/components/agents-manage-panel'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
 import { ModelPicker } from '@/components/model-picker'
-import { HelpTip } from '@/components/help-tip'
+import { EffortPicker } from '@/components/effort-picker'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { useSecurityPostureStore } from '@/lib/security/posture-store'
@@ -123,7 +123,7 @@ function persistSeatsPx(scopeId: string, px: number) {
  * Shared room workspace: persist + realtime + @mentions + outbound.
  */
 export function RoomWorkspace({ className }: { className?: string }) {
-  const { selectedModel } = useModelPickerStore()
+  const resolveModelPrefs = useModelPickerStore((s) => s.resolveForScope)
   const {
     artifacts,
     isCanvasFullscreen,
@@ -554,6 +554,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
       return 'أُوقف التشغيل.'
     }
 
+    const { model: roomModel, effort: roomEffort } =
+      resolveModelPrefs(activeScopeId)
+
     let res: Response
     try {
       res = await fetch('/api/chat', {
@@ -562,7 +565,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         signal: opts.signal,
         body: JSON.stringify({
           prompt: opts.prompt,
-          modelId: opts.agent.preferredModel || selectedModel,
+          modelId: opts.agent.preferredModel || roomModel,
+          effortLevel: roomEffort,
           scopeId: activeScopeId,
           agentId: opts.agent.id,
           agentProfile: {
@@ -1085,10 +1089,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                <span className="inline-flex items-center gap-1">
-                  <ModelPicker compact />
-                  <HelpTip textAr="اختر نموذج الرد. يظهر فقط المزوّدون الذين لديهم مفتاح يعمل." />
-                </span>
+                <ModelPicker compact scopeId={activeScopeId} />
+                <EffortPicker compact scopeId={activeScopeId} />
                 {hasArtifacts && (
                   <button
                     type="button"
@@ -1533,6 +1535,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 >
                   سجّل الدخول
                 </Link>
+              </div>
+            )}
+            {!isGuest && (
+              <div className="mb-1.5 flex flex-wrap items-end gap-2 rounded-lg border border-ab-border/80 bg-white/80 px-2 py-1.5">
+                <ModelPicker compact scopeId={activeScopeId} />
+                <EffortPicker compact scopeId={activeScopeId} />
               </div>
             )}
             {!isGuest && !streaming && (

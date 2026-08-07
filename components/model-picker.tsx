@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   HarnessModelSlug,
-  HarnessTier,
+  HARNESS_TIER_LABELS_AR,
   listAvailableHarnessModels,
-  tiersForModels,
 } from '@/lib/ai/harness-catalog'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
+import { HelpTip } from '@/components/help-tip'
+import { cn } from '@/lib/utils'
 
 type ModelAvailRow = {
   slug: string
@@ -17,27 +18,35 @@ type ModelAvailRow = {
   provider?: string
 }
 
-const KIMI_SLUG = 'moonshotai/kimi-k3-free'
+const PROVIDER_LABEL_AR: Record<string, string> = {
+  google: 'Gemini',
+  glm: 'GLM',
+  agentrouter: 'AgentRouter',
+  ollama: 'محلي',
+}
 
 /**
- * Three capability tiers (سريع / متوازن / أعلى دقة). Provider model names stay
- * in the subtitle and tooltip so the picker never reads like an engineering menu.
- * Exhausted TokenRouter/Kimi is shown disabled with «رصيد منتهٍ» — not selectable.
+ * Model dropdown — working Gemini / GLM / AgentRouter models only
+ * (availability from `/api/settings/providers`).
  */
 export function ModelPicker({
   airGapped = false,
   compact,
+  scopeId,
+  className,
 }: {
   airGapped?: boolean
   compact?: boolean
+  /** When set, selection persists per room + globally. */
+  scopeId?: string | null
+  className?: string
 }) {
-  const { selectedModel, setSelectedModel } = useModelPickerStore()
+  const selectedModel = useModelPickerStore((s) =>
+    scopeId ? s.resolveForScope(scopeId).model : s.selectedModel
+  )
+  const setSelectedModel = useModelPickerStore((s) => s.setSelectedModel)
   const catalog = listAvailableHarnessModels(airGapped)
   const [availableSlugs, setAvailableSlugs] = useState<Set<string> | null>(null)
-  const [kimiBlocked, setKimiBlocked] = useState<{
-    show: boolean
-    reasonAr: string
-  } | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -50,21 +59,6 @@ export function ModelPicker({
           d.models.filter((m) => m.available).map((m) => m.slug)
         )
         setAvailableSlugs(ok)
-        const kimi = d.models.find((m) => m.slug === KIMI_SLUG)
-        if (kimi && !kimi.available) {
-          const reason = kimi.blockedReasonAr || ''
-          const exhausted = /رصيد|منته|quota|RemainQuota/i.test(reason)
-          setKimiBlocked({
-            show: true,
-            reasonAr: exhausted
-              ? 'رصيد منتهٍ'
-              : reason.includes('أضف')
-                ? 'غير مضبوط'
-                : 'غير متاح',
-          })
-        } else {
-          setKimiBlocked(null)
-        }
         setLoaded(true)
       })
       .catch(() => {
@@ -87,88 +81,79 @@ export function ModelPicker({
     return catalog.filter((m) => availableSlugs.has(m.slug))
   }, [catalog, availableSlugs])
 
-  const tiers = useMemo(() => tiersForModels(readyModels), [readyModels])
-
-  const selectedTier: HarnessTier | '' = useMemo(() => {
-    const exact = readyModels.find((m) => m.slug === selectedModel)
-    if (exact && tiers.some((t) => t.tier === exact.tier)) return exact.tier
-    return tiers[0]?.tier || ''
-  }, [readyModels, selectedModel, tiers])
-
-  const activeTier = tiers.find((t) => t.tier === selectedTier)
-
   useEffect(() => {
     if (!loaded || !availableSlugs) return
     if (availableSlugs.has(selectedModel)) return
-    // Never keep a dead Kimi selection
-    const fallback = tiers[0]?.model.slug
-    if (fallback) setSelectedModel(fallback as HarnessModelSlug)
-  }, [loaded, availableSlugs, selectedModel, tiers, setSelectedModel])
+    const fallback = readyModels[0]?.slug
+    if (fallback) setSelectedModel(fallback as HarnessModelSlug, scopeId)
+  }, [
+    loaded,
+    availableSlugs,
+    selectedModel,
+    readyModels,
+    setSelectedModel,
+    scopeId,
+  ])
 
-  const currentModelName =
-    readyModels.find((m) => m.slug === selectedModel)?.labelEn ||
-    activeTier?.model.labelEn ||
-    ''
+  const active = readyModels.find((m) => m.slug === selectedModel)
 
   return (
     <label
-      className={
+      className={cn(
         compact
-          ? 'flex max-w-[11rem] flex-col gap-0.5 text-[10px] text-stone-500'
-          : 'flex flex-col gap-1 text-sm'
-      }
+          ? 'flex min-w-0 max-w-[14rem] flex-col gap-0.5'
+          : 'flex min-w-0 flex-col gap-1',
+        className
+      )}
       title={
-        activeTier
-          ? `${activeTier.labelAr} — ${activeTier.hintAr}${
-              currentModelName ? ` (${currentModelName})` : ''
-            }`
-          : 'اختر قدرة الرد'
+        active
+          ? `${active.labelEn} — ${HARNESS_TIER_LABELS_AR[active.tier]}`
+          : 'اختر النموذج'
       }
     >
-      <span className={compact ? 'sr-only' : 'text-[11px] text-stone-500'}>
-        قدرة الرد
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 font-medium text-stone-600',
+          compact ? 'text-[10px]' : 'text-[11px]'
+        )}
+      >
+        النموذج
+        <HelpTip textAr="اختر نموذج الرد (Gemini / GLM / AgentRouter). يظهر فقط المزوّدون الذين لديهم مفتاح يعمل." />
       </span>
       <select
-        aria-label="قدرة الرد"
-        className={
-          compact
-            ? 'max-w-[11rem] truncate rounded-md border border-ab-border bg-white px-1.5 py-1 text-[11px]'
-            : 'max-w-[240px] rounded-md border border-ab-border bg-white px-3 py-1.5'
+        aria-label="النموذج"
+        dir="rtl"
+        className={cn(
+          'w-full truncate rounded-md border border-ab-border bg-white outline-none ring-ab-accent focus:ring-2',
+          compact ? 'px-1.5 py-1 text-[11px]' : 'max-w-[280px] px-3 py-1.5 text-sm'
+        )}
+        value={
+          readyModels.some((m) => m.slug === selectedModel)
+            ? selectedModel
+            : readyModels[0]?.slug || ''
         }
-        value={selectedTier}
         onChange={(e) => {
-          const next = tiers.find((t) => t.tier === e.target.value)
-          if (next) setSelectedModel(next.model.slug)
+          const slug = e.target.value as HarnessModelSlug
+          if (slug) setSelectedModel(slug, scopeId)
         }}
-        disabled={tiers.length === 0}
+        disabled={readyModels.length === 0}
       >
-        {tiers.length === 0 ? (
+        {readyModels.length === 0 ? (
           <option value="">
-            {loaded ? 'لا قدرة جاهزة — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
+            {loaded ? 'لا نموذج جاهز — أضف مفتاحاً' : 'جاري فحص المفاتيح…'}
           </option>
         ) : (
-          tiers.map((t) => (
-            <option key={t.tier} value={t.tier} title={t.model.labelEn}>
-              {t.labelAr}
+          readyModels.map((m) => (
+            <option key={m.slug} value={m.slug} title={m.slug}>
+              {PROVIDER_LABEL_AR[m.provider] || m.provider} · {m.labelEn} (
+              {HARNESS_TIER_LABELS_AR[m.tier]})
             </option>
           ))
         )}
       </select>
-      {kimiBlocked?.show && (
-        <span
-          className={
-            compact
-              ? 'truncate text-[9px] text-amber-700'
-              : 'text-[10px] text-amber-700'
-          }
-          title="Kimi Free عبر TokenRouter غير قابل للاختيار حالياً"
-        >
-          Kimi Free · {kimiBlocked.reasonAr}
-        </span>
-      )}
-      {!compact && currentModelName && (
+      {!compact && active && (
         <span className="text-[10px] text-stone-400" dir="ltr">
-          {currentModelName}
+          {active.slug}
         </span>
       )}
     </label>
