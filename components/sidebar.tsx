@@ -269,82 +269,72 @@ function SidebarBody({
 
   return (
     <div className="flex h-full flex-col" dir="rtl">
-      <div className="border-b border-ab-border px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[15px] font-bold tracking-tight text-ab-ink">
-              Arabic Buzz
+      <div className="border-b border-ab-border px-3 py-1.5">
+        {signedIn === null || (signedIn === true && !roleReady) ? (
+          <div
+            className="h-7 animate-pulse rounded-md bg-stone-100"
+            aria-hidden
+          />
+        ) : signedIn ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="min-w-0 truncate text-[11px] font-medium text-ab-ink">
+              {displayNameAr || 'أنت'}
             </p>
-            <p className="text-[10px] text-stone-500">وكيل متعدد اللاعبين</p>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            {roleReady && signedIn === true && canAccessOpsUi ? (
+            {labelAr ? <RoleBadge labelAr={labelAr} /> : null}
+            {roleReady && canAccessOpsUi ? (
               <SdaiaBadge compact />
             ) : null}
             {airGapped ? <AirGapBadge airGapped /> : null}
-          </div>
-        </div>
-
-        <div className="mt-1.5">
-          {signedIn === null || (signedIn === true && !roleReady) ? (
-            <div
-              className="h-7 animate-pulse rounded-md bg-stone-100"
-              aria-hidden
-            />
-          ) : signedIn ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="min-w-0 truncate text-[11px] font-medium text-ab-ink">
-                {displayNameAr || 'أنت'}
-              </p>
-              {labelAr ? <RoleBadge labelAr={labelAr} /> : null}
-              {canAccessOpsUi ? (
-                <div
-                  className="ms-auto inline-flex items-center gap-0.5 rounded-md border border-ab-border/80 bg-stone-50 p-0.5"
-                  role="group"
-                  aria-label="وضع الواجهة"
-                  title={
+            {canAccessOpsUi ? (
+              <div
+                className="ms-auto inline-flex items-center gap-0.5 rounded-md border border-ab-border/80 bg-stone-50 p-0.5"
+                role="group"
+                aria-label="وضع الواجهة"
+                title={
+                  mode === 'employee'
+                    ? 'عرض مبسّط مثل بقية الفريق'
+                    : airGapped
+                      ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز'
+                      : 'موافقات وسجل عمل وتكاملات'
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => setMode('employee')}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition-colors',
                     mode === 'employee'
-                      ? 'عرض مبسّط مثل بقية الفريق'
-                      : airGapped
-                        ? 'وضع محلي مغلق — الملفات والذاكرة على هذا الجهاز'
-                        : 'موافقات وسجل عمل وتكاملات'
-                  }
+                      ? 'bg-ab-accent text-white'
+                      : 'text-stone-500 hover:bg-white hover:text-ab-ink'
+                  )}
+                  aria-pressed={mode === 'employee'}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setMode('employee')}
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition-colors',
-                      mode === 'employee'
-                        ? 'bg-ab-accent text-white'
-                        : 'text-stone-500 hover:bg-white hover:text-ab-ink'
-                    )}
-                    aria-pressed={mode === 'employee'}
-                  >
-                    بسيطة
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('admin')}
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition-colors',
-                      mode === 'admin'
-                        ? 'bg-ab-ink text-white'
-                        : 'text-stone-500 hover:bg-white hover:text-ab-ink'
-                    )}
-                    aria-pressed={mode === 'admin'}
-                  >
-                    إدارة
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-[10px] leading-snug text-stone-500">
+                  بسيطة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('admin')}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition-colors',
+                    mode === 'admin'
+                      ? 'bg-ab-ink text-white'
+                      : 'text-stone-500 hover:bg-white hover:text-ab-ink'
+                  )}
+                  aria-pressed={mode === 'admin'}
+                >
+                  إدارة
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {airGapped ? <AirGapBadge airGapped /> : null}
+            <p className="min-w-0 flex-1 text-[10px] leading-snug text-stone-500">
               معاينة — سجّل الدخول للعمل في الغرفة.
             </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
