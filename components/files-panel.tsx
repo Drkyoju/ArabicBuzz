@@ -281,7 +281,7 @@ export function FilesPanel() {
   if (authPending) {
     return (
       <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-        <h2 className="text-xl font-bold">ملفات المساحة</h2>
+        <h2 className="text-xl font-bold">ملفات الفريق · عقل الشركة</h2>
         <p className="mt-4 rounded-xl border border-ab-border bg-white px-4 py-3 text-sm text-stone-500">
           جاري التحقق من الحساب…
         </p>
@@ -292,13 +292,13 @@ export function FilesPanel() {
   if (isGuest) {
     return (
       <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
-        <h2 className="text-xl font-bold">ملفات المساحة</h2>
+        <h2 className="text-xl font-bold">ملفات الفريق · عقل الشركة</h2>
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-6 text-center">
           <p className="text-sm font-semibold text-ab-ink">
             سجّل الدخول لعرض ورفع ملفات الغرفة
           </p>
           <p className="mt-1 text-xs text-stone-600">
-            بعد الدخول تظهر ملفات المساحة وعقل الشركة الحقيقي — بلا محتوى وهمي.
+            بعد الدخول تظهر ملفات الفريق · عقل الشركة وعقل الشركة الحقيقي — بلا محتوى وهمي.
           </p>
           <Link
             href="/auth/login"
@@ -322,7 +322,7 @@ export function FilesPanel() {
 
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">ملفات المساحة</h2>
+          <h2 className="text-xl font-bold">ملفات الفريق · عقل الشركة</h2>
           <p className="mt-1 text-sm text-stone-500">
             {scope?.nameAr || scopeId} — {sourceLabel}
           </p>

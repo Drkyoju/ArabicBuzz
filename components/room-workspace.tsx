@@ -1632,10 +1632,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
               collabMode === 'team' &&
               roomAgents.length > 1 && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                وضع تعاون: حتى{' '}
+                اكتب <span dir="ltr">@</span> واسم الوكيل (مثل{' '}
+                <span dir="ltr">@reports</span>) أو اختر من القائمة — حتى{' '}
                 {Math.min(ASSISTANT_PARALLEL_DEFAULT, roomAgents.length)}{' '}
-                وكيل/مهمة معاً (سقف Netlify {ROOM_TEAM_RUN_CAP}) — أو @الجميع /
-                @اسم. المقاعد مشتركة لكل الموظفين في هذه الغرفة.
+                وكيل/مهمة معاً. المقاعد مشتركة لكل الموظفين.
               </p>
             )}
             {!mentionPreview &&
@@ -1644,8 +1644,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
               usesSharedRoomRoster(activeScopeId) &&
               collabMode !== 'team' && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                حتى {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة معاً · كل الموظفين
-                يشاركون نفس الوكلاء في غرفة الفريق.
+                اكتب <span dir="ltr">@</span> واسم الوكيل لاختيار من يرد —
+                حتى {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة معاً في غرفة الفريق.
               </p>
             )}
             {!isGuest && !agentsWorking && (
@@ -1827,9 +1827,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                       : composerFiles.length
                         ? 'اكتب ماذا تريد تعديله في الملف المرفق…'
                         : collabMode === 'team'
-                          ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
+                          ? 'اكتب @ واسم الوكيل أو العضو… @all للجميع'
                           : shared
-                            ? 'اسحب ملفاً أو 📎 أو اكتب… @وكيل'
+                            ? 'اكتب @ واسم الوكيل — أو اسحب ملفاً / 📎'
                             : 'اسحب ملفاً أو 📎 أو تكلم بالميكروفون…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"

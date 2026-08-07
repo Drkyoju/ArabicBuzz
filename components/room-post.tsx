@@ -120,6 +120,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
   const [dlError, setDlError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [memNote, setMemNote] = useState('')
+  const [memBusy, setMemBusy] = useState(false)
   const [skillNote, setSkillNote] = useState('')
   const [skillBusy, setSkillBusy] = useState(false)
   const [postKind, setPostKind] = useState(post.postKind || 'chat')
@@ -401,22 +402,90 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
           )}
           <button
             type="button"
+            disabled={memBusy}
             onClick={() => {
-              const text = (post.content || '').trim().slice(0, 800)
-              if (!text) {
-                setMemNote('لا يوجد نص للحفظ.')
-                return
-              }
-              const ok = useWorkspaceStore
-                .getState()
-                .addMemory(post.scopeId, text)
-              setMemNote(ok ? 'حُفظ في ذاكرة المساحة.' : 'موجود مسبقاً في الذاكرة.')
-              window.setTimeout(() => setMemNote(''), 2500)
+              void (async () => {
+                const text = (post.content || '').trim().slice(0, 4000)
+                if (!text) {
+                  setMemNote('لا يوجد نص للحفظ.')
+                  return
+                }
+                setMemBusy(true)
+                setMemNote('جاري الرفع إلى عقل الشركة…')
+                try {
+                  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+                  const file = new File(
+                    [text],
+                    `note-room-${stamp}.txt`,
+                    { type: 'text/plain;charset=utf-8' }
+                  )
+                  const body = new FormData()
+                  body.append('scopeId', post.scopeId)
+                  body.append('file', file)
+                  const up = await fetch('/api/storage/upload', {
+                    method: 'POST',
+                    headers: await authHeaders(),
+                    body,
+                  })
+                  const upData = (await up.json()) as {
+                    ok?: boolean
+                    error?: string
+                    messageAr?: string
+                    file?: { id?: string }
+                  }
+                  const localFileId = upData.file?.id
+                  if (!up.ok || !localFileId) {
+                    throw new Error(
+                      upData.error || upData.messageAr || 'تعذّر حفظ الملف في الغرفة'
+                    )
+                  }
+                  // Thin local cache so agents still see recent notes in-session.
+                  useWorkspaceStore.getState().addMemory(post.scopeId, text)
+                  const brain = await fetch('/api/google/drive/brain/upload', {
+                    method: 'POST',
+                    headers: await authHeaders({
+                      'Content-Type': 'application/json',
+                    }),
+                    body: JSON.stringify({
+                      scopeId: post.scopeId,
+                      localFileId,
+                    }),
+                  })
+                  const brainData = (await brain.json()) as {
+                    ok?: boolean
+                    needsGoogle?: boolean
+                    error?: string
+                    messageAr?: string
+                  }
+                  if (brainData.needsGoogle) {
+                    setMemNote(
+                      'حُفظ في الغرفة — اربط Google لرفعه إلى عقل الشركة (Drive)'
+                    )
+                  } else if (!brain.ok || brainData.ok === false) {
+                    setMemNote(
+                      brainData.messageAr ||
+                        brainData.error ||
+                        'حُفظ في الغرفة — تعذّرت مزامنة Drive'
+                    )
+                  } else {
+                    setMemNote(
+                      brainData.messageAr || 'حُفظ في عقل الشركة (Drive)'
+                    )
+                  }
+                } catch (e) {
+                  setMemNote(
+                    e instanceof Error ? e.message : 'تعذّر الحفظ في Drive'
+                  )
+                } finally {
+                  setMemBusy(false)
+                  window.setTimeout(() => setMemNote(''), 4000)
+                }
+              })()
             }}
-            className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent"
+            className="inline-flex items-center gap-1 text-[10px] text-stone-400 hover:text-ab-accent disabled:opacity-50"
           >
             <BookmarkPlus className="h-3 w-3" />
-            احفظ في الذاكرة
+            {memBusy ? 'جاري الحفظ…' : 'احفظ في عقل الشركة'}
           </button>
           {post.authorKind === 'agent' && (
             <button

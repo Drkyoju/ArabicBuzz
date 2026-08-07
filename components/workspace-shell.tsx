@@ -21,7 +21,6 @@ import { AccreditationExportPanel } from '@/components/accreditation-export-pane
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
 import { FilesPanel } from '@/components/files-panel'
-import { MemoryPanel } from '@/components/memory-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
 import { HelpTip } from '@/components/help-tip'
@@ -231,15 +230,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [mode, roleReady, section])
 
-  // Members: no audit/skills/keys/ops/memory even via deep-link.
+  // Members: no audit/skills/keys/ops even via deep-link.
   // Wait for role/email so owners are not bounced during the first paint.
+  // «الذاكرة» المنفصلة أُلغيت — المعرفة = ملفات / عقل الشركة (Drive).
   useEffect(() => {
+    if (section === 'memory') {
+      setSection('files')
+      return
+    }
     if (!roleReady) return
     if (canAccessOpsUi && mode === 'admin') return
     if (
       section === 'api-keys' ||
       section === 'ops' ||
-      section === 'memory' ||
       section === 'audit' ||
       section === 'skills'
     ) {
@@ -250,7 +253,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   // Guests cannot open advanced sections via deep-link
   useEffect(() => {
     if (signedIn !== false) return
-    if (section === 'api-keys' || section === 'ops' || section === 'memory') {
+    if (section === 'api-keys' || section === 'ops') {
       setSection('settings')
     }
   }, [signedIn, section])
@@ -282,7 +285,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         q === 'chats' ||
         q === 'settings' ||
         q === 'files' ||
-        q === 'memory' ||
+        q === 'memory' || // legacy → files (Drive brain)
         q === 'approvals' ||
         q === 'audit' ||
         q === 'skills' ||
@@ -292,7 +295,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         if (q === 'chats') {
           useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
         }
-        setSection(q)
+        setSection(q === 'memory' ? 'files' : q)
       }
       const tab = params.get('calTab') || params.get('tab')
       if (
@@ -413,7 +416,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       if (target === 'chats') {
         useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
       }
-      setSection(target)
+      setSection(target === 'memory' ? 'files' : target)
     }
   }, [])
 
@@ -552,8 +555,6 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </div>
           </section>
         )}
-
-        {section === 'memory' && signedIn && <MemoryPanel />}
 
         {section === 'approvals' && (
           <section className="mx-auto max-w-3xl px-6 py-8" dir="rtl">
@@ -871,10 +872,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setSection('memory')}
+                          onClick={() => setSection('files')}
                           className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
                         >
-                          الذاكرة
+                          ملفات · عقل الشركة
                         </button>
                         <button
                           type="button"

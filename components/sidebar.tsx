@@ -89,7 +89,7 @@ const PRIMARY_NAV: Array<{
   { id: 'mail', labelAr: 'بريد الجمعية', icon: Mail },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   { id: 'chats', labelAr: 'غرفة الفريق', icon: MessageSquare },
-  { id: 'files', labelAr: 'ملفات', icon: FolderOpen },
+  { id: 'files', labelAr: 'ملفات الفريق', icon: FolderOpen },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
