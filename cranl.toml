@@ -5,7 +5,10 @@
 # Platform probes (set in CranL UI if available):
 #   liveness  = GET /api/health/live
 #   readiness = GET /api/health/ready
+#   alias     = GET /api/health  (same as live)
 # Dockerfile also defines HEALTHCHECK → /api/health/live
+# Downtime playbook: docs/cranl-deploy.md § Probes & graceful restart
+# Always set STORAGE_BACKEND=cloud on CranL (ephemeral disk).
 
 name = "arabicbuzz"
 build_type = "dockerfile"

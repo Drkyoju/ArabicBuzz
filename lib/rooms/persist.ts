@@ -129,7 +129,28 @@ export async function insertRoomPost(opts: {
     error = retry.error
   }
   if (error) return { ok: false, error: error.message }
-  return { ok: true, post: rowToRoomPost(data as DbRoomPost) }
+  const post = rowToRoomPost(data as DbRoomPost)
+  // Keep room_activity_log in sync so home + audit see the same chat activity.
+  void import('@/lib/rooms/home-log')
+    .then(({ logRoomActivity }) =>
+      logRoomActivity({
+        scopeId: opts.scopeId,
+        kind: 'message',
+        actorAr: opts.authorNameAr || 'عضو',
+        actorEmail: opts.authorKind === 'human' ? opts.authorId : null,
+        actionAr:
+          opts.authorKind === 'agent'
+            ? 'رد وكيل'
+            : opts.authorKind === 'system'
+              ? 'حدث نظام'
+              : opts.authorKind === 'channel'
+                ? 'رسالة قناة'
+                : 'رسالة بشرية',
+        detailAr: opts.content.slice(0, 220),
+      })
+    )
+    .catch(() => undefined)
+  return { ok: true, post }
 }
 
 export async function updateRoomPostKind(opts: {

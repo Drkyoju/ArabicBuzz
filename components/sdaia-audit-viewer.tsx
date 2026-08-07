@@ -154,6 +154,16 @@ export function SdaiaAuditViewer() {
             detailAr: ev.detailAr,
           })
         }
+      } else if (roomRes && !roomRes.ok) {
+        // Room feed failed — still show SDAIA if any; surface the gap.
+        if (!auditRes.ok) {
+          setLogs([])
+          setErr(
+            'تعذّر تحميل السجل — تحقق من الصلاحيات أو أعد المحاولة.'
+          )
+          return
+        }
+        setErr('تعذّر تحميل نشاط الغرفة؛ يُعرض سجل SDAIA فقط.')
       } else if (!auditRes.ok) {
         setLogs([])
         setErr(

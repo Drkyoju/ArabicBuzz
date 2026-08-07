@@ -164,14 +164,22 @@ export function FirstRunChecklist({
 
         // Returning users already have room history — don't keep the checklist stuck
         // on localStorage flags that only flip from this browser's future clicks.
+        const agendaEventCount = Array.isArray(home?.agenda)
+          ? home.agenda.reduce(
+              (n: number, day: { events?: unknown[] }) =>
+                n + (Array.isArray(day?.events) ? day.events.length : 0),
+              0
+            )
+          : 0
         const hasPosts =
           knownRoomPosts > 0 ||
           (Array.isArray(home?.recentPosts)
             ? home.recentPosts.length > 0
             : false) ||
           (Array.isArray(home?.activity) ? home.activity.length > 0 : false)
+        // agenda[] is always two day buckets — count nested events, not bucket length.
         const hasCalendar =
-          (Array.isArray(home?.agenda) && home.agenda.length > 0) ||
+          agendaEventCount > 0 ||
           Number(home?.beyondMonthCount || 0) > 0 ||
           (Array.isArray(home?.calendar?.week) &&
             home.calendar.week.length > 0) ||
@@ -196,9 +204,10 @@ export function FirstRunChecklist({
           }
         }
 
-        // Active owner: linked services + room already in use → hide within seconds.
+        // Active owner / returning user: hide when room is already in use.
         const linked = nextKeys || nextGoogle || nextTelegram || nextDrive > 0
-        if (linked && (hasPosts || hasCalendar || knownRoomPosts > 0)) {
+        const roomActive = hasPosts || hasCalendar || knownRoomPosts > 0
+        if (roomActive && (linked || (hasPosts && hasCalendar) || knownRoomPosts > 0)) {
           setActiveOwner(true)
         }
       } catch {
@@ -226,7 +235,16 @@ export function FirstRunChecklist({
         id: 'room-calendar',
         labelAr: 'أضف موعداً على تقويم الفريق',
         done: roomCollabOk,
-        action: () => onNavigate?.('calendar'),
+        action: () => {
+          try {
+            localStorage.setItem('ab-room-collab-seen', '1')
+            window.dispatchEvent(new Event('ab-room-collab-seen'))
+          } catch {
+            /* ignore */
+          }
+          setRoomCollabOk(true)
+          onNavigate?.('calendar')
+        },
         actionLabelAr: 'التقويم',
       },
       {

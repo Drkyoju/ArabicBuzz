@@ -18,7 +18,6 @@ SKIP = {
     "LOCAL_STORAGE_ROOT",
     "MAC_SYNC_PORT",
     "OLLAMA_BASE_URL",
-    "STORAGE_BACKEND",
     "SUPABASE_ACCESS_TOKEN",
     "SUPABASE_POOLER_REGION",
 }
@@ -79,6 +78,8 @@ def main() -> int:
     vals["NODE_ENV"] = "production"
     vals["PORT"] = "3000"
     vals["HOSTNAME"] = "0.0.0.0"
+    # Ephemeral Docker disk — always use Supabase workspace_files on CranL.
+    vals["STORAGE_BACKEND"] = "cloud"
 
     lines = [f"{k}={vals[k]}" for k in sorted(vals)]
     OUT.write_text("\n".join(lines) + "\n")

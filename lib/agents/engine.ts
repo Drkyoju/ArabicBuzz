@@ -13,6 +13,12 @@ import {
 import { withSpan } from '@/lib/observability/trace'
 import { forceFlushOtel } from '@/lib/observability/langfuse'
 import { extractFromAgentSteps } from '@/lib/agents/citation-events'
+import {
+  calculatePromptHash,
+  classifySDAIARisk,
+  resolveDataLocality,
+} from '@/lib/audit/provenance'
+import { logSDAIAEvent } from '@/lib/audit/logger'
 
 /** Local stub tools exposed as Vercel AI SDK schemas. */
 export function getNativeAiTools(opts?: {
@@ -1730,6 +1736,20 @@ export async function runAgentEngine(
       })
     } catch {
       /* metering must not break the agent */
+    }
+
+    try {
+      void logSDAIAEvent({
+        scopeId: input.scopeId || 'shared-demo',
+        userId: input.requesterId || input.agentId || 'agent',
+        modelUsed: modelSlug,
+        promptHash: calculatePromptHash(input.prompt || ''),
+        responseHash: calculatePromptHash(result.text || ''),
+        riskTier: classifySDAIARisk('text_generate', []),
+        dataLocality: resolveDataLocality(modelSlug),
+      })
+    } catch {
+      /* audit must not break the agent */
     }
 
     return {

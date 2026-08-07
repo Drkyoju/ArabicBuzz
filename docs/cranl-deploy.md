@@ -67,6 +67,7 @@ CranL rebuilds the Docker image on push to `main`. There is no guaranteed zero-d
 | --- | --- | --- |
 | Liveness | `/api/health/live` | Every 10–15s, timeout 3s, start-period ≥20s |
 | Readiness | `/api/health/ready` | Every 15–30s, timeout 3s; fail open traffic until 200 |
+| Alias | `/api/health` | Same as live (convenience) |
 | Deep | `/api/health/free` | Manual / ops only |
 
 **Restart expectations**
@@ -76,6 +77,18 @@ CranL rebuilds the Docker image on push to `main`. There is no guaranteed zero-d
 3. Container is healthy when `/api/health/live` returns 200; traffic should wait for `/api/health/ready` when the platform supports readiness separately.
 4. Dockerfile embeds `HEALTHCHECK` against `/api/health/live`.
 5. Avoid pointing load balancers at `/api/health/free` — it hits Supabase + Prisma and is slower/flakier during blips.
+
+### Reduce deploy downtime (ops checklist)
+
+1. **Wire platform probes** (CranL UI / app settings if available):
+   - Liveness → `GET https://arabicbuzz-fooc9h.cranl.net/api/health/live`
+   - Readiness → `GET https://arabicbuzz-fooc9h.cranl.net/api/health/ready`
+2. **Do not cut traffic on liveness alone** — ready waits for Prisma or Supabase (`workspace_files` head). A 503 on ready means “not yet”; keep old container serving if the platform supports it.
+3. **Start-period ≥ 25s** so Next standalone can boot before probes fail the container.
+4. **Expect ~30–90s** of possible 502 on Basic single-instance rebuild; Telegram / clients should retry (bot never deletes messages).
+5. **Env before deploy:** `STORAGE_BACKEND=cloud`, `NEXT_PUBLIC_APP_URL` / `APP_URL` = CranL hostname, Supabase service role present.
+6. **After deploy:** smoke `live` → `ready` → `/api/public-config` → `/api/webhooks/telegram` before declaring green.
+7. If CranL later exposes stop-grace / rolling restart, keep liveness on `live` and readiness on `ready` — do not invent a custom drain unless the platform documents one.
 
 If CranL later exposes stop-grace / rolling restart in the UI, keep liveness on `live` and readiness on `ready` — do not invent a custom drain unless the platform documents one.
 

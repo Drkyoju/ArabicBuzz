@@ -126,9 +126,7 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'mail_send',
   'sheets_read',
   'sheets_write',
-  'calendar_list_events',
-  'calendar_create_event',
-  'calendar_find_alignment',
+  // Team agenda = room_calendar_* only (personal Google calendar tools stay off Telegram).
   'ingest_url_to_brain',
   'trigger_workflow',
   'report_room_attendance',

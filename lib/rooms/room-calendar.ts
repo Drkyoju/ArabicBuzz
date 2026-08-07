@@ -213,6 +213,28 @@ export async function listRoomCalendarEvents(opts: {
   return hideTest ? filterOutTestCalendarEvents(rows) : rows
 }
 
+/**
+ * Single calendar source of truth for product surfaces:
+ * home digest, full calendar, board, Telegram fast-path / room_calendar_* tools.
+ * Always hides cancelled + QA test titles so web and bot agree.
+ */
+export async function getRoomAgenda(opts: {
+  scopeId: string
+  from?: string
+  to?: string
+  includeCancelled?: boolean
+  /** Override only for admin cleanup — default hides test titles. */
+  hideTestTitles?: boolean
+}): Promise<RoomCalendarEvent[]> {
+  return listRoomCalendarEvents({
+    scopeId: opts.scopeId,
+    from: opts.from,
+    to: opts.to,
+    includeCancelled: opts.includeCancelled === true,
+    hideTestTitles: opts.hideTestTitles !== false,
+  })
+}
+
 /** Soft-cancel known test/QA calendar events for a room (director cleanup). */
 export async function cancelTestCalendarEvents(scopeId: string): Promise<{
   cancelled: number

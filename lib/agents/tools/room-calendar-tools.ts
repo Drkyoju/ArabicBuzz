@@ -43,6 +43,7 @@ export async function executeRoomCalendarList(
     scopeId,
     from: params.from ? String(params.from) : undefined,
     to: params.to ? String(params.to) : undefined,
+    // Match getRoomAgenda / home / Telegram — hide QA noise by default.
     hideTestTitles: params.hideTestTitles !== false,
   })
   const formatted = events.map((e) => ({

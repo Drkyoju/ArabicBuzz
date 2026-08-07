@@ -4,11 +4,12 @@ import {
   listRoomMembers,
   listRoomPosts,
 } from '@/lib/rooms/persist'
+import { listRoomActivity } from '@/lib/rooms/home-log'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Room activity: full-ish history of posts + canvas editors + members.
+ * Room activity: posts + canvas + room_activity_log (single feed for audit UI).
  */
 export async function GET(req: Request) {
   const auth = await requireSessionUser(req)
@@ -20,24 +21,29 @@ export async function GET(req: Request) {
     Math.max(40, Number(url.searchParams.get('limit') || 200) || 200)
   )
 
-  const [posts, canvas, members] = await Promise.all([
+  const [posts, canvas, members, activityLog] = await Promise.all([
     listRoomPosts(scopeId, limit),
     listCanvasArtifacts(scopeId),
     listRoomMembers(scopeId),
+    listRoomActivity(scopeId, limit).catch(() => []),
   ])
 
   const events: Array<{
     id: string
-    kind: 'post' | 'canvas' | 'system'
+    kind: 'post' | 'canvas' | 'system' | 'activity'
     titleAr: string
     detailAr: string
     actorAr: string
     at: number
   }> = []
 
+  const seen = new Set<string>()
+
   for (const p of posts.posts) {
+    const id = `post-${p.id}`
+    seen.add(id)
     events.push({
-      id: `post-${p.id}`,
+      id,
       kind: p.authorKind === 'system' ? 'system' : 'post',
       titleAr:
         p.authorKind === 'system'
@@ -62,6 +68,21 @@ export async function GET(req: Request) {
       detailAr: row.title_ar || row.id,
       actorAr: row.updated_by || 'غير معروف',
       at: updatedAt,
+    })
+  }
+
+  // Activity log fills gaps (edits/zoom/system) that are not posts.
+  for (const a of activityLog) {
+    if (a.kind === 'message' || a.kind === 'presence') continue
+    const id = `act-${a.id}`
+    if (seen.has(id)) continue
+    events.push({
+      id,
+      kind: 'activity',
+      titleAr: a.actionAr,
+      detailAr: a.detailAr || '',
+      actorAr: a.actorAr,
+      at: new Date(a.createdAt).getTime(),
     })
   }
 

@@ -4,8 +4,8 @@ import {
   cancelRoomCalendarEvent,
   cancelTestCalendarEvents,
   createRoomCalendarEvent,
+  getRoomAgenda,
   ingestProposedDates,
-  listRoomCalendarEvents,
   reconcileRoomCalendar,
   updateRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
@@ -30,12 +30,14 @@ export async function GET(req: NextRequest) {
   }
   const from = req.nextUrl.searchParams.get('from') || undefined
   const to = req.nextUrl.searchParams.get('to') || undefined
-  const events = await listRoomCalendarEvents({ scopeId, from, to })
+  // Same SoT as home + Telegram (getRoomAgenda hides QA test titles).
+  const events = await getRoomAgenda({ scopeId, from, to })
   const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
   return NextResponse.json({
     scopeId,
     count: events.length,
     events,
+    source: 'room_calendar_events',
     messageAr: isPersonalScopeId(scopeId)
       ? 'تقويم مساحتك الشخصية — خاص بك وحدك، منفصل عن تقويم الفريق.'
       : 'تقويم الغرفة المشترك — للجميع وللوكيل. المصدر الرسمي لمواعيد الفريق؛ Google اختياري كنسخة خاصة لمن يفعّلها فقط.',

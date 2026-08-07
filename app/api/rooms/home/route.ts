@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isSyntheticIdentity } from '@/lib/auth/synthetic'
-import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
+import { getRoomAgenda } from '@/lib/rooms/room-calendar'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
 import {
   lastZoomLiveAt,
@@ -119,12 +119,12 @@ export async function GET(req: NextRequest) {
     zoomSnap,
     deadlines,
   ] = await Promise.all([
-    listRoomCalendarEvents({
+    getRoomAgenda({
       scopeId,
       from: yesterday.startIso,
       to: monthEnd.endIso,
     }).catch(() => []),
-    listRoomCalendarEvents({
+    getRoomAgenda({
       scopeId,
       from: new Date(monthEnd.end.getTime() + 1).toISOString(),
     }).catch(() => []),

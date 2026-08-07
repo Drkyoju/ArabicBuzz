@@ -4,7 +4,7 @@
  * Calendar answers use Asia/Riyadh only (no UTC in user-facing text).
  */
 
-import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
+import { getRoomAgenda } from '@/lib/rooms/room-calendar'
 
 export type TelegramFastPathKind =
   | 'greeting'
@@ -120,11 +120,10 @@ export async function runTelegramFastPath(opts: {
     const raw = (opts.rawPrompt || '').trim()
     const todayOnly = TODAY_HINT_RE.test(raw)
     const bounds = todayOnly ? riyadhDayBoundsIso() : undefined
-    const events = await listRoomCalendarEvents({
+    const events = await getRoomAgenda({
       scopeId: opts.scopeId,
       from: bounds?.from,
       to: bounds?.to,
-      hideTestTitles: true,
     })
     const active = events.filter((e) => e.status !== 'cancelled')
     if (active.length === 0) {
