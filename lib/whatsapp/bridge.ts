@@ -46,7 +46,7 @@ export function whatsappTransportStatusAr(): {
       transport,
       ready: true,
       detailAr:
-        'جسر مجاني مضبوط (Evolution/Baileys) — الجلسة على جهازك أو VPS، وليس على Netlify',
+        'جسر مجاني مضبوط (Evolution/Baileys) — الجلسة على جهازك أو VPS، وليس داخل حاوية CranL',
     }
   }
   if (transport === 'meta_cloud') {
@@ -61,7 +61,7 @@ export function whatsappTransportStatusAr(): {
     transport,
     ready: false,
     detailAr:
-      'واتساب غير مفعّل على Netlify وحده — يحتاج جسرًا مجانيًا ذاتي الاستضافة (Evolution API أو Baileys)',
+      'واتساب غير مفعّل على CranL وحده — يحتاج جسرًا مجانيًا ذاتي الاستضافة (Evolution API أو Baileys)',
   }
 }
 
