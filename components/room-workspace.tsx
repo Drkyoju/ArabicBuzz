@@ -1437,7 +1437,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border bg-white/80 px-3 py-2 backdrop-blur-sm">
+          <header className="border-b border-ab-border/80 bg-gradient-to-l from-white via-white to-ab-accent/[0.04] px-3 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="truncate text-[15px] font-bold tracking-tight text-ab-ink">
@@ -1445,10 +1445,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </h2>
                 <p className="mt-0.5 truncate text-[11px] text-stone-500">
                   {shared
-                    ? 'كل رسالة يطّلع عليها وكيل جاهز فوراً — بلا @ · اضغط المقعد: شغال/طافي'
-                    : `${PERSONAL_DESK_COPY.taglineAr} — الوكلاء والبريد والملفات هنا لا يراها أحد غيرك`}
+                    ? 'وكالة جاهزة · اضغط المقعد شغال/طافي'
+                    : `${PERSONAL_DESK_COPY.taglineAr} — خاص بك فقط`}
                   {' · '}
-                  يُحذف الشات تلقائياً بعد {roomChatRetentionDays()} أيام
+                  الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
@@ -1468,7 +1468,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <ZoomLivePanel compact />
                 </div>
               </div>
-              <div className="ab-toolbar shrink-0 justify-end">
+              <div className="ab-toolbar shrink-0 justify-end gap-1">
                 <button
                   type="button"
                   onClick={() => void deleteTodayChat()}
@@ -1476,17 +1476,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   className={
                     confirmDeleteToday
                       ? 'ab-btn-secondary !border-ab-warn !py-1 !text-ab-warn text-[11px]'
-                      : 'ab-btn-secondary !py-1 text-[11px]'
+                      : 'ab-btn-ghost !py-1 text-[11px] text-stone-500'
                   }
                   aria-label="حذف شات اليوم"
-                  title="حذف رسائل يوم اليوم فقط (توقيت السعودية) — أرشيف الملفات يبقى"
+                  title="حذف رسائل يوم اليوم فقط — أرشيف الملفات يبقى"
                 >
                   <Trash2 className="h-3 w-3" aria-hidden />
                   {deletingToday
                     ? 'جاري الحذف…'
                     : confirmDeleteToday
                       ? 'تأكيد حذف شات اليوم'
-                      : 'حذف شات اليوم'}
+                      : 'شات اليوم'}
                 </button>
                 {confirmDeleteToday && (
                   <button
@@ -1570,7 +1570,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     }}
                     className={cn(
                       '!py-1 text-[11px]',
-                      showTelegram ? 'ab-btn-accent-soft' : 'ab-btn-secondary'
+                      showTelegram ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
                     )}
                     aria-label={
                       showTelegram

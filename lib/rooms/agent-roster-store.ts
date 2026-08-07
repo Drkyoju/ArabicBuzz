@@ -4,6 +4,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   BUILTIN_ROOM_AGENTS,
+  ROOM_AGENT_IDEAL_SEATS,
+  ROOM_AGENT_SOFT_CAP,
   SCOPE_AGENT_IDS,
   defaultAgentIdsForScope,
   type AgentCollabMode,
@@ -76,14 +78,28 @@ export type AgentRosterState = {
     preferredEffort?: RunEffort
     count: number
     namePrefixAr?: string
+    /** Allow going past ROOM_AGENT_SOFT_CAP (owner confirmed). */
+    allowOverCap?: boolean
   }) => RoomAgent[]
+  /**
+   * Remove surplus seats down to ideal (keeps builtins first, then oldest customs).
+   * Returns removed agent ids.
+   */
+  pruneScopeToIdeal: (
+    scopeId: string,
+    keep?: number
+  ) => { removedIds: string[]; kept: number }
   updateAgent: (id: string, patch: AgentEditableFields) => void
   /** @deprecated use updateAgent */
   updateCustomAgent: (id: string, patch: AgentEditableFields) => void
   clearAgentOverride: (id: string) => void
   deleteCustomAgent: (id: string) => void
   removeAgentFromScope: (scopeId: string, agentId: string) => void
-  addAgentToScope: (scopeId: string, agentId: string) => void
+  addAgentToScope: (
+    scopeId: string,
+    agentId: string,
+    opts?: { allowOverCap?: boolean }
+  ) => { ok: boolean; reasonAr?: string }
   setCollabMode: (scopeId: string, mode: AgentCollabMode) => void
   collabModeFor: (scopeId: string) => AgentCollabMode
   setAgentsEnabled: (scopeId: string, enabled: boolean) => void
@@ -334,6 +350,11 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       markCloudSynced: () => set({ cloudSyncedAt: Date.now() }),
 
       addCustomAgent: (input) => {
+        const seatedBefore = input.scopeId
+          ? get().agentsForScope(input.scopeId).length
+          : 0
+        const seatNow =
+          Boolean(input.scopeId) && seatedBefore < ROOM_AGENT_SOFT_CAP
         const id = `custom-${crypto.randomUUID().slice(0, 8)}`
         const taken = new Set(get().allAgents().map((a) => a.slug))
         const slug = uniqueSlug(input.slug || input.nameAr, taken)
@@ -357,7 +378,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         }
         set((s) => {
           const addedToScope = { ...s.addedToScope }
-          if (input.scopeId) {
+          if (input.scopeId && seatNow) {
             const list = [...(addedToScope[input.scopeId] || [])]
             if (!list.includes(agent.id)) list.push(agent.id)
             addedToScope[input.scopeId] = list
@@ -370,11 +391,42 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         return agent
       },
 
+      pruneScopeToIdeal: (scopeId, keep) => {
+        const target = Math.max(
+          1,
+          Math.min(
+            ROOM_AGENT_SOFT_CAP,
+            Math.floor(keep ?? ROOM_AGENT_IDEAL_SEATS) || ROOM_AGENT_IDEAL_SEATS
+          )
+        )
+        const seated = get().agentsForScope(scopeId)
+        if (seated.length <= target) {
+          return { removedIds: [], kept: seated.length }
+        }
+        // Keep builtins first (stable roles), then earliest customs by list order
+        const builtins = seated.filter((a) => !a.custom)
+        const customs = seated.filter((a) => a.custom)
+        const keepList = [...builtins, ...customs].slice(0, target)
+        const keepIds = new Set(keepList.map((a) => a.id))
+        const removedIds = seated
+          .filter((a) => !keepIds.has(a.id))
+          .map((a) => a.id)
+        for (const id of removedIds) {
+          get().removeAgentFromScope(scopeId, id)
+        }
+        return { removedIds, kept: keepList.length }
+      },
+
       addTeamBatch: (input) => {
-        const count = Math.max(1, Math.min(10, Math.floor(input.count) || 1))
+        const seatedCount = get().agentsForScope(input.scopeId).length
+        const roomLeft = Math.max(0, ROOM_AGENT_SOFT_CAP - seatedCount)
+        const requested = Math.max(1, Math.floor(input.count) || 1)
+        const count = input.allowOverCap
+          ? Math.min(ROOM_AGENT_SOFT_CAP, requested) // hard ceiling even with override
+          : Math.min(roomLeft, requested)
+        if (count <= 0) return []
         const model = resolveBatchModel(input)
         const effort = parseRunEffort(input.preferredEffort)
-        const seatedCount = get().agentsForScope(input.scopeId).length
         const created: RoomAgent[] = []
         const taken = new Set(get().allAgents().map((a) => a.slug))
         const useCustomPrefix = Boolean(input.namePrefixAr?.trim())
@@ -519,7 +571,20 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         })
       },
 
-      addAgentToScope: (scopeId, agentId) => {
+      addAgentToScope: (scopeId, agentId, opts) => {
+        const seated = get().agentsForScope(scopeId)
+        if (seated.some((a) => a.id === agentId)) {
+          return { ok: true }
+        }
+        if (
+          seated.length >= ROOM_AGENT_SOFT_CAP &&
+          !opts?.allowOverCap
+        ) {
+          return {
+            ok: false,
+            reasonAr: `المقاعد ممتلئة (حدّ موصى به ${ROOM_AGENT_SOFT_CAP}). قلّم الزائد أو أكّد الإضافة فوق السقف.`,
+          }
+        }
         set((s) => {
           const removed = (s.removedFromScope[scopeId] || []).filter(
             (id) => id !== agentId
@@ -537,6 +602,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
             addedToScope: { ...s.addedToScope, [scopeId]: added },
           }
         })
+        return { ok: true }
       },
     }),
     {

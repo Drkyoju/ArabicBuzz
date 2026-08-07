@@ -11,8 +11,15 @@
 
 import path from 'node:path'
 import { assessArabicTextQuality } from '@/lib/documents/arabic-text-quality'
+import {
+  detectScannedOrImageOnlyPdf,
+  pageNeedsOcr,
+} from '@/lib/documents/scanned-detect'
 import { runArabicOcr } from '@/lib/rag/ocr'
-import { macPageOcr } from '@/lib/storage/mac-sync-client'
+import {
+  macPageOcr,
+  macSyncConfigured,
+} from '@/lib/storage/mac-sync-client'
 
 export type DocPageChunk = {
   /** 1-based page / slide / sheet index */
@@ -327,11 +334,12 @@ async function extractXlsxSheets(buffer: Buffer): Promise<DocPageChunk[]> {
   return pages
 }
 
-async function ocrPdfPageViaMac(
+async function ocrViaMacTesseract(
   buffer: Buffer,
   filename: string,
   pageIndex: number
 ): Promise<string | null> {
+  if (!macSyncConfigured()) return null
   try {
     const res = await macPageOcr({
       buffer,
@@ -344,6 +352,9 @@ async function ocrPdfPageViaMac(
     return null
   }
 }
+
+/** Cap OCR pages per read_document call (agent loops with nextPageStart). */
+const OCR_PAGES_PER_CALL = 8
 
 /**
  * Read a document window: pages [pageStart..pageEnd] and/or char chunk.
@@ -395,18 +406,28 @@ export async function readDocumentPages(opts: {
     kind = 'xlsx'
     all = await extractXlsxSheets(opts.buffer)
     extractMethod = 'xlsx-sheets'
-  } else if (mime.startsWith('image/') || /\.(png|jpe?g|webp|tif{1,2})$/i.test(lower)) {
+  } else if (mime.startsWith('image/') || /\.(png|jpe?g|webp|tif{1,2}|bmp|gif)$/i.test(lower)) {
     kind = 'image'
     let text = ''
     let ocrUsed = false
+    let extractNote = 'image-ocr'
     if (enableOcr) {
-      const ocr = await runArabicOcr({
-        buffer: opts.buffer,
-        filename,
-        mimeType: mime,
-      })
-      text = (ocr.text || '').trim()
-      ocrUsed = Boolean(text)
+      // Free path first: Mac Tesseract ara+eng (same endpoint as PDF pages)
+      const macText = await ocrViaMacTesseract(opts.buffer, filename, 1)
+      if (macText) {
+        text = macText
+        ocrUsed = true
+        extractNote = 'image-ocr-tesseract-mac'
+      } else {
+        const ocr = await runArabicOcr({
+          buffer: opts.buffer,
+          filename,
+          mimeType: mime.startsWith('image/') ? mime : guessImageMime(filename),
+        })
+        text = (ocr.text || '').trim()
+        ocrUsed = Boolean(text)
+        if (text) extractNote = `image-ocr-${ocr.provider}`
+      }
     }
     all = [
       {
@@ -418,7 +439,7 @@ export async function readDocumentPages(opts: {
         quality: text ? 'ocr' : 'empty',
       },
     ]
-    extractMethod = 'image-ocr'
+    extractMethod = extractNote
   } else {
     kind = 'text'
     const text = opts.buffer.toString('utf8').replace(/\0/g, '').trim()
@@ -462,19 +483,26 @@ export async function readDocumentPages(opts: {
     ? Math.min(totalUnits, Math.floor(opts.pageEnd))
     : totalUnits
 
-  // OCR empty / broken PDF pages in the requested window (bounded)
+  // OCR empty / scanned / broken PDF pages in the requested window (bounded)
   let ocrUsed = all.some((p) => p.ocrUsed)
+  let scannedWarning: string | undefined
   if (enableOcr && kind === 'pdf') {
+    const scan = detectScannedOrImageOnlyPdf(all)
+    if (scan.scanned) {
+      scannedWarning = `${scan.reasonAr} الجودة تعتمد على وضوح المسح — مسار مجاني (Tesseract ara+eng على الماك أو Gemini).`
+      extractMethod = 'pdf-scanned-ocr'
+    }
+
     const window = all.slice(pageStart - 1, pageEndReq)
     const needOcr = window.filter(
       (p) =>
+        pageNeedsOcr(p.text) ||
         p.quality === 'empty' ||
-        p.quality === 'broken-tounicode' ||
-        p.charCount < 40
+        p.quality === 'broken-tounicode'
     )
-    // Cap OCR pages per call to avoid timeouts
-    for (const page of needOcr.slice(0, 4)) {
-      const macText = await ocrPdfPageViaMac(opts.buffer, filename, page.index)
+    // Cap OCR pages per call — agent continues with nextPageStart
+    for (const page of needOcr.slice(0, OCR_PAGES_PER_CALL)) {
+      const macText = await ocrViaMacTesseract(opts.buffer, filename, page.index)
       if (macText) {
         page.text = macText
         page.charCount = macText.length
@@ -483,7 +511,7 @@ export async function readDocumentPages(opts: {
         ocrUsed = true
         continue
       }
-      // Last resort: whole-file OCR cascade once (Gemini) if first empty page
+      // Cloud cascade once for the first page in window (Gemini/Qari on PDF/image)
       if (page.index === pageStart && page.quality !== 'ocr') {
         try {
           const ocr = await runArabicOcr({
@@ -497,6 +525,7 @@ export async function readDocumentPages(opts: {
             page.ocrUsed = true
             page.quality = 'ocr'
             ocrUsed = true
+            extractMethod = `${extractMethod}+${ocr.provider}`
           }
         } catch {
           /* ignore */
@@ -522,6 +551,12 @@ export async function readDocumentPages(opts: {
       const truncated = charOffset + maxChars < joined.length
       const nextOff = truncated ? charOffset + maxChars : undefined
       const brokenAny = selected.some((x) => x.quality === 'broken-tounicode')
+      const warnParts = [
+        scannedWarning,
+        brokenAny
+          ? 'طبقة ToUnicode قد تكون معطوبة — فضّل OCR صفحة بصفحة أو تحويل Google Drive.'
+          : undefined,
+      ].filter(Boolean)
       return {
         ok: true,
         kind,
@@ -545,9 +580,7 @@ export async function readDocumentPages(opts: {
         totalCharCount,
         extractMethod,
         ocrUsed,
-        warningAr: brokenAny
-          ? 'طبقة ToUnicode قد تكون معطوبة — فضّل OCR صفحة بصفحة أو تحويل Google Drive.'
-          : undefined,
+        warningAr: warnParts.length ? warnParts.join(' ') : undefined,
         messageAr: truncated
           ? `قُرئ «${filename}» (إزاحة ${charOffset} · ${slice.length} حرفاً). استدعِ مجدداً بـ charOffset=${nextOff}.`
           : `قُرئ «${filename}» بالكامل ضمن النافذة (${selected.length} وحدة).`,
@@ -563,6 +596,18 @@ export async function readDocumentPages(opts: {
   const morePages = lastIncluded < pageEndReq || pageEndReq < totalUnits
   const truncated = morePages || text.length >= maxChars
   const brokenAny = selected.some((x) => x.quality === 'broken-tounicode')
+  const emptyStill = selected.some(
+    (x) => !x.text?.trim() && (x.quality === 'empty' || x.quality === 'ocr')
+  )
+  const warnParts = [
+    scannedWarning,
+    brokenAny
+      ? 'طبقة ToUnicode قد تكون معطوبة في بعض الصفحات — لا تعتمد النص دون OCR أو Drive.'
+      : undefined,
+    emptyStill && enableOcr
+      ? 'بعض الصفحات بلا نص بعد OCR — تحقق من وضوح المسح أو شغّل جسر الماك (Tesseract ara+eng).'
+      : undefined,
+  ].filter(Boolean)
 
   return {
     ok: true,
@@ -587,11 +632,9 @@ export async function readDocumentPages(opts: {
     totalCharCount,
     extractMethod,
     ocrUsed,
-    warningAr: brokenAny
-      ? 'طبقة ToUnicode قد تكون معطوبة في بعض الصفحات — لا تعتمد النص دون OCR أو Drive.'
-      : undefined,
+    warningAr: warnParts.length ? warnParts.join(' ') : undefined,
     messageAr: morePages
-      ? `قُرئ «${filename}» صفحات/وحدات ${pageStart}–${lastIncluded} من ${totalUnits}. استدعِ read_document بـ pageStart=${lastIncluded + 1} للمتابعة — لا تتخطَّ.`
-      : `قُرئ «${filename}» كاملاً (${totalUnits} وحدة · ${totalCharCount} حرفاً).`,
+      ? `قُرئ «${filename}» صفحات/وحدات ${pageStart}–${lastIncluded} من ${totalUnits}${ocrUsed ? ' (مع OCR)' : ''}. استدعِ read_document بـ pageStart=${lastIncluded + 1} للمتابعة — لا تتخطَّ.`
+      : `قُرئ «${filename}» كاملاً (${totalUnits} وحدة · ${totalCharCount} حرفاً)${ocrUsed ? ' عبر OCR' : ''}.`,
   }
 }

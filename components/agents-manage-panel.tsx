@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, Plus, Trash2, X } from 'lucide-react'
+import { Bot, Plus, Scissors, Trash2, X } from 'lucide-react'
 import {
   agentModelLabelAr,
   agentModelOptionLabelAr,
   BUILTIN_ROOM_AGENTS,
+  ROOM_AGENT_BATCH_DEFAULT,
+  ROOM_AGENT_IDEAL_SEATS,
+  ROOM_AGENT_SOFT_CAP,
   roomAgentModelCatalog,
   type RoomAgent,
 } from '@/lib/rooms/agents'
@@ -41,6 +44,7 @@ export function AgentsManagePanel({
   const allAgents = useAgentRosterStore((s) => s.allAgents)
   const addCustomAgent = useAgentRosterStore((s) => s.addCustomAgent)
   const addTeamBatch = useAgentRosterStore((s) => s.addTeamBatch)
+  const pruneScopeToIdeal = useAgentRosterStore((s) => s.pruneScopeToIdeal)
   const updateAgent = useAgentRosterStore((s) => s.updateAgent)
   const clearAgentOverride = useAgentRosterStore((s) => s.clearAgentOverride)
   const agentOverrides = useAgentRosterStore((s) => s.agentOverrides)
@@ -65,13 +69,16 @@ export function AgentsManagePanel({
   const [effort, setEffort] = useState<RunEffort>('MEDIUM')
   const [batchModel, setBatchModel] = useState(DEFAULT_MODEL)
   const [batchEffort, setBatchEffort] = useState<RunEffort>('MEDIUM')
-  const [batchCount, setBatchCount] = useState(5)
+  const [batchCount, setBatchCount] = useState(ROOM_AGENT_BATCH_DEFAULT)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState('')
 
   const seated = agentsForScope(scopeId)
   const seatedIds = useMemo(() => new Set(seated.map((a) => a.id)), [seated])
   const catalog = allAgents()
+  const overCap = seated.length > ROOM_AGENT_SOFT_CAP
+  const nearCap = seated.length >= ROOM_AGENT_SOFT_CAP
+  const seatsLeft = Math.max(0, ROOM_AGENT_SOFT_CAP - seated.length)
 
   useEffect(() => {
     if (!open) return
@@ -134,31 +141,76 @@ export function AgentsManagePanel({
         setNote('إضافة وكلاء بأسماء جديدة في غرفة الفريق للمدير فقط.')
         return
       }
+      if (nearCap) {
+        const ok = confirm(
+          `المقاعد وصلت للحد الموصى به (${ROOM_AGENT_SOFT_CAP}). إضافة فوق ذلك تُزحم الشريط — المتابعة؟`
+        )
+        if (!ok) return
+      }
       const agent = addCustomAgent({
         nameAr: nameAr.trim() || defaultSeatNameAr(seated.length + 1),
         slug: slug || undefined,
         systemPromptAr: prompt,
         preferredModel: model,
         preferredEffort: effort,
-        scopeId,
+        scopeId: nearCap ? undefined : scopeId,
       })
-      setNote(
-        `أُضيف «${agent.nameAr}» (@${agent.slug}) · ${agentModelLabelAr(model)} · قوة ${RUN_EFFORT_LABELS_AR[effort]}`
-      )
+      if (nearCap) {
+        const seat = addAgentToScope(scopeId, agent.id, { allowOverCap: true })
+        setNote(
+          seat.ok
+            ? `أُضيف «${agent.nameAr}» فوق السقف — يُفضَّل التقليم لاحقاً.`
+            : seat.reasonAr || 'تعذّرت الإضافة'
+        )
+      } else {
+        setNote(
+          `أُضيف «${agent.nameAr}» (@${agent.slug}) · ${agentModelLabelAr(model)} · قوة ${RUN_EFFORT_LABELS_AR[effort]}`
+        )
+      }
     }
     resetForm()
   }
 
   function addBatch() {
-    const n = Math.min(10, Math.max(1, batchCount))
+    const want = Math.min(
+      seatsLeft || ROOM_AGENT_BATCH_DEFAULT,
+      Math.max(1, batchCount)
+    )
+    if (seatsLeft <= 0) {
+      setNote(
+        `لا يمكن إضافة دفعة — وصلتَ لسقف ${ROOM_AGENT_SOFT_CAP} مقاعد. قلّم الزائد أولاً.`
+      )
+      return
+    }
     const created = addTeamBatch({
       scopeId,
       preferredModel: batchModel,
       preferredEffort: batchEffort,
-      count: n,
+      count: want,
     })
     setNote(
-      `أُضيف ${created.length} مقعد · ${agentModelLabelAr(batchModel)} · قوة ${RUN_EFFORT_LABELS_AR[batchEffort]} — وُضع وضع تعاون.`
+      created.length
+        ? `أُضيف ${created.length} مقعد · ${agentModelLabelAr(batchModel)} · قوة ${RUN_EFFORT_LABELS_AR[batchEffort]} — بقي ${Math.max(0, ROOM_AGENT_SOFT_CAP - seated.length - created.length)} حتى السقف.`
+        : `تعذّرت الإضافة — السقف ${ROOM_AGENT_SOFT_CAP}.`
+    )
+  }
+
+  function pruneNow() {
+    if (
+      !confirm(
+        `تقليم المقاعد إلى ${ROOM_AGENT_IDEAL_SEATS}؟ يُبقى الأدوار الأساسية ويُزال الزائد (مخصص أولاً).`
+      )
+    ) {
+      return
+    }
+    const { removedIds, kept } = pruneScopeToIdeal(
+      scopeId,
+      ROOM_AGENT_IDEAL_SEATS
+    )
+    setNote(
+      removedIds.length
+        ? `قُلِّم ${removedIds.length} مقعد — بقي ${kept}.`
+        : `لا حاجة للتقليم (${kept} مقعد).`
     )
   }
 
@@ -222,14 +274,32 @@ export function AgentsManagePanel({
               <p className="rounded-md border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-2 text-[11px] leading-snug text-stone-600">
                 {renameHint}
                 {' · '}
-                الافتراضي: وكيل١، وكيل٢… · المهمة تُحدَّد لاحقاً عبر @mention.
+                الافتراضي: وكيل١… · المهمة عبر @mention.
               </p>
               <p className="text-[11px] text-stone-500">
-                حتى 8 وكيل معاً (سقف Netlify 20) · تعاون = عدة وكلاء · منفصل =
-                واحد · @الجميع للفريق.
+                مقاعد واضحة: حتى {ROOM_AGENT_SOFT_CAP} (مثالي ≈
+                {ROOM_AGENT_IDEAL_SEATS}) · الآن {seated.length}
+                {seatsLeft > 0 ? ` · متاح ${seatsLeft}` : ' · ممتلئ'}
               </p>
 
-              {(canRename || !sharedFixed) && (
+              {overCap && (canRename || !sharedFixed) && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-950">
+                  <span className="flex-1 leading-snug">
+                    الشريط مزدحم ({seated.length} مقعد). يُفضَّل التقليم إلى{' '}
+                    {ROOM_AGENT_IDEAL_SEATS}.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={pruneNow}
+                    className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium"
+                  >
+                    <Scissors className="h-3 w-3" aria-hidden />
+                    تقليم إلى {ROOM_AGENT_IDEAL_SEATS}
+                  </button>
+                </div>
+              )}
+
+              {(canRename || !sharedFixed) && !nearCap && (
                 <div className="space-y-2 rounded-lg border border-ab-border bg-stone-50/80 p-2.5">
                   <p className="text-[11px] font-semibold text-stone-600">
                     إضافة بعدد (نفس النموذج والقوة)
@@ -273,10 +343,15 @@ export function AgentsManagePanel({
                       <input
                         type="number"
                         min={1}
-                        max={10}
+                        max={Math.max(1, seatsLeft)}
                         value={batchCount}
                         onChange={(e) =>
-                          setBatchCount(Number(e.target.value) || 1)
+                          setBatchCount(
+                            Math.min(
+                              seatsLeft || 1,
+                              Math.max(1, Number(e.target.value) || 1)
+                            )
+                          )
                         }
                         className="w-14 rounded-md border border-ab-border bg-white px-1 py-1.5 text-center text-xs"
                         dir="ltr"
@@ -287,7 +362,7 @@ export function AgentsManagePanel({
                       onClick={addBatch}
                       className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] font-medium hover:bg-stone-50"
                     >
-                      + إضافة {batchCount}
+                      + إضافة {Math.min(batchCount, seatsLeft || batchCount)}
                     </button>
                   </div>
                 </div>
@@ -394,6 +469,17 @@ export function AgentsManagePanel({
                         إلغاء
                       </button>
                     )}
+                    {seated.length > ROOM_AGENT_IDEAL_SEATS &&
+                      (canRename || !sharedFixed) && (
+                        <button
+                          type="button"
+                          onClick={pruneNow}
+                          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2.5 py-1.5 text-[11px]"
+                        >
+                          <Scissors className="h-3 w-3" aria-hidden />
+                          تقليم
+                        </button>
+                      )}
                   </div>
                   {note && <p className="text-[11px] text-stone-600">{note}</p>}
                 </div>
@@ -516,7 +602,23 @@ export function AgentsManagePanel({
                           key={agent.id}
                           type="button"
                           onClick={() => {
-                            addAgentToScope(scopeId, agent.id)
+                            const res = addAgentToScope(scopeId, agent.id)
+                            if (!res.ok) {
+                              const force = confirm(
+                                `${res.reasonAr || 'السقف ممتلئ'}\nإضافة فوق السقف؟`
+                              )
+                              if (!force) {
+                                setNote(res.reasonAr || 'تعذّرت الإضافة')
+                                return
+                              }
+                              addAgentToScope(scopeId, agent.id, {
+                                allowOverCap: true,
+                              })
+                              setNote(
+                                `أُضيف «${agent.nameAr}» فوق السقف — يُفضَّل التقليم.`
+                              )
+                              return
+                            }
                             setNote(`أُضيف «${agent.nameAr}» للغرفة.`)
                           }}
                           className="rounded-md border border-dashed border-ab-border bg-stone-50 px-2 py-1 text-[10px] hover:bg-white"

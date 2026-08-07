@@ -105,3 +105,22 @@
 4. المستخدم ليس في قائمة Test users (قبل النشر).
 
 بعد ضبط القائمة أعلاه + نشر الكود، دخول Google العادي يجب أن يبدو كاختيار حساب عادي. ربط الأدوات يبقى خطوة منفصلة واعية.
+
+---
+
+## خطوات عربية مختصرة — نشر Production (حساب المالك فقط)
+
+الحساب المتوقع: `ryodan71@gmail.com`
+
+1. افتح [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+2. تأكد من:
+   - App name = `Arabic Buzz`
+   - Privacy policy = `https://arabicbuzz.netlify.app/privacy`
+   - Home page = `https://arabicbuzz.netlify.app/`
+3. تحت **Publishing status**:
+   - إذا **Testing** → اضغط **Publish app** → أكّد الانتقال إلى **In production**
+4. (اختياري قبل النشر) أضف الزملاء في **Test users** حتى يعملوا فوراً
+5. داخل Arabic Buzz: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم يضغط هذا بنفسه مرة واحدة لتحويل PDF→Word والفهرسة
+
+الكود لا يستطيع نشر التطبيق في Google Cloud نيابةً عنك — هذه النقرة في Console إلزامية من حساب المالك.
+

@@ -14,13 +14,14 @@ type Props = {
 }
 
 /**
- * Header bell — red dot when org IMAP mailbox has unread mail.
+ * Header bell — badge when org IMAP mailbox has unread mail.
  * Polls /api/mail/unread (extends existing IMAP store; no second mail system).
  */
 export function MailBell({ onOpenMail, className, compact }: Props) {
   const signedIn = useSignedIn()
   const [unread, setUnread] = useState(0)
   const [configured, setConfigured] = useState(false)
+  const [pulse, setPulse] = useState(false)
 
   const poll = useCallback(async () => {
     if (signedIn !== true) {
@@ -37,7 +38,11 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
         unread?: number
       }
       setConfigured(Boolean(data.configured))
-      setUnread(Number(data.unread || 0))
+      const next = Number(data.unread || 0)
+      setUnread((prev) => {
+        if (next > prev) setPulse(true)
+        return next
+      })
     } catch {
       /* ignore */
     }
@@ -57,6 +62,12 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
       window.removeEventListener('ab-mail-changed', onMail)
     }
   }, [poll, signedIn])
+
+  useEffect(() => {
+    if (!pulse) return
+    const t = window.setTimeout(() => setPulse(false), 1200)
+    return () => window.clearTimeout(t)
+  }, [pulse])
 
   if (signedIn !== true || !configured) return null
 
@@ -79,19 +90,35 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
       className={cn(
         'relative inline-flex items-center justify-center rounded-md text-ab-ink transition-colors hover:bg-stone-100',
         compact ? 'p-2' : 'gap-1.5 px-2 py-1.5 text-xs',
+        pulse && 'ring-2 ring-ab-accent/40',
         className
       )}
     >
-      <Bell className={cn(compact ? 'h-5 w-5' : 'h-4 w-4')} aria-hidden />
-      {!compact && <span className="hidden sm:inline">البريد</span>}
+      <Bell
+        className={cn(
+          compact ? 'h-5 w-5' : 'h-4 w-4',
+          hasNew && 'text-ab-accent'
+        )}
+        aria-hidden
+      />
+      {!compact && (
+        <span className="hidden sm:inline">
+          {hasNew ? 'وارد جديد' : 'البريد'}
+        </span>
+      )}
       {hasNew && (
         <span
-          className="absolute end-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"
+          className={cn(
+            'absolute end-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white',
+            pulse && 'animate-pulse'
+          )}
           aria-hidden
-        />
+        >
+          {unread > 99 ? '99+' : unread}
+        </span>
       )}
       {hasNew && !compact && (
-        <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-700 sm:hidden">
           {unread > 99 ? '99+' : unread}
         </span>
       )}

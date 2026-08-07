@@ -93,7 +93,7 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 | XLSX → DOCX | عبر Docs إن دعم | نعم | — | فقرات من الأوراق |
 | PPTX ↔ PDF | نعم | نعم | — | نص فقط |
 
-**قراءة الوكلاء:** `read_document` صفحة/شريحة/ورقة بصفحة مع `pageStart` → `nextPageStart` حتى `hasMore=false`. OCR: Qari → Gemini → `POST /pdf-page-ocr` (Tesseract ara+eng على الماك).
+**قراءة الوكلاء:** `read_document` صفحة/شريحة/ورقة بصفحة مع `pageStart` → `nextPageStart` حتى `hasMore=false`. يكتشف PDF الممسوح (بلا طبقة نسخ) والصور ويستخرج عبر OCR: جسر الماك Tesseract `ara+eng` → Qari → Gemini. التفاصيل: [free-office-tools.md](./free-office-tools.md).
 
 ## اختياري مدفوع: CloudConvert
 

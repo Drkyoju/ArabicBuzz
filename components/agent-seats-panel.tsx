@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   agentModelLabelAr,
+  ROOM_AGENT_IDEAL_SEATS,
+  ROOM_AGENT_SOFT_CAP,
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
@@ -103,16 +105,19 @@ export function AgentSeatsPanel({
 
   return (
     <div className={cn('space-y-1', className)} dir="rtl">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700">
+      {agents.length > ROOM_AGENT_SOFT_CAP && (
+        <p className="rounded-md border border-amber-200/80 bg-amber-50/90 px-2 py-1 text-[10px] leading-snug text-amber-950">
+          مقاعد كثيرة ({agents.length}) — افتح «إدارة الوكلاء» وقلّم إلى ≈
+          {ROOM_AGENT_IDEAL_SEATS} لشريط أوضح.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800/90">
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </span>
-          متواجدون ٢٤س
-          {agents.length > 0 ? (
-            <span className="text-stone-400">· {agents.length}</span>
-          ) : null}
+          {agents.length > 0 ? `${agents.length} مقاعد` : 'وكلاء'}
         </span>
         {agents.map((agent) => {
           const online =
@@ -158,22 +163,22 @@ export function AgentSeatsPanel({
                 setProfileAgent(agent)
               }}
               className={cn(
-                'inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors',
+                'inline-flex max-w-[11rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition-colors',
                 !online
-                  ? 'border-stone-200 bg-stone-50 text-stone-400'
+                  ? 'border-stone-200/80 bg-stone-50/80 text-stone-400'
                   : answering
-                    ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
+                    ? 'border-ab-accent/50 bg-ab-accent/10 font-semibold text-ab-accent'
                     : active
-                      ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
-                      : 'border-emerald-100 bg-emerald-50/70 text-ab-ink hover:bg-emerald-50'
+                      ? 'border-ab-accent/40 bg-ab-accent/5 font-medium text-ab-accent'
+                      : 'border-transparent bg-transparent text-ab-ink hover:bg-stone-100/80'
               )}
             >
               <span className="relative shrink-0">
                 <span
-                  className="flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-white"
+                  className="flex h-3.5 w-3.5 items-center justify-center rounded text-[8px] font-bold text-white"
                   style={{
-                    backgroundColor: `hsl(${agent.avatarHue} 55% 42%)`,
-                    opacity: online ? 1 : 0.45,
+                    backgroundColor: `hsl(${agent.avatarHue} 48% 40%)`,
+                    opacity: online ? 1 : 0.4,
                   }}
                   aria-hidden
                 >
@@ -194,17 +199,9 @@ export function AgentSeatsPanel({
               <span className={cn('truncate', !online && 'line-through')}>
                 {agent.nameAr}
               </span>
-              <span
-                className={cn(
-                  'shrink-0 text-[9px]',
-                  !online && 'text-stone-400',
-                  online && answering && 'text-ab-accent',
-                  online && !answering && 'text-emerald-600'
-                )}
-              >
-                {statusAr}
-                {online && !answering && model ? ` · ${model}` : ''}
-              </span>
+              {answering ? (
+                <span className="shrink-0 text-[9px] text-ab-accent">يعمل</span>
+              ) : null}
             </button>
           )
         })}
@@ -217,10 +214,9 @@ export function AgentSeatsPanel({
           يعمل الآن…
         </p>
       )}
-      {!answeringAgentId && agents.length > 0 && (
+      {!answeringAgentId && agents.length > 0 && agents.length <= ROOM_AGENT_SOFT_CAP && (
         <p className="truncate text-[10px] text-stone-400">
-          اضغط المقعد: شغال ↔ طافي · كل رسالة يطّلع عليها وكيل جاهز فوراً ·{' '}
-          {collabMode === 'team' ? 'تعاون نشط' : 'منفصل'}
+          شغال ↔ طافي · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
         </p>
       )}
 

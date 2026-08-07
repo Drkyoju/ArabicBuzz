@@ -17,6 +17,7 @@ export type ExtractResult = {
     | 'ocr-qari-hf'
     | 'ocr-gemini'
     | 'ocr-tesseract-ara'
+    | 'ocr-tesseract-mac'
     | 'empty'
   ocrUsed: boolean
   ocrProvider?: string
@@ -269,13 +270,15 @@ export async function extractDocumentText(opts: {
       const merged =
         text.length > 40 ? `${text}\n\n--- OCR ---\n\n${ocr.text}` : ocr.text
       const ocrMethod =
-        ocr.provider === 'qari-local'
-          ? 'ocr-qari-local'
-          : ocr.provider === 'qari-hf'
-            ? 'ocr-qari-hf'
-            : ocr.provider === 'gemini'
-              ? 'ocr-gemini'
-              : method
+        ocr.provider === 'tesseract-mac'
+          ? 'ocr-tesseract-mac'
+          : ocr.provider === 'qari-local'
+            ? 'ocr-qari-local'
+            : ocr.provider === 'qari-hf'
+              ? 'ocr-qari-hf'
+              : ocr.provider === 'gemini'
+                ? 'ocr-gemini'
+                : method
       return {
         text: merged,
         method: ocrMethod,

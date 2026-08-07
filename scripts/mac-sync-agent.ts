@@ -93,12 +93,56 @@ const server = createServer(async (req, res) => {
     req.method === 'GET' &&
     (url.pathname === '/' || url.pathname === '/health')
   ) {
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { fileURLToPath } = await import('node:url')
+    const { execFileSync } = await import('node:child_process')
+    const here = fileURLToPath(new URL('.', import.meta.url))
+    const root = join(here, '..')
+    const which = (cmd: string): string | null => {
+      try {
+        return (
+          execFileSync('/bin/sh', ['-c', `command -v ${cmd}`], {
+            encoding: 'utf8',
+          }).trim() || null
+        )
+      } catch {
+        return null
+      }
+    }
+    const tessCandidates = [
+      process.env.TESSERACT_CMD?.trim(),
+      '/usr/local/bin/tesseract',
+      '/opt/homebrew/bin/tesseract',
+      which('tesseract'),
+    ].filter(Boolean) as string[]
+    const tesseractPath = tessCandidates.find((p) => existsSync(p)) || null
+    const sofficeCandidates = [
+      '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+      which('soffice'),
+      which('libreoffice'),
+    ].filter(Boolean) as string[]
+    const sofficePath = sofficeCandidates.find((p) => existsSync(p)) || null
+    const venvPy = join(root, 'scripts/pdf-tools-venv/bin/python')
     json(res, 200, {
       ok: true,
       agent: 'arabic-buzz-mac-sync',
       storage: getStorageStatus(),
       brain: getMacBrainStatus(),
       maxUploadBytes: MAX_BYTES,
+      tools: {
+        tesseract: Boolean(tesseractPath),
+        tesseractPath,
+        libreoffice: Boolean(sofficePath),
+        sofficePath,
+        pdfToolsVenv: existsSync(venvPy),
+        endpoints: [
+          '/pdf-page-ocr',
+          '/pdf-docx-convert',
+          '/pdf-replace',
+          '/markitdown',
+        ],
+      },
     })
     return
   }

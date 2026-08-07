@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { ORG_REPLY_TEMPLATES } from '@/lib/email/org-reply-templates'
 
 type MailboxPublic = {
   id: string
@@ -459,8 +460,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             )}
           </h2>
           <p className="ab-subtitle">
-            IMAP/SMTP لـ {DEFAULT_EMAIL} — عند فتح رسالة يجهّز الوكيل ملخصاً
-            ومسودة رد واستخراجاً ذكياً، ويقرأ المرفقات (PDF/Word).
+            صندوق {DEFAULT_EMAIL} — قوالب رد جاهزة + مسودة ذكية عند فتح الرسالة،
+            وقراءة المرفقات (PDF/Word).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -972,6 +973,41 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       </span>
                     )}
                   </div>
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold text-stone-500">
+                      قوالب رد الجمعية
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ORG_REPLY_TEMPLATES.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setReplyText(t.bodyAr)
+                            if (t.subjectHintAr) {
+                              const base = selected?.subject || ''
+                              const already =
+                                base.match(/^(re|رد)\s*:/i) ||
+                                base.includes(t.subjectHintAr)
+                              setReplySubject(
+                                already
+                                  ? base.startsWith('Re:') ||
+                                    base.startsWith('رد')
+                                    ? base
+                                    : `Re: ${base}`
+                                  : `Re: ${t.subjectHintAr}`
+                              )
+                            }
+                            setDraftAccepted(true)
+                            setOkMsg(`أُدرج قالب «${t.labelAr}» — عدّل ثم أرسل.`)
+                          }}
+                          className="rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-[10px] font-medium text-ab-ink hover:border-ab-accent/40 hover:bg-ab-accent/5"
+                        >
+                          {t.labelAr}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <label className="block text-xs">
                     <span className="text-stone-500">موضوع الرد</span>
                     <input
@@ -987,7 +1023,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="مسودة الوكيل أو اكتب ردك…"
+                      placeholder="مسودة الوكيل أو قالب جاهز أو اكتب ردك…"
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">

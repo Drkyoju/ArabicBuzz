@@ -274,31 +274,42 @@ export function directMacReplaceInfo(id: string) {
 
 /**
  * Page OCR (Arabic+English) via Mac: PyMuPDF render + Tesseract ara+eng.
+ * Works for PDF pages and standalone images (png/jpg/…).
+ * Pass allPages=true for full scanned PDFs (slower; one request).
  */
 export async function macPageOcr(opts: {
   buffer: Buffer
   filename: string
-  page: number
+  page?: number
   lang?: string
-}): Promise<{ text: string; page: number; provider: string }> {
+  allPages?: boolean
+}): Promise<{
+  text: string
+  page: number
+  pages?: number
+  provider: string
+}> {
   if (!macSyncConfigured()) {
     throw new Error('MAC_SYNC_URL غير مضبوط لـ OCR الصفحات.')
   }
+  const page = Math.max(1, opts.page || 1)
   const res = await macFetch('/pdf-page-ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       filename: opts.filename,
       contentBase64: opts.buffer.toString('base64'),
-      page: opts.page,
+      page,
       lang: opts.lang || 'ara+eng',
+      allPages: Boolean(opts.allPages),
     }),
-    timeoutMs: 120_000,
+    timeoutMs: opts.allPages ? 420_000 : 120_000,
   })
   const data = (await res.json()) as {
     ok?: boolean
     text?: string
     page?: number
+    pages?: number
     provider?: string
     error?: string
   }
@@ -307,7 +318,8 @@ export async function macPageOcr(opts: {
   }
   return {
     text: String(data.text || ''),
-    page: Number(data.page || opts.page),
+    page: Number(data.page || page),
+    pages: data.pages != null ? Number(data.pages) : undefined,
     provider: String(data.provider || 'tesseract-mac'),
   }
 }

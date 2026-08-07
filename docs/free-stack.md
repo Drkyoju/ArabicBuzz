@@ -26,6 +26,10 @@ Mic STT cascade: **Willow (if URL) → Gemini → HF Arabic → Groq Whisper** (
 
 See also: [voice-room-agents.md](./voice-room-agents.md) — shared room auto-watch, «أبغا…», seat شغال/طافي.
 
+OCR مجاني لمسح PDF: [mac-ocr-tesseract.md](./mac-ocr-tesseract.md) (Tesseract `ara+eng` عبر جسر الماك).
+
+Google OAuth / Production: [google-oauth-ar.md](./google-oauth-ar.md).
+
 ## Health check
 
 `GET /api/health/free` → `embeddingProvider`, `dbPooler`, `supabaseOk`, `brainDocuments`, `prismaOk`.

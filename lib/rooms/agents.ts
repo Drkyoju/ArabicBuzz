@@ -122,8 +122,25 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
 /** @deprecated use BUILTIN_ROOM_AGENTS — kept for server routes without roster store */
 export const ROOM_AGENTS = BUILTIN_ROOM_AGENTS
 
+/**
+ * Soft cap for room seats — keeps the strip readable (~5–8).
+ * Owner can still add past this with an explicit confirm in the UI;
+ * batch add refuses to blow past the soft cap.
+ */
+export const ROOM_AGENT_SOFT_CAP = 8
+/** Suggested tidy size when pruning cluttered rooms. */
+export const ROOM_AGENT_IDEAL_SEATS = 6
+/** Default batch size when adding several seats at once. */
+export const ROOM_AGENT_BATCH_DEFAULT = 3
+
 export const SCOPE_AGENT_IDS: Record<string, string[]> = {
-  'shared-demo': ['agent-reports', 'agent-compliance'],
+  // Team room: 4 clear starter seats (owner adds up to soft cap 8)
+  'shared-demo': [
+    'agent-reports',
+    'agent-compliance',
+    'agent-cron',
+    'agent-desk',
+  ],
   'shared-ops': ['agent-cron', 'agent-channels'],
   'personal-demo': BUILTIN_ROOM_AGENTS.map((a) => a.id),
   'personal-research': ['agent-research'],

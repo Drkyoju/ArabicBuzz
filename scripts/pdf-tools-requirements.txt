@@ -1,9 +1,16 @@
 # Optional Arabic+English page OCR (Mac / local)
 pytesseract>=0.3.10
 Pillow>=10.0.0
+# Searchable PDF layer (needs brew: tesseract + ghostscript)
+ocrmypdf>=16.0.0
 # Core PDF/Word
 arabic-reshaper==3.0.1
 pymupdf==1.28.2
 python-bidi==0.6.11
 python-docx>=1.1.0
 pdf2docx>=0.5.8
+# Office extract (PPTX / XLSX)
+python-pptx>=1.0.0
+openpyxl>=3.1.0
+# Decision deep-read on Mac agent
+markitdown[all]>=0.1.0

@@ -12,6 +12,7 @@ import {
   Pencil,
   RefreshCw,
   Replace,
+  ShieldCheck,
   Trash2,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
@@ -63,6 +64,8 @@ export function FilesPanel() {
   const replaceRef = useRef<HTMLInputElement>(null)
   const replaceTargetId = useRef<string | null>(null)
   const postsByScope = useWorkspaceStore((s) => s.postsByScope)
+
+  const [backingUp, setBackingUp] = useState(false)
 
   const load = useCallback(async () => {
     if (signedIn !== true) {
@@ -147,6 +150,35 @@ export function FilesPanel() {
       cancelled = true
     }
   }, [postsByScope, scopeId, signedIn])
+
+  async function exportVaultManifest() {
+    setBackingUp(true)
+    setNote('جاري تجهيز فهرس الأرشيف…')
+    try {
+      const res = await fetch(
+        `/api/storage/backup-manifest?scopeId=${encodeURIComponent(scopeId)}`,
+        { headers: await authHeaders() }
+      )
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error || 'فشل تصدير الفهرس')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `arabicbuzz-vault-${scopeId}-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setNote(
+        'نُزّل فهرس الأرشيف (JSON). الملفات نفسها تبقى في الخزنة — تنظيف الشات لا يحذفها.'
+      )
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل تصدير الفهرس')
+    } finally {
+      setBackingUp(false)
+    }
+  }
 
   async function sendToBrain(f: ListedFile) {
     const fileId = f.id || ''
@@ -389,15 +421,32 @@ export function FilesPanel() {
             قائمة الملفات والصوت المرفوعة من الغرفة — بلا محادثة. افتح/شغّل الملف
             من غرفة الفريق مباشرة؛ استخدم هذا الأرشيف عندما يضيع المرفق وسط الرسائل.
           </p>
+          <p className="mt-1.5 flex items-start gap-1.5 max-w-xl text-[11px] leading-snug text-emerald-800">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            أرشيف دائم: حذف شات اليوم أو الاحتفاظ التلقائي للرسائل لا يمس هذه
+            الملفات. صدّر الفهرس أدناه كنسخة احتياطية للأسماء والمعرّفات.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="ab-btn-secondary"
-        >
-          <RefreshCw className="h-3 w-3" />
-          تحديث
-        </button>
+        <div className="flex shrink-0 flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => void exportVaultManifest()}
+            disabled={backingUp || files.length === 0}
+            className="ab-btn-secondary"
+            title="تنزيل JSON بأسماء ومعرّفات كل ملفات الأرشيف"
+          >
+            <Download className="h-3 w-3" />
+            {backingUp ? 'جاري التصدير…' : 'نسخ احتياطي للفهرس'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="ab-btn-secondary"
+          >
+            <RefreshCw className="h-3 w-3" />
+            تحديث
+          </button>
+        </div>
       </div>
 
       <div>

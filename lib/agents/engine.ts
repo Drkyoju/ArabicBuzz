@@ -109,7 +109,7 @@ export function getNativeAiTools(opts?: {
     }),
     read_document: tool({
       description:
-        'قراءة مستند مكتبي صفحة بصفحة / ورقة بورقة (Word، Excel، PowerPoint، PDF) مع OCR تلقائي للصفحات الفارغة أو الممسوحة. للمستندات الطويلة: مرّر pageStart ثم كرّر بـ nextPageStart حتى hasMore=false — لا تتخطَّ صفحات. للصور أو بحث عبارة فضّل arabic_ocr.',
+        'قراءة مستند مكتبي صفحة بصفحة / ورقة بورقة (Word، Excel، PowerPoint، PDF، صور png/jpg). يكتشف PDF الممسوح (بدون طبقة نص للنسخ) ويشغّل OCR عربي+إنجليزي تلقائياً. للمستندات الطويلة: مرّر pageStart ثم كرّر بـ nextPageStart حتى hasMore=false — لا تتخطَّ صفحات. للبحث عن عبارة في مسح فضّل arabic_ocr.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف أو اسمه كما في list_workspace_files'),
         pageStart: z
@@ -135,7 +135,7 @@ export function getNativeAiTools(opts?: {
         enableOcr: z
           .boolean()
           .optional()
-          .describe('OCR للصفحات الفارغة/المعطوبة — افتراضي true'),
+          .describe('OCR للصفحات/الصور الفارغة أو الممسوحة (ara+eng) — افتراضي true'),
       }),
       execute: async (params) =>
         interceptToolExecution({
@@ -1517,7 +1517,7 @@ export function getNativeAiTools(opts?: {
     }),
     arabic_ocr: tool({
       description:
-        'قراءة نص عربي من صورة أو PDF ممسوح (OCR عبر Gemini/Qari). مرّر fileId من مساحة الغرفة. يحفظ النص تلقائياً في ذاكرة الغرفة وملف .txt. للبحث عن عبارة: مرّر searchQuery. للقرارات الطويلة فضّل read_decision_document.',
+        'قراءة نص عربي+إنجليزي من صورة أو PDF ممسوح (بدون طبقة نسخ). سلسلة مجانية أولاً: Tesseract ara+eng على جسر الماك → Qari → Gemini. مرّر fileId من مساحة الغرفة. يحفظ النص تلقائياً في ذاكرة الغرفة وملف .txt. للبحث عن عبارة: مرّر searchQuery. للقراءة صفحة بصفحة للمستندات الطويلة فضّل read_document.',
       inputSchema: z.object({
         fileId: z
           .string()

@@ -2,26 +2,32 @@
  * Arabic document OCR for scanned PDFs / images.
  *
  * OCR vs RAG (short):
- * - OCR = قراءة النص من صورة أو PDF ممسوح
+ * - OCR = قراءة النص من صورة أو PDF ممسوح (لا طبقة نص للنسخ)
  * - RAG = تخزين ذلك النص والبحث فيه لاحقاً عند سؤال الوكيل
  *
- * Free Arabic-first model people cite on GitHub/HF:
- *   NAMAA-Space/Qari-OCR (QARI) — open-source Arabic VLM OCR
- * Optional local stack: Manazir-OCR wrapping Qari + others.
- *
- * Cascade:
- * 1) QARI_OCR_URL — your Mac/local Manazir/Qari HTTP endpoint
- * 2) Hugging Face Inference (HF_TOKEN) — Qari model
- * 3) Gemini vision (GEMINI_API_KEY) — strong Arabic OCR fallback on Netlify
+ * Cascade (free-first when Mac bridge is up):
+ * 1) Mac sync POST /pdf-page-ocr — PyMuPDF + Tesseract ara+eng (brew)
+ * 2) QARI_OCR_URL — local Manazir/Qari HTTP
+ * 3) Hugging Face Inference (HF_TOKEN) — Qari model
+ * 4) Gemini vision (GEMINI_API_KEY) — strong Arabic OCR fallback on Netlify
  */
 import { generateText } from 'ai'
 import { getCloudProviders } from '@/lib/ai/providers'
 import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import { assessArabicTextQuality } from '@/lib/documents/arabic-text-quality'
+import {
+  macPageOcr,
+  macSyncConfigured,
+} from '@/lib/storage/mac-sync-client'
 
 export type ArabicOcrResult = {
   text: string
-  provider: 'qari-local' | 'qari-hf' | 'gemini' | 'none'
+  provider:
+    | 'tesseract-mac'
+    | 'qari-local'
+    | 'qari-hf'
+    | 'gemini'
+    | 'none'
   error?: string
 }
 
@@ -211,7 +217,7 @@ async function ocrViaGemini(
   }
 }
 
-/** Run Arabic OCR cascade on an image or scanned PDF. */
+/** Run Arabic+English OCR cascade on an image or scanned PDF. */
 export async function runArabicOcr(opts: {
   buffer: Buffer
   filename: string
@@ -219,6 +225,26 @@ export async function runArabicOcr(opts: {
 }): Promise<ArabicOcrResult> {
   const mime = opts.mimeType || 'application/octet-stream'
   const filename = opts.filename || 'document.bin'
+
+  // Free local path: Mac Tesseract ara+eng (images + PDF pages)
+  if (macSyncConfigured()) {
+    try {
+      const isPdf = looksLikePdf(mime, filename)
+      const mac = await macPageOcr({
+        buffer: opts.buffer,
+        filename,
+        page: 1,
+        lang: 'ara+eng',
+        // For multi-page scans prefer allPages so arabic_ocr gets full text
+        allPages: isPdf,
+      })
+      if (mac.text?.trim()) {
+        return { text: mac.text.trim(), provider: 'tesseract-mac' }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
 
   const local = await ocrViaLocalQari(opts.buffer, mime, filename)
   if (local && local.text) return local
@@ -237,20 +263,21 @@ export function shouldRunOcr(opts: {
 }): boolean {
   const { extractedText, filename, mimeType, byteLength } = opts
   const lower = filename.toLowerCase()
-  const isVisual =
+  const isImage =
     looksLikeImage(mimeType, filename) ||
-    looksLikePdf(mimeType, filename) ||
-    /\.(png|jpe?g|webp|tif{1,2})$/i.test(lower)
+    /\.(png|jpe?g|webp|tif{1,2}|bmp|gif)$/i.test(lower)
+  const isPdf = looksLikePdf(mimeType, filename)
 
-  if (!isVisual) return false
-  if (looksLikeImage(mimeType, filename)) return true
+  // Standalone images always need OCR (no copy-paste text layer)
+  if (isImage) return true
+  if (!isPdf && !isImage) return false
 
   const trimmed = extractedText.replace(/\s+/g, ' ').trim()
-  // Scanned PDFs often yield empty/near-empty text from pdf-parse
-  if (trimmed.length < 80 && byteLength > 20_000) return true
+  // Scanned / image-only PDFs: empty or near-empty text layer
+  if (trimmed.length < 80 && byteLength > 8_000) return true
   if (trimmed.length < 20) return true
   // Corrupt Arabic ToUnicode — prefer OCR over garbage layer
-  if (looksLikePdf(mimeType, filename) && assessArabicTextQuality(trimmed).broken) {
+  if (isPdf && assessArabicTextQuality(trimmed).broken) {
     return true
   }
   return false

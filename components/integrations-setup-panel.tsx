@@ -108,15 +108,21 @@ export function IntegrationsSetupPanel() {
         </p>
         <ol className="mb-2 list-decimal space-y-1 pe-4 text-[11px]">
           <li>
-            اربط Google (Drive) — مجاني · محرّك التحويل الأساسي
+            من الإعدادات → عقل الشركة: اضغط{' '}
+            <strong>«١) ربط Google (Drive)»</strong> مرة واحدة (مطلوب)
+          </li>
+          <li>
+            بعدها تحويل PDF→Word في الشات يستخدم Drive مجاناً بجودة عالية
           </li>
           <li>
             التعديل الموضعي لـ Word/Excel/PPT يعمل دائماً مجاناً بدون تحويل
           </li>
-          <li>
-            CloudConvert أدناه اختياري مدفوع كاحتياطي فقط
-          </li>
+          <li>CloudConvert أدناه اختياري مدفوع كاحتياطي فقط</li>
         </ol>
+        <p className="mb-1 text-[11px] text-stone-500">
+          إن لم تضغط «ربط Google» فلن يعمل مسار Drive — هذا زر موافقة في حسابك
+          وليس إعداداً آلياً من الاستضافة.
+        </p>
         <p className="text-[11px] text-stone-500">
           دليل:{' '}
           <span dir="ltr" className="font-mono">
