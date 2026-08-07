@@ -81,23 +81,30 @@ export function FilesPanel() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(
-        `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}&sync=1`,
-        { headers: await authHeaders() }
-      )
-      const data = (await res.json()) as {
+      const url = `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}&sync=1`
+      let res = await fetch(url, { headers: await authHeaders() })
+      let data = (await res.json()) as {
         files?: ListedFile[]
         source?: string
         error?: string
+        code?: string
         noteAr?: string
         fromChat?: number
+      }
+      // Session can still be hydrating right after a fresh page load
+      // (Supabase client restores the token asynchronously) — retry once
+      // rather than showing a falsely-empty archive.
+      if (res.status === 401 && data.code === 'AUTH_REQUIRED') {
+        await new Promise((r) => setTimeout(r, 900))
+        res = await fetch(url, { headers: await authHeaders() })
+        data = (await res.json()) as typeof data
       }
       setFiles(data.files || [])
       setSource(data.source || 'none')
       setSyncNote(
         data.noteAr ||
           (data.fromChat
-            ? `زُامن ${data.fromChat} مرفقاً من الشات.`
+            ? `تمت مزامنة ${data.fromChat} مرفقاً من الشات.`
             : '')
       )
       if (data.error) {
