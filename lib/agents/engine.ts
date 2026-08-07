@@ -125,7 +125,7 @@ export function getNativeAiTools(opts?: {
     }),
     edit_document: tool({
       description:
-        'إنشاء أو تعديل ملف غرفة وإظهار زر تنزيل. الأفضل لـ Word/PowerPoint الموجود: replacements (استبدال نص مع الحفاظ على التنسيق/الصور) أو templateData لتعبئة {placeholders}. إعادة بناء كاملة: body/paragraphs (Word/PDF/نص)، sheets (Excel)، slides (PPT — يعيد بناء الشرائح). لخلايا Excel مع الحفاظ على البنية استخدم edit_excel.',
+        'إنشاء أو تعديل ملف غرفة وإظهار زر تنزيل. الأفضل لـ Word/PowerPoint الموجود: replacements (استبدال نص مع الحفاظ على التنسيق/الصور) أو templateData لتعبئة {placeholders}. لـ PDF الموجود مع استبدال عبارات عربية: replacements + format pdf (يُوجَّه إلى pdf_replace_text / HarfBuzz). إعادة بناء كاملة: body/paragraphs (Word/PDF/نص)، sheets (Excel)، slides (PPT — يعيد بناء الشرائح). لخلايا Excel مع الحفاظ على البنية استخدم edit_excel.',
       inputSchema: z.object({
         fileId: z
           .string()
@@ -646,6 +646,37 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('pdf_fill_form'),
+        }),
+    }),
+    pdf_replace_text: tool({
+      description:
+        'استبدال نص داخل PDF مع الحفاظ على التخطيط — خاصة العربية (HarfBuzz عبر PyMuPDF). استخدمه لتغيير أسماء/عبارات. لا تستخدم pdf_stamp ولا إعادة بناء PDF لذلك (يفصل الحروف). يدعم صيغ طبقة النص مثل عبدهللا≈عبدالله.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        find: z.string().optional().describe('نص البحث إن كان استبدالاً واحداً'),
+        replace: z.string().optional().describe('النص البديل'),
+        replacements: z
+          .array(
+            z.object({
+              find: z.string(),
+              replace: z.string(),
+            })
+          )
+          .optional(),
+        replaceSource: z
+          .boolean()
+          .optional()
+          .describe('استبدال الملف نفسه بدل نسخة جديدة'),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_replace_text',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_replace_text'),
         }),
     }),
     memory_search: tool({

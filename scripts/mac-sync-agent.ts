@@ -464,6 +464,161 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Arabic PDF find/replace via PyMuPDF insert_htmlbox (HarfBuzz)
+  if (req.method === 'POST' && url.pathname === '/pdf-replace') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        filename?: string
+        contentBase64?: string
+        replacements?: Array<{ find?: string; replace?: string }>
+      }
+      const b64 = String(body.contentBase64 || '')
+      if (!b64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const reps = Array.isArray(body.replacements)
+        ? body.replacements
+            .map((r) => ({
+              find: String(r?.find || ''),
+              replace: String(r?.replace ?? ''),
+            }))
+            .filter((r) => r.find.trim())
+        : []
+      if (!reps.length) {
+        json(res, 400, { error: 'replacements required' })
+        return
+      }
+
+      const { writeFileSync, unlinkSync, mkdtempSync, existsSync } =
+        await import('node:fs')
+      const { join } = await import('node:path')
+      const { tmpdir } = await import('node:os')
+      const { spawn } = await import('node:child_process')
+      const { fileURLToPath } = await import('node:url')
+
+      const dir = mkdtempSync(join(tmpdir(), 'ab-pdf-'))
+      const inPath = join(dir, 'in.pdf')
+      const outPath = join(dir, 'out.pdf')
+      writeFileSync(inPath, Buffer.from(b64, 'base64'))
+
+      // Prefer project venv next to this repo when agent runs from ArabicBuzz
+      const here = fileURLToPath(new URL('.', import.meta.url))
+      const root = join(here, '..')
+      const script = join(root, 'scripts/pdf-arabic-replace.py')
+      const pyCandidates = [
+        process.env.PDF_REPLACE_PYTHON?.trim(),
+        join(root, 'scripts/pdf-tools-venv/bin/python'),
+        join(root, 'tmp/pdf-venv/bin/python'),
+        'python3',
+      ].filter(Boolean) as string[]
+
+      const payload = JSON.stringify({
+        inputPath: inPath,
+        outputPath: outPath,
+        replacements: reps,
+      })
+
+      const tryPy = (cmd: string) =>
+        new Promise<{
+          ok: boolean
+          out: string
+          err: string
+        }>((resolve) => {
+          if (cmd.includes('/') && !existsSync(cmd)) {
+            resolve({ ok: false, out: '', err: `missing ${cmd}` })
+            return
+          }
+          if (!existsSync(script)) {
+            resolve({ ok: false, out: '', err: 'pdf-arabic-replace.py missing' })
+            return
+          }
+          const child = spawn(cmd, [script, '--stdin-json'], { timeout: 90_000 })
+          let out = ''
+          let err = ''
+          child.stdout?.on('data', (d) => {
+            out += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            err += String(d)
+          })
+          child.stdin?.write(payload)
+          child.stdin?.end()
+          child.on('close', (code) => {
+            resolve({ ok: code === 0, out, err })
+          })
+          child.on('error', (e) => {
+            resolve({ ok: false, out: '', err: e.message })
+          })
+        })
+
+      let result: { ok: boolean; out: string; err: string } | null = null
+      for (const py of pyCandidates) {
+        result = await tryPy(py)
+        if (result.out.trim().startsWith('{')) break
+      }
+
+      let parsed: {
+        ok?: boolean
+        error?: string
+        messageAr?: string
+        totalReplacements?: number
+        details?: unknown
+        font?: string
+      } = {}
+      try {
+        parsed = JSON.parse((result?.out || '').trim() || '{}')
+      } catch {
+        parsed = {}
+      }
+
+      const { readFileSync } = await import('node:fs')
+      if (parsed.ok && existsSync(outPath)) {
+        const outBuf = readFileSync(outPath)
+        try {
+          unlinkSync(inPath)
+          unlinkSync(outPath)
+        } catch {
+          /* ignore */
+        }
+        json(res, 200, {
+          ok: true,
+          contentBase64: outBuf.toString('base64'),
+          totalReplacements: parsed.totalReplacements || 0,
+          details: parsed.details || [],
+          font: parsed.font,
+          messageAr:
+            parsed.messageAr ||
+            'استبدال PDF عبر PyMuPDF على الماك.',
+        })
+        return
+      }
+
+      try {
+        unlinkSync(inPath)
+      } catch {
+        /* ignore */
+      }
+      json(res, 200, {
+        ok: false,
+        messageAr:
+          parsed.messageAr ||
+          'PyMuPDF غير متاح على الماك. ثبّت: python3 -m venv scripts/pdf-tools-venv && scripts/pdf-tools-venv/bin/pip install pymupdf',
+        error: parsed.error || result?.err?.slice(0, 400) || 'pdf-replace failed',
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'pdf-replace failed',
+      })
+    }
+    return
+  }
+
   // MarkItDown — convert PDF/Office → markdown for decision deep-read
   if (req.method === 'POST' && url.pathname === '/markitdown') {
     if (!checkAuth(req)) {
@@ -706,6 +861,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /sync    (JSON base64)`)
   console.log(`  POST /brain/ingest | /brain/search`)
   console.log(`  POST /task       (Playwright / browser-use RPA)`)
+  console.log(`  POST /pdf-replace (Arabic PDF find/replace via PyMuPDF)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)

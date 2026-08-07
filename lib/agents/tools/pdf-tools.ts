@@ -5,6 +5,7 @@ import {
   mergePdfs,
   stampPdf,
 } from '@/lib/documents/pdf'
+import { replacePdfText } from '@/lib/documents/pdf-replace'
 import {
   findWorkspaceFile,
   readWorkspaceFile,
@@ -191,4 +192,81 @@ export async function executePdfFillForm(
     saved.file,
     `عُبّئ نموذج PDF «${saved.file.originalName}».`
   )
+}
+
+/**
+ * In-place Arabic/Latin text replace with HarfBuzz shaping (PyMuPDF).
+ * Prefer this over pdf_stamp or rebuild for name/phrase edits.
+ */
+export async function executePdfReplaceText(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = scopeOf(params)
+  const ref = String(params.fileId || params.path || '').trim()
+  if (!ref) throw new Error('مرّر fileId لملف PDF')
+  const { hit } = await loadPdfBuffer(scopeId, ref)
+
+  const rawList = Array.isArray(params.replacements)
+    ? params.replacements
+    : params.find
+      ? [
+          {
+            find: params.find,
+            replace: params.replace ?? params.to ?? params.with,
+          },
+        ]
+      : []
+  const replacements = rawList
+    .map((raw) => {
+      const r = (raw || {}) as Record<string, unknown>
+      return {
+        find: String(r.find ?? r.from ?? r.search ?? ''),
+        replace: String(r.replace ?? r.to ?? r.with ?? ''),
+      }
+    })
+    .filter((r) => r.find.trim().length > 0)
+
+  if (!replacements.length) {
+    throw new Error(
+      'مرّر replacements: [{ find, replace }] أو find + replace لاستبدال نص داخل PDF.'
+    )
+  }
+
+  const result = await replacePdfText({
+    buffer: hit.buffer,
+    filename: hit.meta.originalName,
+    replacements,
+  })
+
+  if (result.totalReplacements <= 0) {
+    throw new Error(
+      result.messageAr ||
+        'لم يُعثر على النص في طبقة PDF. جرّب صيغة بديلة (مثل عبدهللا بدل عبدالله) أو حوّل إلى Word عبر convert_document.'
+    )
+  }
+
+  const base = hit.meta.originalName.replace(/\.pdf$/i, '')
+  const replaceSource = Boolean(params.replaceSource)
+  const saved = await saveWorkspaceFile({
+    scopeId,
+    buffer: result.buffer,
+    originalName: String(
+      params.outputName || `${base}-معدّل.pdf`
+    ),
+    mimeType: 'application/pdf',
+    replaceId: replaceSource ? hit.meta.id : undefined,
+    markEdited: true,
+  })
+
+  return {
+    ...downloadMeta(
+      scopeId,
+      saved.file,
+      `${result.messageAr} الملف: «${saved.file.originalName}».`
+    ),
+    engine: result.engine,
+    totalReplacements: result.totalReplacements,
+    details: result.details,
+  }
 }

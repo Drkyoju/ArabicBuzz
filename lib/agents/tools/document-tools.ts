@@ -305,10 +305,33 @@ export async function executeEditDocument(
     } else {
       throw new Error('تعذّر التعديل الموضعي.')
     }
+  } else if (hasInPlace && sourceFound && format === 'pdf' && replacements?.length) {
+    // Route PDF phrase edits to HarfBuzz engine — never rebuild/stamp for Arabic names.
+    const { replacePdfText } = await import('@/lib/documents/pdf-replace')
+    const hit = await readWorkspaceFile(scopeId, sourceFound.id)
+    const result = await replacePdfText({
+      buffer: hit.buffer,
+      filename: hit.meta.originalName,
+      replacements,
+    })
+    if (result.totalReplacements <= 0) {
+      throw new Error(
+        result.messageAr ||
+          'لم يُعثر على النص في PDF. استخدم pdf_replace_text بصيغ بديلة أو convert_document إلى docx.'
+      )
+    }
+    outBuffer = result.buffer
+    outMime = 'application/pdf'
+    editMode = 'replace'
+    patchMeta = {
+      engine: result.engine,
+      totalReplacements: result.totalReplacements,
+      details: result.details,
+    }
   } else {
     if (!hasRebuildContent) {
       throw new Error(
-        'التعديل الموضعي (replacements/templateData) يعمل على docx/pptx مع fileId. لـ PDF استخدم pdf_* أو body؛ لـ Excel استخدم edit_excel.'
+        'التعديل الموضعي (replacements/templateData) يعمل على docx/pptx/pdf مع fileId. لـ PDF العربي فضّل pdf_replace_text؛ لـ Excel استخدم edit_excel.'
       )
     }
     const built = await buildDocumentBuffer({

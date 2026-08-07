@@ -24,12 +24,33 @@
 |--------|-------|--------|---------------------------|---------|
 | **DOCX** | mammoth / officeparser | `docx` | `edit_document(replacements)` أو `templateData` | استبدال OOXML عبر JSZip؛ قوالب `{tag}` عبر docxtemplater |
 | **XLSX** | exceljs | exceljs | `edit_excel(cells)` | يحافظ على الأوراق والأنماط |
-| **PDF** | pdf-parse + OCR | pdf-lib | `pdf_stamp` / `pdf_merge` / `pdf_fill_form` / `edit_document` | إنشاء عربي عبر Noto |
+| **PDF** | pdf-parse + OCR | pdf-lib | **`pdf_replace_text`** (PyMuPDF `insert_htmlbox` / HarfBuzz) · `pdf_stamp` / `pdf_merge` / `pdf_fill_form` | استبدال عربي: لا تستخدم stamp ولا إعادة بناء — يفصل الحروف. على Netlify يلزم جسر الماك + pymupdf |
 | **PPTX** | officeparser | pptxgenjs | `edit_document(replacements)` | أو `slides` لإعادة بناء نصية |
 
 أدوات الشات: `read_document` → `edit_document` / `edit_excel` / `pdf_*` → زر تنزيل (`return_file` إن لزم).
 
-مكتبات OSS: `docx` · `mammoth` · `exceljs` · `pdf-lib` · `pptxgenjs` · `jszip` · `docxtemplater` · `pizzip` · `officeparser`
+مكتبات OSS: `docx` · `mammoth` · `exceljs` · `pdf-lib` · `pptxgenjs` · `jszip` · `docxtemplater` · `pizzip` · `officeparser` · **PyMuPDF** (`scripts/pdf-arabic-replace.py`)
+
+### استبدال نص عربي داخل PDF (مهم)
+
+| المحرّك | الجودة للعربية | متى |
+|--------|----------------|-----|
+| **PyMuPDF `insert_htmlbox`** (HarfBuzz) | جيد جداً — حروف متصلة + RTL | الأداة `pdf_replace_text` أو `edit_document(format:pdf, replacements)` |
+| pdf-lib / `pdf_stamp` / reverse يدوي | سيء (حروف منفصلة) | ختم/ملاحظة فقط — **ليس** لاستبدال أسماء |
+| CloudConvert pdf↔docx | تحويل صيغ؛ التخطيط قد يتغيّر | اختياري مدفوع `CLOUDCONVERT_API_KEY` — ليس بديلاً مثاليًا للتعديل الموضعي |
+| Aspose / Apryse / Adobe PDF Services | ممتاز غالباً (مدفوع SaaS) | غير مدمج — إن لزم جودة طباعية مطابقة للخط الأصلي |
+
+تثبيت محلي (ماك / جسر `storage:sync`):
+
+```bash
+python3 -m venv scripts/pdf-tools-venv
+scripts/pdf-tools-venv/bin/pip install pymupdf
+# الخط: assets/fonts/NotoNaskhArabic-Regular.ttf
+```
+
+على Netlify: عيّن `MAC_SYNC_URL` وشغّل الوكيل؛ المسار `POST /pdf-replace`. اختياري: `PDF_REPLACE_PYTHON`.
+
+خط Sakkal Majalla الأصلي في بعض اللوائح غير مرخّص للدمج — الناتج يستخدم Noto Naskh (قريب بصرياً، ليس مطابقاً حرفياً).
 
 ## سلسلة التحويل (`convert_document` / `convert_file`)
 

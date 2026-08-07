@@ -146,6 +146,8 @@ export async function stampPdf(opts: {
   y?: number
   size?: number
 }): Promise<Buffer> {
+  // Note: pdf-lib has no HarfBuzz — Arabic stamp is best-effort.
+  // For replacing existing names/phrases use replacePdfText (PyMuPDF htmlbox).
   const doc = await PDFDocument.load(opts.pdf)
   doc.registerFontkit(fontkit)
   const pages = doc.getPages()

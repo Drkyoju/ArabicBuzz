@@ -66,6 +66,7 @@ import {
   executePdfFillForm,
   executePdfListFields,
   executePdfMerge,
+  executePdfReplaceText,
   executePdfStamp,
 } from '@/lib/agents/tools/pdf-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
@@ -249,6 +250,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   pdf_merge: executePdfMerge,
   pdf_list_fields: executePdfListFields,
   pdf_fill_form: executePdfFillForm,
+  pdf_replace_text: executePdfReplaceText,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,

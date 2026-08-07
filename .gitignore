@@ -28,6 +28,9 @@
 # local scratch / PDF experiments (never commit)
 /tmp/
 
+# local PDF Python tooling (install with: python3 -m venv scripts/pdf-tools-venv && pip install pymupdf)
+/scripts/pdf-tools-venv/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
