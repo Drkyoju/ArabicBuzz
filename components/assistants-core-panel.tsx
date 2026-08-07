@@ -37,6 +37,7 @@ import type {
   AssistantJob,
 } from '@/lib/assistants/types'
 import { TelegramMirrorChat } from '@/components/telegram-mirror-chat'
+import { AssistantsOpsSeatsStrip } from '@/components/assistants-ops-seats'
 import {
   AB_ATTACH_ASSISTANTS,
   AB_FILE_DND,
@@ -730,6 +731,15 @@ export function AssistantsCorePanel({
           {catalog?.subtitleAr ||
             'مهام تشغيل للمساحة (بريد/تقويم) — غرفة الفريق = محادثة حية ووكلاء متواجدون بـ @.'}
         </p>
+
+        <AssistantsOpsSeatsStrip
+          className="mt-3"
+          maxParallel={maxParallel}
+          maxPerUser={maxPerUser}
+          jobs={jobs}
+          poolOnline={signedIn === true}
+        />
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span
             className="inline-flex items-center gap-1.5 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2.5 py-1 text-[12px] font-bold text-ab-accent"

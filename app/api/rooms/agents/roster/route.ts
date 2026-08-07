@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
       payload,
       synced,
       hintAr: shared
-        ? 'مقاعد الوكلاء مشتركة بين كل موظفي هذه الغرفة.'
-        : 'قائمة وكلاء مكتبك الشخصي — خاصة بحسابك.',
+        ? 'مقاعد الوكلاء مشتركة — الأسماء يحدّدها المدير فقط، ويراها كل الموظفين.'
+        : 'قائمة وكلاء مكتبك الشخصي — يمكنك إعادة تسمية أي وكيل (خاصة بحسابك).',
     })
   } catch (e) {
     return NextResponse.json(
@@ -81,18 +81,22 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    const { shared } = await saveRosterForScope({
+    const { shared, namesLocked } = await saveRosterForScope({
       scopeId,
       userId: auth.user.id,
       payload: body.payload,
+      email: auth.user.email,
     })
     return NextResponse.json({
       ok: true,
       scopeId,
       shared,
+      namesLocked: Boolean(namesLocked),
       usesSharedRoomRoster: usesSharedRoomRoster(scopeId),
       hintAr: shared
-        ? 'حُفظت مقاعد الوكلاء للغرفة — يراها كل الموظفين.'
+        ? namesLocked
+          ? 'حُفظت المقاعد — أسماء الوكلاء في غرفة الفريق يحدّدها المدير فقط.'
+          : 'حُفظت مقاعد الوكلاء للغرفة — يراها كل الموظفين.'
         : 'حُفظت قائمة الوكلاء على حسابك.',
     })
   } catch (e) {

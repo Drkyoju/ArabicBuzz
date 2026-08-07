@@ -91,7 +91,7 @@ export default function InviteJoinPage() {
           descriptionAr: 'غرفة انضممت إليها عبر دعوة.',
           members: ['user-1'],
           memberLabelsAr: [],
-          agentLabelsAr: ['وكيل التقارير'],
+          agentLabelsAr: ['وكيل١'],
           sharedMemory: [
             'انضممت عبر دعوة — ارفع ملفاً من جهازك واطلب التعديل.',
           ],

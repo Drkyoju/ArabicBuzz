@@ -86,13 +86,22 @@ export const ROOM_AGENTS = BUILTIN_ROOM_AGENTS
 export const SCOPE_AGENT_IDS: Record<string, string[]> = {
   'shared-demo': ['agent-reports', 'agent-compliance'],
   'shared-ops': ['agent-cron', 'agent-channels'],
-  'personal-demo': ['agent-desk'],
+  'personal-demo': BUILTIN_ROOM_AGENTS.map((a) => a.id),
   'personal-research': ['agent-research'],
+}
+
+/** Default seating for a scope — personal desks get full agent catalog. */
+export function defaultAgentIdsForScope(scopeId: string): string[] {
+  if (scopeId.startsWith('personal-u-') || scopeId.startsWith('personal-')) {
+    if (scopeId === 'personal-research') return ['agent-research']
+    return BUILTIN_ROOM_AGENTS.map((a) => a.id)
+  }
+  return SCOPE_AGENT_IDS[scopeId] || ['agent-desk']
 }
 
 /** Built-in default seating (no custom roster). */
 export function agentsForScope(scopeId: string): RoomAgent[] {
-  const ids = SCOPE_AGENT_IDS[scopeId] || ['agent-desk']
+  const ids = defaultAgentIdsForScope(scopeId)
   return ids
     .map((id) => BUILTIN_ROOM_AGENTS.find((a) => a.id === id))
     .filter((a): a is RoomAgent => Boolean(a))

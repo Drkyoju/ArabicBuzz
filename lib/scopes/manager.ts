@@ -97,7 +97,7 @@ export const DEMO_SCOPES: Scope[] = [
       'محادثة الفريق والوكلاء بـ @ — شغّل أو أوقف «الوكلاء يعملون معنا».',
     members: ['user-1'],
     memberLabelsAr: [],
-    agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],
+    agentLabelsAr: ['وكيل١', 'وكيل٢'],
     sharedMemory: [
       'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
       'هذه غرفة الفريق الأساسية — الموظفون والوكلاء معاً.',
@@ -110,7 +110,7 @@ export const DEMO_SCOPES: Scope[] = [
     descriptionAr: 'تشغيل وتنبيهات.',
     members: ['user-1'],
     memberLabelsAr: [],
-    agentLabelsAr: ['وكيل الجدولة', 'وكيل القنوات'],
+    agentLabelsAr: ['وكيل٣', 'وكيل٤'],
     sharedMemory: [
       'قناة التنبيه: تيليجرام عند تفعيله.',
     ],

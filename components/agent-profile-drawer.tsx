@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Shield, X, Fingerprint, Bot, History } from 'lucide-react'
 import type { RoomAgent } from '@/lib/rooms/agents'
 import { AGENT_MODEL_PRESETS } from '@/lib/rooms/agents'
+import {
+  agentRenameHintAr,
+  sharedAgentNamesAreFixed,
+} from '@/lib/rooms/agent-names'
+import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { DEMO_AGENT_PROFILES } from '@/lib/demo/guest-digest'
 import { cn } from '@/lib/utils'
 
@@ -29,15 +35,28 @@ export function AgentProfileDrawer({
   agent,
   open,
   onClose,
+  scopeId,
   recentActionsAr = [],
   answering,
 }: {
   agent: RoomAgent | null
   open: boolean
   onClose: () => void
+  /** Active room — controls rename permissions. */
+  scopeId?: string
   recentActionsAr?: string[]
   answering?: boolean
 }) {
+  const updateAgent = useAgentRosterStore((s) => s.updateAgent)
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const [nameDraft, setNameDraft] = useState('')
+  const [renameNote, setRenameNote] = useState('')
+
+  const sharedFixed = scopeId ? sharedAgentNamesAreFixed(scopeId) : false
+  const canRename = scopeId
+    ? !sharedFixed || canAccessOpsUi
+    : false
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -46,6 +65,13 @@ export function AgentProfileDrawer({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
+
+  useEffect(() => {
+    if (agent) {
+      setNameDraft(agent.nameAr)
+      setRenameNote('')
+    }
+  }, [agent])
 
   if (!open || !agent) return null
 
@@ -66,6 +92,21 @@ export function AgentProfileDrawer({
           'آخر إجراء مسجّل في سجل التدقيق عند التنفيذ',
           answering ? 'يجيب الآن في الغرفة…' : 'جاهز للإشارة بـ @' + agent.slug,
         ]
+
+  function saveRename() {
+    if (!agent || !canRename) return
+    const next = nameDraft.trim()
+    if (!next) {
+      setRenameNote('أدخل اسماً.')
+      return
+    }
+    updateAgent(agent.id, { nameAr: next })
+    setRenameNote(
+      sharedFixed
+        ? 'حُفظ الاسم لكل موظفي غرفة الفريق.'
+        : 'حُفظ الاسم في مساحتك الشخصية.'
+    )
+  }
 
   return (
     <div
@@ -96,7 +137,12 @@ export function AgentProfileDrawer({
               </p>
               {answering && (
                 <p className="mt-1 text-[11px] font-medium text-ab-accent">
-                  يجيب الآن…
+                  يعمل…
+                </p>
+              )}
+              {!answering && (
+                <p className="mt-1 text-[11px] font-medium text-emerald-700">
+                  جاهز
                 </p>
               )}
             </div>
@@ -112,6 +158,41 @@ export function AgentProfileDrawer({
         </div>
 
         <div className="space-y-4 overflow-y-auto p-4 text-sm">
+          {scopeId ? (
+            <div className="rounded-xl border border-ab-border bg-stone-50/80 px-3 py-2.5">
+              <p className="text-[11px] font-semibold text-stone-600">
+                إعادة التسمية
+              </p>
+              <p className="mt-1 text-[10px] leading-snug text-stone-500">
+                {agentRenameHintAr(scopeId, canRename)}
+              </p>
+              {canRename ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    className="min-w-[10rem] flex-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
+                    aria-label="اسم الوكيل"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveRename}
+                    className="rounded-md bg-ab-ink px-2.5 py-1.5 text-[11px] font-semibold text-white"
+                  >
+                    حفظ الاسم
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-stone-500">
+                  الاسم الحالي: <strong>{agent.nameAr}</strong>
+                </p>
+              )}
+              {renameNote ? (
+                <p className="mt-1.5 text-[10px] text-emerald-700">{renameNote}</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ab-accent">
               <Fingerprint className="h-3.5 w-3.5" />

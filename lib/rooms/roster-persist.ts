@@ -1,4 +1,6 @@
 import { prisma, withPrismaFallback } from '@/lib/db'
+import { isWorkspaceOwnerEmail } from '@/lib/auth/roles'
+import { preserveSharedDisplayNames } from '@/lib/rooms/agent-names'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
 import {
   exportScopeRosterSlice,
@@ -180,11 +182,21 @@ export async function saveRosterForScope(opts: {
   scopeId: string
   userId: string
   payload: AgentRosterPayload
-}): Promise<{ shared: boolean }> {
+  email?: string | null
+}): Promise<{ shared: boolean; namesLocked?: boolean }> {
   const shared = usesSharedRoomRoster(opts.scopeId)
   if (shared) {
-    await saveScopeAgentRoster(opts.scopeId, opts.payload, opts.userId)
-    return { shared: true }
+    let payload = opts.payload
+    let namesLocked = false
+    if (!isWorkspaceOwnerEmail(opts.email)) {
+      const existing = await loadScopeAgentRoster(opts.scopeId)
+      if (existing) {
+        payload = preserveSharedDisplayNames(existing, payload)
+        namesLocked = true
+      }
+    }
+    await saveScopeAgentRoster(opts.scopeId, payload, opts.userId)
+    return { shared: true, namesLocked }
   }
   await saveUserAgentRoster(opts.userId, opts.payload)
   return { shared: false }

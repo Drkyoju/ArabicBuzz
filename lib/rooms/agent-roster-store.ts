@@ -10,6 +10,7 @@ import {
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
+import { defaultSeatNameAr } from '@/lib/rooms/agent-names'
 import {
   agentsAlwaysPresentInRoom,
   mergeScopeRosterSlice,
@@ -167,16 +168,25 @@ export const useAgentRosterStore = create<AgentRosterState>()(
 
       findByMention: (token) => {
         const t = token.trim()
+        const compact = t.replace(/\s+/g, '')
+        const west = (s: string) =>
+          s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
         return (
           get()
             .allAgents()
-            .find(
-              (a) =>
-                a.slug === t ||
+            .find((a) => {
+              if (a.id === t || a.id === `agent-${t}`) return true
+              if (a.slug === t || a.slug.toLowerCase() === t.toLowerCase()) {
+                return true
+              }
+              const nameFlat = a.nameAr.replace(/\s+/g, '')
+              return (
                 a.nameAr === t ||
-                a.nameAr.replace(/\s+/g, '') === t.replace(/\s+/g, '') ||
+                nameFlat === compact ||
+                west(nameFlat) === west(compact) ||
                 a.nameAr.includes(t)
-            ) || null
+              )
+            }) || null
         )
       },
 
@@ -273,7 +283,9 @@ export const useAgentRosterStore = create<AgentRosterState>()(
             : 'أنت وكيل في غرفة Arabic Buzz. أجب بالعربية الفصحى المهنية.')
         const agent: RoomAgent = {
           id,
-          nameAr: input.nameAr.trim() || 'وكيل جديد',
+          nameAr:
+            input.nameAr.trim() ||
+            defaultSeatNameAr((get().customAgents?.length || 0) + 1),
           slug,
           systemPromptAr,
           taskAr: taskAr || undefined,
@@ -300,15 +312,17 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         const count = Math.max(1, Math.min(10, Math.floor(input.count) || 1))
         const model =
           input.provider === 'glm' ? GLM_DEFAULT : GEMINI_DEFAULT
-        const prefix =
-          input.namePrefixAr?.trim() ||
-          (input.provider === 'glm' ? 'وكيل GLM' : 'وكيل Gemini')
+        const seatedCount = get().agentsForScope(input.scopeId).length
         const created: RoomAgent[] = []
         const taken = new Set(get().allAgents().map((a) => a.slug))
+        const useCustomPrefix = Boolean(input.namePrefixAr?.trim())
 
         for (let i = 1; i <= count; i++) {
           const id = `custom-${crypto.randomUUID().slice(0, 8)}`
-          const nameAr = `${prefix} ${i}`
+          const seatIndex = seatedCount + i
+          const nameAr = useCustomPrefix
+            ? `${input.namePrefixAr!.trim()} ${i}`
+            : defaultSeatNameAr(seatIndex)
           const slug = uniqueSlug(
             input.provider === 'glm' ? `glm-${i}` : `gemini-${i}`,
             taken

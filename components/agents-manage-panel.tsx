@@ -7,7 +7,13 @@ import {
   BUILTIN_ROOM_AGENTS,
   type RoomAgent,
 } from '@/lib/rooms/agents'
+import {
+  agentRenameHintAr,
+  defaultSeatNameAr,
+  sharedAgentNamesAreFixed,
+} from '@/lib/rooms/agent-names'
 import { useAgentRosterStore } from '@/lib/rooms/agent-roster-store'
+import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { cn } from '@/lib/utils'
 
 export function AgentsManagePanel({
@@ -33,6 +39,11 @@ export function AgentsManagePanel({
     (s) => s.collabModeByScope[scopeId] || 'solo'
   )
   const cloudSyncedAt = useAgentRosterStore((s) => s.cloudSyncedAt)
+  const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
+  const sharedFixed = sharedAgentNamesAreFixed(scopeId)
+  /** Personal: anyone. Shared team room: workspace owner only. */
+  const canRename = !sharedFixed || canAccessOpsUi
+  const renameHint = agentRenameHintAr(scopeId, canRename)
 
   const [open, setOpen] = useState(false)
   const [nameAr, setNameAr] = useState('')
@@ -83,17 +94,34 @@ export function AgentsManagePanel({
       return
     }
     if (editingId) {
-      updateAgent(editingId, {
-        nameAr,
-        slug: slug || undefined,
-        systemPromptAr: prompt,
-        taskAr,
-        preferredModel: model,
-      })
-      setNote('تم تحديث الوكيل.')
+      if (!canRename) {
+        updateAgent(editingId, {
+          systemPromptAr: prompt,
+          taskAr,
+          preferredModel: model,
+        })
+        setNote('تم تحديث المهمة/النموذج. الاسم ثابت — يحدّده المدير فقط.')
+      } else {
+        updateAgent(editingId, {
+          nameAr,
+          slug: slug || undefined,
+          systemPromptAr: prompt,
+          taskAr,
+          preferredModel: model,
+        })
+        setNote(
+          sharedFixed
+            ? 'تم تحديث الوكيل — الاسم يظهر لكل موظفي غرفة الفريق.'
+            : 'تم تحديث الوكيل (اسمك الخاص في مساحتك الشخصية).'
+        )
+      }
     } else {
+      if (!canRename && sharedFixed) {
+        setNote('إضافة وكلاء بأسماء جديدة في غرفة الفريق للمدير فقط.')
+        return
+      }
       const agent = addCustomAgent({
-        nameAr,
+        nameAr: nameAr.trim() || defaultSeatNameAr(seated.length + 1),
         slug: slug || undefined,
         systemPromptAr: prompt,
         taskAr,
@@ -105,10 +133,10 @@ export function AgentsManagePanel({
     resetForm()
   }
 
-  function modelLabel(slug?: string) {
+  function modelLabel(slugName?: string) {
     return (
-      AGENT_MODEL_PRESETS.find((m) => m.slug === slug)?.labelAr ||
-      slug ||
+      AGENT_MODEL_PRESETS.find((m) => m.slug === slugName)?.labelAr ||
+      slugName ||
       'نموذج الغرفة'
     )
   }
@@ -128,7 +156,9 @@ export function AgentsManagePanel({
           className="ab-btn-secondary !py-0.5 text-[11px]"
         >
           <Plus className="h-3 w-3" />
-          إدارة الوكلاء
+          {sharedFixed && canRename
+            ? 'أسماء الوكلاء (مدير)'
+            : 'إدارة الوكلاء'}
         </button>
       </div>
 
@@ -148,8 +178,10 @@ export function AgentsManagePanel({
                 <h3 className="text-sm font-bold text-ab-ink">إدارة الوكلاء</h3>
                 <p className="text-[10px] text-stone-400">
                   {cloudSyncedAt
-                    ? 'محفوظ للغرفة — كل الموظفين يشاركون نفس الوكلاء'
-                    : 'محفوظ محلياً — يُزامَن للغرفة عند تسجيل الدخول'}
+                    ? sharedFixed
+                      ? 'محفوظ للغرفة — كل الموظفين يشاركون نفس الأسماء'
+                      : 'محفوظ في مساحتك الشخصية'
+                    : 'محفوظ محلياً — يُزامَن عند تسجيل الدخول'}
                 </p>
               </div>
               <button
@@ -166,71 +198,85 @@ export function AgentsManagePanel({
             </div>
 
             <div className="space-y-3 overflow-y-auto p-4">
+              <p className="rounded-md border border-ab-accent/20 bg-ab-accent/5 px-2.5 py-2 text-[11px] leading-snug text-stone-600">
+                {renameHint}
+                {' · '}
+                الافتراضي: وكيل١، وكيل٢… · الإشارة بـ @slug أو الاسم الحالي.
+              </p>
               <p className="text-[11px] text-stone-500">
-                حتى 8 وكيل/مهمة معاً (سقف Netlify 20) · مقاعد الغرفة مشتركة لكل
-                الموظفين · تعاون = عدة وكلاء · منفصل = واحد · @الجميع للفريق.
+                حتى 8 وكيل/مهمة معاً (سقف Netlify 20) · تعاون = عدة وكلاء ·
+                منفصل = واحد · @الجميع للفريق.
               </p>
 
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const n = Math.min(10, Math.max(1, batchCount))
-                    const created = addTeamBatch({
-                      scopeId,
-                      provider: 'google',
-                      count: n,
-                    })
-                    setNote(
-                      `أُضيف ${created.length} وكيل Gemini — وُضع وضع تعاون.`
-                    )
-                  }}
-                  className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
-                >
-                  + فريق Gemini ({batchCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const n = Math.min(10, Math.max(1, batchCount))
-                    const created = addTeamBatch({
-                      scopeId,
-                      provider: 'glm',
-                      count: n,
-                    })
-                    setNote(`أُضيف ${created.length} وكيل GLM — وُضع وضع تعاون.`)
-                  }}
-                  className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
-                >
-                  + فريق GLM ({batchCount})
-                </button>
-                <label className="inline-flex items-center gap-1 text-[11px] text-stone-500">
-                  العدد
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={batchCount}
-                    onChange={(e) =>
-                      setBatchCount(Number(e.target.value) || 1)
-                    }
-                    className="w-12 rounded border border-ab-border px-1 py-0.5 text-center"
-                    dir="ltr"
-                  />
-                </label>
-              </div>
+              {(canRename || !sharedFixed) && (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const n = Math.min(10, Math.max(1, batchCount))
+                      const created = addTeamBatch({
+                        scopeId,
+                        provider: 'google',
+                        count: n,
+                      })
+                      setNote(
+                        `أُضيف ${created.length} وكيل (وكيل١…) — وُضع وضع تعاون.`
+                      )
+                    }}
+                    className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
+                  >
+                    + فريق Gemini ({batchCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const n = Math.min(10, Math.max(1, batchCount))
+                      const created = addTeamBatch({
+                        scopeId,
+                        provider: 'glm',
+                        count: n,
+                      })
+                      setNote(
+                        `أُضيف ${created.length} وكيل GLM — وُضع وضع تعاون.`
+                      )
+                    }}
+                    className="rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px]"
+                  >
+                    + فريق GLM ({batchCount})
+                  </button>
+                  <label className="inline-flex items-center gap-1 text-[11px] text-stone-500">
+                    العدد
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={batchCount}
+                      onChange={(e) =>
+                        setBatchCount(Number(e.target.value) || 1)
+                      }
+                      className="w-12 rounded border border-ab-border px-1 py-0.5 text-center"
+                      dir="ltr"
+                    />
+                  </label>
+                </div>
+              )}
 
               <div>
                 <h4 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
                   <Bot className="h-3.5 w-3.5" aria-hidden />
-                  {editingId ? 'تعديل وكيل' : 'وكيل واحد'}
+                  {editingId
+                    ? canRename
+                      ? 'تعديل وكيل / إعادة تسمية'
+                      : 'تعديل مهمة الوكيل'
+                    : 'وكيل واحد'}
                 </h4>
                 <div className="space-y-2">
                   <input
                     value={nameAr}
                     onChange={(e) => setNameAr(e.target.value)}
-                    placeholder="الاسم (مثل: وكيل العقود)"
-                    className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs"
+                    placeholder={`الاسم (مثل: ${defaultSeatNameAr(seated.length + 1)})`}
+                    disabled={Boolean(editingId) && !canRename}
+                    className="w-full rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-xs disabled:bg-stone-50 disabled:text-stone-500"
                   />
                   <input
                     value={taskAr}
@@ -244,7 +290,8 @@ export function AgentsManagePanel({
                       onChange={(e) => setSlug(e.target.value)}
                       placeholder="@slug"
                       dir="ltr"
-                      className="min-w-[8rem] flex-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono"
+                      disabled={Boolean(editingId) && !canRename}
+                      className="min-w-[8rem] flex-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-left text-xs font-mono disabled:bg-stone-50"
                     />
                     <select
                       value={model}
@@ -272,7 +319,11 @@ export function AgentsManagePanel({
                       onClick={save}
                       className="rounded-md bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white"
                     >
-                      {editingId ? 'حفظ التعديل' : 'إضافة للغرفة'}
+                      {editingId
+                        ? canRename
+                          ? 'حفظ التعديل'
+                          : 'حفظ المهمة'
+                        : 'إضافة للغرفة'}
                     </button>
                     {editingId && (
                       <button
@@ -298,131 +349,136 @@ export function AgentsManagePanel({
                     جديداً.
                   </p>
                 ) : (
-                <ul className="space-y-1.5">
-                  {seated.map((agent) => (
-                    <li
-                      key={agent.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[12px]"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium">
-                          {agent.nameAr}
-                          <span className="ms-1 text-[10px] text-stone-400">
-                            {agent.custom ? 'مخصص' : 'افتراضي'} ·{' '}
-                            {modelLabel(agent.preferredModel)}
-                          </span>
-                        </p>
-                        {agent.taskAr && (
-                          <p className="text-[10px] text-stone-500">
-                            مهمة: {agent.taskAr}
+                  <ul className="space-y-1.5">
+                    {seated.map((agent) => (
+                      <li
+                        key={agent.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[12px]"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium">
+                            {agent.nameAr}
+                            <span className="ms-1 text-[10px] text-stone-400">
+                              {agent.custom ? 'مخصص' : 'افتراضي'} ·{' '}
+                              {modelLabel(agent.preferredModel)}
+                            </span>
                           </p>
-                        )}
-                        <p
-                          className="font-mono text-[10px] text-stone-400"
-                          dir="ltr"
-                        >
-                          @{agent.slug}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => startEdit(agent)}
-                          className="rounded-md border border-ab-border px-2 py-1 text-[10px]"
-                        >
-                          تعديل
-                        </button>
-                        {!agent.custom && agentOverrides[agent.id] && (
+                          {agent.taskAr && (
+                            <p className="text-[10px] text-stone-500">
+                              مهمة: {agent.taskAr}
+                            </p>
+                          )}
+                          <p
+                            className="font-mono text-[10px] text-stone-400"
+                            dir="ltr"
+                          >
+                            @{agent.slug}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => {
-                              clearAgentOverride(agent.id)
-                              setNote(`أُعيد «${agent.nameAr}» للافتراضي.`)
-                              if (editingId === agent.id) resetForm()
-                            }}
+                            onClick={() => startEdit(agent)}
                             className="rounded-md border border-ab-border px-2 py-1 text-[10px]"
                           >
-                            إعادة ضبط
+                            {canRename ? 'تعديل / إعادة تسمية' : 'مهمة'}
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              !window.confirm(
-                                `إزالة «${agent.nameAr}» من هذه الغرفة؟`
-                              )
-                            ) {
-                              return
-                            }
-                            removeAgentFromScope(scopeId, agent.id)
-                            setNote(`أُزيل «${agent.nameAr}» من هذه الغرفة.`)
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[10px] text-ab-warn"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          إزالة
-                        </button>
-                        {agent.custom && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (
-                                !window.confirm(
-                                  `حذف الوكيل المخصص «${agent.nameAr}» نهائياً؟`
-                                )
-                              ) {
-                                return
-                              }
-                              deleteCustomAgent(agent.id)
-                              setNote(`حُذف «${agent.nameAr}».`)
-                              if (editingId === agent.id) resetForm()
-                            }}
-                            className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700"
-                          >
-                            حذف
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          {canRename &&
+                            !agent.custom &&
+                            agentOverrides[agent.id] && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  clearAgentOverride(agent.id)
+                                  setNote(`أُعيد «${agent.nameAr}» للافتراضي.`)
+                                  if (editingId === agent.id) resetForm()
+                                }}
+                                className="rounded-md border border-ab-border px-2 py-1 text-[10px]"
+                              >
+                                إعادة ضبط
+                              </button>
+                            )}
+                          {(canRename || !sharedFixed) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `إزالة «${agent.nameAr}» من هذه الغرفة؟`
+                                  )
+                                ) {
+                                  return
+                                }
+                                removeAgentFromScope(scopeId, agent.id)
+                                setNote(`أُزيل «${agent.nameAr}» من هذه الغرفة.`)
+                              }}
+                              className="rounded-md border border-ab-border px-2 py-1 text-[10px] text-red-700"
+                            >
+                              إزالة
+                            </button>
+                          )}
+                          {canRename && agent.custom && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  !confirm(
+                                    `حذف الوكيل المخصص «${agent.nameAr}» نهائياً؟`
+                                  )
+                                ) {
+                                  return
+                                }
+                                deleteCustomAgent(agent.id)
+                                setNote(`حُذف «${agent.nameAr}».`)
+                              }}
+                              className="rounded-md border border-red-200 px-2 py-1 text-[10px] text-red-700"
+                              aria-label="حذف"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 
-              <div>
-                <p className="mb-1.5 text-[11px] font-semibold text-stone-500">
-                  متاحون للإضافة
-                </p>
-                <ul className="flex flex-wrap gap-1.5">
-                  {catalog
-                    .filter((a) => !seatedIds.has(a.id))
-                    .map((agent) => (
-                      <li key={agent.id}>
+              {(canRename || !sharedFixed) && (
+                <div>
+                  <p className="mb-1.5 text-[11px] font-semibold text-stone-500">
+                    إضافة من الكتالوج
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {catalog
+                      .filter((a) => !seatedIds.has(a.id))
+                      .map((agent) => (
                         <button
+                          key={agent.id}
                           type="button"
                           onClick={() => {
                             addAgentToScope(scopeId, agent.id)
                             setNote(`أُضيف «${agent.nameAr}» للغرفة.`)
                           }}
-                          className="rounded-md border border-dashed border-ab-border bg-white px-2 py-1 text-[11px] hover:bg-stone-50"
+                          className="rounded-md border border-dashed border-ab-border bg-stone-50 px-2 py-1 text-[10px] hover:bg-white"
                         >
                           + {agent.nameAr}
                         </button>
-                      </li>
-                    ))}
-                  {catalog.every((a) => seatedIds.has(a.id)) && (
-                    <li className="text-[11px] text-stone-400">
-                      لا وكلاء إضافيين خارج الغرفة.
-                    </li>
-                  )}
-                </ul>
-                <p className="mt-2 text-[10px] text-stone-400">
-                  الافتراضيون ({BUILTIN_ROOM_AGENTS.length}) يُخفون أو يُعدَّلون
-                  دون حذف. المخصصون يُحذفون نهائيًا إن اخترت ذلك. وكلاء
-                  Gemini/GLM يشاركون نفس مفتاح الـ API.
-                </p>
-              </div>
+                      ))}
+                    {BUILTIN_ROOM_AGENTS.every((a) => seatedIds.has(a.id)) &&
+                      catalog.every((a) => seatedIds.has(a.id)) && (
+                        <p className="text-[10px] text-stone-400">
+                          كل الوكلاء في المقاعد.
+                        </p>
+                      )}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] text-stone-400">
+                وضع التعاون:{' '}
+                {collabMode === 'team' ? 'فريق (عدة وكلاء)' : 'منفصل'}
+              </p>
             </div>
           </div>
         </div>

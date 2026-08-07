@@ -44,6 +44,9 @@ export function AgentSeatsPanel({
     () => agentsForScope(scopeId),
     [agentsForScope, scopeId]
   )
+  const agentsEnabled = useAgentRosterStore((s) =>
+    s.agentsEnabledFor(scopeId)
+  )
   const [profileAgent, setProfileAgent] = useState<RoomAgent | null>(null)
   const signedIn = useSignedIn()
   const [liveActions, setLiveActions] = useState<string[]>([])
@@ -111,11 +114,16 @@ export function AgentSeatsPanel({
           const active = activeAgentId === agent.id
           const answering = answeringAgentId === agent.id
           const model = shortCapability(agent.preferredModel)
+          const statusAr = !agentsEnabled
+            ? 'طافي'
+            : answering
+              ? 'يعمل'
+              : 'جاهز'
           const tip = [
             `اضغط للإشارة بـ @${agent.slug} — يبدأ فوراً`,
             agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
-            answering ? 'يعمل الآن…' : 'جاهز',
+            statusAr,
             signedIn ? 'حضور حي' : 'معاينة',
           ]
             .filter(Boolean)
@@ -131,11 +139,13 @@ export function AgentSeatsPanel({
               }}
               className={cn(
                 'inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors',
-                answering
-                  ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
-                  : active
-                    ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
-                    : 'border-emerald-100 bg-emerald-50/70 text-ab-ink hover:bg-emerald-50'
+                !agentsEnabled
+                  ? 'border-stone-200 bg-stone-50 text-stone-400'
+                  : answering
+                    ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
+                    : active
+                      ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
+                      : 'border-emerald-100 bg-emerald-50/70 text-ab-ink hover:bg-emerald-50'
               )}
             >
               <span className="relative shrink-0">
@@ -151,20 +161,27 @@ export function AgentSeatsPanel({
                 <span
                   className={cn(
                     'absolute -bottom-0.5 -start-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white',
-                    answering ? 'bg-ab-accent' : 'bg-emerald-500'
+                    !agentsEnabled
+                      ? 'bg-stone-400'
+                      : answering
+                        ? 'bg-ab-accent'
+                        : 'bg-emerald-500'
                   )}
                   aria-hidden
                 />
               </span>
               <span className="truncate">{agent.nameAr}</span>
-              {answering ? (
-                <span className="shrink-0 text-[9px] text-ab-accent">يعمل…</span>
-              ) : (
-                <span className="shrink-0 text-[9px] text-emerald-600">
-                  جاهز
-                  {model ? ` · ${model}` : ''}
-                </span>
-              )}
+              <span
+                className={cn(
+                  'shrink-0 text-[9px]',
+                  !agentsEnabled && 'text-stone-400',
+                  agentsEnabled && answering && 'text-ab-accent',
+                  agentsEnabled && !answering && 'text-emerald-600'
+                )}
+              >
+                {statusAr}
+                {agentsEnabled && !answering && model ? ` · ${model}` : ''}
+              </span>
             </button>
           )
         })}
@@ -198,6 +215,7 @@ export function AgentSeatsPanel({
         agent={profileAgent}
         open={Boolean(profileAgent)}
         onClose={() => setProfileAgent(null)}
+        scopeId={scopeId}
         answering={
           profileAgent ? answeringAgentId === profileAgent.id : false
         }

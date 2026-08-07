@@ -103,7 +103,7 @@ function stubSharedRoom(opts: {
       'غرفة مشتركة — ملفات ومحادثة من أي جهاز بعد تسجيل الدخول.',
     members: ['user-1'],
     memberLabelsAr: [],
-    agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],
+    agentLabelsAr: ['وكيل١', 'وكيل٢'],
     sharedMemory: [
       'اللغة الرسمية للغرفة: العربية الفصحى المهنية.',
       'ارفع الملفات من جهازك — تُحفظ في الغرفة وتُرفع تلقائياً إلى عقل الشركة (Drive).',
@@ -316,7 +316,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
               scopeId: id,
               authorKind: 'agent',
               authorId: 'agent-desk',
-              authorNameAr: 'الوكيل الشخصي',
+              authorNameAr: 'وكيل٥',
               content:
                 'جلسة جديدة جاهزة وخاصة بك. ارفع ملفاً من جهازك (📎) واكتب طلبك — الملف يبقى هنا ولا يُشارك مع غرفة الفريق.',
               createdAt: Date.now(),
@@ -351,7 +351,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         'قالب جمعية: مجلس ولجان وموظفون ومتطوعون — تقويم مشترك وموافقات عربية.',
       members: ['user-1'],
       memberLabelsAr: roleLabelsAr,
-      agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال', 'وكيل الجدولة'],
+      agentLabelsAr: ['وكيل١', 'وكيل٢', 'وكيل٣'],
       sharedMemory: [
         'اللغة الرسمية: العربية الفصحى المهنية.',
         'الأدوار: مجلس الإدارة · المدير التنفيذي · أعضاء اللجان · موظفون · متطوعون · مدقق.',
