@@ -51,8 +51,8 @@ export async function POST(req: Request) {
     })
 
     return Response.json({
-      ok: true,
       ...result,
+      ok: true,
       messageAr:
         (result as { messageAr?: string }).messageAr ||
         'تم التحويل — افتح المرفق من الشات أو الأرشيف.',

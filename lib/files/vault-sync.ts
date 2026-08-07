@@ -206,7 +206,7 @@ export async function syncVaultWithChatAttachments(
     fromChat,
     noteAr:
       fromChat > 0
-        ? `زُامن ${fromChat} مرفقاً من شات الغرفة مع الأرشيف.`
+        ? `تمت مزامنة ${fromChat} مرفقاً من شات الغرفة مع الأرشيف.`
         : undefined,
   }
 }

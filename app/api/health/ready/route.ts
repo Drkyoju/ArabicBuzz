@@ -5,11 +5,11 @@ export const dynamic = 'force-dynamic'
 
 const READY_TIMEOUT_MS = 2000
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+async function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
-      p,
+      Promise.resolve(p),
       new Promise<T>((_, reject) => {
         timer = setTimeout(() => reject(new Error('timeout')), ms)
       }),
