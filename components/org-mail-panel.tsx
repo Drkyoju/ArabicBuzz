@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ArrowRight,
   Check,
   Inbox,
   Link2,
@@ -90,10 +91,17 @@ type RelatedHit = {
   href?: string
 }
 
+type DeliveryBanner = {
+  ok: boolean
+  status: 'smtp_accepted' | 'smtp_rejected' | 'error'
+  messageAr: string
+}
+
 const DEFAULT_EMAIL = 'info@alhuda-alhikma.sa'
 
 /**
- * Owner IMAP/SMTP mailbox + on-site inbox with agent draft / extract / ask.
+ * Org IMAP/SMTP mailbox — inbox + agent draft / extract / ask.
+ * Members and owner can read/analyze/send; only owner edits IMAP settings.
  */
 export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [mailbox, setMailbox] = useState<MailboxPublic | null>(null)
@@ -105,6 +113,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
+  const [delivery, setDelivery] = useState<DeliveryBanner | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
   const [emailAddress, setEmailAddress] = useState(DEFAULT_EMAIL)
@@ -125,6 +134,9 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [askQ, setAskQ] = useState('')
   const [askA, setAskA] = useState('')
   const [related, setRelated] = useState<RelatedHit[]>([])
+
+  const readingRef = useRef<HTMLDivElement>(null)
+  const replyRef = useRef<HTMLDivElement>(null)
 
   const loadSettings = useCallback(async () => {
     const headers = await authHeaders()
@@ -227,6 +239,27 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       window.clearTimeout(kill)
     }
   }, [configured, loadMessages])
+
+  /** Bring reading+reply pane into the visible workspace (not under a tall list). */
+  function revealReadingPane() {
+    const pane = readingRef.current
+    if (!pane) return
+    try {
+      pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    } catch {
+      /* ignore */
+    }
+    // Also reset the main scroll so mobile users are not left mid-list.
+    try {
+      const main = pane.closest('main') || document.scrollingElement
+      if (main && 'scrollTop' in main) {
+        const top = pane.getBoundingClientRect().top + window.scrollY - 72
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function saveSettings() {
     if (!isOwner) return
@@ -334,7 +367,24 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setAskA('')
     setAskQ('')
     setDraftAccepted(false)
+    setDelivery(null)
     setRelated([])
+    // Show reading pane immediately (mobile swaps away from the tall list).
+    setSelected((prev) =>
+      prev?.id === id
+        ? prev
+        : ({
+            id,
+            subject: '…',
+            from: '',
+            to: '',
+            date: null,
+            snippet: '',
+            seen: true,
+            bodyText: '',
+          } as MsgDetail)
+    )
+    requestAnimationFrame(() => revealReadingPane())
     try {
       const headers = await authHeaders()
       const res = await fetch(`/api/mail/messages/${id}`, { headers })
@@ -357,6 +407,10 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       }
       await loadMessages()
       void loadRelated(id)
+      requestAnimationFrame(() => {
+        revealReadingPane()
+        replyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
       if (!existing?.draftBody) {
         void runAnalyze(id).catch((e) =>
           setError(e instanceof Error ? e.message : 'فشل التحليل')
@@ -364,6 +418,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطأ')
+      setSelected(null)
     } finally {
       setBusy('')
     }
@@ -374,6 +429,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setBusy('send')
     setError('')
     setOkMsg('')
+    setDelivery(null)
     try {
       const headers = await authHeaders()
       const res = await fetch('/api/mail/send', {
@@ -388,14 +444,32 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'فشل الإرسال')
+      if (!res.ok) {
+        const msg = data.error || 'فشل الإرسال'
+        setDelivery({
+          ok: false,
+          status: 'smtp_rejected',
+          messageAr: msg,
+        })
+        throw new Error(msg)
+      }
       const note = [data.messageAr, data.deliveryNoteAr]
         .filter(Boolean)
         .join(' — ')
+      setDelivery({
+        ok: true,
+        status: 'smtp_accepted',
+        messageAr:
+          note ||
+          'قَبِل خادم SMTP الرسالة. هذا ليس إيصال وصول إلى صندوق المستلم.',
+      })
       setOkMsg(note || 'أُرسل الرد')
       setReplyText('')
       setDraftAccepted(false)
       await loadMessages()
+      requestAnimationFrame(() =>
+        replyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'فشل الإرسال')
     } finally {
@@ -442,9 +516,19 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setReplyText(intel.draftBody)
     setDraftAccepted(true)
     setOkMsg('قُبلت المسودة — يمكنك تعديلها ثم الإرسال.')
+    requestAnimationFrame(() =>
+      replyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    )
+  }
+
+  function closeReading() {
+    setSelected(null)
+    setIntel(null)
+    setDelivery(null)
   }
 
   const extract = intel?.extract
+  const showListOnMobile = !selected
 
   return (
     <section className="ab-page" dir="rtl">
@@ -460,8 +544,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             )}
           </h2>
           <p className="ab-subtitle">
-            صندوق {DEFAULT_EMAIL} — قوالب رد جاهزة + مسودة ذكية عند فتح الرسالة،
-            وقراءة المرفقات (PDF/Word).
+            افتح أي رسالة → ملخص الوكيل + مسودة رد جاهزة → قبول / تعديل / إرسال.
+            الأعضاء والمالك يستخدمون الصندوق؛ إعداد IMAP للمالك فقط.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -504,7 +588,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           {error}
         </p>
       )}
-      {okMsg && (
+      {okMsg && !delivery && (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
           {okMsg}
         </p>
@@ -699,8 +783,18 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             }`}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <ul className="space-y-1 lg:col-span-2">
+      {/*
+        Split view from `md` (not `lg`): with the sidebar, content is often <1024px
+        and a stacked list + pane put the reply ~2400px below. Mobile swaps to
+        reading-only when a message is open.
+      */}
+      <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-start md:gap-4">
+        <ul
+          className={`max-h-[min(70dvh,36rem)] space-y-1 overflow-y-auto overscroll-contain md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] ${
+            showListOnMobile ? '' : 'hidden md:block'
+          }`}
+          aria-label="صندوق الوارد"
+        >
           {messages.map((m) => (
             <li key={m.id}>
               <button
@@ -742,22 +836,51 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           )}
         </ul>
 
-        <div className="min-h-[16rem] space-y-3 rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm lg:col-span-3">
+        <div
+          ref={readingRef}
+          id="org-mail-reading"
+          className={`min-h-[16rem] space-y-3 rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto ${
+            selected ? '' : 'hidden md:block'
+          }`}
+        >
           {!selected ? (
             <p className="text-sm text-ab-muted">
-              اختر رسالة — يقرأها الوكيل ويجهّز مسودة رد واستخراجاً ذكياً.
+              اختر رسالة من القائمة — يظهر هنا ملخص الوكيل ونافذة الرد فوراً بجانب
+              الوارد (بدون التمرير لأسفل القائمة).
             </p>
           ) : (
             <>
-              <div>
-                <h3 className="text-base font-bold text-ab-ink">
-                  {selected.subject}
-                </h3>
-                <p className="mt-1 text-xs text-stone-500" dir="ltr">
-                  من: {selected.from}
-                  <br />
-                  إلى: {selected.to}
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-ab-ink">
+                    {selected.subject}
+                  </h3>
+                  <p className="mt-1 text-xs text-stone-500" dir="ltr">
+                    من: {selected.from}
+                    {selected.to ? (
+                      <>
+                        <br />
+                        إلى: {selected.to}
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeReading}
+                  className="inline-flex items-center gap-1 rounded-lg border border-ab-border bg-stone-50 px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 md:hidden"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                  الوارد
+                </button>
+                <button
+                  type="button"
+                  onClick={closeReading}
+                  className="hidden items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-500 hover:bg-stone-50 md:inline-flex"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                  إغلاق
+                </button>
               </div>
 
               {(busy === 'analyze' || busy === 'read') && (
@@ -798,6 +921,143 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   )}
                 </div>
               )}
+
+              {/* Reply window — directly under agent summary so it is never buried */}
+              <div
+                ref={replyRef}
+                id="org-mail-reply"
+                className="space-y-2 rounded-xl border-2 border-ab-accent/30 bg-ab-accent/[0.03] p-3"
+              >
+                <p className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+                  <Send className="h-4 w-4 text-ab-accent" aria-hidden />
+                  نافذة الرد
+                </p>
+                <p className="text-[11px] leading-relaxed text-stone-600">
+                  المسودة تُملأ تلقائياً. اضغط «قبول المسودة» أو عدّل النص ثم
+                  «أرسل الرد».
+                </p>
+
+                {delivery && (
+                  <div
+                    role="status"
+                    className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+                      delivery.ok
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                        : 'border-red-200 bg-red-50 text-red-900'
+                    }`}
+                  >
+                    <p className="font-semibold">
+                      {delivery.ok
+                        ? 'حالة الإرسال: قَبِل SMTP الرسالة'
+                        : 'حالة الإرسال: فشل / رُفض'}
+                    </p>
+                    <p className="mt-1">{delivery.messageAr}</p>
+                    {delivery.ok && (
+                      <p className="mt-1 text-[10px] text-emerald-800/90">
+                        تنبيه: قبول الخادم ≠ إيصال تسليم أو قراءة لدى المستلم —
+                        لا يتوفر DSN في إعداد الجمعية الحالي.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={!intel?.draftBody}
+                    onClick={acceptDraft}
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-900 disabled:opacity-40"
+                  >
+                    <Check className="h-3 w-3" aria-hidden />
+                    قبول المسودة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={discardDraft}
+                    className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-600"
+                  >
+                    <Trash2 className="h-3 w-3" aria-hidden />
+                    إهمال
+                  </button>
+                  {draftAccepted && (
+                    <span className="self-center text-[10px] text-emerald-700">
+                      جاهزة للتعديل/الإرسال
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold text-stone-500">
+                    قوالب رد الجمعية
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ORG_REPLY_TEMPLATES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setReplyText(t.bodyAr)
+                          if (t.subjectHintAr) {
+                            const base = selected?.subject || ''
+                            const already =
+                              base.match(/^(re|رد)\s*:/i) ||
+                              base.includes(t.subjectHintAr)
+                            setReplySubject(
+                              already
+                                ? base.startsWith('Re:') ||
+                                  base.startsWith('رد')
+                                  ? base
+                                  : `Re: ${base}`
+                                : `Re: ${t.subjectHintAr}`
+                            )
+                          }
+                          setDraftAccepted(true)
+                          setOkMsg(`أُدرج قالب «${t.labelAr}» — عدّل ثم أرسل.`)
+                        }}
+                        className="rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-[10px] font-medium text-ab-ink hover:border-ab-accent/40 hover:bg-ab-accent/5"
+                      >
+                        {t.labelAr}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="block text-xs">
+                  <span className="text-stone-500">موضوع الرد</span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
+                    value={replySubject}
+                    onChange={(e) => setReplySubject(e.target.value)}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-stone-500">نص الرد (عدّل ثم أرسل)</span>
+                  <textarea
+                    rows={6}
+                    className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="مسودة الوكيل أو قالب جاهز أو اكتب ردك…"
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy === 'send' || !replyText.trim()}
+                    onClick={() => void sendReply()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" aria-hidden />
+                    {busy === 'send' ? 'جاري الإرسال…' : 'أرسل الرد عبر SMTP'}
+                  </button>
+                </div>
+                <p className="rounded-md bg-white/80 px-2 py-1.5 text-[10px] leading-relaxed text-stone-500">
+                  <span className="font-semibold text-stone-700">حالة التسليم:</span>{' '}
+                  نجاح الزر يعني «smtp_accepted» (قبل الخادم الرسالة). لا يوجد
+                  DSN/إيصال قراءة في إعداد الجمعية الحالي — راقب صندوق الوارد أو
+                  رسالة الخطأ عند الرفض.
+                </p>
+              </div>
 
               {extract &&
                 (extract.dates.length > 0 ||
@@ -886,12 +1146,17 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 </div>
               )}
 
-              <pre
-                dir="auto"
-                className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-stone-50 p-3 text-xs leading-relaxed text-stone-700"
-              >
-                {selected.bodyText || selected.snippet}
-              </pre>
+              <details className="rounded-lg border border-ab-border bg-stone-50/80">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-ab-ink">
+                  نص الرسالة الأصلي
+                </summary>
+                <pre
+                  dir="auto"
+                  className="max-h-48 overflow-auto whitespace-pre-wrap border-t border-ab-border p-3 text-xs leading-relaxed text-stone-700"
+                >
+                  {selected.bodyText || selected.snippet || '…'}
+                </pre>
+              </details>
 
               {related.length > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-dashed border-ab-border p-3">
@@ -946,111 +1211,6 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   </p>
                 )}
               </div>
-
-              <div className="space-y-2 border-t border-ab-border pt-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={!intel?.draftBody}
-                      onClick={acceptDraft}
-                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 disabled:opacity-40"
-                    >
-                      <Check className="h-3 w-3" aria-hidden />
-                      قبول المسودة
-                    </button>
-                    <button
-                      type="button"
-                      onClick={discardDraft}
-                      className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-stone-600"
-                    >
-                      <Trash2 className="h-3 w-3" aria-hidden />
-                      إهمال
-                    </button>
-                    {draftAccepted && (
-                      <span className="self-center text-[10px] text-emerald-700">
-                        جاهزة للتعديل/الإرسال
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[10px] font-semibold text-stone-500">
-                      قوالب رد الجمعية
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ORG_REPLY_TEMPLATES.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setReplyText(t.bodyAr)
-                            if (t.subjectHintAr) {
-                              const base = selected?.subject || ''
-                              const already =
-                                base.match(/^(re|رد)\s*:/i) ||
-                                base.includes(t.subjectHintAr)
-                              setReplySubject(
-                                already
-                                  ? base.startsWith('Re:') ||
-                                    base.startsWith('رد')
-                                    ? base
-                                    : `Re: ${base}`
-                                  : `Re: ${t.subjectHintAr}`
-                              )
-                            }
-                            setDraftAccepted(true)
-                            setOkMsg(`أُدرج قالب «${t.labelAr}» — عدّل ثم أرسل.`)
-                          }}
-                          className="rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-[10px] font-medium text-ab-ink hover:border-ab-accent/40 hover:bg-ab-accent/5"
-                        >
-                          {t.labelAr}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <label className="block text-xs">
-                    <span className="text-stone-500">موضوع الرد</span>
-                    <input
-                      className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
-                      value={replySubject}
-                      onChange={(e) => setReplySubject(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-xs">
-                    <span className="text-stone-500">نص الرد (عدّل ثم أرسل)</span>
-                    <textarea
-                      rows={6}
-                      className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="مسودة الوكيل أو قالب جاهز أو اكتب ردك…"
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy === 'send' || !replyText.trim()}
-                      onClick={() => void sendReply()}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-ab-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                    >
-                      <Send className="h-3.5 w-3.5" aria-hidden />
-                      {busy === 'send' ? 'جاري الإرسال…' : 'أرسل الرد عبر SMTP'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(null)}
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-500 hover:bg-stone-50"
-                    >
-                      <X className="h-3.5 w-3.5" aria-hidden />
-                      إغلاق
-                    </button>
-                  </div>
-                  <p className="rounded-md bg-stone-50 px-2 py-1.5 text-[10px] leading-relaxed text-stone-500">
-                    <span className="font-semibold text-stone-700">حالة التسليم:</span>{' '}
-                    نجاح الزر يعني «smtp_accepted» (قبل الخادم الرسالة). لا يوجد
-                    DSN/إيصال قراءة في إعداد الجمعية الحالي — راقب صندوق الوارد
-                    أو ارفض SMTP في رسالة الخطأ.
-                  </p>
-                </div>
             </>
           )}
         </div>

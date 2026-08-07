@@ -472,7 +472,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         )}
 
         {section === 'mail' && (
-          <OrgMailPanel isOwner={canAccessOpsUi && mode === 'admin'} />
+          <OrgMailPanel isOwner={Boolean(canAccessOpsUi)} />
         )}
 
         {section === 'chats' && <RoomWorkspace />}
