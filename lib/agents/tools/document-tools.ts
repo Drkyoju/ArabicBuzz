@@ -107,7 +107,7 @@ export async function executeListWorkspaceFiles(
     })),
     messageAr:
       files.length === 0
-        ? 'لا ملفات في هذه المساحة بعد. ارفع من جهازك (Word/Excel/PDF/صور) عبر 📎 في الشات — لا يلزم Drive.'
+        ? 'لا ملفات في هذه المساحة بعد. اسحب ملفاً إلى منطقة الرفع أو استخدم 📎 — يُحفظ في الغرفة ويُرفع لعقل الشركة (Drive).'
         : `عُثر على ${files.length} ملفاً في الغرفة — استخدم read_document ثم edit_document / edit_excel، أو return_file للتنزيل.`,
   }
 }

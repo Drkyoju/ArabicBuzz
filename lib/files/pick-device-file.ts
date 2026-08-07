@@ -73,6 +73,19 @@ export async function pickDeviceFile(opts?: {
   return pickViaHiddenInput()
 }
 
+/** Extract the first usable File from a drag-and-drop DataTransfer. */
+export function fileFromDataTransfer(
+  dt: DataTransfer | null
+): File | null {
+  if (!dt) return null
+  if (dt.files?.length) return dt.files[0] || null
+  const item = dt.items?.[0]
+  if (item && item.kind === 'file') {
+    return item.getAsFile()
+  }
+  return null
+}
+
 function pickViaHiddenInput(): Promise<DevicePickResult | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input')

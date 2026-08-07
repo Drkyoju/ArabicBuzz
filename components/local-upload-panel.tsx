@@ -1,16 +1,25 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { FileUp, Mic, Paperclip, Brain } from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
+import { FileUp, Mic, Paperclip, Link2 } from 'lucide-react'
 import {
   checkBrowserRecordSupport,
   extForAudioMime,
   startBrowserRecording,
   type ActiveRecording,
 } from '@/lib/audio/browser-record'
-import { authHeaders } from '@/lib/supabase/browser'
+import { authHeaders, connectGoogleCalendar } from '@/lib/supabase/browser'
 import { openFilePreviewInChat } from '@/lib/files/preview-store'
-import { pickDeviceFile } from '@/lib/files/pick-device-file'
+import {
+  fileFromDataTransfer,
+  pickDeviceFile,
+} from '@/lib/files/pick-device-file'
 import { cn } from '@/lib/utils'
 
 type StoredFile = {
@@ -29,8 +38,7 @@ export type UploadedRoomFile = {
 }
 
 /**
- * Compact attach / Mac-save / brain toolbar for the session composer.
- * Primary path: upload from the user's device into room storage (Drive optional).
+ * Room file attach toolbar: drag-drop / pick → room vault, then auto Drive «عقل الشركة».
  */
 export function LocalUploadPanel({
   scopeId,
@@ -52,22 +60,9 @@ export function LocalUploadPanel({
   const [files, setFiles] = useState<StoredFile[]>([])
   const [open, setOpen] = useState(false)
   const [macConfigured, setMacConfigured] = useState(false)
-  const [sensitiveMacOnly, setSensitiveMacOnly] = useState(() => {
-    try {
-      return localStorage.getItem('ab-sensitive-mac-only') === '1'
-    } catch {
-      return false
-    }
-  })
-
-  function toggleSensitive(next: boolean) {
-    setSensitiveMacOnly(next)
-    try {
-      localStorage.setItem('ab-sensitive-mac-only', next ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-  }
+  const [needsGoogle, setNeedsGoogle] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [connectingGoogle, setConnectingGoogle] = useState(false)
 
   const refresh = useCallback(async () => {
     const headers = await authHeaders()
@@ -103,11 +98,15 @@ export function LocalUploadPanel({
     }
   }, [])
 
-  function notifyReady(meta: {
-    id?: string
-    originalName?: string
-    mimeType?: string
-  }, fallbackName: string, fallbackMime: string) {
+  function notifyReady(
+    meta: {
+      id?: string
+      originalName?: string
+      mimeType?: string
+    },
+    fallbackName: string,
+    fallbackMime: string
+  ) {
     if (!meta.id) return
     const payload: UploadedRoomFile = {
       fileId: meta.id,
@@ -122,6 +121,57 @@ export function LocalUploadPanel({
       name: payload.name,
       mimeType: payload.mimeType,
     })
+  }
+
+  async function syncToCompanyBrain(localFileId: string) {
+    try {
+      const res = await fetch('/api/google/drive/brain/upload', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ scopeId, localFileId }),
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        needsGoogle?: boolean
+        messageAr?: string
+        error?: string
+        driveName?: string
+      }
+      if (data.needsGoogle || data.error?.includes('اربط Google')) {
+        setNeedsGoogle(true)
+        return {
+          ok: false as const,
+          needsGoogle: true as const,
+          message:
+            'حُفظ في الغرفة — اربط Google لرفع عقل الشركة (إلزامي للمعرفة المشتركة)',
+        }
+      }
+      if (!res.ok || data.ok === false) {
+        return {
+          ok: false as const,
+          needsGoogle: false as const,
+          message:
+            data.messageAr ||
+            data.error ||
+            'حُفظ في الغرفة — تعذّر الرفع لـ Drive؛ أعد المحاولة بعد ربط Google',
+        }
+      }
+      setNeedsGoogle(false)
+      return {
+        ok: true as const,
+        needsGoogle: false as const,
+        message: data.messageAr || `رُفع إلى عقل الشركة (Drive)`,
+      }
+    } catch (e) {
+      return {
+        ok: false as const,
+        needsGoogle: false as const,
+        message:
+          e instanceof Error
+            ? e.message
+            : 'حُفظ في الغرفة — تعذّر مزامنة Drive',
+      }
+    }
   }
 
   async function uploadDirectToMac(
@@ -186,90 +236,88 @@ export function LocalUploadPanel({
       const hopMax = status.hopMaxBytes || 32 * 1024 * 1024
       setProgress(15)
 
-      if (
-        (sensitiveMacOnly || asFile.size > hopMax) &&
-        status.directUpload?.uploadUrl
-      ) {
+      let roomFileId: string | undefined
+      let roomMessage = ''
+
+      if (asFile.size > hopMax && status.directUpload?.uploadUrl) {
         setProgress(40)
         const data = await uploadDirectToMac(asFile, status.directUpload)
-        setProgress(100)
-        setMessage(
-          sensitiveMacOnly
-            ? data.messageAr || 'حُفظ على الماك فقط (حساس)'
-            : data.messageAr || 'حُفظ مباشرة على الماك'
-        )
+        setProgress(70)
+        roomFileId = data.file?.id
+        roomMessage = data.messageAr || 'حُفظ مباشرة على الماك'
         notifyReady(
           data.file || {},
           asFile.name,
           asFile.type || 'application/octet-stream'
         )
-        await refresh()
-        onUploaded?.()
-        return
+      } else {
+        setProgress(35)
+        const body = new FormData()
+        body.append('scopeId', scopeId)
+        body.append('file', asFile)
+        const res = await fetch('/api/storage/upload', {
+          method: 'POST',
+          headers: await authHeaders(),
+          body,
+        })
+        setProgress(60)
+        const data = (await res.json()) as {
+          error?: string
+          messageAr?: string
+          ok?: boolean
+          source?: string
+          file?: {
+            id?: string
+            originalName?: string
+            mimeType?: string
+          }
+          directUploadRequired?: boolean
+          directUpload?: {
+            uploadUrl: string
+            secretHeader?: string | null
+            secretValue?: string | null
+          }
+        }
+        if (data.directUploadRequired && data.directUpload?.uploadUrl) {
+          setProgress(70)
+          const direct = await uploadDirectToMac(asFile, data.directUpload)
+          roomFileId = direct.file?.id
+          roomMessage = direct.messageAr || 'حُفظ مباشرة على الماك'
+          notifyReady(
+            direct.file || {},
+            asFile.name,
+            asFile.type || 'application/octet-stream'
+          )
+        } else if (!res.ok || data.ok === false) {
+          setMessage(data.error || data.messageAr || 'تعذّر الرفع')
+          return
+        } else {
+          roomFileId = data.file?.id
+          roomMessage = data.messageAr || 'تم الحفظ في الغرفة'
+          notifyReady(
+            data.file || {},
+            asFile.name,
+            asFile.type || 'application/octet-stream'
+          )
+        }
       }
 
-      if (sensitiveMacOnly && !status.macSyncConfigured) {
-        setMessage(
-          'الوضع الحساس مفعّل لكن وكيل الماك غير متاح. لا يُسمح بالسحابة.'
-        )
-        return
-      }
-
-      setProgress(35)
-      const body = new FormData()
-      body.append('scopeId', scopeId)
-      body.append('file', asFile)
-      if (sensitiveMacOnly) body.append('sensitive', '1')
-      const res = await fetch('/api/storage/upload', {
-        method: 'POST',
-        headers: await authHeaders(),
-        body,
-      })
-      setProgress(75)
-      const data = (await res.json()) as {
-        error?: string
-        messageAr?: string
-        ok?: boolean
-        source?: string
-        file?: {
-          id?: string
-          originalName?: string
-          mimeType?: string
-        }
-        directUploadRequired?: boolean
-        directUpload?: {
-          uploadUrl: string
-          secretHeader?: string | null
-          secretValue?: string | null
-        }
-      }
-      if (data.directUploadRequired && data.directUpload?.uploadUrl) {
-        setProgress(80)
-        const direct = await uploadDirectToMac(asFile, data.directUpload)
+      setProgress(85)
+      if (roomFileId) {
+        const brain = await syncToCompanyBrain(roomFileId)
         setProgress(100)
-        setMessage(direct.messageAr || 'حُفظ مباشرة على الماك')
-        notifyReady(
-          direct.file || {},
-          asFile.name,
-          asFile.type || 'application/octet-stream'
-        )
-        await refresh()
-        onUploaded?.()
-        return
+        if (brain.needsGoogle) {
+          setMessage(brain.message)
+        } else if (brain.ok) {
+          setMessage(`${roomMessage} · ${brain.message}`)
+        } else {
+          setMessage(`${roomMessage} · ${brain.message}`)
+        }
+      } else {
+        setProgress(100)
+        setMessage(roomMessage || 'تم الحفظ في الغرفة')
       }
-      if (!res.ok || data.ok === false) {
-        setMessage(data.error || data.messageAr || 'تعذّر الرفع')
-        return
-      }
-      setProgress(100)
-      setMessage(
-        `${data.messageAr || 'تم الحفظ في الغرفة'} · جاهز لتعديل الوكيل (بلا Drive)`
-      )
-      notifyReady(
-        data.file || {},
-        asFile.name,
-        asFile.type || 'application/octet-stream'
-      )
+
       await refresh()
       onUploaded?.()
     } catch (e) {
@@ -281,9 +329,7 @@ export function LocalUploadPanel({
   }
 
   async function pickAndUpload() {
-    setMessage(
-      'اختر ملفاً من جهازك — المتصفح يطلب إذن الاختيار فقط (وليس قرصاً كاملاً).'
-    )
+    setMessage('اختر ملفاً أو اسحبه إلى المنطقة — يُحفظ في الغرفة ثم عقل الشركة.')
     const picked = await pickDeviceFile()
     if (!picked) {
       setMessage('')
@@ -292,46 +338,39 @@ export function LocalUploadPanel({
     await uploadBlob(picked.file, picked.file.name)
   }
 
-  async function ingestToBrain(fileId?: string, file?: File) {
-    setBusy(true)
-    setMessage(
-      sensitiveMacOnly
-        ? 'جاري الاستيعاب على الماك فقط (حساس)…'
-        : 'جاري الاستيعاب في عقل الشركة…'
-    )
+  function onDropZoneDragOver(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!busy) setDragOver(true)
+  }
+
+  function onDropZoneDragLeave(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+  }
+
+  function onDropZoneDrop(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+    if (busy) return
+    const file = fileFromDataTransfer(e.dataTransfer)
+    if (!file) {
+      setMessage('لم يُعثر على ملف في السحب — جرّب ملفاً واحداً')
+      return
+    }
+    void uploadBlob(file, file.name)
+  }
+
+  async function connectGoogle() {
+    setConnectingGoogle(true)
+    setMessage('جاري فتح ربط Google…')
     try {
-      let res: Response
-      if (file) {
-        const body = new FormData()
-        body.append('scopeId', scopeId)
-        body.append('file', file)
-        body.append('titleAr', file.name)
-        if (sensitiveMacOnly) body.append('sensitive', '1')
-        res = await fetch('/api/brain/ingest', {
-          method: 'POST',
-          headers: await authHeaders(),
-          body,
-        })
-      } else if (fileId) {
-        res = await fetch('/api/brain/ingest', {
-          method: 'POST',
-          headers: await authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({
-            scopeId,
-            localFileId: fileId,
-            sensitive: sensitiveMacOnly || undefined,
-          }),
-        })
-      } else {
-        setMessage('اختر ملفاً للاستيعاب')
-        return
-      }
-      const data = (await res.json()) as { error?: string; messageAr?: string }
-      setMessage(data.messageAr || data.error || 'تم')
+      await connectGoogleCalendar()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'فشل الاستيعاب')
-    } finally {
-      setBusy(false)
+      setMessage(e instanceof Error ? e.message : 'تعذّر ربط Google')
+      setConnectingGoogle(false)
     }
   }
 
@@ -367,6 +406,33 @@ export function LocalUploadPanel({
     }
   }
 
+  const googleBanner = needsGoogle ? (
+    <div className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-950">
+      <p className="font-semibold">اربط Google لرفع عقل الشركة</p>
+      <p className="mt-0.5 text-amber-900/90">
+        الملف محفوظ في الغرفة، لكن معرفة الجمعية تلزم Drive. اربط الحساب ثم
+        أعد الرفع أو اضغط «عقل» على الملف.
+      </p>
+      <button
+        type="button"
+        disabled={connectingGoogle}
+        onClick={() => void connectGoogle()}
+        className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-ab-accent px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50"
+      >
+        <Link2 className="h-3 w-3" />
+        {connectingGoogle ? 'جاري الربط…' : 'اربط Google لرفع عقل الشركة'}
+      </button>
+    </div>
+  ) : null
+
+  const dropZoneClass = cn(
+    'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-3 py-6 text-center transition-colors',
+    dragOver
+      ? 'border-ab-accent bg-ab-accent/10'
+      : 'border-ab-accent/40 bg-ab-accent/5 hover:border-ab-accent hover:bg-ab-accent/10',
+    busy && 'pointer-events-none opacity-50'
+  )
+
   if (compact) {
     return (
       <div className="relative" dir="rtl">
@@ -376,55 +442,34 @@ export function LocalUploadPanel({
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
           aria-label="ارفع من جهازك"
-          title="ارفع من جهازك — Word / Excel / PDF / صور"
+          title="ارفع من جهازك — اسحب الملف أو اختر"
         >
           <Paperclip className="h-4 w-4" />
         </button>
         {open && (
-          <div className="absolute bottom-full end-0 z-20 mb-2 w-72 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
+          <div className="absolute bottom-full end-0 z-20 mb-2 w-80 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
             <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-500">
-              ارفع من جهازك إلى الغرفة — لا يلزم Google Drive. الوكيل يعدّل ويرجع
-              تنزيلاً في الشات.
+              اسحب الملف هنا أو اضغط للاختيار — يُحفظ في الغرفة ويُرفع تلقائياً إلى
+              عقل الشركة (Drive).
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void pickAndUpload()}
-                className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1.5 text-[11px] font-semibold text-ab-accent"
-              >
-                <FileUp className="h-3 w-3" />
-                ارفع من جهازك
-              </button>
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-border px-2 py-1.5 text-[11px] text-stone-600">
-                <Brain className="h-3 w-3" />
-                عقل (اختياري)
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
-                  className="hidden"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) void ingestToBrain(undefined, f)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => toggleSensitive(!sensitiveMacOnly)}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
-                  sensitiveMacOnly
-                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
-                    : 'border-ab-border text-stone-600'
-                )}
-                title="لا يُحفظ في السحابة — الماك فقط"
-              >
-                {sensitiveMacOnly ? 'حساس · ماك' : 'حساس؟'}
-              </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void pickAndUpload()}
+              onDragOver={onDropZoneDragOver}
+              onDragLeave={onDropZoneDragLeave}
+              onDrop={onDropZoneDrop}
+              className={cn(dropZoneClass, 'w-full py-5')}
+            >
+              <FileUp className="h-6 w-6 text-ab-accent" aria-hidden />
+              <span className="text-xs font-semibold text-ab-ink">
+                اسحب الملف هنا
+              </span>
+              <span className="text-[10px] text-stone-500">
+                أو اضغط للاختيار من جهازك
+              </span>
+            </button>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 disabled={busy}
@@ -441,7 +486,7 @@ export function LocalUploadPanel({
                   ? 'إيقاف'
                   : macConfigured
                     ? 'تسجيل للماك'
-                    : 'تسجيل ملف صوتي'}
+                    : 'ملف صوتي'}
               </button>
             </div>
             {progress != null && (
@@ -455,6 +500,7 @@ export function LocalUploadPanel({
             {message && (
               <p className="mt-1.5 text-[10px] text-stone-500">{message}</p>
             )}
+            {googleBanner}
             {files.length > 0 && (
               <ul className="mt-1.5 max-h-20 space-y-0.5 overflow-y-auto text-[10px] text-stone-600">
                 {files.slice(0, 5).map((f) => (
@@ -479,20 +525,21 @@ export function LocalUploadPanel({
                     >
                       {f.originalName}
                     </button>
-                    {(f.kind === 'pdf' ||
-                      f.kind === 'doc' ||
-                      f.kind === 'pptx' ||
-                      f.kind === 'xlsx' ||
-                      f.kind === 'image') && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        className="text-ab-accent hover:underline"
-                        onClick={() => void ingestToBrain(f.id)}
-                      >
-                        عقل
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="shrink-0 text-ab-accent hover:underline"
+                      onClick={() =>
+                        void (async () => {
+                          setBusy(true)
+                          const brain = await syncToCompanyBrain(f.id)
+                          setMessage(brain.message)
+                          setBusy(false)
+                        })()
+                      }
+                    >
+                      عقل
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -504,55 +551,32 @@ export function LocalUploadPanel({
   }
 
   return (
-    <div
-      className="rounded-md border border-dashed border-ab-border bg-stone-50 p-2"
-      dir="rtl"
-    >
+    <div className="rounded-md border border-ab-border bg-stone-50 p-2" dir="rtl">
       <p className="mb-2 text-[11px] leading-relaxed text-stone-600">
         <span className="font-semibold text-ab-ink">ارفع من جهازك</span>
         {' — '}
-        Word / Excel / PDF / صور (وPowerPoint بإعادة بناء نصية). يُحفظ في الغرفة
-        ويعدّله الوكيل — Google Drive اختياري للمزامنة فقط.
+        Word / Excel / PDF / صور. يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة
+        (Drive).
       </p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void pickAndUpload()}
+        onDragOver={onDropZoneDragOver}
+        onDragLeave={onDropZoneDragLeave}
+        onDrop={onDropZoneDrop}
+        className={cn(dropZoneClass, 'mb-2 w-full min-h-[7.5rem]')}
+        aria-label="اسحب الملف هنا أو اضغط للاختيار"
+      >
+        <FileUp className="h-8 w-8 text-ab-accent" aria-hidden />
+        <span className="text-sm font-semibold text-ab-ink">
+          اسحب الملف وأفلته هنا
+        </span>
+        <span className="text-[11px] text-stone-500">
+          أو اضغط لاختيار ملف من جهازك — ثم يُرفع لعقل الشركة تلقائياً
+        </span>
+      </button>
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void pickAndUpload()}
-          className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/10 px-2 py-1.5 text-xs font-semibold text-ab-accent disabled:opacity-40"
-        >
-          <FileUp className="h-3.5 w-3.5" />
-          ارفع من جهازك
-        </button>
-        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs text-stone-600">
-          <Brain className="h-3.5 w-3.5" />
-          إلى عقل الشركة (اختياري)
-          <input
-            type="file"
-            accept=".pdf,application/pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/tiff"
-            className="hidden"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void ingestToBrain(undefined, f)
-              e.target.value = ''
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => toggleSensitive(!sensitiveMacOnly)}
-          className={cn(
-            'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs disabled:opacity-40',
-            sensitiveMacOnly
-              ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
-              : 'border-ab-border bg-white text-stone-600'
-          )}
-          title="لا يُحفظ في السحابة — الماك فقط"
-        >
-          {sensitiveMacOnly ? 'حساس · ماك فقط' : 'رفع حساس؟'}
-        </button>
         <button
           type="button"
           disabled={busy}
@@ -569,7 +593,7 @@ export function LocalUploadPanel({
             ? 'إيقاف وحفظ'
             : macConfigured
               ? 'حفظ صوتي للماك'
-              : 'تسجيل ملف صوتي'}
+              : 'ملف صوتي'}
         </button>
       </div>
       {progress != null && (
@@ -581,6 +605,7 @@ export function LocalUploadPanel({
         </div>
       )}
       {message && <p className="mt-1 text-[11px] text-stone-500">{message}</p>}
+      {googleBanner}
     </div>
   )
 }

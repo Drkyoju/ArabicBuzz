@@ -1827,8 +1827,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         : collabMode === 'team'
                           ? 'مهمة للفريق… @وكيل أو @عضو · @all للجميع'
                           : shared
-                            ? 'ارفع 📎 من جهازك أو اكتب… @وكيل'
-                            : 'ارفع 📎 من جهازك أو اكتب…'
+                            ? 'اسحب ملفاً أو 📎 أو اكتب… @وكيل'
+                            : 'اسحب ملفاً أو 📎 أو تكلم بالميكروفون…'
                 }
                 className="max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2 disabled:opacity-50"
                 aria-label="رسالة الغرفة"

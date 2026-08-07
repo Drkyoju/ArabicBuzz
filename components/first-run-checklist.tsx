@@ -97,7 +97,7 @@ export function FirstRunChecklist({
       },
       {
         id: 'drive',
-        labelAr: 'ارفع ملفاً لعقل الشركة (اختياري)',
+        labelAr: 'ارفع ملفاً لعقل الشركة (Drive)',
         done: driveCount > 0 || keysOk,
         action: () => onNavigate?.('files'),
         actionLabelAr: 'الملفات',

@@ -245,7 +245,7 @@ export function ComposerMicButton({
         title={
           state === 'recording'
             ? 'إيقاف ثم نسخ دقيق للعربية'
-            : 'إملاء عربي عالي الدقة (Gemini / Whisper / Willow)'
+            : 'إملاء عربي فوري — Willow / Gemini / Whisper'
         }
         className={cn(
           'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-40',

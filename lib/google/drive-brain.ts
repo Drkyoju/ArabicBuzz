@@ -324,3 +324,65 @@ export async function listDriveBrainPreview(
     files,
   }
 }
+
+/**
+ * Push a room vault file into Drive «عقل الشركة» and re-index RAG.
+ * Room file stays in place; Drive sync is the mandatory company-brain path.
+ */
+export async function uploadRoomFileToCompanyBrain(opts: {
+  userId: string
+  /** Room scope where the file was saved. */
+  scopeId: string
+  localFileId: string
+}): Promise<{
+  ok: true
+  driveFileId: string
+  driveName: string
+  driveUrl: string | null
+  brainChunks: number
+  folderUrl: string
+  messageAr: string
+}> {
+  const { readWorkspaceFile } = await import('@/lib/documents/workspace')
+  const { uploadDriveBinaryFile } = await import('@/lib/google/drive')
+
+  const hit = await readWorkspaceFile(opts.scopeId, opts.localFileId)
+  const driveMeta = await uploadDriveBinaryFile(opts.userId, {
+    name: hit.meta.originalName,
+    buffer: hit.buffer,
+    mimeType: hit.meta.mimeType,
+  })
+
+  const sourceFileId = `gdrive:${driveMeta.id}`
+  const folderId = getDriveBrainFolderId()
+  const folderUrl = `https://drive.google.com/drive/folders/${folderId}`
+  await deleteKnowledgeBySource(sourceFileId)
+
+  const extracted = await extractDocumentText({
+    buffer: hit.buffer,
+    filename: driveMeta.name,
+    mimeType: driveMeta.mimeType || hit.meta.mimeType,
+    enableOcr: true,
+  })
+  let chunks = 0
+  if (extracted.text.trim()) {
+    const result = await ingestArabicDocument({
+      scopeId: COMPANY_BRAIN_SCOPE_ID,
+      titleAr: driveMeta.name,
+      content: extracted.text,
+      sourceFileId,
+      sourcePath: folderUrl,
+    })
+    chunks = result.chunks
+  }
+
+  return {
+    ok: true,
+    driveFileId: driveMeta.id,
+    driveName: driveMeta.name,
+    driveUrl: driveMeta.webViewLink || null,
+    brainChunks: chunks,
+    folderUrl,
+    messageAr: `رُفع «${driveMeta.name}» إلى عقل الشركة (Drive) وفُهرس (${chunks} مقطعاً).`,
+  }
+}

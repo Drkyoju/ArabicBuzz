@@ -104,23 +104,27 @@ export function FilesPanel() {
     setBusyId(fileId)
     setNote('')
     try {
-      const res = await fetch('/api/brain/ingest', {
+      const res = await fetch('/api/google/drive/brain/upload', {
         method: 'POST',
         headers: await authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           scopeId,
           localFileId: fileId,
-          titleAr: f.originalName || f.name || fileId,
         }),
       })
       const data = (await res.json()) as {
         error?: string
         messageAr?: string
+        needsGoogle?: boolean
       }
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setNote(data.messageAr || 'أُرسل إلى عقل الشركة')
+      if (data.needsGoogle) {
+        setNote('اربط Google لرفع عقل الشركة')
+        return
+      }
+      if (!res.ok) throw new Error(data.error || data.messageAr || `HTTP ${res.status}`)
+      setNote(data.messageAr || 'رُفع إلى عقل الشركة (Drive)')
     } catch (e) {
-      setNote(e instanceof Error ? e.message : 'فشل الإرسال للعقل')
+      setNote(e instanceof Error ? e.message : 'فشل الرفع لعقل الشركة')
     } finally {
       setBusyId(null)
     }
@@ -265,14 +269,14 @@ export function FilesPanel() {
     source === 'local' || source === 'mac'
       ? 'خزنة الماك المشتركة — الجميع يضيف ويعدّل ويحذف'
       : source === 'cloud'
-        ? 'ملفات الغرفة (سحابة) — بلا Drive إلزامي'
-        : 'لا ملفات بعد — ارفع من جهازك'
+        ? 'ملفات الغرفة + عقل الشركة (Drive)'
+        : 'لا ملفات بعد — اسحب ملفاً هنا'
 
   const emptyHint =
-    'ارفع من جهازك (Word / Excel / PDF / صور) — يُحفظ في الغرفة ويعدّله الوكيل في الشات. Google Drive اختياري.'
+    'اسحب ملفاً إلى منطقة الرفع أعلاه (Word / Excel / PDF / صور) — يُحفظ في الغرفة ويُرفع تلقائياً إلى عقل الشركة.'
 
   const uploadHint =
-    'ارفع من أي جهاز بعد تسجيل الدخول. الوكيل يقرأ ويعدّل ويرجع تنزيلاً في الشات. PowerPoint: إعادة بناء نصية للشرائح. عقل الشركة (Drive) للمزامنة الاختيارية فقط.'
+    'اسحب وأفلت أو اختر من جهازك. الملف يُحفظ في الغرفة ويُزامن تلقائياً مع عقل الشركة (Drive). يلزم ربط Google للمعرفة المشتركة.'
 
   if (authPending) {
     return (
