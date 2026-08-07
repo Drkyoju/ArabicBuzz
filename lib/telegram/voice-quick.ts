@@ -1,10 +1,15 @@
 /**
- * Inline quick-actions after Telegram voice STT:
- * أضِف موعد · مهمة · ملف · أرسل رسالة
+ * Inline quick-actions after Telegram voice STT.
  */
 import { InlineKeyboard } from 'grammy'
 
-export type VoiceQuickAction = 'appointment' | 'task' | 'file' | 'message'
+export type VoiceQuickAction =
+  | 'appointment'
+  | 'task'
+  | 'file'
+  | 'message'
+  | 'broadcast'
+  | 'run'
 
 type VoiceQuickCache = {
   transcript: string
@@ -50,6 +55,8 @@ export const VOICE_QUICK_PREFIX = {
   task: 'vq_task',
   file: 'vq_file',
   message: 'vq_msg',
+  broadcast: 'vq_cast',
+  run: 'vq_run',
 } as const
 
 export function parseVoiceQuickCallback(
@@ -59,16 +66,21 @@ export function parseVoiceQuickCallback(
   if (data === VOICE_QUICK_PREFIX.task) return 'task'
   if (data === VOICE_QUICK_PREFIX.file) return 'file'
   if (data === VOICE_QUICK_PREFIX.message) return 'message'
+  if (data === VOICE_QUICK_PREFIX.broadcast) return 'broadcast'
+  if (data === VOICE_QUICK_PREFIX.run) return 'run'
   return null
 }
 
 export function buildVoiceQuickKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
+    .text('✅ نفّذ الآن', VOICE_QUICK_PREFIX.run)
     .text('أضِف موعد', VOICE_QUICK_PREFIX.appointment)
-    .text('مهمة', VOICE_QUICK_PREFIX.task)
     .row()
+    .text('مهمة', VOICE_QUICK_PREFIX.task)
     .text('ابحث عن الملف', VOICE_QUICK_PREFIX.file)
-    .text('أرسل رسالة', VOICE_QUICK_PREFIX.message)
+    .row()
+    .text('أرسل لعضو', VOICE_QUICK_PREFIX.message)
+    .text('بلّغ المجموعة', VOICE_QUICK_PREFIX.broadcast)
 }
 
 export function voiceQuickPrompt(
@@ -76,6 +88,17 @@ export function voiceQuickPrompt(
   transcript: string
 ): { prompt: string; labelAr: string; forceHeavy: boolean } {
   switch (action) {
+    case 'run':
+      return {
+        labelAr: 'تنفيذ',
+        forceHeavy: true,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: نفّذ الآن]',
+          'نفّذ الطلب بالكامل بأدوات غرفة الموقع (تقويم/مهام/ملفات/Drive/تبليغ) وأعد ملخصاً واضحاً مع المرفقات.',
+        ].join('\n'),
+      }
     case 'appointment':
       return {
         labelAr: 'موعد',
@@ -118,14 +141,43 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: أرسل رسالة]',
+          '[زر سريع: أرسل لعضو]',
           'استخرج اسم المستلم ونص الرسالة.',
-          'نفّذ عبر notify_room_member فوراً (أو targetNameAr=المجموعة للبث).',
+          'نفّذ عبر notify_room_member فوراً.',
           'اشرح إن وصلت خاصاً أو نُشرت في المجموعة، وحدود Start للبوت.',
+        ].join('\n'),
+      }
+    case 'broadcast':
+      return {
+        labelAr: 'تنبيه مجموعة',
+        forceHeavy: false,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: بلّغ المجموعة]',
+          'انشر النص للجميع عبر notify_room_member مع targetNameAr=المجموعة.',
+          'لخّص ما أُرسل.',
         ].join('\n'),
       }
   }
 }
 
+export function formatVoiceSttSummaryAr(opts: {
+  transcript: string
+  intentLabelAr: string
+  providerLabelAr: string
+}): string {
+  const t = opts.transcript.trim().slice(0, 3200)
+  return [
+    '🎤 تفريغ الصوت',
+    `المحرك: ${opts.providerLabelAr}`,
+    `القصد المقترح: ${opts.intentLabelAr}`,
+    '',
+    '«' + t + '»',
+    '',
+    'راجع النص أعلاه. إن كان صحيحاً سيُنفَّذ تلقائياً، أو اختر زراً سريعاً:',
+  ].join('\n')
+}
+
 export const VOICE_QUICK_HINT_AR =
-  'اختر إجراءً سريعاً على النص المفرَّغ، أو اكتب طلبك مباشرة:'
+  'أزرار سريعة — أو اكتب تصحيحاً/طلباً جديداً:'

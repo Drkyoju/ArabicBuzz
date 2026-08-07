@@ -39,6 +39,7 @@ import {
   takeVoiceTranscript,
   parseVoiceQuickCallback,
   voiceQuickPrompt,
+  formatVoiceSttSummaryAr,
   VOICE_QUICK_HINT_AR,
 } from '@/lib/telegram/voice-quick'
 import {
@@ -80,6 +81,7 @@ import {
   deliverNamedTelegramMessage,
   rememberTelegramPeer,
 } from '@/lib/telegram/peer-directory'
+import { formatTelegramErrorAr } from '@/lib/telegram/errors-ar'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -516,11 +518,16 @@ async function runTelegramAgentTurn(opts: {
 
   // Ack immediately so group UX feels responsive while we prep.
   void opts.ctx.replyWithChatAction('typing').catch(() => undefined)
-  const ackBits = ['جاري…']
+  const ackBits = ['⏳ جاري العمل…']
   if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
-  else if (powered.wakeAgent) ackBits.push(`أُيقظ ${powered.wakeAgent.nameAr}`)
+  else if (powered.wakeAgent) {
+    ackBits.push(`أُيقظ ${powered.wakeAgent.nameAr} في غرفة الموقع`)
+  }
   if (opts.workLabelAr || work.kind !== 'casual') {
     ackBits.push(`القصد: ${opts.workLabelAr || work.labelAr}`)
+  }
+  if (work.kind === 'file' || work.forceHeavy) {
+    ackBits.push('أدوات كاملة مثل الموقع (ملفات/Drive/تحويل)')
   }
   const ack = await opts.ctx.reply(ackBits.join('\n'))
 
@@ -1121,34 +1128,36 @@ export function getTelegramBot() {
       const tag = botUsername ? `@${botUsername}` : ''
       await ctx.reply(
         [
-          'بوت Arabic Buzz — القروب المربوط = غرفة الموقع.',
+          '🤖 بوت Arabic Buzz — القروب المربوط = غرفة الفريق على الموقع',
+          'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
           '',
-          'بعد /link:',
-          '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله مثل غرفة الموقع',
-          '• أرسل رسالة صوتية → تفريغ عربي → قصد (موعد/مهمة/ملف/رسالة/سؤال) → أزرار أو تنفيذ فوري',
-          '• نفس أدوات غرفة الموقع: Drive · تحويل · تقويم · مهام · بحث · بريد إن مربوط',
-          '• وكيل١ يستيقظ في الغرفة المربوطة ويرد هنا بالمرفقات',
-          '• «أرسل لأحمد: …» أو «بلّغ المجموعة: …» → خاص إن بدأ البوت، وإلا منشور في المجموعة',
-          '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل/يحوّل ويرجع الملف',
-          '• موعد بالصوت أو النص → تقويم الغرفة · تذكير ≈ ساعة قبل',
-          '• صورة أو PDF ممسوح + «اقرأ» → OCR',
+          '📌 بعد /link اكتب عادي (بدون /ask):',
+          '• موعد / اجتماع → يُضاف لتقويم الغرفة (توقيت السعودية)',
+          '• مهمة / طلب → لوحة مهام الغرفة',
+          '• ملف / لائحة / حوّل / عدّل → خزنة الغرفة + Drive إن مربوط',
+          '• سؤال / لخّص / ابحث → وكيل١ (+ وكيل٢ عند الانشغال)',
+          '• أرسل لأحمد: … → خاص إن بدأ البوت، وإلا منشور في المجموعة',
+          '• بلّغ المجموعة: … → تنبيه للجميع في القروب',
+          '• نسّق مع سارة: … → تبليغ/تنسيق',
           '',
-          'عدة لجان/مجموعات:',
-          `/link${tag} scope_<id>__c_finance|programs|board`,
-          'أو /link finance داخل مجموعة اللجنة',
+          '🎤 صوت: تفريغ عربي → ملخص القصد → أزرار سريعة + تنفيذ تلقائي',
+          '📎 ملفات: Word / Excel / PDF / صور (+ OCR للممسوح)',
+          '✉️ بريد: إن رُبط Google/صندوق البريد من الموقع',
           '',
-          'لا حاجة لـ /ask بعد /link. الموافقة البشرية للحذف فقط.',
-          'حد خاص: لا DM لمن لم يضغط Start على البوت.',
+          'حدود صادقة:',
+          '• Drive يحتاج ربط Google من الموقع',
+          '• لا رسالة خاصة لمن لم يضغط Start على البوت',
+          '• الحذف فقط بموافقة بشرية (أزرار)',
           '',
-          'أوامر اختيارية:',
-          '/link أو /start — الربط مرة واحدة لكل مجموعة',
+          'أوامر:',
+          `/link${tag} — ربط المجموعة بالغرفة`,
           '/help · /status · /rooms · /approve',
           '',
-          'مجموعة:',
-          `1) أضف البوت كمشرف (إرسال رسائل + وسائط)`,
+          'إعداد المجموعة:',
+          '1) أضف البوت كمشرف (رسائل + وسائط)',
           `2) /link${tag}`,
-          '3) عطّل Group Privacy من BotFather',
-          '4) اكتب طلبك عادي',
+          '3) BotFather → Group Privacy → Disable',
+          '4) اكتب طلبك',
           '',
           privacyHintAr(botUsername),
         ].join('\n')
@@ -1256,12 +1265,10 @@ export function getTelegramBot() {
       })
     } catch (e) {
       console.error('[telegram] text handler', e)
-      const msg =
-        e instanceof Error
-          ? `تعذّر معالجة الرسالة: ${e.message}`
-          : 'تعذّر معالجة الرسالة حالياً.'
       try {
-        await ctx.reply(msg)
+        await ctx.reply(
+          formatTelegramErrorAr(e, { inGroup, botUsername })
+        )
       } catch (sendErr) {
         console.error('[telegram] reply failed (permissions?)', sendErr)
       }
@@ -1283,10 +1290,10 @@ export function getTelegramBot() {
         })
         if (!binding) {
           await ctx.reply(
-            [
-              'اربط المجموعة أولاً بـ /link ثم أرسل الصوت.',
-              privacyHintAr(botUsername),
-            ].join('\n')
+            formatTelegramErrorAr('اربط المجموعة', {
+              inGroup: true,
+              botUsername,
+            })
           )
           return
         }
@@ -1308,7 +1315,12 @@ export function getTelegramBot() {
         autoBind: !inGroup,
       })
       if (!scope) {
-        await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+        await ctx.reply(
+          formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
+            inGroup,
+            botUsername,
+          })
+        )
         return
       }
       void upsertChannelBinding({
@@ -1326,11 +1338,14 @@ export function getTelegramBot() {
         username: ctx.from?.username,
       })
 
+      await ctx.reply('⏳ جاري تفريغ الصوت…')
       await ctx.replyWithChatAction('typing')
       const stt = await transcribeArabicSpeech(buffer, mime)
       const transcript = stt.text
       if (!transcript?.trim()) {
-        await ctx.reply('لم أتمكن من تفريغ الصوت. أعد التسجيل أو اكتب النص.')
+        await ctx.reply(
+          formatTelegramErrorAr('تعذّر تفريغ الصوت', { inGroup, botUsername })
+        )
         return
       }
 
@@ -1361,7 +1376,11 @@ export function getTelegramBot() {
       }
 
       await ctx.reply(
-        `🎤 تم التحويل (${stt.providerLabelAr}) · القصد: ${voiceWork.labelAr}:\n${transcript.slice(0, 3400)}`
+        formatVoiceSttSummaryAr({
+          transcript,
+          intentLabelAr: voiceWork.labelAr,
+          providerLabelAr: stt.providerLabelAr,
+        })
       )
 
       rememberVoiceTranscript({
@@ -1412,11 +1431,7 @@ export function getTelegramBot() {
       console.error('[telegram] voice', e)
       try {
         await ctx.reply(
-          e instanceof Error
-            ? e.message
-            : inGroup
-              ? 'تعذر معالجة الصوت. تأكد أن البوت مشرف ويمكنه الإرسال، وأن Group Privacy معطّل.'
-              : 'تعذر معالجة الصوت'
+          formatTelegramErrorAr(e, { inGroup, botUsername })
         )
       } catch {
         /* no send permission in group */
@@ -1446,10 +1461,10 @@ export function getTelegramBot() {
           const { mentioned } = stripBotMention(caption, botUsername)
           if (!mentioned && !isReplyToBot) return
           await ctx.reply(
-            [
-              'اربط المجموعة أولاً بـ /link ثم أرسل الملف.',
-              privacyHintAr(botUsername),
-            ].join('\n')
+            formatTelegramErrorAr('اربط المجموعة', {
+              inGroup: true,
+              botUsername,
+            })
           )
           return
         }
@@ -1461,7 +1476,12 @@ export function getTelegramBot() {
         autoBind: !inGroup,
       })
       if (!scope) {
-        await ctx.reply('عفواً، تعذّر ربط هذه المحادثة بنطاق عمل.')
+        await ctx.reply(
+          formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
+            inGroup,
+            botUsername,
+          })
+        )
         return
       }
       void upsertChannelBinding({
@@ -1559,9 +1579,7 @@ export function getTelegramBot() {
       console.error('[telegram] document/photo', e)
       try {
         await ctx.reply(
-          e instanceof Error
-            ? `تعذّر معالجة الملف: ${e.message}`
-            : 'تعذّر معالجة الملف.'
+          formatTelegramErrorAr(e, { inGroup, botUsername })
         )
       } catch {
         /* ignore */
@@ -1594,7 +1612,11 @@ export function getTelegramBot() {
                 ? 'جاري تسجيل مهمة…'
                 : voiceAction === 'message'
                   ? 'جاري إرسال الرسالة…'
-                  : 'جاري البحث عن الملف…',
+                  : voiceAction === 'broadcast'
+                    ? 'جاري تبليغ المجموعة…'
+                    : voiceAction === 'run'
+                      ? 'جاري التنفيذ الكامل…'
+                      : 'جاري البحث عن الملف…',
         })
       } catch {
         /* already answered */
@@ -1634,11 +1656,7 @@ export function getTelegramBot() {
         })
       } catch (e) {
         console.error('[telegram] voice-quick', e)
-        await ctx.reply(
-          e instanceof Error
-            ? `تعذّر تنفيذ الزر: ${e.message}`
-            : 'تعذّر تنفيذ الزر.'
-        )
+        await ctx.reply(formatTelegramErrorAr(e))
       }
       return
     }
