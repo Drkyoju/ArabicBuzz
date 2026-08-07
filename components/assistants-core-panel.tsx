@@ -968,7 +968,7 @@ export function AssistantsCorePanel({
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ab-border bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md md:ms-[15.5rem]">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ab-border bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md md:ms-[var(--ab-sidebar-width)]">
         <div className="mx-auto max-w-6xl px-4 py-2" dir="rtl">
           <button
             type="button"

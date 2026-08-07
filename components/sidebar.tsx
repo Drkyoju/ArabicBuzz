@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import Link from 'next/link'
 import {
   ShieldCheck,
@@ -41,6 +48,15 @@ import {
 import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { authHeaders } from '@/lib/supabase/browser'
+import {
+  SIDEBAR_WIDTH_DEFAULT_PX,
+  SIDEBAR_WIDTH_MAX_PX,
+  SIDEBAR_WIDTH_MIN_PX,
+  applySidebarWidthPx,
+  persistSidebarWidthPx,
+  readStoredSidebarWidthPx,
+  sidebarWidthFromClientX,
+} from '@/lib/ui/sidebar-width'
 import { cn } from '@/lib/utils'
 
 function GuestChip({ onLogin }: { onLogin?: () => void }) {
@@ -634,6 +650,9 @@ export function Sidebar({
   const signedIn = useSignedIn()
   // At md+ the aside is always laid out on screen, so it must never be inert.
   const [isDesktop, setIsDesktop] = useState(false)
+  const [sidebarWidthPx, setSidebarWidthPx] = useState(SIDEBAR_WIDTH_DEFAULT_PX)
+  const [resizing, setResizing] = useState(false)
+  const asideRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -646,6 +665,12 @@ export function Sidebar({
     sync()
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    const stored = readStoredSidebarWidthPx()
+    const next = applySidebarWidthPx(stored ?? SIDEBAR_WIDTH_DEFAULT_PX)
+    setSidebarWidthPx(next)
   }, [])
 
   useEffect(() => {
@@ -695,6 +720,69 @@ export function Sidebar({
   }, [signedIn])
 
   const drawerActive = mobileOpen || isDesktop
+
+  function commitWidth(px: number) {
+    const next = applySidebarWidthPx(px)
+    setSidebarWidthPx(next)
+    persistSidebarWidthPx(next)
+    return next
+  }
+
+  function onResizePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!isDesktop || !asideRef.current) return
+    e.preventDefault()
+    const handle = e.currentTarget
+    const asideEl = asideRef.current
+    handle.setPointerCapture(e.pointerId)
+    setResizing(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev: PointerEvent) => {
+      const next = applySidebarWidthPx(
+        sidebarWidthFromClientX(ev.clientX, asideEl)
+      )
+      setSidebarWidthPx(next)
+    }
+    const onUp = (ev: PointerEvent) => {
+      handle.releasePointerCapture(ev.pointerId)
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onUp)
+      handle.removeEventListener('pointercancel', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setResizing(false)
+      persistSidebarWidthPx(
+        sidebarWidthFromClientX(ev.clientX, asideEl)
+      )
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onUp)
+    handle.addEventListener('pointercancel', onUp)
+  }
+
+  function onResizeKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!isDesktop) return
+    const step = e.shiftKey ? 32 : 16
+    const rtl =
+      typeof document !== 'undefined' &&
+      getComputedStyle(document.documentElement).direction === 'rtl'
+    // Arrow toward inline-end widens; toward inline-start narrows.
+    let delta = 0
+    if (e.key === 'ArrowLeft') delta = rtl ? step : -step
+    else if (e.key === 'ArrowRight') delta = rtl ? -step : step
+    else if (e.key === 'Home') {
+      e.preventDefault()
+      commitWidth(SIDEBAR_WIDTH_MIN_PX)
+      return
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      commitWidth(SIDEBAR_WIDTH_MAX_PX)
+      return
+    } else return
+    e.preventDefault()
+    commitWidth(sidebarWidthPx + delta)
+  }
 
   return (
     <>
@@ -750,13 +838,16 @@ export function Sidebar({
       )}
 
       <aside
+        ref={asideRef}
         className={cn(
           // Use JS drawerActive for transform — unprefixed translate-x-full can
           // override md:translate-x-0 in the compiled CSS and leave the aside
           // covering / intercepting taps on mobile (and even desktop).
-          'fixed inset-y-0 start-0 z-[60] flex w-[min(15.5rem,85vw)] flex-col border-e border-ab-border bg-ab-surface transition-transform duration-200',
+          // Width tracks --ab-sidebar-width; main offset must use the same var.
+          'fixed inset-y-0 start-0 z-[60] flex w-[min(var(--ab-sidebar-width),85vw)] flex-col border-e border-ab-border bg-ab-surface transition-transform duration-200',
           drawerActive ? 'translate-x-0' : 'translate-x-full',
-          !drawerActive && 'pointer-events-none'
+          !drawerActive && 'pointer-events-none',
+          resizing && 'select-none'
         )}
         aria-label="الشريط الجانبي"
         aria-hidden={drawerActive ? undefined : true}
@@ -784,6 +875,36 @@ export function Sidebar({
           hitlDisabled={hitlDisabled}
           mailUnread={mailUnread}
         />
+        {/* Desktop: drag handle on inline-end edge (meets main content). */}
+        {isDesktop && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuemin={SIDEBAR_WIDTH_MIN_PX}
+            aria-valuemax={SIDEBAR_WIDTH_MAX_PX}
+            aria-valuenow={sidebarWidthPx}
+            aria-label="اسحب حافة القائمة"
+            title="اسحب حافة القائمة"
+            tabIndex={0}
+            onPointerDown={onResizePointerDown}
+            onKeyDown={onResizeKeyDown}
+            className={cn(
+              'group absolute inset-y-0 end-0 z-20 hidden w-1.5 cursor-col-resize touch-none md:flex',
+              'items-center justify-center',
+              'hover:bg-ab-accent/15 focus-visible:bg-ab-accent/20 focus-visible:outline-none',
+              resizing && 'bg-ab-accent/25'
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'h-8 w-0.5 rounded-full bg-stone-300 transition-colors',
+                'group-hover:bg-ab-accent/50 group-focus-visible:bg-ab-accent/50',
+                resizing && 'bg-ab-accent'
+              )}
+            />
+          </div>
+        )}
       </aside>
     </>
   )

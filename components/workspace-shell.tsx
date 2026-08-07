@@ -440,9 +440,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         hitlDisabled={hitlDisabled === true}
       />
 
-      {/* Offset must be on the inline-start side and match the aside width in
-          components/sidebar.tsx, otherwise the fixed sidebar covers content. */}
-      <div className="min-h-dvh pt-11 md:ms-[15.5rem] md:pt-0">
+      {/* Offset must be on the inline-start side and match --ab-sidebar-width
+          (set from components/sidebar.tsx), otherwise the fixed sidebar covers content. */}
+      <div className="min-h-dvh pt-11 md:ms-[var(--ab-sidebar-width)] md:pt-0">
         <div className="sticky top-0 z-20 hidden items-center justify-end gap-2 border-b border-ab-border/60 bg-ab-bg/90 px-4 py-1.5 backdrop-blur md:flex">
           <MailBell onOpenMail={() => setSection('mail')} />
         </div>

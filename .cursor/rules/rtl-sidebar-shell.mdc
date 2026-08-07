@@ -1,5 +1,5 @@
 ---
-description: Prevent fixed RTL sidebar from covering main content; keep desktop nav clickable
+description: RTL sidebar must offset main content; never cover dashboard
 alwaysApply: true
 ---
 
@@ -9,14 +9,15 @@ Canonical shell: `components/sidebar.tsx` + `components/workspace-shell.tsx`.
 
 ## Layout contract (do not break)
 
-- Aside is `fixed inset-y-0 start-0 z-[60] w-[min(15.5rem,85vw)]`.
-- Main content **must** offset with matching inline-start space at `md+`: `md:ms-[15.5rem]` (or `padding-inline-start` / equivalent equal to **15.5rem**). If width changes in the aside, update the shell offset in the same change.
+- Aside is `fixed inset-y-0 start-0 z-[60] w-[min(var(--ab-sidebar-width),85vw)]`.
+- Main content **must** offset with matching inline-start space at `md+`: `md:ms-[var(--ab-sidebar-width)]` (or `padding-inline-start` equal to the same CSS variable). If the aside width changes (including the desktop drag resize), update every fixed/sticky offset that assumed the old width.
+- Default `--ab-sidebar-width: 15.5rem` in `app/globals.css`; desktop range ~12–22rem via `lib/ui/sidebar-width.ts`.
 - **Never** ship a fixed/visible sidebar without that offset — content under the aside is unreadable and is a regression the team will not tolerate.
 
 ```tsx
-// ✅ GOOD — fixed aside + matching main offset
-<aside className="fixed … start-0 w-[min(15.5rem,85vw)] …" />
-<div className="min-h-dvh md:ms-[15.5rem]">…</div>
+// ✅ GOOD — fixed aside + matching main offset (shared CSS var)
+<aside className="fixed … start-0 w-[min(var(--ab-sidebar-width),85vw)] …" />
+<div className="min-h-dvh md:ms-[var(--ab-sidebar-width)]">…</div>
 
 // ❌ BAD — fixed aside, no md+ inline-start offset (covers dashboard)
 <aside className="fixed … start-0 w-[15.5rem]" />
@@ -27,6 +28,7 @@ Canonical shell: `components/sidebar.tsx` + `components/workspace-shell.tsx`.
 
 - **Mobile:** drawer **closed by default**; backdrop only while open (`md:hidden`); dismissible. Overlay covering content is OK only when the drawer is open.
 - **Desktop (`md+`):** sidebar always visible and **clickable** — must **not** be `inert` / `aria-hidden` incorrectly. Use something like `drawerActive = mobileOpen || isDesktop` so `inert` applies only when the mobile drawer is closed.
+- Desktop resize handle sits on the **inline-end** edge; do not enable broken resize on the mobile drawer.
 - Fix **both** constraints together: readable main content **and** working nav. Never “fix” overlap by making the desktop aside inert, or “fix” inert by removing the content offset.
 
 ## QA before shipping any sidebar/shell change

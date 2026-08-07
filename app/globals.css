@@ -27,6 +27,8 @@
   --ab-radius-lg: 0.875rem;
   --ab-shadow-sm: 0 1px 2px rgba(26, 31, 28, 0.04);
   --ab-shadow: 0 8px 24px rgba(26, 31, 28, 0.08);
+  /* Desktop sidebar width — resized via handle; main must use same var */
+  --ab-sidebar-width: 15.5rem;
 }
 
 body {
