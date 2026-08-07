@@ -9,6 +9,7 @@ import {
   syncCurrentUserGoogleToRoom,
   syncGoogleCalendarToRoom,
 } from '@/lib/rooms/room-calendar-google-sync'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,10 +68,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
   const user = auth.user
-  const displayNameAr =
-    (user.user_metadata?.full_name as string) ||
-    user.email?.split('@')[0] ||
-    'عضو'
+  const displayNameAr = displayNameFromUser(user, 'عضو')
 
   if (action === 'set_preference') {
     const enabled = body.enabled === true

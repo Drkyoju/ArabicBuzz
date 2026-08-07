@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { authCallbackUrl } from '@/lib/app-url'
-import { GOOGLE_CALENDAR_SCOPES } from '@/lib/google/scopes'
+import {
+  GOOGLE_CALENDAR_SCOPES,
+  GOOGLE_LOGIN_SCOPES,
+} from '@/lib/google/scopes'
 
 function publicSupabaseConfig() {
   const url =
@@ -133,11 +136,14 @@ export async function signInWithEmail(email: string, password: string) {
   return data
 }
 
-/** Start Google (with Calendar/Drive) or GitHub OAuth via Supabase. */
+/**
+ * Sign in with Google (identity only) or GitHub.
+ * Google login deliberately omits Calendar/Gmail/Drive — those trigger Google’s
+ * “unverified app” warnings. Link workspace APIs via `connectGoogleCalendar()`.
+ */
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
   if (provider === 'google') {
-    // Bundle workspace scopes at login so users don't take a second connect step.
-    return connectGoogleCalendar()
+    return signInWithGoogleIdentity()
   }
   const supabase = createBrowserSupabaseClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -151,9 +157,29 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
   return data
 }
 
+/** Google sign-in with openid/email/profile only — no sensitive API scopes. */
+export async function signInWithGoogleIdentity() {
+  const supabase = createBrowserSupabaseClient()
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: getAuthRedirectTo(),
+      skipBrowserRedirect: false,
+      scopes: GOOGLE_LOGIN_SCOPES,
+      queryParams: {
+        // Account picker only — do NOT force consent (avoids scary re-prompts).
+        prompt: 'select_account',
+      },
+    },
+  })
+  if (error) throw error
+  return data
+}
+
 /**
- * Google OAuth with Calendar + Gmail + Drive.
+ * Google OAuth with Calendar + Gmail + Drive (after the user is already signed in).
  * Uses select_account so you can link additional emails without overwriting login.
+ * Expect Google verification warnings until the Cloud project is verified.
  */
 export async function connectGoogleCalendar() {
   const supabase = createBrowserSupabaseClient()

@@ -7,6 +7,7 @@ import {
 } from '@/lib/storage/local'
 import { listCloudFiles, saveCloudFile } from '@/lib/storage/cloud'
 import { insertRoomPost } from '@/lib/rooms/persist'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 import {
   directMacUploadInfo,
   getMacSyncConfig,
@@ -351,10 +352,7 @@ export async function POST(req: Request) {
       scopeId,
       authorKind: 'human',
       authorId: auth.user.id,
-      authorNameAr:
-        auth.user.email ||
-        auth.user.user_metadata?.full_name ||
-        'مستخدم',
+      authorNameAr: displayNameFromUser(auth.user, 'مستخدم'),
       content:
         meta!.kind === 'audio'
           ? [

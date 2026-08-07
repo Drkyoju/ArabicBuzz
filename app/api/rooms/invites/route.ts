@@ -8,6 +8,7 @@ import {
 import { sendInviteEmail } from '@/lib/email/resend'
 import { emitNotification } from '@/lib/notifications/emit'
 import { DEMO_SCOPES } from '@/lib/scopes/manager'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,9 +80,7 @@ export async function POST(req: Request) {
   const inviteUrl = result.invite.inviteUrl || ''
   const roomNameAr =
     DEMO_SCOPES.find((s) => s.id === scopeId)?.nameAr || scopeId
-  const inviterNameAr = String(
-    auth.user.user_metadata?.full_name || auth.user.email || 'زميل'
-  )
+  const inviterNameAr = displayNameFromUser(auth.user, 'زميل')
 
   const mailto =
     kind === 'email' && body.email

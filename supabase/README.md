@@ -40,6 +40,15 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...   # server only — never expose to the browser
 
 Anyone on your team can sign in; **model API keys stay on Netlify** (shared server-side). Coworkers do not need their own Gemini/OpenAI keys.
 
+> **Arabic ops checklist (consent screen, publish, test users):** see [`docs/google-oauth-ar.md`](../docs/google-oauth-ar.md).
+
+### Login vs workspace scopes
+
+- **Sign-in** uses Google identity only (`openid email profile`) — avoids Google’s “unverified app” scare screens on every login.
+- **Calendar / Gmail / Drive** are linked later via «ربط تقويم Google» (`connectGoogleCalendar()`), which still requests sensitive scopes and may show verification warnings until Google verifies the OAuth app.
+- **Email OTP** is a first-class alternative on `/auth/login` (no Google required).
+- Privacy policy URL for the consent screen: `https://arabicbuzz.netlify.app/privacy`
+
 ### 1) Supabase URL config
 
 **Authentication → URL Configuration**
@@ -57,7 +66,8 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 
 3. Supabase → **Authentication → Providers → Google** → enable → paste Client ID + Secret.
 4. In [Google Cloud Console](https://console.cloud.google.com/) enable **Google Calendar API**, **Gmail API**, **Google Sheets API**, and **Google Drive API**.
-5. OAuth consent screen → add scopes:
+5. OAuth consent screen → App name **Arabic Buzz**, home `https://arabicbuzz.netlify.app/`, privacy `https://arabicbuzz.netlify.app/privacy`, then **Publish app** (see Arabic checklist).
+6. OAuth consent screen → add scopes (needed only for workspace link, not basic login):
    - `.../auth/calendar`
    - `.../auth/calendar.events`
    - `.../auth/gmail.readonly`
@@ -65,8 +75,8 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
    - `.../auth/spreadsheets`
    - `.../auth/drive.readonly`
    - `.../auth/drive.file`
-6. On Netlify set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
-7. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read/send Gmail, and read/write Sheets (`gmail_send` / Sheets writes go through HITL in AUTO/STRICT). Re-link after scope changes (e.g. adding `gmail.send`) so Google re-consents.
+7. On Netlify set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
+8. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read/send Gmail, and read/write Sheets (`gmail_send` / Sheets writes go through HITL in AUTO/STRICT). Re-link after scope changes (e.g. adding `gmail.send`) so Google re-consents.
 
 ### 3) GitHub
 
@@ -90,11 +100,11 @@ Set at least one (Site → Environment variables), then redeploy:
 - `OPENROUTER_API_KEY` and/or
 - `OPENAI_API_KEY`
 
-App routes: `/auth/login`, `/auth/callback` (PKCE). Chat API requires a signed-in session.
+App routes: `/auth/login`, `/auth/callback` (PKCE), `/privacy`. Chat API requires a signed-in session.
 
 ## Auth: Google + Apple (legacy note)
 
-Apple is optional; the UI uses **Google + GitHub**. If you previously enabled Apple, you can leave it on in Supabase without harm.
+Apple is optional; the UI uses **Google + email OTP + GitHub**. If you previously enabled Apple, you can leave it on in Supabase without harm.
 
 ## Local Supabase (Docker / OrbStack)
 

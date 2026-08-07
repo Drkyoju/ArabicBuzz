@@ -10,9 +10,10 @@ import {
   upsertZoomLiveSessions,
 } from '@/lib/rooms/home-log'
 import { getLiveZoomSnapshot } from '@/lib/zoom/live-status'
-import { listRoomPosts } from '@/lib/rooms/persist'
+import { listRoomMembers, listRoomPosts } from '@/lib/rooms/persist'
 import { upcomingSystemDeadlines } from '@/lib/rooms/system-deadlines'
 import { isSystemDeadline } from '@/lib/rooms/system-deadlines'
+import { looksLikeEmailLabel } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -246,12 +247,27 @@ export async function GET(req: NextRequest) {
     string,
     { nameAr: string; email?: string | null; actions: number; lastAt: string; lastAction: string }
   >()
+  const { members: roomMembers } = await listRoomMembers(scopeId)
+  const memberNameByEmail = new Map(
+    roomMembers
+      .filter((m) => m.email)
+      .map((m) => [m.email!.toLowerCase(), m.displayNameAr] as const)
+  )
   for (const a of meaningfulActivity) {
     const key = a.actorEmail || a.actorAr
+    const rosterName = a.actorEmail
+      ? memberNameByEmail.get(a.actorEmail.toLowerCase())
+      : undefined
+    const preferredName =
+      rosterName && !looksLikeEmailLabel(rosterName, a.actorEmail)
+        ? rosterName
+        : a.actorAr && !looksLikeEmailLabel(a.actorAr, a.actorEmail)
+          ? a.actorAr
+          : rosterName || a.actorAr
     const prev = peopleMap.get(key)
     if (!prev) {
       peopleMap.set(key, {
-        nameAr: a.actorAr,
+        nameAr: preferredName,
         email: a.actorEmail,
         actions: 1,
         lastAt: a.createdAt,
@@ -259,6 +275,13 @@ export async function GET(req: NextRequest) {
       })
     } else {
       prev.actions += 1
+      if (
+        looksLikeEmailLabel(prev.nameAr, prev.email) &&
+        preferredName &&
+        !looksLikeEmailLabel(preferredName, a.actorEmail)
+      ) {
+        prev.nameAr = preferredName
+      }
       if (a.createdAt > prev.lastAt) {
         prev.lastAt = a.createdAt
         prev.lastAction = a.actionAr
@@ -410,14 +433,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'presence_ignored' })
   }
   const scopeId = String(body.scopeId || 'shared-demo')
+  const { displayNameFromUser } = await import('@/lib/auth/display-name')
   const row = await logRoomActivity({
     scopeId,
     kind,
     actorAr: String(
-      body.actorAr ||
-        auth.user.user_metadata?.full_name ||
-        auth.user.email ||
-        'عضو'
+      body.actorAr || displayNameFromUser(auth.user, 'عضو')
     ),
     actorEmail: body.actorEmail || auth.user.email || null,
     actionAr,

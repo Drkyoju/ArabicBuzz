@@ -5,6 +5,7 @@ import {
   listRoomMemories,
   removeRoomMemory,
 } from '@/lib/rooms/room-memory'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,10 +68,7 @@ export async function POST(req: NextRequest) {
       scopeId,
       content: String(body.content || ''),
       createdBy: user.id,
-      createdByAr:
-        (user.user_metadata?.full_name as string) ||
-        user.email?.split('@')[0] ||
-        'عضو',
+      createdByAr: displayNameFromUser(user, 'عضو'),
     })
     return NextResponse.json({
       ok: true,

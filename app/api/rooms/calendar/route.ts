@@ -10,6 +10,7 @@ import {
   updateRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
 import { isDirectorEmail } from '@/lib/auth/roles'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,10 +80,7 @@ export async function POST(req: NextRequest) {
   }
   const action = String(body.action || 'create')
   const createdBy = user.id
-  const createdByAr =
-    (user.user_metadata?.full_name as string) ||
-    user.email?.split('@')[0] ||
-    'عضو'
+  const createdByAr = displayNameFromUser(user, 'عضو')
 
   try {
     if (action === 'list') {

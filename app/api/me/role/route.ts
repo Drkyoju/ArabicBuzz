@@ -17,6 +17,9 @@ import {
   type Role,
   type UiPersona,
 } from '@/lib/auth/rbac'
+import { displayNameFromUser } from '@/lib/auth/display-name'
+import { ensureDisplayNamePersisted } from '@/lib/auth/persist-display-name'
+import { backfillMemberDisplayNamesForUser } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +55,20 @@ export async function GET(req: NextRequest) {
     isWorkspaceOwnerEmail(email) ||
     (allowSyntheticOwner && canAccessOpsUi(role) && persona !== 'employee')
 
+  let displayNameAr = user ? displayNameFromUser(user) : null
+  if (user && !allowSyntheticOwner) {
+    try {
+      displayNameAr = await ensureDisplayNamePersisted(user)
+      await backfillMemberDisplayNamesForUser({
+        userId: user.id,
+        email: user.email,
+        displayNameAr,
+      })
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   return NextResponse.json({
     userId,
     orgId,
@@ -59,10 +76,7 @@ export async function GET(req: NextRequest) {
     role,
     persona,
     labelAr,
-    displayNameAr:
-      (user?.user_metadata?.full_name as string | undefined) ||
-      user?.email ||
-      null,
+    displayNameAr,
     uiMode: ops ? 'admin' : 'employee',
     canAccessOpsUi: ops,
     isDirector: isWorkspaceOwnerEmail(email),

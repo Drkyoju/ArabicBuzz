@@ -36,6 +36,7 @@ import {
   isSupabaseConfigured,
   authHeaders,
 } from '@/lib/supabase/browser'
+import { resolveClientDisplayName } from '@/lib/auth/display-name'
 import { isSharedScope } from '@/lib/scopes/manager'
 import {
   PRIMARY_TEAM_SCOPE_ID,
@@ -339,14 +340,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
     void getBrowserSession().then((session) => {
       if (cancelled) return
       const u = session?.user
-      let name =
-        u?.user_metadata?.full_name ||
-        u?.user_metadata?.name ||
-        u?.email?.split('@')[0] ||
-        'أنت'
+      let saved: string | null = null
       try {
-        const saved = localStorage.getItem('ab-display-name')
-        if (saved) name = saved
+        saved = localStorage.getItem('ab-display-name')
         // Restore scope only if still a known id (don't clobber a brand-new session).
         // Old clutter demo rooms redirect to the primary team room.
         const scope = localStorage.getItem('ab-active-scope')
@@ -363,7 +359,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
       } catch {
         /* ignore */
       }
+      const name = resolveClientDisplayName({
+        user: u,
+        override: saved,
+        fallback: 'أنت',
+      })
       setDisplayName(String(name))
+      try {
+        if (name && name !== 'أنت') {
+          localStorage.setItem('ab-display-name', name)
+        }
+      } catch {
+        /* ignore */
+      }
     })
     hydrateScopeMemories()
     // Restore active scope after hydrate (custom rooms may now be known)

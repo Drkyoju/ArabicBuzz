@@ -7,11 +7,13 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import { persistGoogleProviderTokens } from '@/lib/google/persist-provider-tokens'
+import { GOOGLE_WORKSPACE_SCOPE_TAGS } from '@/lib/google/scopes'
 
 /**
  * Client-side OAuth callback (PKCE).
- * Exchanges `?code=` for a browser session after Google / Apple redirect.
- * When `?calendar=1`, persists Google provider tokens for Calendar APIs.
+ * Exchanges `?code=` for a browser session after Google / GitHub / email redirect.
+ * When `?calendar=1`, persists Google provider tokens for Calendar/Drive APIs.
+ * Display name from Google is persisted server-side via `/api/me/role`.
  */
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -54,21 +56,16 @@ export default function AuthCallbackPage() {
           (session as { provider_token?: string } | null)?.provider_token
         )
 
-        if (session?.access_token && hasProvider) {
-          setMessage(
-            wantCalendar
-              ? 'جاري حفظ صلاحيات Google (تقويم / Drive)…'
-              : 'جاري حفظ جلسة Google…'
-          )
+        // Only persist Calendar/Gmail/Drive tokens when this was a workspace link.
+        if (session?.access_token && hasProvider && wantCalendar) {
+          setMessage('جاري حفظ صلاحيات Google (تقويم / Drive)…')
           await persistGoogleProviderTokens(
             session,
-            wantCalendar
-              ? 'calendar,gmail.readonly,gmail.send,spreadsheets,drive.readonly'
-              : 'login'
+            GOOGLE_WORKSPACE_SCOPE_TAGS
           )
         }
 
-        // Force org role from Google profile email (director allow-list).
+        // Sync org role + persist Google display name (server).
         if (session?.access_token) {
           try {
             await fetch('/api/me/role', {

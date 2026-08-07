@@ -729,6 +729,75 @@ export async function updateRoomMember(opts: {
 }
 
 /**
+ * Upgrade room_members rows whose display_name_ar is missing or email-like
+ * (e.g. local-part from early Google sign-ups) to a real Google display name.
+ * Does not overwrite intentional renames.
+ */
+export async function backfillMemberDisplayNamesForUser(opts: {
+  userId: string
+  email?: string | null
+  displayNameAr: string
+}): Promise<{ updated: number }> {
+  const name = opts.displayNameAr.trim()
+  if (!name) return { updated: 0 }
+  const { looksLikeEmailLabel } = await import('@/lib/auth/display-name')
+  if (looksLikeEmailLabel(name, opts.email)) return { updated: 0 }
+
+  const email = opts.email?.trim().toLowerCase() || null
+  const sb = getSupabaseAdmin()
+  let updated = 0
+
+  const shouldUpgrade = (current: string | null | undefined) =>
+    looksLikeEmailLabel(current, email) || !String(current || '').trim()
+
+  if (!sb) {
+    for (const list of memMembers.values()) {
+      for (const m of list) {
+        const match =
+          (m.userId && m.userId === opts.userId) ||
+          (email && m.email && m.email.toLowerCase() === email)
+        if (!match || !shouldUpgrade(m.displayNameAr)) continue
+        m.displayNameAr = name
+        updated += 1
+      }
+    }
+    return { updated }
+  }
+
+  const rows: Record<string, unknown>[] = []
+  const { data: byUser } = await sb
+    .from('room_members')
+    .select('id, email, display_name_ar')
+    .eq('user_id', opts.userId)
+    .limit(200)
+  if (byUser?.length) rows.push(...(byUser as Record<string, unknown>[]))
+  if (email) {
+    const { data: byEmail } = await sb
+      .from('room_members')
+      .select('id, email, display_name_ar')
+      .eq('email', email)
+      .limit(200)
+    if (byEmail?.length) {
+      const seen = new Set(rows.map((r) => String(r.id)))
+      for (const r of byEmail as Record<string, unknown>[]) {
+        if (!seen.has(String(r.id))) rows.push(r)
+      }
+    }
+  }
+
+  for (const r of rows) {
+    const current = (r.display_name_ar as string) || ''
+    if (!shouldUpgrade(current)) continue
+    const { error } = await sb
+      .from('room_members')
+      .update({ display_name_ar: name })
+      .eq('id', r.id)
+    if (!error) updated += 1
+  }
+  return { updated }
+}
+
+/**
  * Set Google→room calendar sync opt-in for the signed-in user in a room.
  * Ensures a room_members row exists (upsert by email) then flips the flag.
  */
@@ -748,10 +817,10 @@ export async function setMemberCalendarSync(opts: {
       : undefined)
 
   if (!member) {
+    const { displayNameFromMetadata } = await import('@/lib/auth/display-name')
     const name =
       opts.displayNameAr?.trim() ||
-      email?.split('@')[0] ||
-      'عضو'
+      displayNameFromMetadata(null, { email, fallback: 'عضو' })
     const added = await addRoomMember({
       scopeId: opts.scopeId,
       displayNameAr: name,

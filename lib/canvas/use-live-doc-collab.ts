@@ -8,6 +8,7 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import { colorForUserKey } from '@/lib/canvas/collab-colors'
+import { resolveClientDisplayName } from '@/lib/auth/display-name'
 import {
   refreshRemoteCursors,
   type RemoteCursorState,
@@ -92,12 +93,11 @@ export function useLiveDocCollab(opts: {
       clientIdRef.current = clientId
       colorRef.current = colorForUserKey(clientId)
       try {
-        nameRef.current =
-          displayName ||
-          localStorage.getItem('ab-display-name') ||
-          session?.user?.user_metadata?.full_name ||
-          session?.user?.email?.split('@')[0] ||
-          'مستخدم'
+        nameRef.current = resolveClientDisplayName({
+          user: session?.user,
+          override: displayName || localStorage.getItem('ab-display-name'),
+          fallback: 'مستخدم',
+        })
       } catch {
         /* ignore */
       }

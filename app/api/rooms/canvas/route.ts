@@ -5,6 +5,7 @@ import {
   listCanvasAudit,
   upsertCanvasArtifact,
 } from '@/lib/rooms/persist'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,9 +80,7 @@ export async function POST(req: Request) {
     content: body.content,
     language: body.language,
     updatedBy: auth.user.id,
-    updatedByAr: String(
-      auth.user.user_metadata?.full_name || auth.user.email || auth.user.id
-    ),
+    updatedByAr: displayNameFromUser(auth.user, auth.user.id),
   })
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 500 })
@@ -91,11 +90,7 @@ export async function POST(req: Request) {
     await logRoomActivity({
       scopeId,
       kind: 'canvas',
-      actorAr: String(
-        auth.user.user_metadata?.full_name ||
-          auth.user.email?.split('@')[0] ||
-          'عضو'
-      ),
+      actorAr: displayNameFromUser(auth.user, 'عضو'),
       actorEmail: auth.user.email || null,
       actionAr: 'عدّل اللوحة',
       detailAr: body.titleAr || body.id,

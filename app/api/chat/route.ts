@@ -7,6 +7,7 @@ import {
 } from 'ai'
 import { getModel, UnknownModelError } from '@/lib/ai/providers'
 import { requireRealUser } from '@/lib/auth/session'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 import {
   DEMO_SCOPES,
   buildPromptContext,
@@ -277,10 +278,7 @@ export async function POST(req: Request) {
 
     if (body.persist === true && prompt) {
       const humanName =
-        body.authorNameAr ||
-        auth.user.user_metadata?.full_name ||
-        auth.user.email ||
-        'مستخدم'
+        body.authorNameAr || displayNameFromUser(auth.user, 'مستخدم')
       await insertRoomPost({
         scopeId,
         authorKind: 'human',

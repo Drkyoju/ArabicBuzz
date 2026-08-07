@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser, requireSessionUser } from '@/lib/auth/session'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 import {
   listItemAcks,
   toggleItemAck,
@@ -43,10 +44,7 @@ export async function POST(req: NextRequest) {
   if (!itemId) {
     return NextResponse.json({ error: 'itemId مطلوب' }, { status: 400 })
   }
-  const userAr =
-    (auth.user.user_metadata?.full_name as string) ||
-    auth.user.email?.split('@')[0] ||
-    'عضو'
+  const userAr = displayNameFromUser(auth.user, 'عضو')
   const result = await toggleItemAck({
     scopeId,
     itemKind,

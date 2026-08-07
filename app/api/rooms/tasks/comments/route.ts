@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser, requireSessionUser } from '@/lib/auth/session'
 import { assertRoomCanEdit, assertRoomCanPost } from '@/lib/rooms/persist'
 import { addTaskComment, listTaskComments } from '@/lib/rooms/task-comments'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,10 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: gate.error }, { status: 403 })
     }
   }
-  const authorAr =
-    (auth.user.user_metadata?.full_name as string) ||
-    auth.user.email?.split('@')[0] ||
-    'عضو'
+  const authorAr = displayNameFromUser(auth.user, 'عضو')
   try {
     const comment = await addTaskComment({
       taskId,

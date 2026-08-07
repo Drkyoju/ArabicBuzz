@@ -12,7 +12,7 @@ import {
   createBrowserSupabaseClient,
   type OAuthProvider,
 } from '@/lib/supabase/browser'
-import { persistGoogleProviderTokens } from '@/lib/google/persist-provider-tokens'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 import type { User } from '@supabase/supabase-js'
 
 export function AuthButtons({ compact = false }: { compact?: boolean }) {
@@ -24,7 +24,6 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [showEmail, setShowEmail] = useState(false)
   const [demoEnabled, setDemoEnabled] = useState(false)
   const configured = isSupabaseConfigured()
 
@@ -59,15 +58,6 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         ])
         if (cancelled) return
         setUser(s?.user ?? null)
-        // If OAuth landed on /auth/login instead of /auth/callback,
-        // still persist Calendar/Drive tokens when present.
-        if (
-          s &&
-          (s as { provider_token?: string }).provider_token &&
-          s.user?.app_metadata?.provider === 'google'
-        ) {
-          await persistGoogleProviderTokens(s)
-        }
       } catch {
         if (!cancelled) setUser(null)
       }
@@ -223,7 +213,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     return (
       <div className="space-y-2">
         <p className="text-sm text-ab-ink">
-          مرحباً، {user.email || user.user_metadata?.full_name || 'مستخدم'}
+          مرحباً، {displayNameFromUser(user)}
         </p>
         <button
           type="button"
@@ -249,106 +239,105 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
           ? 'جاري التحويل إلى Google…'
           : 'سجّل الدخول بحساب Google'}
       </button>
-      <p className="text-[11px] font-medium text-emerald-800">موصى به</p>
       <p className="text-[11px] leading-relaxed text-stone-500">
-        بعد الدخول تقدر تشتغل في الغرفة — وتربط التقويم والملفات إن احتجت.
+        دخول سريع بهويتك فقط. ربط التقويم وGmail وDrive يتم لاحقاً من داخل
+        المساحة عند الحاجة — وليس عند أول دخول.
       </p>
 
-      <button
-        type="button"
-        className="w-full rounded-md border border-ab-border bg-white px-3 py-2 text-xs text-ab-ink"
-        onClick={() => setShowEmail((v) => !v)}
-      >
-        {showEmail ? 'إخفاء الدخول بالبريد' : 'أو الدخول برمز إلى البريد'}
-      </button>
+      <div className="relative py-1">
+        <div className="absolute inset-0 flex items-center" aria-hidden>
+          <div className="w-full border-t border-ab-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-ab-surface px-2 text-[11px] text-stone-500">
+            أو بدون Google
+          </span>
+        </div>
+      </div>
 
-      {showEmail && (
-        <>
-        <p className="text-xs text-stone-500">
-          أدخل بريدك → يصلك رمز في الرسالة → أدخله هنا للدخول.
-        </p>
+      <p className="text-xs text-stone-600">
+        أدخل بريدك → يصلك رمز في الرسالة → أدخله هنا للدخول (لا يحتاج كلمة مرور).
+      </p>
 
-        {step === 'email' ? (
-          <form className="space-y-2" onSubmit={(e) => void sendCode(e)}>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="بريدك@مثال.sa"
-              className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
-              dir="ltr"
-            />
-            <button
-              type="submit"
-              disabled={Boolean(busy)}
-              className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {busy === 'send' ? 'جاري الإرسال…' : 'أرسل رمز الدخول إلى بريدي'}
-            </button>
-          </form>
-        ) : (
-          <form className="space-y-2" onSubmit={(e) => void confirmCode(e)}>
-            <p className="text-xs text-stone-600" dir="ltr">
-              {email}
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="الرمز من البريد (مثل 123456)"
-              className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-center text-lg tracking-widest outline-none ring-ab-accent focus:ring-2"
-              dir="ltr"
-            />
-            <button
-              type="submit"
-              disabled={Boolean(busy)}
-              className="flex w-full items-center justify-center rounded-md bg-ab-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {busy === 'verify' ? 'جاري التحقق…' : 'تأكيد والدخول'}
-            </button>
-            <button
-              type="button"
-              className="w-full text-xs text-stone-500 underline"
-              onClick={() => {
-                setStep('email')
-                setCode('')
-                setInfo('')
+      {step === 'email' ? (
+        <form className="space-y-2" onSubmit={(e) => void sendCode(e)}>
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="بريدك@مثال.sa"
+            className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-sm outline-none ring-ab-accent focus:ring-2"
+            dir="ltr"
+          />
+          <button
+            type="submit"
+            disabled={Boolean(busy)}
+            className="flex w-full items-center justify-center rounded-md border border-ab-accent bg-white px-3 py-2.5 text-sm font-semibold text-ab-accent disabled:opacity-40"
+          >
+            {busy === 'send' ? 'جاري الإرسال…' : 'أرسل رمز الدخول إلى بريدي'}
+          </button>
+        </form>
+      ) : (
+        <form className="space-y-2" onSubmit={(e) => void confirmCode(e)}>
+          <p className="text-xs text-stone-600" dir="ltr">
+            {email}
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="الرمز من البريد (مثل 123456)"
+            className="w-full rounded-md border border-ab-border bg-white px-3 py-2.5 text-center text-lg tracking-widest outline-none ring-ab-accent focus:ring-2"
+            dir="ltr"
+          />
+          <button
+            type="submit"
+            disabled={Boolean(busy)}
+            className="flex w-full items-center justify-center rounded-md border border-ab-accent bg-white px-3 py-2.5 text-sm font-semibold text-ab-accent disabled:opacity-40"
+          >
+            {busy === 'verify' ? 'جاري التحقق…' : 'تأكيد والدخول'}
+          </button>
+          <button
+            type="button"
+            className="w-full text-xs text-stone-500 underline"
+            onClick={() => {
+              setStep('email')
+              setCode('')
+              setInfo('')
+              setError('')
+            }}
+          >
+            تغيير البريد أو إعادة الإرسال
+          </button>
+          <button
+            type="button"
+            disabled={Boolean(busy)}
+            className="w-full text-xs text-ab-accent"
+            onClick={() => {
+              void (async () => {
                 setError('')
-              }}
-            >
-              تغيير البريد أو إعادة الإرسال
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              className="w-full text-xs text-ab-accent"
-              onClick={() => {
-                void (async () => {
-                  setError('')
-                  setBusy('send')
-                  try {
-                    const result = await sendEmailOtp(email)
-                    setInfo(result.messageAr || 'أُعيد إرسال الرمز.')
-                  } catch (err) {
-                    setError(
-                      err instanceof Error ? err.message : 'تعذّر إعادة الإرسال'
-                    )
-                  } finally {
-                    setBusy(null)
-                  }
-                })()
-              }}
-            >
-              إعادة إرسال الرمز
-            </button>
-          </form>
-        )}
-        </>
+                setBusy('send')
+                try {
+                  const result = await sendEmailOtp(email)
+                  setInfo(result.messageAr || 'أُعيد إرسال الرمز.')
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : 'تعذّر إعادة الإرسال'
+                  )
+                } finally {
+                  setBusy(null)
+                }
+              })()
+            }}
+          >
+            إعادة إرسال الرمز
+          </button>
+        </form>
       )}
 
       <button

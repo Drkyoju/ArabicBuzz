@@ -10,6 +10,7 @@ import {
   listTelegramFeed,
 } from '@/lib/rooms/telegram-feed'
 import { emitNotification } from '@/lib/notifications/emit'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -120,10 +121,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const displayNameAr =
-    (auth.user.user_metadata?.full_name as string) ||
-    auth.user.email?.split('@')[0] ||
-    'عضو'
+  const displayNameAr = displayNameFromUser(auth.user, 'عضو')
   const outboundText = `من الموقع · ${displayNameAr}:\n${textAr}`
 
   const sent = await emitNotification({

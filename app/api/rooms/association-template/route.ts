@@ -8,6 +8,10 @@ import {
   roomNameNotes,
   updateRoomMember,
 } from '@/lib/rooms/persist'
+import {
+  displayNameFromUser,
+  looksLikeEmailLabel,
+} from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,11 +45,7 @@ export async function POST(req: NextRequest) {
   const nameAr =
     body.nameAr?.trim() ||
     (scopeId.startsWith('assoc-') ? 'غرفة الجمعية' : scopeId)
-  const displayName =
-    auth.user.user_metadata?.full_name ||
-    auth.user.user_metadata?.name ||
-    auth.user.email?.split('@')[0] ||
-    'مالك الغرفة'
+  const displayName = displayNameFromUser(auth.user, 'مالك الغرفة')
 
   // Register creator as owner so the room appears in /api/rooms/mine after reload.
   const { members } = await listRoomMembers(scopeId)
@@ -57,17 +57,22 @@ export async function POST(req: NextRequest) {
       : undefined)
 
   if (existing) {
+    const nextName =
+      existing.displayNameAr &&
+      !looksLikeEmailLabel(existing.displayNameAr, email)
+        ? existing.displayNameAr
+        : displayName
     await updateRoomMember({
       scopeId,
       memberId: existing.id,
       role: 'owner',
-      displayNameAr: existing.displayNameAr || String(displayName),
+      displayNameAr: nextName,
       notesAr: roomNameNotes(nameAr, existing.notesAr),
     })
   } else {
     await addRoomMember({
       scopeId,
-      displayNameAr: String(displayName),
+      displayNameAr: displayName,
       email,
       userId: auth.user.id,
       role: 'owner',
@@ -80,7 +85,7 @@ export async function POST(req: NextRequest) {
     deadlines = await seedAssociationStarterDeadlines({
       scopeId,
       createdBy: auth.user.id,
-      createdByAr: auth.user.email || 'قالب الجمعية',
+      createdByAr: displayName,
     })
   }
 

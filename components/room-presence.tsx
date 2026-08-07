@@ -16,6 +16,10 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import {
+  displayNameFromMetadata,
+  resolveClientDisplayName,
+} from '@/lib/auth/display-name'
+import {
   coordsForAnchoredFloating,
   type AnchoredFloatingCoords,
 } from '@/lib/ui/anchored-floating'
@@ -71,12 +75,12 @@ function relativeAr(at: number) {
 
 function peerLabel(p: PresencePeer) {
   if (p.anonymous) return 'مجهول'
-  return p.name || p.googleName || p.email || p.phone || 'مجهول'
+  return p.name || p.googleName || 'مجهول'
 }
 
 function peerDetail(p: PresencePeer) {
   const bits: string[] = []
-  if (p.googleName && p.googleName !== p.name) bits.push(`Google: ${p.googleName}`)
+  if (p.googleName && p.googleName !== p.name) bits.push(p.googleName)
   if (p.email) bits.push(p.email)
   if (p.phone) bits.push(p.phone)
   if (p.anonymous) bits.push('زائر بدون حساب')
@@ -96,21 +100,22 @@ function identityFromSession(
     (meta.phone_number as string) ||
     null
   const googleName =
-    (meta.full_name as string) ||
-    (meta.name as string) ||
-    (meta.preferred_username as string) ||
-    null
-  let name =
-    displayName ||
-    googleName ||
-    (email ? email.split('@')[0] : null) ||
-    (phone ? String(phone) : null) ||
-    ''
+    displayNameFromMetadata(meta, { email, fallback: '' }) || null
+  let saved: string | null = null
   try {
-    const saved = localStorage.getItem('ab-display-name')
-    if (saved?.trim()) name = saved.trim()
+    saved = localStorage.getItem('ab-display-name')
   } catch {
     /* ignore */
+  }
+  let name = resolveClientDisplayName({
+    user: u,
+    override: displayName || saved,
+    fallback: '',
+  })
+  if (!name) {
+    name =
+      (phone ? String(phone) : null) ||
+      ''
   }
   const anonymous = !u?.id && !email && !phone
   if (!name) name = anonymous ? 'مجهول' : 'مستخدم'
@@ -118,7 +123,7 @@ function identityFromSession(
     name: String(name),
     email: email ? String(email) : null,
     phone: phone ? String(phone) : null,
-    googleName: googleName ? String(googleName) : null,
+    googleName: googleName && googleName !== name ? String(googleName) : googleName ? String(googleName) : null,
     anonymous,
     userKey: u?.id || `guest-${stableGuestId()}`,
   }

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { acceptInviteByToken } from '@/lib/rooms/persist'
 import { requireRealUser } from '@/lib/auth/session'
+import {
+  displayNameFromUser,
+  looksLikeEmailLabel,
+} from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,9 +24,14 @@ export async function POST(req: Request) {
   if (!token || token.length > MAX_TOKEN_LENGTH) {
     return NextResponse.json({ error: 'رمز الدعوة مطلوب' }, { status: 400 })
   }
-  const displayNameAr = String(body.displayNameAr || '')
+  const fromBody = String(body.displayNameAr || '')
     .trim()
     .slice(0, MAX_DISPLAY_NAME_LENGTH)
+  const fromGoogle = displayNameFromUser(auth.user, '')
+  const displayNameAr =
+    fromBody && !looksLikeEmailLabel(fromBody, auth.user.email)
+      ? fromBody
+      : fromGoogle || fromBody
   const result = await acceptInviteByToken({
     token,
     displayNameAr,

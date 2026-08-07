@@ -10,6 +10,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
+import { displayNameFromUser, looksLikeEmailLabel } from '@/lib/auth/display-name'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 
@@ -120,19 +121,20 @@ export function RoomTasksBoard() {
         const { data } = await sb.auth.getUser()
         const u = data.user
         if (!u) return
-        const fallback =
-          (u.user_metadata?.full_name as string) ||
-          u.email?.split('@')[0] ||
-          'أنا'
+        const fallback = displayNameFromUser(u, 'أنا')
         const fromRoster = members.find(
           (m) =>
             (m.userId && m.userId === u.id) ||
             (m.email && u.email && m.email.toLowerCase() === u.email.toLowerCase())
         )
+        const rosterName = fromRoster?.displayNameAr
         setMe({
           userId: u.id,
           email: u.email || null,
-          nameAr: fromRoster?.displayNameAr || fallback,
+          nameAr:
+            rosterName && !looksLikeEmailLabel(rosterName, u.email)
+              ? rosterName
+              : fallback,
         })
       } catch {
         /* ignore */

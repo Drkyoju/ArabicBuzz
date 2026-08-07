@@ -22,6 +22,7 @@ import {
   roomChatRetentionDays,
   riyadhTodayPostBoundsIso,
 } from '@/lib/rooms/chat-retention'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,10 +109,7 @@ export async function POST(req: Request) {
     if (!deleted.ok) {
       return Response.json({ error: deleted.error }, { status: 500 })
     }
-    const name =
-      auth.user.user_metadata?.full_name ||
-      auth.user.email ||
-      'عضو'
+    const name = displayNameFromUser(auth.user, 'عضو')
     try {
       const { logRoomActivity } = await import('@/lib/rooms/home-log')
       await logRoomActivity({
@@ -177,10 +175,7 @@ export async function POST(req: Request) {
     )
   }
   const name =
-    body.authorNameAr ||
-    auth.user.user_metadata?.full_name ||
-    auth.user.email ||
-    'مستخدم'
+    body.authorNameAr || displayNameFromUser(auth.user, 'مستخدم')
 
   // Resolve @member mentions (skip tokens that match agents)
   let mentionUserIds = Array.isArray(body.mentionUserIds)

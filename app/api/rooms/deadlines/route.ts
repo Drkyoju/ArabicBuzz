@@ -9,6 +9,7 @@ import {
   type SystemDeadlineKind,
 } from '@/lib/rooms/system-deadlines'
 import { assertRoomCanEdit } from '@/lib/rooms/persist'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     dateYmd: body.dateYmd!,
     notesAr: body.notesAr,
     createdBy: auth.user.id,
-    createdByAr: auth.user.email || 'عضو',
+    createdByAr: displayNameFromUser(auth.user, 'عضو'),
   })
   return NextResponse.json(result)
 }

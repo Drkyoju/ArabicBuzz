@@ -7,6 +7,7 @@ import {
   updateRoomTask,
   type RoomTaskStatus,
 } from '@/lib/rooms/room-tasks'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,10 +63,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: gate.error }, { status: 403 })
   }
   const action = String(body.action || 'create')
-  const createdByAr =
-    (user.user_metadata?.full_name as string) ||
-    user.email?.split('@')[0] ||
-    'عضو'
+  const createdByAr = displayNameFromUser(user, 'عضو')
 
   const selfAliases = /^(لي|إلي|انا|أنا|نفسي|لنفسي)$/u
   function resolveSelfAssignee(raw: string | null | undefined): {

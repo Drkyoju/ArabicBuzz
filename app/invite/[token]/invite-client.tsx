@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { authHeaders, getBrowserSession } from '@/lib/supabase/browser'
+import { resolveClientDisplayName } from '@/lib/auth/display-name'
 
 export default function InviteJoinPage() {
   const params = useParams<{ token: string }>()
@@ -27,10 +28,10 @@ export default function InviteJoinPage() {
         const session = await getBrowserSession()
         if (cancelled) return
         setSignedIn(Boolean(session?.access_token))
-        const metaName =
-          (session?.user?.user_metadata?.full_name as string) ||
-          session?.user?.email?.split('@')[0] ||
-          ''
+        const metaName = resolveClientDisplayName({
+          user: session?.user,
+          fallback: '',
+        })
         if (metaName && !nameAr) setNameAr(metaName)
       } catch {
         if (!cancelled) setSignedIn(false)

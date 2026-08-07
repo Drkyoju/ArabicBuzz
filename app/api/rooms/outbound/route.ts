@@ -1,4 +1,5 @@
 import { requireRealUser } from '@/lib/auth/session'
+import { displayNameFromUser } from '@/lib/auth/display-name'
 import { insertRoomPost, assertRoomCanPost } from '@/lib/rooms/persist'
 import { emitNotification } from '@/lib/notifications/emit'
 
@@ -32,10 +33,7 @@ export async function POST(req: Request) {
     return Response.json({ error: gate.error }, { status: 403 })
   }
 
-  const displayNameAr =
-    (auth.user.user_metadata?.full_name as string) ||
-    auth.user.email?.split('@')[0] ||
-    'عضو'
+  const displayNameAr = displayNameFromUser(auth.user, 'عضو')
   const outboundText =
     channel === 'telegram'
       ? `من الموقع · ${displayNameAr}:\n${textAr}`

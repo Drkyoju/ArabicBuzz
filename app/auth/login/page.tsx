@@ -30,7 +30,8 @@ function LoginInner() {
     <div className="w-full max-w-md rounded-2xl border border-ab-border bg-ab-surface p-6 shadow-sm">
       <h1 className="text-xl font-bold text-ab-ink">Arabic Buzz</h1>
       <p className="mt-2 text-sm leading-relaxed text-stone-600">
-        سجّل الدخول بحساب Google — بعد الدخول تقدر تشتغل في الغرفة مع فريقك.
+        سجّل الدخول بحساب Google أو برمز يُرسل إلى بريدك — ثم اعمل مع فريقك في
+        الغرفة.
       </p>
       {next?.startsWith('/invite/') && (
         <p className="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
@@ -41,6 +42,10 @@ function LoginInner() {
         <AuthButtons />
       </div>
       <p className="mt-6 text-center text-xs text-stone-500">
+        <Link href="/privacy" className="text-ab-accent underline">
+          سياسة الخصوصية
+        </Link>
+        {' · '}
         <Link href={next || '/'} className="text-ab-accent underline">
           {next?.startsWith('/invite/')
             ? 'العودة لرابط الدعوة'
@@ -52,7 +57,7 @@ function LoginInner() {
 }
 
 /**
- * Login — Google first, email optional. Demo demoted when enabled.
+ * Login — Google identity + email OTP. Workspace Google scopes are linked later.
  * Supports `?next=/invite/...` so teammates return to the invite after auth.
  */
 export default function LoginPage() {
