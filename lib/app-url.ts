@@ -1,16 +1,17 @@
-/** Canonical public site — never localhost. */
-export const APP_ORIGIN = 'https://arabicbuzz.netlify.app'
+/** Canonical public site — never localhost. CranL primary after Netlify cutover. */
+export const APP_ORIGIN = 'https://arabicbuzz-fooc9h.cranl.net'
 
 const REJECTED_HOST =
   /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0|your-site\.netlify\.app)(:\d+)?/i
 
 /**
  * Public base URL for invites, auth redirects, and emails.
- * Always resolves to the live Netlify site unless a non-local APP_URL is set.
+ * Prefers NEXT_PUBLIC_APP_URL / APP_URL, then falls back to CranL origin.
  */
 export function appBaseUrl(): string {
   const candidates = [
     process.env.NEXT_PUBLIC_APP_URL,
+    process.env.APP_URL,
     process.env.URL,
     process.env.DEPLOY_PRIME_URL,
   ]

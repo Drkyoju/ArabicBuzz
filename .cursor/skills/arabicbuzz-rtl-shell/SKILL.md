@@ -23,4 +23,4 @@ Canonical: `components/sidebar.tsx` + `components/workspace-shell.tsx`.
 
 ## QA
 
-Verify on https://arabicbuzz.netlify.app/ at ~375px and ~1280px.
+Verify on https://arabicbuzz-fooc9h.cranl.net/ at ~375px and ~1280px.

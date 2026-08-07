@@ -39,11 +39,11 @@ npm run setup:supabase
 ```
 
 4. Dashboard → Authentication → enable **Google** + **Apple**, redirect  
-   `https://arabicbuzz.netlify.app/auth/callback` only.
+   `https://arabicbuzz-fooc9h.cranl.net/auth/callback` (keep Netlify URL only if still used).
 
 ## Mac vault + company brain (large files)
 
-Source of truth on your Mac (`~/ArabicBuzz/data`); teammates use the Netlify site.
+Source of truth on your Mac (`~/ArabicBuzz/data`); teammates use the live CranL site.
 
 1. On the Mac (keep running):
 
@@ -53,7 +53,7 @@ MAC_SYNC_SECRET=your-secret npm run storage:sync
 npx ngrok http 7420
 ```
 
-2. Netlify env:
+2. CranL env (see `docs/cranl-deploy.md`):
 
 - `MAC_SYNC_URL` / `NEXT_PUBLIC_MAC_UPLOAD_URL` = tunnel URL
 - `MAC_SYNC_SECRET` = same secret

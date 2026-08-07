@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         transport === 'bridge'
           ? 'جسر واتساب المجاني مضبوط — أرسل الأحداث إلى هذا المسار POST'
           : 'لا جسر مضبوط — عيّن WHATSAPP_BRIDGE_URL على Netlify بعد تشغيل Evolution/Baileys',
-      webhookUrl: 'https://arabicbuzz.netlify.app/api/webhooks/whatsapp',
+      webhookUrl: 'https://arabicbuzz-fooc9h.cranl.net/api/webhooks/whatsapp',
     })
   }
 

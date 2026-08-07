@@ -1,6 +1,10 @@
 # Deploy ArabicBuzz on CranL
 
-Primary production path is **CranL** (Docker / `next start` standalone). Netlify OpenNext remains in-repo as a fallback but is not the live QA target when CranL is cut over.
+Primary production path is **CranL** (Docker / `next start` standalone). Live URL: **https://arabicbuzz-fooc9h.cranl.net/**
+
+Netlify OpenNext remains in-repo as a fallback but is not the live QA target after cutover.
+
+App id: `bf8cff03-49ac-4a80-bb93-298305e6617e`
 
 ## Prerequisites
 

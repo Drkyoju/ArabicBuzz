@@ -1,11 +1,12 @@
 ---
-description: Test and verify only on the live Netlify site — never localhost
+description: Test and verify only on the live CranL site — never localhost
 alwaysApply: true
 ---
 
 # Live site only
 
-- The only environment for QA, browser checks, smoke tests, and “does it work?” verification is **https://arabicbuzz.netlify.app/**
+- The only environment for QA, browser checks, smoke tests, and “does it work?” verification is **https://arabicbuzz-fooc9h.cranl.net/**
 - **Never** use localhost, `127.0.0.1`, `next dev`, or local preview URLs for verification
-- After code changes: commit → push to `main` → wait for Netlify deploy → verify on the live URL
+- After code changes: commit → push to `main` → wait for CranL deploy → verify on the live URL
 - Do not start local servers to “check the UI”
+- Netlify (`arabicbuzz.netlify.app`) is retained as a fallback only while credits allow; do not treat it as primary QA after CranL cutover

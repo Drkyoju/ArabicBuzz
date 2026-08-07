@@ -1074,7 +1074,7 @@ export function getTelegramBot() {
           `المساحة: ${scope.scope.nameAr} (${scope.scope.id})`,
           `موافقات معلّقة: ${pending.length}`,
           'الوكيل: نص · صوت · ملفات — مثل الموقع',
-          'الموقع: https://arabicbuzz.netlify.app/',
+          'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
           inGroup ? privacyHintAr(botUsername) : '',
         ]
           .filter(Boolean)

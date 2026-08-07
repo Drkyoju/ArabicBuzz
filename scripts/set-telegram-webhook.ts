@@ -5,7 +5,7 @@
  *   npx tsx scripts/set-telegram-webhook.ts
  *
  * Requires TELEGRAM_BOT_TOKEN. Uses TELEGRAM_WEBHOOK_SECRET when set
- * (recommended). Default URL: https://arabicbuzz.netlify.app/api/webhooks/telegram
+ * (recommended). Default URL: https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram
  */
 import { config } from 'dotenv'
 config({ path: '.env.local' })
@@ -54,7 +54,7 @@ async function main() {
 
   const url =
     process.env.TELEGRAM_WEBHOOK_URL?.trim() ||
-    `${(process.env.NEXT_PUBLIC_APP_URL || 'https://arabicbuzz.netlify.app').replace(/\/+$/, '')}/api/webhooks/telegram`
+    `${(process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://arabicbuzz-fooc9h.cranl.net').replace(/\/+$/, '')}/api/webhooks/telegram`
 
   const body: Record<string, unknown> = {
     url,

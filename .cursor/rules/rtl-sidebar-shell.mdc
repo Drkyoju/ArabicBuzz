@@ -33,5 +33,5 @@ Canonical shell: `components/sidebar.tsx` + `components/workspace-shell.tsx`.
 
 ## QA before shipping any sidebar/shell change
 
-- Verify on **https://arabicbuzz.netlify.app/** only (never localhost).
+- Verify on **https://arabicbuzz-fooc9h.cranl.net/** only (never localhost).
 - Check ~**375px** (drawer closed; content full-width under top bar) and ~**1280px** (sidebar + dashboard text both fully readable and nav clickable).
