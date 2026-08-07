@@ -12,11 +12,7 @@ export function FileEditedBadge({
   if (!show) return null
   return (
     <span
-      className={cn(
-        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none',
-        'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-700/20',
-        className
-      )}
+      className={cn('ab-badge-edited', className)}
       title={EDITED_TAG_AR}
     >
       {EDITED_TAG_AR}
