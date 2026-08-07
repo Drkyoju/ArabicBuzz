@@ -262,11 +262,11 @@ export function OpsHealthPanel() {
           soft: !snap.arabicBadgeAr?.includes('جاهز'),
         },
         {
-          label: 'حوكمة الموافقات',
+          label: 'حوكمة الحذف',
           ok: snap.hitlDisabled === false,
           detail: snap.hitlDisabled
-            ? 'معطّلة — HITL_DISABLED=0'
-            : 'مفعّلة (AUTO للخطر العالي)',
+            ? 'معطّلة — HITL_DISABLED=0 لموافقة الحذف'
+            : 'مفعّلة — موافقة للحذف فقط (AUTO)',
           soft: snap.hitlDisabled === true,
         },
         {

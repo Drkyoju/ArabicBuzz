@@ -8,13 +8,26 @@ export type ActionRiskResult = {
 
 export const POSTURE_LABELS_AR: Record<SecurityPostureMode, string> = {
   STRICT: 'صارم — موافقة على كل أداة',
-  AUTO: 'تلقائي — موافقة للخطر العالي فقط',
-  DANGEROUS: 'حر — تنفيذ فوري بدون موافقات',
+  AUTO: 'تلقائي — موافقة لحذف الملفات والأشياء فقط',
+  DANGEROUS: 'حر — تنفيذ فوري (الحذف يبقى بموافقة إن كانت الحوكمة مفعّلة)',
 }
 
 export const TEXT_GENERATION_TOOLS = new Set([
   'text_generate',
   'generate_text',
+])
+
+/**
+ * Delete / trash / cancel-destructive tools — the only class that needs HITL
+ * in AUTO (and always when HITL is on, even if posture is DANGEROUS).
+ */
+export const DELETE_CLASS_TOOLS = new Set([
+  'delete_file',
+  'brain_delete_document',
+  'calendar_delete_event',
+  'room_calendar_cancel',
+  'db_delete',
+  'delete_database',
 ])
 
 const LOW_RISK_TOOLS = new Set([
@@ -100,6 +113,22 @@ const HIGH_RISK_TOOLS = new Set([
   'pdf_fill_form',
 ])
 
+/** True for known delete tools and name patterns (trash / remove / delete). */
+export function isDeleteClassTool(toolName: string): boolean {
+  if (DELETE_CLASS_TOOLS.has(toolName)) return true
+  const n = toolName.toLowerCase().trim()
+  if (!n) return false
+  return (
+    /(?:^|_)(delete|trash|remove)(?:_|$)/.test(n) ||
+    n.includes('delete_') ||
+    n.endsWith('_delete') ||
+    n.includes('_trash') ||
+    n.includes('trash_') ||
+    n.includes('_remove') ||
+    n.startsWith('remove_')
+  )
+}
+
 export function evaluateActionRisk(
   toolName: string,
   params: Record<string, unknown>,
@@ -109,7 +138,15 @@ export function evaluateActionRisk(
     return { riskLevel: 'LOW', requiresApproval: false }
   }
 
-  // New edited copies / conversions are additive; overwriting source needs HITL.
+  const isDelete = isDeleteClassTool(toolName)
+
+  // Deletes always need HITL when governance is on — even in DANGEROUS posture.
+  // HITL_DISABLED forces DANGEROUS via interceptor/parsePosture and skips this.
+  if (isDelete && !isHitlDisabled()) {
+    return { riskLevel: 'HIGH', requiresApproval: true }
+  }
+
+  // New edited copies / conversions are additive; overwriting source needs HITL only in STRICT.
   if (
     (toolName === 'edit_document' && !params.replaceSource) ||
     (toolName === 'edit_excel' && !params.replaceSource) ||
@@ -126,7 +163,7 @@ export function evaluateActionRisk(
     return { riskLevel: 'LOW', requiresApproval: false }
   }
 
-  // Cua: observation / health is low-risk; input & navigation stay HITL-gated.
+  // Cua: observation / health is low-risk; input & navigation stay HITL only in STRICT.
   if (toolName === 'cua_computer') {
     const action = String(params.action || params.tool || '').trim()
     const readOnly = new Set([
@@ -143,10 +180,11 @@ export function evaluateActionRisk(
       }
       return { riskLevel: 'LOW', requiresApproval: false }
     }
-    if (mode === 'DANGEROUS') {
-      return { riskLevel: 'HIGH', requiresApproval: false }
+    if (mode === 'STRICT') {
+      return { riskLevel: 'HIGH', requiresApproval: true }
     }
-    return { riskLevel: 'HIGH', requiresApproval: true }
+    // AUTO / DANGEROUS: non-delete Cua runs without pause
+    return { riskLevel: 'HIGH', requiresApproval: false }
   }
 
   const riskLevel: RiskLevel =
@@ -162,9 +200,10 @@ export function evaluateActionRisk(
     return { riskLevel, requiresApproval: true }
   }
 
+  // AUTO: execute everything immediately except delete-class (handled above).
   return {
     riskLevel,
-    requiresApproval: riskLevel === 'HIGH',
+    requiresApproval: false,
   }
 }
 
@@ -173,16 +212,17 @@ export function shouldHaltForApproval(result: ActionRiskResult): boolean {
 }
 
 /**
- * When true (default), tools never pause for HITL.
- * Set HITL_DISABLED=0 on Netlify to re-enable approvals (Telegram path intact).
+ * When true, tools never pause for HITL (including deletes).
+ * Default off — only delete/trash/remove needs approval under AUTO.
+ * Set HITL_DISABLED=1 to force fully automatic execution.
  */
 export function isHitlDisabled(): boolean {
-  const v = (process.env.HITL_DISABLED ?? '1').trim().toLowerCase()
-  return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no'
+  const v = (process.env.HITL_DISABLED ?? '0').trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'on' || v === 'yes'
 }
 
 /**
- * When HITL is enabled, default to AUTO (high-risk only) for association safety.
+ * When HITL is enabled, default to AUTO (delete-only approvals).
  * Override with DEFAULT_SECURITY_POSTURE=STRICT|DANGEROUS|AUTO.
  */
 export function parsePosture(raw?: string | null): SecurityPostureMode {

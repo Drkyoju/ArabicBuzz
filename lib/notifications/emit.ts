@@ -176,6 +176,9 @@ export async function emitTelegramDocument(opts: {
 }
 
 async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
+  // Approve buttons only for delete/trash/remove — other tools auto-execute.
+  const { isDeleteClassTool } = await import('@/lib/security/posture')
+  if (!isDeleteClassTool(payload.actionName)) return
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = await resolveTelegramTarget({ scopeId: payload.scopeId })
   if (!token || !chatId) return
@@ -185,16 +188,16 @@ async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `${payload.messageAr}\n\nالإجراء: ${payload.actionName}\nالمستوى: ${payload.riskLevel}`,
+        text: `${payload.messageAr}\n\nالإجراء: ${payload.actionName}\nالنوع: حذف — يلزم موافقة\nالمستوى: ${payload.riskLevel}`,
         reply_markup: {
           inline_keyboard: [
             [
               {
-                text: '✅ موافقة',
+                text: '✅ موافقة على الحذف',
                 callback_data: 'approve_' + payload.approvalId,
               },
               {
-                text: '❌ رفض',
+                text: '❌ رفض الحذف',
                 callback_data: 'reject_' + payload.approvalId,
               },
             ],
@@ -208,11 +211,13 @@ async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
 }
 
 async function sendWhatsAppApproval(payload: ApprovalNotificationPayload) {
+  const { isDeleteClassTool } = await import('@/lib/security/posture')
+  if (!isDeleteClassTool(payload.actionName)) return
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const to = process.env.WHATSAPP_OWNER_TO || process.env.WHATSAPP_TEST_TO
   if (!token || !phoneId || !to) return
-  const bodyText = `${payload.messageAr}\nالإجراء: ${payload.actionName}\nالمستوى: ${payload.riskLevel}`
+  const bodyText = `${payload.messageAr}\nالإجراء: ${payload.actionName}\nالنوع: حذف — يلزم موافقة\nالمستوى: ${payload.riskLevel}`
   try {
     // Prefer interactive buttons; fall back to plain text if rejected.
     const interactive = await fetch(

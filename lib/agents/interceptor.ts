@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import {
   evaluateActionRisk,
+  isDeleteClassTool,
   isHitlDisabled,
   SecurityPostureMode,
 } from '@/lib/security/posture'
@@ -38,9 +39,12 @@ export async function interceptToolExecution(opts: {
   const mode = isHitlDisabled() ? 'DANGEROUS' : opts.mode
   const risk = evaluateActionRisk(opts.toolName, opts.params, mode)
   const autonomy = await resolveToolAutonomy(opts.toolName, scopeId)
+  const isDelete = isDeleteClassTool(opts.toolName)
 
   const needsHuman = risk.requiresApproval
-  const onLoopAllowed = autonomy === 'ON_LOOP' && mode === 'AUTO'
+  // Trust ON_LOOP never bypasses delete/trash/remove — those always need a human.
+  const onLoopAllowed =
+    autonomy === 'ON_LOOP' && mode === 'AUTO' && !isDelete
 
   if (needsHuman && !onLoopAllowed) {
     const approvalId = randomUUID()
@@ -49,7 +53,9 @@ export async function interceptToolExecution(opts: {
       actionName: opts.toolName,
       params: opts.params,
       riskLevel: risk.riskLevel,
-      messageAr: `إجراء يحتاج موافقة: ${opts.toolName}`,
+      messageAr: isDelete
+        ? `حذف يحتاج موافقة بشرية: ${opts.toolName}`
+        : `إجراء يحتاج موافقة: ${opts.toolName}`,
       scopeId,
     }
 

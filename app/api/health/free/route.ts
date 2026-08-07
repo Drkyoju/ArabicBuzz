@@ -110,8 +110,8 @@ export async function GET() {
     webCrawlFreePath: true,
     hitlDisabled: isHitlDisabled(),
     hitlPostureAr: isHitlDisabled()
-      ? 'الموافقات معطّلة — عيّن HITL_DISABLED=0 وDEFAULT_SECURITY_POSTURE=AUTO'
-      : 'الموافقات مفعّلة — وضع AUTO يعتمد الخطر العالي فقط',
+      ? 'الموافقات معطّلة — عيّن HITL_DISABLED=0 (موافقة للحذف فقط تحت AUTO)'
+      : 'الموافقات مفعّلة — وضع AUTO: موافقة لحذف الملفات والأشياء فقط',
     whatsappTransport: resolveWhatsAppTransport(),
     whatsappStatusAr: whatsappTransportStatusAr().detailAr,
     arabicQuality: buildArabicQualitySignal(),

@@ -165,17 +165,20 @@ export async function buildTeamInbox(opts: {
     })
   }
 
-  // Pending HITL (when enabled)
+  // Pending HITL — delete/trash only (other tools auto-execute)
   if (!isHitlDisabled()) {
+    const { isDeleteClassTool } = await import('@/lib/security/posture')
     const scoped = pending.filter(
-      (p) => !p.scopeId || p.scopeId === opts.scopeId
+      (p) =>
+        (!p.scopeId || p.scopeId === opts.scopeId) &&
+        isDeleteClassTool(p.actionName)
     )
     for (const p of scoped.slice(0, 6)) {
       items.push({
         id: `hitl-${p.approvalId || p.id}`,
         kind: 'hitl',
-        titleAr: `موافقة: ${p.actionName}`,
-        detailAr: p.riskLevel === 'HIGH' ? 'خطر عالي' : 'خطر منخفض',
+        titleAr: `موافقة حذف: ${p.actionName}`,
+        detailAr: 'حذف ملف أو شيء — يلزم اعتماد',
         hrefHint: 'approvals',
       })
     }
@@ -202,8 +205,9 @@ export async function buildTeamInbox(opts: {
       items.push({
         id: 'channel-hitl-off',
         kind: 'channel',
-        titleAr: 'الموافقات البشرية معطّلة',
-        detailAr: 'التنفيذ فوري — عيّن HITL_DISABLED=0 للحوكمة',
+        titleAr: 'موافقة الحذف معطّلة',
+        detailAr:
+          'كل شيء بما فيه الحذف فوري — عيّن HITL_DISABLED=0 لموافقة الحذف فقط',
         hrefHint: 'approvals',
       })
     }

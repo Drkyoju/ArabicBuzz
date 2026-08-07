@@ -979,15 +979,20 @@ export function getTelegramBot() {
 
     if (approveCmd) {
       try {
-        const pending = await listPendingApprovals()
+        const { isDeleteClassTool } = await import('@/lib/security/posture')
+        const pending = (await listPendingApprovals()).filter((a) =>
+          isDeleteClassTool(a.actionName)
+        )
         if (!pending.length) {
-          await ctx.reply('لا موافقات معلّقة حالياً.')
+          await ctx.reply(
+            'لا موافقات حذف معلّقة. باقي الإجراءات تتم تلقائياً بدون موافقة.'
+          )
           return
         }
-        await ctx.reply(`موافقات معلّقة: ${pending.length}`)
+        await ctx.reply(`موافقات حذف معلّقة: ${pending.length}`)
         for (const a of pending.slice(0, 5)) {
           await ctx.reply(
-            `الإجراء: ${a.actionName}\nالمستوى: ${a.riskLevel}\n#${a.approvalId.slice(0, 8)}`,
+            `حذف يحتاج موافقة\nالإجراء: ${a.actionName}\nالمستوى: ${a.riskLevel}\n#${a.approvalId.slice(0, 8)}`,
             { reply_markup: buildApprovalKeyboard(a.approvalId) }
           )
         }

@@ -18,8 +18,8 @@ export const useSecurityPostureStore = create<PostureState>()(
     }),
     {
       name: 'ab-security-posture',
-      // v3: association-safe AUTO when HITL on; interceptor ignores when HITL_DISABLED.
-      version: 3,
+      // v4: AUTO = delete-only HITL; everything else auto-executes.
+      version: 4,
       migrate: (persisted) => {
         const state = persisted as PostureState
         return {

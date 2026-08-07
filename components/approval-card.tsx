@@ -52,13 +52,27 @@ const ACTION_LABELS_AR: Record<string, string> = {
   ingest_url_to_brain: 'سحب صفحة إلى المعرفة',
   read_decision_document: 'قراءة قرار للمستندات',
   report_room_attendance: 'تقرير أعضاء وحضور',
-  browser_rpa: 'أتمتة متصفح (موافقة مطلوبة)',
+  browser_rpa: 'أتمتة متصفح',
   delete_file: 'حذف ملف',
+  delete_database: 'حذف قاعدة بيانات',
+  db_delete: 'حذف من قاعدة البيانات',
   write_file: 'كتابة ملف',
   transfer_funds: 'تحويل مالي',
   web_search: 'بحث ويب',
   drive_upload: 'رفع إلى Drive',
   drive_sync_brain: 'مزامنة Drive → العقل',
+}
+
+function isDeleteAction(name: string) {
+  return (
+    name === 'delete_file' ||
+    name === 'brain_delete_document' ||
+    name === 'calendar_delete_event' ||
+    name === 'room_calendar_cancel' ||
+    name === 'db_delete' ||
+    name === 'delete_database' ||
+    /(?:^|_)(delete|trash|remove)(?:_|$)/i.test(name)
+  )
 }
 
 function humanizeAction(name: string) {
@@ -94,6 +108,7 @@ export function ApprovalCard({
   const [needsLogin, setNeedsLogin] = useState(false)
   const disabled = localStatus !== 'PENDING_APPROVAL' || busy
   const rows = useMemo(() => paramRows(params), [params])
+  const deleteAction = isDeleteAction(actionName)
 
   async function decide(decision: 'APPROVE' | 'REJECT', modified?: object) {
     setBusy(true)
@@ -154,11 +169,13 @@ export function ApprovalCard({
         return
       }
     }
-    // Inline confirm — window.confirm is unreliable on mobile (often looks like a no-op).
-    if (riskLevel === 'HIGH' && !confirmApprove) {
+    // Inline confirm for delete / high-risk — window.confirm is unreliable on mobile.
+    if ((deleteAction || riskLevel === 'HIGH') && !confirmApprove) {
       setConfirmApprove(true)
       setMessage(
-        `تأكيد موافقة عالية المخاطر على «${humanizeAction(actionName)}»؟ لا يمكن التراجع بعد التنفيذ.`
+        deleteAction
+          ? `تأكيد حذف «${humanizeAction(actionName)}»؟ لا يمكن التراجع بعد التنفيذ.`
+          : `تأكيد موافقة عالية المخاطر على «${humanizeAction(actionName)}»؟ لا يمكن التراجع بعد التنفيذ.`
       )
       return
     }
@@ -166,11 +183,22 @@ export function ApprovalCard({
   }
 
   return (
-    <div className="relative z-10 mb-4 rounded-xl border border-ab-border bg-ab-surface p-4 shadow-sm">
+    <div
+      className={`relative z-10 mb-4 rounded-xl border bg-ab-surface p-4 shadow-sm ${
+        deleteAction
+          ? 'border-ab-warn/60 ring-1 ring-ab-warn/20'
+          : 'border-ab-border'
+      }`}
+    >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-ab-warn/10 px-2 py-0.5 text-xs font-semibold text-ab-warn">
           بانتظار قرارك
         </span>
+        {deleteAction ? (
+          <span className="rounded-md bg-ab-warn/20 px-2 py-0.5 text-xs font-semibold text-ab-warn">
+            حذف — موافقة مطلوبة
+          </span>
+        ) : null}
         <span
           className={`rounded-md px-2 py-0.5 text-xs ${
             riskLevel === 'HIGH'

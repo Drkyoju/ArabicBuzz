@@ -53,8 +53,13 @@ export async function buildDirectorDigestAr(opts?: {
     (t) => t && (t.status === 'open' || t.status === 'in_progress')
   )
 
-  const { isHitlDisabled } = await import('@/lib/security/posture')
+  const { isHitlDisabled, isDeleteClassTool } = await import(
+    '@/lib/security/posture'
+  )
   const hitlOff = isHitlDisabled()
+  const deletePending = scopedPending.filter((p) =>
+    isDeleteClassTool(p.actionName)
+  )
 
   const lines = [
     `السلام عليكم ${nameAr}،`,
@@ -64,21 +69,22 @@ export async function buildDirectorDigestAr(opts?: {
     '',
   ]
 
-  lines.push('── حوكمة الموافقات ──')
+  lines.push('── حوكمة الحذف ──')
   if (hitlOff) {
     lines.push(
-      '⚠️ الموافقات البشرية معطّلة حالياً (HITL_DISABLED) — التنفيذ فوري. للحوكمة: HITL_DISABLED=0 وDEFAULT_SECURITY_POSTURE=AUTO.'
+      '⚠️ موافقة الحذف معطّلة (HITL_DISABLED) — كل شيء بما فيه الحذف فوري. للحوكمة: HITL_DISABLED=0 وDEFAULT_SECURITY_POSTURE=AUTO (موافقة للحذف فقط).'
     )
-  } else if (scopedPending.length === 0) {
-    lines.push('لا موافقات معلّقة — الحوكمة مفعّلة.')
+  } else if (deletePending.length === 0) {
+    lines.push(
+      'لا موافقات حذف معلّقة — باقي الأدوات تُنفَّذ تلقائياً.'
+    )
   } else {
-    lines.push(`${scopedPending.length} موافقة بانتظار قرارك:`)
-    for (const p of scopedPending.slice(0, 12)) {
-      const risk = p.riskLevel === 'HIGH' ? 'عالي' : 'منخفض'
-      lines.push(`• ${p.actionName} · خطر ${risk}`)
+    lines.push(`${deletePending.length} حذف بانتظار موافقتك:`)
+    for (const p of deletePending.slice(0, 12)) {
+      lines.push(`• ${p.actionName} · حذف`)
     }
-    if (scopedPending.length > 12) {
-      lines.push(`…و${scopedPending.length - 12} أخرى`)
+    if (deletePending.length > 12) {
+      lines.push(`…و${deletePending.length - 12} أخرى`)
     }
   }
 

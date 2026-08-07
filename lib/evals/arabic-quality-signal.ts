@@ -43,7 +43,7 @@ export function buildArabicQualitySignal(): ArabicQualitySignal {
     },
     {
       id: 'hitl_governance',
-      labelAr: 'حوكمة الموافقات (HITL) مفعّلة',
+      labelAr: 'حوكمة الحذف (HITL للحذف فقط)',
       ok: !isHitlDisabled(),
     },
     {
@@ -63,8 +63,8 @@ export function buildArabicQualitySignal(): ArabicQualitySignal {
   const detailAr = [
     `${readyCount}/${totalCount} إشارات جودة عربية مفعّلة`,
     isHitlDisabled()
-      ? '— فعّل HITL_DISABLED=0 للحوكمة الكاملة'
-      : '— الموافقات البشرية مفعّلة',
+      ? '— فعّل HITL_DISABLED=0 لموافقة الحذف'
+      : '— الموافقات للحذف فقط (AUTO)',
   ].join(' ')
 
   return { badgeAr, detailAr, checks, readyCount, totalCount }

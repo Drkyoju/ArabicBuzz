@@ -15,6 +15,11 @@ export type AutonomyTier = 'IN_LOOP' | 'ON_LOOP' | 'PERMANENTLY_GATED'
 
 export const PERMANENTLY_GATED_TOOLS = [
   'delete_database',
+  'delete_file',
+  'brain_delete_document',
+  'calendar_delete_event',
+  'room_calendar_cancel',
+  'db_delete',
   'transfer_funds',
   'change_user_roles',
 ] as const

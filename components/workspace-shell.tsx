@@ -185,6 +185,20 @@ type LiveApproval = {
   messageAr?: string
 }
 
+/** Only delete/trash/remove approvals are shown — matches server AUTO policy. */
+function isDeleteActionName(name: string) {
+  const n = (name || '').toLowerCase()
+  return (
+    n === 'delete_file' ||
+    n === 'brain_delete_document' ||
+    n === 'calendar_delete_event' ||
+    n === 'room_calendar_cancel' ||
+    n === 'db_delete' ||
+    n === 'delete_database' ||
+    /(?:^|_)(delete|trash|remove)(?:_|$)/.test(n)
+  )
+}
+
 export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const [section, setSection] = useState<SidebarSection>('home')
   const [calendarTab, setCalendarTab] = useState<CalendarTab>('schedule')
@@ -321,7 +335,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         setPendingCount(0)
         return
       }
-      const list = data.approvals || []
+      const list = (data.approvals || []).filter((a) =>
+        isDeleteActionName(a.actionName)
+      )
       setApprovals(list)
       setPendingCount(
         list.filter((a) => a.status === 'PENDING_APPROVAL').length
@@ -543,12 +559,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <h2 className="flex items-center gap-1.5 text-xl font-bold">
                   صندوق الموافقات
                   {hitlDisabled !== true && (
-                    <HelpTip textAr="راجع كل إجراء حساس قبل التنفيذ: اعتماد، رفض، أو تعديل المعاملات." />
+                    <HelpTip textAr="الموافقة مطلوبة فقط عند حذف الملفات أو الأشياء (مثل إلغاء موعد). باقي الأدوات تُنفَّذ تلقائياً." />
                   )}
                 </h2>
                 {hitlDisabled !== true && (
                   <p className="mt-1 text-sm text-stone-500">
-                    اعتمد · ارفض · أو عدّل — ثم يُنفَّذ الإجراء بأمان.
+                    هنا تظهر طلبات الحذف فقط — اعتمد · ارفض · أو عدّل ثم يُنفَّذ.
                   </p>
                 )}
               </div>
@@ -598,15 +614,19 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             {hitlDisabled === false && (
               <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                 <p className="text-sm font-semibold text-emerald-950">
-                  الحوكمة مفعّلة — الموافقة تنفّذ الإجراء
+                  التنفيذ التلقائي مفعّل — الموافقة للحذف فقط
                 </p>
                 <p className="mt-1 text-xs text-emerald-900/90">
-                  كل بطاقة أدناه قابلة للتنفيذ: موافقة / رفض / تعديل المعاملات.
-                  نفس القرار يصل عبر تيليجرام (أزرار أو{' '}
+                  البحث والكتابة والإرسال والتقويم وغيرها تُنفَّذ فوراً. يظهر هنا فقط
+                  حذف الملفات أو الأشياء (مثل{' '}
+                  <code dir="ltr" className="rounded bg-white/70 px-1">
+                    delete_file
+                  </code>
+                  ). نفس القرار يصل عبر تيليجرام (أزرار أو{' '}
                   <code dir="ltr" className="rounded bg-white/70 px-1">
                     /approve
                   </code>
-                  ). السجل الكامل في «سجل التدقيق».
+                  ).
                 </p>
                 {canAccessOpsUi && mode === 'admin' ? (
                   <button
@@ -635,7 +655,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   سجّل الدخول للموافقات
                 </p>
                 <p className="mt-1 text-xs text-stone-600">
-                  طلبات الاعتماد تظهر هنا عندما يطلب الوكيل إجراءً عالي المخاطر.
+                  طلبات اعتماد الحذف تظهر هنا عندما يطلب الوكيل حذف ملف أو شيء.
                 </p>
                 <Link
                   href="/auth/login"
@@ -648,7 +668,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               !approvalsLoading &&
               pendingCount === 0 &&
               !approvalsError ? (
-              <p className="text-sm text-stone-500">لا موافقات معلّقة.</p>
+              <p className="text-sm text-stone-500">
+                لا موافقات حذف معلّقة — باقي الإجراءات تتم تلقائياً.
+              </p>
             ) : hitlDisabled !== true ? (
               approvals
                 .filter((item) => item.status === 'PENDING_APPROVAL')
@@ -793,10 +815,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   <div className="mb-5 rounded-xl border border-ab-border bg-ab-surface p-4">
                     <h3 className="mb-1 flex items-center gap-1.5 font-semibold">
                       وضع الأمان
-                      <HelpTip textAr="صارم = موافقة على معظم الأدوات. تلقائي = موافقة للخطر العالي فقط. حر = تنفيذ أسرع مع مخاطر أعلى." />
+                      <HelpTip textAr="صارم = موافقة على معظم الأدوات. تلقائي = موافقة لحذف الملفات والأشياء فقط. حر = أسرع؛ الحذف يبقى بموافقة إن كانت الحوكمة مفعّلة." />
                     </h3>
                     <p className="mb-3 text-xs text-stone-500">
-                      يحدد متى يطلب الوكيل موافقتك قبل تنفيذ إجراء.
+                      الوضع الافتراضي: كل شيء تلقائي ما عدا الحذف.
                     </p>
                     <SecurityPosturePicker />
                   </div>
