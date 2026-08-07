@@ -124,13 +124,13 @@ function AccountStatus() {
 
   if (required === null && signedIn === null) {
     return (
-      <p className="text-[11px] text-stone-400">جاري فحص حالة الحساب…</p>
+      <p className="text-[11px] text-ab-muted-soft">جاري فحص حالة الحساب…</p>
     )
   }
 
   if (signedIn === null) {
     return (
-      <p className="text-[11px] text-stone-400">جاري التحقق من الدخول…</p>
+      <p className="text-[11px] text-ab-muted-soft">جاري التحقق من الدخول…</p>
     )
   }
 

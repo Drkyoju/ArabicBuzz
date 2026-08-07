@@ -431,7 +431,7 @@ export function GoogleCalendarPanel({
               المدعوّين أدناه <strong>بدون</strong> تسجيل دخولهم.
             </p>
           </div>
-          {busy && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
+          {busy && <Loader2 className="h-4 w-4 animate-spin text-ab-muted-soft" />}
         </div>
       )}
       {hideTitle && (
@@ -447,7 +447,7 @@ export function GoogleCalendarPanel({
             ) ووافق على صلاحيات Gmail والتقويم. Microsoft 365 / IMAP غير
             مدعومين هنا.
           </p>
-          {busy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-stone-400" />}
+          {busy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ab-muted-soft" />}
         </div>
       )}
 
@@ -559,7 +559,7 @@ export function GoogleCalendarPanel({
           </button>
         </div>
         {memberEmails.length === 0 ? (
-          <p className="text-[11px] text-stone-400">
+          <p className="text-[11px] text-ab-muted-soft">
             لا بريد بعد — أضف أعضاءً من لوحة الغرفة أو بريداً هنا للدعوات.
           </p>
         ) : (
@@ -573,7 +573,7 @@ export function GoogleCalendarPanel({
                 <button
                   type="button"
                   onClick={() => removeEmail(email)}
-                  className="text-stone-400 hover:text-red-600"
+                  className="text-ab-muted-soft hover:text-red-600"
                   aria-label={`حذف ${email}`}
                 >
                   <Unlink className="h-3 w-3" />
@@ -628,7 +628,7 @@ export function GoogleCalendarPanel({
               إنشاء Zoom تلقائي مفعّل — اترك الحقل فارغاً ليُنشأ الرابط عند الحجز.
             </p>
           ) : (
-            <p className="text-[10px] text-stone-400">
+            <p className="text-[10px] text-ab-muted-soft">
               للصق رابط يدوياً، أو اربط Zoom من الإعدادات.
             </p>
           )}
@@ -665,9 +665,9 @@ export function GoogleCalendarPanel({
               >
                 <span>
                   {formatSlot(s.startIso)}
-                  <span className="text-stone-400"> — </span>
+                  <span className="text-ab-muted-soft"> — </span>
                   {formatSlot(s.endIso)}
-                  <span className="ms-1 text-stone-400">
+                  <span className="ms-1 text-ab-muted-soft">
                     ({s.durationMinutes} د)
                   </span>
                 </span>
@@ -700,13 +700,13 @@ export function GoogleCalendarPanel({
                     <li key={e.id}>
                       {e.summary}
                       {e.accountEmail ? (
-                        <span className="text-stone-400" dir="ltr">
+                        <span className="text-ab-muted-soft" dir="ltr">
                           {' '}
                           · {e.accountEmail}
                         </span>
                       ) : null}
                       {e.start ? (
-                        <span className="text-stone-400" dir="ltr">
+                        <span className="text-ab-muted-soft" dir="ltr">
                           {' '}
                           · {e.start}
                         </span>

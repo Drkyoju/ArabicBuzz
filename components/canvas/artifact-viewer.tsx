@@ -244,7 +244,7 @@ export function CanvasViewer({
         </h2>
         {(active.updatedBy || active.updatedAt) && (
           <p
-            className="hidden max-w-[10rem] truncate text-[10px] text-stone-400 sm:block"
+            className="hidden max-w-[10rem] truncate text-[10px] text-ab-muted-soft sm:block"
             dir="ltr"
           >
             {active.updatedBy || '—'}
@@ -430,7 +430,7 @@ export function CanvasViewer({
                   setPdfPreview(false)
                   setDriveConfirm(false)
                 }}
-                className="rounded p-1 text-stone-400 hover:bg-stone-100"
+                className="rounded p-1 text-ab-muted-soft hover:bg-stone-100"
                 aria-label="إغلاق"
               >
                 <X className="h-4 w-4" />

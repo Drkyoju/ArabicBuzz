@@ -15,7 +15,7 @@ export function HelpTip({
   return (
     <span
       className={cn(
-        'inline-flex align-middle text-stone-400 hover:text-ab-accent',
+        'inline-flex align-middle text-ab-muted-soft hover:text-ab-accent',
         className
       )}
       title={textAr}

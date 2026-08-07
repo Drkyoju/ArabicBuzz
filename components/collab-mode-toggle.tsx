@@ -59,7 +59,7 @@ export function CollabModeToggle({
           aria-expanded={showTip}
           onClick={() => setShowTip((v) => !v)}
           className={cn(
-            'rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-ab-ink',
+            'rounded p-0.5 text-ab-muted-soft hover:bg-stone-100 hover:text-ab-ink',
             showTip && 'text-ab-accent'
           )}
         >

@@ -278,7 +278,7 @@ time,
   /* ——— Form / controls ——— */
   .ab-input {
     @apply w-full rounded-lg border border-ab-border bg-white px-3 py-2 text-sm text-ab-ink outline-none;
-    @apply placeholder:text-stone-400 focus:border-ab-accent focus:ring-2 focus:ring-ab-accent/30;
+    @apply placeholder:text-ab-muted-soft focus:border-ab-accent focus:ring-2 focus:ring-ab-accent/30;
   }
   .ab-select {
     @apply w-full truncate rounded-lg border border-ab-border bg-white outline-none;

@@ -175,7 +175,7 @@ export function AssistantsOpsSeatsStrip({
                   'shrink-0 text-[9px] font-bold',
                   seat.status === 'working' && 'text-ab-accent',
                   seat.status === 'ready' && 'text-emerald-700',
-                  seat.status === 'off' && 'text-stone-400'
+                  seat.status === 'off' && 'text-ab-muted-soft'
                 )}
               >
                 {seat.statusAr}
@@ -203,7 +203,7 @@ export function AssistantsOpsSeatsStrip({
                 ) : null}
               </>
             ) : (
-              <p className="mt-0.5 text-[10px] text-stone-400">
+              <p className="mt-0.5 text-[10px] text-ab-muted-soft">
                 {seat.status === 'ready' ? 'مقعد فارغ' : 'غير متصل'}
               </p>
             )}

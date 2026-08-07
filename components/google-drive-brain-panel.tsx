@@ -331,14 +331,14 @@ export function GoogleDriveBrainPanel() {
           {preview.files.slice(0, 30).map((f) => (
             <li key={f.id} className="truncate text-stone-700">
               {f.name}
-              <span className="text-stone-400">
+              <span className="text-ab-muted-soft">
                 {' '}
                 · {f.mimeType.split('.').pop()}
               </span>
             </li>
           ))}
           {preview.files.length > 30 && (
-            <li className="text-stone-400">
+            <li className="text-ab-muted-soft">
               …و{preview.files.length - 30} أخرى
             </li>
           )}

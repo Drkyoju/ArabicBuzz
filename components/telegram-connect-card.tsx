@@ -58,7 +58,7 @@ export function TelegramConnectCard() {
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         {ready === null ? (
-          <span className="text-stone-400">جاري الفحص…</span>
+          <span className="text-ab-muted-soft">جاري الفحص…</span>
         ) : ok && (outboundOk || ownerOk) ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -157,7 +157,7 @@ export function ConnectedServicesPanel() {
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">
         <p className="mb-1 font-semibold text-ab-ink">
           اجتماعات Zoom{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {zoomOk ? '· جاهز تلقائياً' : '· اختياري'}
           </span>
         </p>
@@ -170,7 +170,7 @@ export function ConnectedServicesPanel() {
       <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">
         <p className="mb-1 font-semibold text-ab-ink">
           خزنة الماك{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {macOnline
               ? '· متصلة'
               : macConfigured

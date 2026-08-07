@@ -172,13 +172,13 @@ export function MemoryPanel() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p>
-                    <span className="me-2 text-[11px] font-semibold text-stone-400">
+                    <span className="me-2 text-[11px] font-semibold text-ab-muted-soft">
                       {i + 1}.
                     </span>
                     {m.content}
                   </p>
                   {m.createdByAr && (
-                    <p className="mt-1 text-[10px] text-stone-400">
+                    <p className="mt-1 text-[10px] text-ab-muted-soft">
                       {m.createdByAr}
                     </p>
                   )}
@@ -234,7 +234,7 @@ export function MemoryPanel() {
               ) : (
                 <div className="flex items-start justify-between gap-2">
                   <p>
-                    <span className="me-2 text-[11px] font-semibold text-stone-400">
+                    <span className="me-2 text-[11px] font-semibold text-ab-muted-soft">
                       {i + 1}.
                     </span>
                     {m}

@@ -402,7 +402,7 @@ export function RoomTasksBoard() {
 
       <ul className="divide-y divide-ab-border rounded-xl border border-ab-border bg-white">
         {open.length === 0 ? (
-          <li className="p-6 text-center text-sm text-stone-400">
+          <li className="p-6 text-center text-sm text-ab-muted-soft">
             لا مهام — أضف يدوياً أو اطلب من الوكيل: «أضف طلباً… إلى لوحة الغرفة».
           </li>
         ) : (
@@ -483,7 +483,7 @@ export function RoomTasksBoard() {
                 <div className="mt-2 rounded-lg border border-ab-border/70 bg-stone-50/80 p-2.5">
                   <ul className="mb-2 max-h-40 space-y-1.5 overflow-y-auto">
                     {(comments[t.id] || []).length === 0 ? (
-                      <li className="text-[11px] text-stone-400">
+                      <li className="text-[11px] text-ab-muted-soft">
                         لا تعليقات بعد
                       </li>
                     ) : (
@@ -492,7 +492,7 @@ export function RoomTasksBoard() {
                           <span className="font-semibold text-ab-ink">
                             {c.authorAr}
                           </span>
-                          <span className="text-stone-400"> · </span>
+                          <span className="text-ab-muted-soft"> · </span>
                           {c.bodyAr}
                         </li>
                       ))

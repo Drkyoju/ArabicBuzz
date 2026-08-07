@@ -167,11 +167,11 @@ export function AssociationKnowledgePanel() {
                 <span>
                   {m.nameAr}
                   {m.email ? (
-                    <span className="ms-1 text-stone-400" dir="ltr">
+                    <span className="ms-1 text-ab-muted-soft" dir="ltr">
                       {m.email}
                     </span>
                   ) : null}
-                  <span className="ms-1 text-stone-400">({m.role})</span>
+                  <span className="ms-1 text-ab-muted-soft">({m.role})</span>
                 </span>
                 <span className="shrink-0 text-stone-600">
                   {m.actionsLastDays} إجراء

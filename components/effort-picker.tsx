@@ -68,7 +68,7 @@ export function EffortPicker({
           {RUN_EFFORT_SHORT_AR[effort]} — {RUN_EFFORT_HINTS_AR[effort]}
         </p>
       ) : (
-        <p className="text-[9px] leading-snug text-stone-400">
+        <p className="text-[9px] leading-snug text-ab-muted-soft">
           {RUN_EFFORT_SHORT_AR[effort]}
         </p>
       )}

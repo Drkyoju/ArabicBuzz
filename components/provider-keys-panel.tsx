@@ -304,7 +304,7 @@ export function ProviderKeysPanel({
                       className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-stone-500"
                     >
                       <span>{m.labelAr}</span>
-                      <span className="text-[10px] text-stone-400">
+                      <span className="text-[10px] text-ab-muted-soft">
                         {m.blockedReasonAr || m.missingKey}
                       </span>
                     </li>
@@ -373,7 +373,7 @@ function ProviderEditor({
           </span>
         ) : null}
         {p.liveDetail ? (
-          <span className="ms-2 text-stone-400">· {p.liveDetail}</span>
+          <span className="ms-2 text-ab-muted-soft">· {p.liveDetail}</span>
         ) : null}
       </p>
       {p.configured && p.liveOk === false && p.source === 'environment' && (

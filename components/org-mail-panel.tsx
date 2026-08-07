@@ -764,7 +764,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             </span>
           )}
           {mailbox.lastSyncAt && (
-            <span className="text-stone-400">
+            <span className="text-ab-muted-soft">
               مزامنة {new Date(mailbox.lastSyncAt).toLocaleString('ar-SA')}
             </span>
           )}
@@ -819,7 +819,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 <div className="mt-0.5 truncate text-[11px] text-stone-500" dir="ltr">
                   {m.from}
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[11px] text-stone-400">
+                <div className="mt-0.5 line-clamp-2 text-[11px] text-ab-muted-soft">
                   {m.snippet}
                 </div>
               </button>
@@ -1120,7 +1120,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     >
                       <p className="font-medium text-ab-ink" dir="auto">
                         {a.filename}{' '}
-                        <span className="font-normal text-stone-400" dir="ltr">
+                        <span className="font-normal text-ab-muted-soft" dir="ltr">
                           ({Math.round(a.size / 1024)} KB
                           {a.extractMethod ? ` · ${a.extractMethod}` : ''})
                         </span>

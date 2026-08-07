@@ -145,7 +145,7 @@ export function DocumentEditor({
         <div className="flex items-center justify-between gap-2 border-b border-ab-border px-3 py-2">
           <p className="text-sm font-semibold text-ab-ink">{titleAr}</p>
           {scopeId && docId && (
-            <p className="text-[10px] text-stone-400">
+            <p className="text-[10px] text-ab-muted-soft">
               تحرير مباشر · مؤشرات حية
             </p>
           )}

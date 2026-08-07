@@ -132,7 +132,7 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
         ) : null}
         <button
           type="button"
-          className="ms-auto rounded p-1 text-stone-400 hover:bg-stone-200 hover:text-ab-ink"
+          className="ms-auto rounded p-1 text-ab-muted-soft hover:bg-stone-200 hover:text-ab-ink"
           aria-label="تحديث البريد الشخصي"
           disabled={loading}
           onClick={() => void refresh()}

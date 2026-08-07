@@ -548,7 +548,7 @@ function SidebarBody({
                 </button>
                 <button
                   type="button"
-                  className="absolute start-1 top-1 rounded p-0.5 text-stone-400 opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
+                  className="absolute start-1 top-1 rounded p-0.5 text-ab-muted-soft opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
                   aria-label="خيارات المساحة الخاصة"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -591,7 +591,7 @@ function SidebarBody({
             <button
               type="button"
               onClick={() => setShowOtherRooms((v) => !v)}
-              className="mb-1 w-full px-2 text-right text-[10px] font-semibold text-stone-400 hover:text-stone-600"
+              className="mb-1 w-full px-2 text-right text-[10px] font-semibold text-ab-muted-soft hover:text-stone-600"
             >
               {showOtherRooms
                 ? 'إخفاء غرف الدعوة'
@@ -623,7 +623,7 @@ function SidebarBody({
                         <span
                           className={cn(
                             'mt-0.5 block text-[10px]',
-                            active ? 'text-white/70' : 'text-stone-400'
+                            active ? 'text-white/70' : 'text-ab-muted-soft'
                           )}
                         >
                           {shared

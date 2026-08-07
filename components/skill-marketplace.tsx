@@ -261,22 +261,25 @@ export function SkillMarketplace({
       </div>
 
       {message && (
-        <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+        <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
           {message}
         </p>
       )}
       {error && (
-        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+        <p className="ab-note-danger mb-4" role="alert">
           {error}
         </p>
       )}
 
       {proposals.length > 0 && (
         <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-ab-ink">
-            اقتراحات معلّقة ({proposals.length})
+          <h3 className="text-[0.9375rem] font-bold tracking-tight text-ab-ink">
+            اقتراحات معلّقة
+            <span className="ms-1.5 tabular-nums text-amber-800">
+              {proposals.length}
+            </span>
           </h3>
-          <p className="mb-3 text-[11px] text-stone-600">
+          <p className="mb-3 mt-0.5 text-[11px] leading-relaxed text-amber-900/80">
             مهارات مستخرجة من المحادثة — اعتمدها قبل أن تدخل حيّز الاستخدام.
           </p>
           <ul className="space-y-2">
@@ -316,56 +319,61 @@ export function SkillMarketplace({
         </div>
       )}
 
-      <div className="mb-8">
-        <h3 className="mb-2 text-sm font-semibold text-ab-ink">
-          مهاراتك الحالية ({mine.length})
-        </h3>
+      <section className="mb-8">
+        <div className="ab-section-head">
+          <h3 className="ab-section-title">
+            مهاراتك الحالية
+            <span className="ab-section-count">{mine.length}</span>
+          </h3>
+        </div>
         {mine.length === 0 ? (
-          <p className="text-xs text-stone-500">
-            لا مهارات بعد — افتح «أضف مهارة» أو ثبّت من الحزمة الجاهزة.
+          <p className="ab-empty">
+            لا مهارات بعد. افتح «أضف مهارة» أو ثبّت من الحزمة الجاهزة.
           </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="ab-list">
             {mine.map((s) => (
               <li
                 key={s.id}
-                className="flex items-start justify-between gap-2 rounded-lg border border-ab-border bg-ab-surface px-3 py-2"
+                className="flex items-start justify-between gap-2 px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ab-ink">{s.name}</p>
-                  <p className="text-xs text-stone-500">{s.description}</p>
+                  <p className="text-[13px] font-semibold text-ab-ink">
+                    {s.name}
+                  </p>
+                  <p className="ab-meta mt-0.5">{s.description}</p>
                 </div>
                 <button
                   type="button"
                   disabled={deleteBusy === s.id}
                   onClick={() => void removeSkill(s)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700 disabled:opacity-40"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-ab-muted transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
                   aria-label={`حذف ${s.name}`}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3 w-3" aria-hidden />
                   حذف
                 </button>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </section>
 
       <div className="rounded-xl border border-dashed border-ab-border bg-ab-stage/50 p-4">
         <button
           type="button"
           onClick={() => setShowCatalog((v) => !v)}
-          className="flex w-full items-center justify-between gap-2 text-sm font-semibold text-ab-ink"
+          aria-expanded={showCatalog}
+          className="flex w-full items-center justify-between gap-2 text-[0.9375rem] font-bold tracking-tight text-ab-ink"
         >
           <span className="inline-flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-ab-accent" aria-hidden />
-            حزمة المملكة الجاهزة ({KSA_SKILL_CATALOG.length})
+            حزمة المملكة الجاهزة
+            <span className="ab-section-count">{KSA_SKILL_CATALOG.length}</span>
           </span>
-          <span className="text-xs font-normal text-stone-500">
-            {showCatalog ? 'إخفاء' : 'عرض'}
-          </span>
+          <span className="ab-action">{showCatalog ? 'إخفاء' : 'عرض'}</span>
         </button>
-        <p className="mt-1 text-[11px] text-stone-500">
+        <p className="mt-1 text-[11px] leading-relaxed text-ab-muted">
           الحزمة الأساسية (بريد، تقويم، محاضر، مكتب عربي، بحث، تيليجرام){' '}
           <strong className="font-semibold text-ab-ink">مفعّلة تلقائياً</strong>{' '}
           للوكلاء دون تثبيت. الباقي اختياري من كتالوج المملكة.

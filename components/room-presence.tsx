@@ -557,13 +557,13 @@ export function RoomPresenceBar({
         <span className="md:hidden tabular-nums">{viewingCount}</span>
         <span className="hidden md:inline">{viewingCount} يشاهدون</span>
       </span>
-      <span className="hidden text-[11px] text-stone-400 sm:inline">
+      <span className="hidden text-[11px] text-ab-muted-soft sm:inline">
         · متصلون {online.length}
         {away.length > 0 ? ` · بعيد ${away.length}` : ''}
       </span>
       <ChevronDown
         className={cn(
-          'h-3 w-3 text-stone-400 transition',
+          'h-3 w-3 text-ab-muted-soft transition',
           open && 'rotate-180'
         )}
         aria-hidden
@@ -613,7 +613,7 @@ export function RoomPresenceBar({
                     <p className="truncate text-[12px] font-semibold text-ab-ink">
                       {peerLabel(p)}
                       {p.status === 'away' && (
-                        <span className="mr-1 text-[10px] font-normal text-stone-400">
+                        <span className="mr-1 text-[10px] font-normal text-ab-muted-soft">
                           (بعيد / تبويب مخفي)
                         </span>
                       )}
@@ -626,7 +626,7 @@ export function RoomPresenceBar({
                     <p className="truncate text-[10px] text-stone-500" dir="ltr">
                       {peerDetail(p) || 'بدون بريد ظاهر'}
                     </p>
-                    <p className="text-[10px] text-stone-400">
+                    <p className="text-[10px] text-ab-muted-soft">
                       يشاهد: {surfaceLabel(p.surface)}
                     </p>
                   </div>
@@ -640,7 +640,7 @@ export function RoomPresenceBar({
                 آخر التعديلات
               </p>
               {edits.length === 0 ? (
-                <p className="text-[10px] text-stone-400">لا تعديلات مسجّلة بعد.</p>
+                <p className="text-[10px] text-ab-muted-soft">لا تعديلات مسجّلة بعد.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {edits.slice(0, 5).map((e) => (
@@ -652,7 +652,7 @@ export function RoomPresenceBar({
                       {' · '}
                       {e.actionAr}
                       {e.detailAr ? ` — ${e.detailAr.slice(0, 60)}` : ''}
-                      <span className="text-stone-400">
+                      <span className="text-ab-muted-soft">
                         {' '}
                         · {relativeAr(e.at)}
                       </span>
@@ -698,7 +698,7 @@ export function RoomPresenceBar({
           </div>
           {summary}
           {lastEdit && (
-            <span className="hidden truncate text-[10px] text-stone-400 md:inline">
+            <span className="hidden truncate text-[10px] text-ab-muted-soft md:inline">
               · آخر تعديل: {lastEdit.actorAr} {relativeAr(lastEdit.at)}
             </span>
           )}
@@ -737,7 +737,7 @@ export function RoomPresenceBar({
         </div>
         {summary}
         {lastEdit && (
-          <span className="text-stone-400">
+          <span className="text-ab-muted-soft">
             · {lastEdit.actorAr} {lastEdit.actionAr} · {relativeAr(lastEdit.at)}
           </span>
         )}

@@ -171,7 +171,7 @@ export function McpServersPanel() {
             <PlugZap className="h-4 w-4 text-ab-accent" aria-hidden />
             أدوات خارجية
           </h3>
-          <p className="mt-1 text-[11px] text-stone-500">
+          <p className="mt-1 text-[11px] leading-relaxed text-ab-muted">
             خوادم توسّع قدرات الوكيل (بحث، متصفح، قواعد بيانات…). كل بطاقة تشرح
             بالعربية ماذا تفعل.
           </p>
@@ -262,13 +262,13 @@ export function McpServersPanel() {
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-stone-600">
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ab-muted">
                     {item.descriptionAr}
                   </p>
-                  <p className="mt-1 text-[10px] text-stone-400">
+                  <p className="mt-1 ab-meta">
                     {item.categoryAr} · الفائدة: {item.benefitsAr}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-stone-400">
+                  <p className="mt-0.5 ab-meta">
                     {item.setupHintAr}
                     {item.runtime === 'local' ? ' · محلي/ماك' : ''}
                   </p>
@@ -312,7 +312,7 @@ export function McpServersPanel() {
                       {item.defaultUrl ? 'اتصال' : 'ربط برابط'}
                     </button>
                   ) : (
-                    <span className="text-[10px] text-stone-400">ماك فقط</span>
+                    <span className="ab-meta">ماك فقط</span>
                   )}
                   {item.docsUrl && (
                     <a

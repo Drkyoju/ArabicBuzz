@@ -193,7 +193,7 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
       </ul>
 
       {checkedAt && (
-        <p className="mt-2 text-[10px] text-stone-400" dir="ltr">
+        <p className="mt-2 text-[10px] text-ab-muted-soft" dir="ltr">
           آخر فحص: {new Date(checkedAt).toLocaleTimeString('ar-SA')}
         </p>
       )}

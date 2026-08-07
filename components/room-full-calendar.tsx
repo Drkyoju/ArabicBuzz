@@ -314,7 +314,7 @@ export function RoomFullCalendar({
               <p className="text-sm font-bold text-ab-ink">
                 {monthLabelAr(viewYm)}
               </p>
-              <p className="text-[10px] text-stone-400">
+              <p className="text-[10px] text-ab-muted-soft">
                 {monthEvents.length} موعد
               </p>
             </div>
@@ -385,7 +385,7 @@ export function RoomFullCalendar({
                           </p>
                         ))}
                         {dayEvents.length > 2 && (
-                          <p className="text-[9px] text-stone-400">
+                          <p className="text-[9px] text-ab-muted-soft">
                             +{dayEvents.length - 2}
                           </p>
                         )}
@@ -402,7 +402,7 @@ export function RoomFullCalendar({
               مواعيد {monthLabelAr(viewYm)}
             </h4>
             {monthGroups.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-3 text-[12px] text-stone-400">
+              <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-3 text-[12px] text-ab-muted-soft">
                 لا مواعيد في هذا الشهر.
               </p>
             ) : (
@@ -418,7 +418,7 @@ export function RoomFullCalendar({
                           <span className="text-[12px] font-semibold text-ab-ink">
                             {e.titleAr}
                           </span>
-                          <span className="text-[10px] text-stone-400">
+                          <span className="text-[10px] text-ab-muted-soft">
                             {fmtTime(e.startsAt)}
                             {e.createdByAr ? ` · ${e.createdByAr}` : ''}
                           </span>
@@ -439,7 +439,7 @@ export function RoomFullCalendar({
             {events.length} موعد في تقويم الغرفة المشترك
           </p>
           {allMonthGroups.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-3 text-[12px] text-stone-400">
+            <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 px-3 py-3 text-[12px] text-ab-muted-soft">
               لا مواعيد بعد في هذه الغرفة.
             </p>
           ) : (
@@ -461,7 +461,7 @@ export function RoomFullCalendar({
                             <span className="text-[12px] font-semibold text-ab-ink">
                               {e.titleAr}
                             </span>
-                            <span className="text-[10px] text-stone-400">
+                            <span className="text-[10px] text-ab-muted-soft">
                               {fmtTime(e.startsAt)}
                               {e.createdByAr ? ` · ${e.createdByAr}` : ''}
                             </span>

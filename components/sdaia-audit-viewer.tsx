@@ -355,12 +355,12 @@ export function SdaiaAuditViewer() {
                         ) : null}
                       </p>
                       {l.titleAr ? (
-                        <p className="text-[10px] text-stone-400">
+                        <p className="text-[10px] text-ab-muted-soft">
                           {when.hijri}
                           {when.time ? ` · ${when.time}` : ''}
                         </p>
                       ) : (
-                        <p className="text-[10px] text-stone-400" dir="ltr">
+                        <p className="text-[10px] text-ab-muted-soft" dir="ltr">
                           {when.full}
                         </p>
                       )}
@@ -374,29 +374,29 @@ export function SdaiaAuditViewer() {
                   <dl className="mt-2 grid gap-1 text-[11px] text-stone-600 sm:grid-cols-2">
                     {l.actorAr ? (
                       <div>
-                        <dt className="inline text-stone-400">الفاعل · </dt>
+                        <dt className="inline text-ab-muted-soft">الفاعل · </dt>
                         <dd className="inline">{l.actorAr}</dd>
                       </div>
                     ) : null}
                     {l.detailAr ? (
                       <div className="sm:col-span-2">
-                        <dt className="inline text-stone-400">التفاصيل · </dt>
+                        <dt className="inline text-ab-muted-soft">التفاصيل · </dt>
                         <dd className="inline">{l.detailAr}</dd>
                       </div>
                     ) : null}
                     <div>
-                      <dt className="inline text-stone-400">النطاق · </dt>
+                      <dt className="inline text-ab-muted-soft">النطاق · </dt>
                       <dd className="inline font-mono" dir="ltr">
                         {l.scopeId || '—'}
                       </dd>
                     </div>
                     <div>
-                      <dt className="inline text-stone-400">المحلية · </dt>
+                      <dt className="inline text-ab-muted-soft">المحلية · </dt>
                       <dd className="inline">{l.dataLocality || '—'}</dd>
                     </div>
                     {l.modelUsed ? (
                       <div>
-                        <dt className="inline text-stone-400">النموذج · </dt>
+                        <dt className="inline text-ab-muted-soft">النموذج · </dt>
                         <dd className="inline font-mono" dir="ltr">
                           {l.modelUsed}
                         </dd>
@@ -404,7 +404,7 @@ export function SdaiaAuditViewer() {
                     ) : null}
                     {l.approvedBy ? (
                       <div>
-                        <dt className="inline text-stone-400">المعتمد · </dt>
+                        <dt className="inline text-ab-muted-soft">المعتمد · </dt>
                         <dd className="inline font-mono" dir="ltr">
                           {l.approvedBy}
                         </dd>
@@ -412,7 +412,7 @@ export function SdaiaAuditViewer() {
                     ) : null}
                     {l.source === 'sdaia' && l.watermarkSignature ? (
                       <div className="sm:col-span-2">
-                        <dt className="inline text-stone-400">الختم · </dt>
+                        <dt className="inline text-ab-muted-soft">الختم · </dt>
                         <dd className="inline font-mono text-[10px]" dir="ltr">
                           {l.watermarkSignature.slice(0, 32)}…
                         </dd>

@@ -222,7 +222,7 @@ export function AgentsManagePanel({
     <div className={cn(className)} dir="rtl">
       <div className="flex flex-wrap items-center gap-1.5">
         {!compact && (
-          <span className="text-[10px] font-medium text-stone-400">وكلاء</span>
+          <span className="text-[10px] font-medium text-ab-muted-soft">وكلاء</span>
         )}
         <button
           type="button"
@@ -253,7 +253,7 @@ export function AgentsManagePanel({
             <div className="flex items-center justify-between border-b border-ab-border px-4 py-3">
               <div>
                 <h3 className="text-sm font-bold text-ab-ink">إدارة الوكلاء</h3>
-                <p className="text-[10px] text-stone-400">
+                <p className="text-[10px] text-ab-muted-soft">
                   {cloudSyncedAt
                     ? sharedFixed
                       ? 'محفوظ للغرفة — كل الموظفين يشاركون نفس الأسماء'
@@ -346,7 +346,7 @@ export function AgentsManagePanel({
                           </option>
                         ))}
                       </select>
-                      <span className="text-[9px] leading-snug text-stone-400">
+                      <span className="text-[9px] leading-snug text-ab-muted-soft">
                         {RUN_EFFORT_SHORT_AR[batchEffort]}
                       </span>
                     </label>
@@ -448,7 +448,7 @@ export function AgentsManagePanel({
                           </option>
                         ))}
                       </select>
-                      <span className="text-[9px] leading-snug text-stone-400">
+                      <span className="text-[9px] leading-snug text-ab-muted-soft">
                         {RUN_EFFORT_SHORT_AR[effort]} —{' '}
                         {RUN_EFFORT_HINTS_AR[effort]}
                       </span>
@@ -519,7 +519,7 @@ export function AgentsManagePanel({
                         <div className="min-w-0">
                           <p className="font-medium">
                             {agent.nameAr}
-                            <span className="ms-1 text-[10px] text-stone-400">
+                            <span className="ms-1 text-[10px] text-ab-muted-soft">
                               {agent.custom ? 'مخصص' : 'افتراضي'} ·{' '}
                               {agentModelLabelAr(agent.preferredModel)} · قوة{' '}
                               {
@@ -530,7 +530,7 @@ export function AgentsManagePanel({
                             </span>
                           </p>
                           <p
-                            className="font-mono text-[10px] text-stone-400"
+                            className="font-mono text-[10px] text-ab-muted-soft"
                             dir="ltr"
                           >
                             @{agent.slug}
@@ -644,7 +644,7 @@ export function AgentsManagePanel({
                       ))}
                     {BUILTIN_ROOM_AGENTS.every((a) => seatedIds.has(a.id)) &&
                       catalog.every((a) => seatedIds.has(a.id)) && (
-                        <p className="text-[10px] text-stone-400">
+                        <p className="text-[10px] text-ab-muted-soft">
                           كل الوكلاء في المقاعد.
                         </p>
                       )}
@@ -652,7 +652,7 @@ export function AgentsManagePanel({
                 </div>
               )}
 
-              <p className="text-[10px] text-stone-400">
+              <p className="text-[10px] text-ab-muted-soft">
                 وضع التعاون:{' '}
                 {collabMode === 'team' ? 'فريق (عدة وكلاء)' : 'منفصل'}
               </p>

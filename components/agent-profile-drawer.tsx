@@ -189,7 +189,7 @@ export function AgentProfileDrawer({
             <p className="mt-1 text-[12px] leading-relaxed text-stone-700">
               {profile.ownerBondAr}
             </p>
-            <p className="mt-1 font-mono text-[10px] text-stone-400" dir="ltr">
+            <p className="mt-1 font-mono text-[10px] text-ab-muted-soft" dir="ltr">
               agent:{agent.id}
             </p>
           </div>
@@ -205,7 +205,7 @@ export function AgentProfileDrawer({
                 : profile.modelHintAr}
             </p>
             {agent.preferredModel && (
-              <p className="mt-1 text-[10px] text-stone-400" dir="ltr">
+              <p className="mt-1 text-[10px] text-ab-muted-soft" dir="ltr">
                 {agent.preferredModel}
               </p>
             )}

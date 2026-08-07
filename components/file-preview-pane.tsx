@@ -338,7 +338,7 @@ export function FilePreviewPane({
           </div>
         )}
         {payload?.truncated && (
-          <p className="mt-2 text-[10px] text-stone-400">
+          <p className="mt-2 text-[10px] text-ab-muted-soft">
             المعاينة مقتطعة للطول — الملف الكامل عبر التنزيل.
           </p>
         )}

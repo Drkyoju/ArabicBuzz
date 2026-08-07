@@ -524,7 +524,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                         }
                       />
                     </div>
-                    <p className="truncate text-[10px] text-stone-400" dir="ltr">
+                    <p className="truncate text-[10px] text-ab-muted-soft" dir="ltr">
                       {[m.email, m.phone].filter(Boolean).join(' · ') || '—'}
                     </p>
                     {(m.committee || m.notesAr) && (
@@ -558,7 +558,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                           void removeMember(m.id)
                         }
                       }}
-                      className="rounded p-1 text-stone-400 hover:text-red-600"
+                      className="rounded p-1 text-ab-muted-soft hover:text-red-600"
                       aria-label={`حذف ${m.displayNameAr}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -619,7 +619,7 @@ export function RoomTeamPanel({ scopeId }: { scopeId: string }) {
                   >
                     <div className="flex justify-between gap-2">
                       <span className="font-medium">{ev.titleAr}</span>
-                      <span className="shrink-0 text-[10px] text-stone-400">
+                      <span className="shrink-0 text-[10px] text-ab-muted-soft">
                         {fmt(ev.at)}
                       </span>
                     </div>

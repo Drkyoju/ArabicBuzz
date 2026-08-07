@@ -1059,7 +1059,7 @@ export function AssistantsCorePanel({
                     />
                   ) : (
                     <Clock
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400"
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ab-muted-soft"
                       aria-hidden
                     />
                   )}

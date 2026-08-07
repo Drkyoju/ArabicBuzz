@@ -314,7 +314,7 @@ export function FirstRunChecklist({
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-md p-1 text-stone-400 hover:bg-white hover:text-ab-ink"
+            className="rounded-md p-1 text-ab-muted-soft hover:bg-white hover:text-ab-ink"
             aria-label="إخفاء"
           >
             <X className="h-4 w-4" />

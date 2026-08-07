@@ -98,7 +98,7 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
           تحويل الملفات{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             · الأفضل مجاناً عبر Google
           </span>
         </p>
@@ -134,7 +134,7 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
           Zoom إنشاء تلقائي{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {zoom?.configured ? '· مضبوط' : '· غير مضبوط'}
           </span>
         </p>
@@ -172,7 +172,7 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 flex items-center gap-1.5 font-semibold text-ab-ink">
           <MessageCircle className="h-3.5 w-3.5" />
           Telegram{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {tg ? '· مضبوط' : '· غير مضبوط'}
           </span>
         </p>
@@ -225,7 +225,7 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 flex items-center gap-1.5 font-semibold text-ab-ink">
           <MessageCircle className="h-3.5 w-3.5" />
           واتساب (مجاني فقط){' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {waBridge ? '· جسر مضبوط' : '· يحتاج جسراً محلياً'}
           </span>
         </p>
@@ -274,7 +274,7 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
           خزنة الماك{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             {macConfigured === null
               ? '· جاري الفحص…'
               : macConfigured === false
@@ -311,7 +311,7 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
           CloudConvert{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             ·{' '}
             {cloudConvertStatusAr ||
               (cloudConvertConfigured
@@ -360,7 +360,7 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 font-semibold text-ab-ink">
           جسر Cua{' '}
-          <span className="font-normal text-stone-400">
+          <span className="font-normal text-ab-muted-soft">
             · {cuaStatusAr || (cuaConfigured === false ? 'غير متصل' : cuaOnline ? 'متصل' : 'غير متصل')}
           </span>
         </p>

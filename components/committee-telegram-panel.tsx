@@ -120,7 +120,7 @@ export function CommitteeTelegramPanel() {
                   مربوط · {r.bound.chatId}
                 </span>
               ) : (
-                <span className="text-[10px] text-stone-400">غير مربوط</span>
+                <span className="text-[10px] text-ab-muted-soft">غير مربوط</span>
               )}
             </div>
             <div className="flex flex-wrap gap-2">

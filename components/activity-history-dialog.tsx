@@ -98,7 +98,7 @@ export function ActivityHistoryDialog({
               <History className="h-4 w-4 text-ab-accent" aria-hidden />
               كل النشاط
             </h3>
-            <p className="text-[10px] text-stone-400">
+            <p className="text-[10px] text-ab-muted-soft">
               تصفّح نشاط اليوم والأسبوع والشهر دون ازدحام اللوحة
             </p>
           </div>
@@ -132,7 +132,7 @@ export function ActivityHistoryDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-[12px] text-stone-400">
+            <p className="py-8 text-center text-[12px] text-ab-muted-soft">
               لا نشاط في هذه الفترة
             </p>
           ) : (
@@ -158,10 +158,10 @@ export function ActivityHistoryDialog({
                   {' · '}
                   {a.actionAr}
                   {a.detailAr ? (
-                    <span className="text-stone-400"> — {a.detailAr}</span>
+                    <span className="text-ab-muted-soft"> — {a.detailAr}</span>
                   ) : null}
                   {a.atAr ? (
-                    <span className="text-stone-400"> · {a.atAr}</span>
+                    <span className="text-ab-muted-soft"> · {a.atAr}</span>
                   ) : null}
                 </li>
               ))}
@@ -169,7 +169,7 @@ export function ActivityHistoryDialog({
           )}
         </div>
 
-        <div className="border-t border-ab-border px-4 py-2.5 text-[10px] text-stone-400">
+        <div className="border-t border-ab-border px-4 py-2.5 text-[10px] text-ab-muted-soft">
           {filtered.length} من أصل {items.length} نشاط
         </div>
       </div>

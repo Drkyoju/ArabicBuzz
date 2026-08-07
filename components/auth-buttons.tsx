@@ -366,7 +366,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
         type="button"
         disabled={Boolean(busy)}
         onClick={() => void startOauth('github')}
-        className="w-full text-center text-[11px] text-stone-400 underline disabled:opacity-40"
+        className="w-full text-center text-[11px] text-ab-muted-soft underline disabled:opacity-40"
       >
         الدخول بحساب GitHub
       </button>
@@ -376,7 +376,7 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
           type="button"
           disabled={Boolean(busy)}
           onClick={() => void demoLogin()}
-          className="w-full text-center text-[10px] text-stone-400 underline disabled:opacity-40"
+          className="w-full text-center text-[10px] text-ab-muted-soft underline disabled:opacity-40"
         >
           {busy === 'demo' ? 'جاري الدخول…' : 'دخول تجريبي (للاختبار فقط)'}
         </button>

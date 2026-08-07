@@ -213,7 +213,7 @@ export function ApprovalCard({
       <div className="mb-1 text-base font-semibold text-ab-ink">
         {humanizeAction(actionName)}
       </div>
-      <p className="mb-3 text-[11px] text-stone-400" dir="ltr">
+      <p className="mb-3 text-[11px] text-ab-muted-soft" dir="ltr">
         {actionName}
       </p>
 
@@ -263,7 +263,7 @@ export function ApprovalCard({
           <button
             type="button"
             onClick={() => setShowRaw((v) => !v)}
-            className="w-full border-t border-ab-border px-3 py-1.5 text-[10px] text-stone-400 hover:bg-stone-50"
+            className="w-full border-t border-ab-border px-3 py-1.5 text-[10px] text-ab-muted-soft hover:bg-stone-50"
           >
             {showRaw ? 'إخفاء JSON' : 'عرض JSON الخام'}
           </button>

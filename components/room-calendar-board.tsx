@@ -790,7 +790,7 @@ export function RoomCalendarBoard({
               {sourceLabel(e)}
             </span>
             {e.source !== 'google_sync' && e.createdByAr && (
-              <span className="text-stone-400">بواسطة {e.createdByAr}</span>
+              <span className="text-ab-muted-soft">بواسطة {e.createdByAr}</span>
             )}
           </div>
         </div>
@@ -800,7 +800,7 @@ export function RoomCalendarBoard({
               type="button"
               disabled={busy}
               onClick={() => startEdit(e)}
-              className="rounded p-1.5 text-stone-400 hover:bg-white hover:text-ab-ink"
+              className="rounded p-1.5 text-ab-muted-soft hover:bg-white hover:text-ab-ink"
               aria-label="تعديل"
               title="تعديل الموعد"
             >
@@ -810,7 +810,7 @@ export function RoomCalendarBoard({
               type="button"
               disabled={busy}
               onClick={() => void cancel(e.id)}
-              className="rounded p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-700"
+              className="rounded p-1.5 text-ab-muted-soft hover:bg-red-50 hover:text-red-700"
               aria-label="إلغاء"
               title="إلغاء من اللوحة"
             >
@@ -1213,9 +1213,9 @@ export function RoomCalendarBoard({
                   )}
                 >
                   <p className="text-sm font-bold text-ab-ink">{day.labelAr}</p>
-                  <p className="text-[10px] text-stone-400">{day.weekdayAr}</p>
+                  <p className="text-[10px] text-ab-muted-soft">{day.weekdayAr}</p>
                   {day.events.length === 0 ? (
-                    <p className="mt-2 text-[11px] text-stone-400">لا مواعيد</p>
+                    <p className="mt-2 text-[11px] text-ab-muted-soft">لا مواعيد</p>
                   ) : (
                     <ul className="mt-2 space-y-2">
                       {day.events.map((e) => renderEventRow(e))}
@@ -1248,7 +1248,7 @@ export function RoomCalendarBoard({
                           <p className="truncate text-[12px] font-medium text-ab-ink">
                             {e.titleAr}
                           </p>
-                          <p className="text-[10px] text-stone-400">
+                          <p className="text-[10px] text-ab-muted-soft">
                             {fmtTimeOnly(e.startsAt)}
                             {conflictIds.has(e.id) ? ' · تعارض' : ''}
                           </p>
@@ -1259,7 +1259,7 @@ export function RoomCalendarBoard({
                               type="button"
                               disabled={busy}
                               onClick={() => startEdit(e)}
-                              className="rounded p-1 text-stone-400 hover:bg-stone-50 hover:text-ab-ink"
+                              className="rounded p-1 text-ab-muted-soft hover:bg-stone-50 hover:text-ab-ink"
                               aria-label="تعديل"
                             >
                               <Pencil className="h-3 w-3" />
@@ -1268,7 +1268,7 @@ export function RoomCalendarBoard({
                               type="button"
                               disabled={busy}
                               onClick={() => void cancel(e.id)}
-                              className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-700"
+                              className="rounded p-1 text-ab-muted-soft hover:bg-red-50 hover:text-red-700"
                               aria-label="إلغاء"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1298,7 +1298,7 @@ export function RoomCalendarBoard({
             </div>
 
             {upcoming.length === 0 && (
-              <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-6 text-center text-sm text-stone-400">
+              <p className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-6 text-center text-sm text-ab-muted-soft">
                 لا مواعيد بعد — اضغط «أضف موعد» أعلاه، أو اطلب من الوكيل: «أضف
                 اجتماع غداً ١٠ ص إلى تقويم الفريق المشترك».
               </p>
@@ -1340,7 +1340,7 @@ export function RoomCalendarBoard({
         </details>
       )}
 
-      <p className="flex items-start gap-1.5 text-[11px] text-stone-400">
+      <p className="flex items-start gap-1.5 text-[11px] text-ab-muted-soft">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         المصدر الرسمي لمواعيد الفريق هو تقويم الغرفة المشترك أعلاه. Google
         اختياري فقط كنسخة خاصة لمن يفعّلها — ولا يُكتب في تقويم شخص آخر.

@@ -181,7 +181,7 @@ export function AgentSeatsPanel({
               className={cn(
                 'inline-flex max-w-[11rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition-colors',
                 !online
-                  ? 'border-stone-200/80 bg-stone-50/80 text-stone-400'
+                  ? 'border-stone-200/80 bg-stone-50/80 text-ab-muted-soft'
                   : answering
                     ? 'border-ab-accent/50 bg-ab-accent/10 font-semibold text-ab-accent'
                     : active
@@ -218,7 +218,7 @@ export function AgentSeatsPanel({
               {answering ? (
                 <span className="shrink-0 text-[9px] text-ab-accent">يعمل</span>
               ) : !online ? (
-                <span className="shrink-0 text-[9px] text-stone-400">نائم</span>
+                <span className="shrink-0 text-[9px] text-ab-muted-soft">نائم</span>
               ) : null}
             </button>
           )
@@ -241,7 +241,7 @@ export function AgentSeatsPanel({
         </p>
       )}
       {!answeringAgentId && agents.length > 0 && agents.length <= ROOM_AGENT_SOFT_CAP && (
-        <p className="truncate text-[10px] text-stone-400">
+        <p className="truncate text-[10px] text-ab-muted-soft">
           شغال / نائم · الرسالة توقظ وكيل١ · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
         </p>
       )}
