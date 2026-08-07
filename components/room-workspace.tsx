@@ -68,7 +68,7 @@ import { cn } from '@/lib/utils'
 
 const EMPTY_POSTS: RoomPost[] = []
 
-const MEMBERS_PANE_MIN = 320
+const MEMBERS_PANE_MIN = 160
 const SEATS_MIN = 72
 const SEATS_MAX = 360
 const SEATS_DEFAULT = 160
@@ -76,15 +76,16 @@ const SEATS_DEFAULT = 160
 function clampMembersPanePx(px: number): number {
   const vh =
     typeof window !== 'undefined' ? window.innerHeight : 800
-  const max = Math.round(vh * 0.85)
+  // Leave most of the column for chat; drag handle can enlarge.
+  const max = Math.round(vh * 0.72)
   return Math.min(max, Math.max(MEMBERS_PANE_MIN, Math.round(px)))
 }
 
 function defaultMembersPanePx(): number {
   const vh =
     typeof window !== 'undefined' ? window.innerHeight : 800
-  // Tall enough that invite CTAs stay in-pane above the chat feed.
-  return clampMembersPanePx(Math.round(vh * 0.55))
+  // Compact default — chat stays readable; user can drag taller.
+  return clampMembersPanePx(Math.round(vh * 0.28))
 }
 
 function readMembersPanePx(scopeId: string): number {
@@ -179,7 +180,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [telegramReady, setTelegramReady] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
-  const [showCanvas, setShowCanvas] = useState(true)
+  const [showCanvas, setShowCanvas] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
@@ -1179,7 +1180,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     <div
       dir="rtl"
       className={cn(
-        'flex h-[calc(100dvh-2.75rem)] w-full ab-stage p-3 md:h-dvh',
+        'flex h-[calc(100dvh-2.75rem)] w-full ab-stage p-2 md:h-dvh md:p-3',
         className
       )}
     >
@@ -1214,12 +1215,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border bg-white/80 px-3 py-2.5 backdrop-blur-sm">
+          <header className="border-b border-ab-border bg-white/80 px-3 py-2 backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="truncate text-[15px] font-bold tracking-tight text-ab-ink">
                   {activeScope.nameAr}
                 </h2>
+                <p className="mt-0.5 truncate text-[11px] text-stone-500">
+                  {shared
+                    ? 'محادثة الفريق والوكلاء بـ @ — اسحب الفاصل لتكبير الدردشة'
+                    : 'مساحتك الخاصة للمسودات والملفات — قبل مشاركة الفريق'}
+                </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
                     scopeId={activeScopeId}
@@ -1461,6 +1467,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   }}
                 >
                   <span className="h-1.5 w-14 rounded-full bg-ab-border group-hover:bg-ab-accent" />
+                  <span className="pointer-events-none absolute inset-x-0 -bottom-3 text-center text-[9px] text-stone-400 opacity-0 group-hover:opacity-100">
+                    اسحب لتغيير الحجم
+                  </span>
                   <span className="sr-only">اسحب لتغيير حجم القائمة</span>
                 </div>
               </div>
@@ -1882,7 +1891,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               if (!rect) return
               const x = e.clientX - rect.left
               const canvasShare = x / rect.width
-              setSplitRatio(Math.min(0.85, Math.max(0.35, canvasShare)))
+              setSplitRatio(Math.min(0.75, Math.max(0.22, canvasShare)))
             }
             const onUp = () => {
               dragSplit.current = false

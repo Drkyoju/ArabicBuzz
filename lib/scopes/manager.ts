@@ -70,7 +70,7 @@ export const DEMO_SCOPES: Scope[] = [
   {
     id: 'personal-demo',
     nameAr: 'مساحتي الشخصية',
-    descriptionAr: 'مكتبك اليومي الخاص.',
+    descriptionAr: 'مسوداتك وملفاتك الخاصة — قبل مشاركة الفريق.',
     userId: 'user-1',
     keychain: {},
     privateMemory: [
@@ -92,7 +92,7 @@ export const DEMO_SCOPES: Scope[] = [
     id: 'shared-demo',
     nameAr: 'غرفة الفريق',
     descriptionAr:
-      'غرفة واحدة للموظفين والوكلاء — شغّل أو أوقف «الوكلاء يعملون معنا».',
+      'محادثة الفريق والوكلاء بـ @ — شغّل أو أوقف «الوكلاء يعملون معنا».',
     members: ['user-1'],
     memberLabelsAr: [],
     agentLabelsAr: ['وكيل التقارير', 'وكيل الامتثال'],

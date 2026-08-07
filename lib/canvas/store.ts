@@ -32,7 +32,8 @@ type CanvasState = {
 export const useCanvasStore = create<CanvasState>((set) => ({
   artifacts: [],
   activeId: null,
-  splitRatio: 0.7,
+  // Canvas share of width; keep chat dominant by default (readable room).
+  splitRatio: 0.38,
   isCanvasFullscreen: false,
   upsertArtifact: (partial) =>
     set((state) => {
@@ -76,7 +77,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       ),
     })),
   setSplitRatio: (ratio) =>
-    set({ splitRatio: Math.min(0.9, Math.max(0.4, ratio)) }),
+    set({ splitRatio: Math.min(0.75, Math.max(0.22, ratio)) }),
   toggleCanvasFullscreen: () =>
     set((state) => ({ isCanvasFullscreen: !state.isCanvasFullscreen })),
 }))
