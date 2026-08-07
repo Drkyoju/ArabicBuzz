@@ -119,15 +119,29 @@ export function resolveMentionHandoff(
 } {
   const trimmed = prompt.trim()
   const m = trimmed.match(/^@([\u0600-\u06FFa-zA-Z0-9_\-]+)\s*/)
-  if (!m) return { agent: null, cleanPrompt: trimmed }
-  const token = m[1]
-  const agent =
-    catalog.find(
-      (a) =>
-        a.slug === token ||
-        a.nameAr === token ||
-        a.nameAr.replace(/\s+/g, '') === token.replace(/\s+/g, '')
-    ) || null
-  const cleanPrompt = trimmed.slice(m[0].length).trim() || trimmed
-  return { agent, cleanPrompt }
+  if (m) {
+    const token = m[1]
+    const agent =
+      catalog.find(
+        (a) =>
+          a.slug === token ||
+          a.nameAr === token ||
+          a.nameAr.replace(/\s+/g, '') === token.replace(/\s+/g, '')
+      ) || null
+    if (agent) {
+      const cleanPrompt = trimmed.slice(m[0].length).trim() || trimmed
+      return { agent, cleanPrompt }
+    }
+  }
+  // Mid-message @mention still hands off (e.g. «يا @reports لخّص…»).
+  const mid = findAgentByMention(trimmed, catalog)
+  if (mid) {
+    const cleanPrompt = trimmed
+      .replace(new RegExp(`@${mid.slug}\\b`, 'i'), '')
+      .replace(new RegExp(`@${mid.nameAr.replace(/\s+/g, '')}`, 'i'), '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    return { agent: mid, cleanPrompt: cleanPrompt || trimmed }
+  }
+  return { agent: null, cleanPrompt: trimmed }
 }

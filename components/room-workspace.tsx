@@ -57,7 +57,7 @@ import {
   ASSISTANT_PARALLEL_DEFAULT,
   ROOM_TEAM_RUN_CAP,
 } from '@/lib/assistants/parallel'
-import { usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
+import { agentsAlwaysPresentInRoom, usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
 import type {
   RoomCitation,
   RoomFileAttachment,
@@ -156,7 +156,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const dragChrome = useRef(false)
   const dragMembers = useRef(false)
   const [seatsMaxPx, setSeatsMaxPx] = useState(SEATS_DEFAULT)
-  const [seatsCollapsed, setSeatsCollapsed] = useState(true)
+  const [seatsCollapsed, setSeatsCollapsed] = useState(false)
   const [membersPanePx, setMembersPanePx] = useState(defaultMembersPanePx)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -231,7 +231,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
     (s) => s.collabModeByScope[activeScopeId] || 'solo'
   )
   const agentsWorking = useAgentRosterStore(
-    (s) => s.agentsEnabledByScope[activeScopeId] !== false
+    (s) =>
+      agentsAlwaysPresentInRoom(activeScopeId) ||
+      s.agentsEnabledByScope[activeScopeId] !== false
   )
   const roomAgents = useMemo(
     () => agentsForScopeFn(activeScopeId),
@@ -1253,7 +1255,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </h2>
                 <p className="mt-0.5 truncate text-[11px] text-stone-500">
                   {shared
-                    ? 'محادثة الفريق والوكلاء بـ @ — اسحب الفاصل لتكبير الدردشة'
+                    ? 'الوكلاء متواجدون دائماً — @mention أو اطلب فيبدأون فوراً'
                     : 'مساحتك الخاصة للمسودات والملفات — قبل مشاركة الفريق'}
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -1513,16 +1515,19 @@ export function RoomWorkspace({ className }: { className?: string }) {
               </div>
             ) : seatsCollapsed ? (
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[11px] text-ab-muted">
-                  مقاعد الوكلاء
+                <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-emerald-700">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                  الوكلاء متواجدون
                   {roomAgents.length > 0 ? (
                     <span className="text-ab-muted-soft">
-                      {' '}
-                      · {roomAgents.length}
+                      · {roomAgents.length} جاهز
                     </span>
                   ) : null}
                   {answeringAgentId ? (
-                    <span className="ms-1 text-ab-accent">· يجيب…</span>
+                    <span className="ms-1 text-ab-accent">· يعمل…</span>
                   ) : null}
                 </span>
                 <div className="flex shrink-0 items-center gap-1.5">
@@ -1541,8 +1546,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
             ) : (
               <div style={{ maxHeight: seatsMaxPx, overflow: 'auto' }}>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-ab-muted">
-                    مقاعد الوكلاء
+                  <span className="text-[10px] font-medium text-emerald-700">
+                    مقاعد الوكلاء · حضور مستمر
                   </span>
                   <button
                     type="button"
@@ -1619,13 +1624,25 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     aria-hidden
                   />
                   <p className="text-sm font-bold text-ab-ink">
-                    ابدأ المحادثة
+                    {agentsWorking
+                      ? 'الوكلاء متواجدون — ابدأ الآن'
+                      : 'ابدأ المحادثة'}
                   </p>
                   <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ab-muted">
                     {isGuest
                       ? 'سجّل الدخول للكتابة والإرسال. المعاينة للقراءة فقط.'
-                      : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو @الجميع.'}
+                      : agentsWorking
+                        ? 'اكتب @reports أو @compliance (أو اضغط مقعد الوكيل) ثم أرسل طلبك — يبدأ العمل فوراً. أو @الجميع لتشغيل الفريق معاً.'
+                        : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو @الجميع.'}
                   </p>
+                  {!isGuest && agentsWorking && roomAgents.length > 0 && (
+                    <p className="mt-2 text-[11px] text-emerald-700">
+                      جاهزون:{' '}
+                      {roomAgents
+                        .map((a) => `${a.nameAr} (@${a.slug})`)
+                        .join(' · ')}
+                    </p>
+                  )}
                   {!isGuest && (
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <button
@@ -1633,7 +1650,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         disabled={streaming}
                         onClick={() =>
                           void sendPrompt(
-                            'لخّص قرارات وأعمال هذا الأسبوع بالعربية الفصحى في نقاط قصيرة.'
+                            roomAgents[0]
+                              ? `@${roomAgents[0].slug} لخّص قرارات وأعمال هذا الأسبوع بالعربية الفصحى في نقاط قصيرة.`
+                              : 'لخّص قرارات وأعمال هذا الأسبوع بالعربية الفصحى في نقاط قصيرة.'
                           )
                         }
                         className="ab-btn-secondary"
@@ -1645,7 +1664,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         disabled={streaming}
                         onClick={() =>
                           void sendPrompt(
-                            'استخدم search_knowledge_base فقط: ابحث في معرفة الفريق عن أهم الملفات، ولخّص ما تجده مع ذكر المصادر.'
+                            roomAgents[0]
+                              ? `@${roomAgents[0].slug} استخدم search_knowledge_base فقط: ابحث في معرفة الفريق عن أهم الملفات، ولخّص ما تجده مع ذكر المصادر.`
+                              : 'استخدم search_knowledge_base فقط: ابحث في معرفة الفريق عن أهم الملفات، ولخّص ما تجده مع ذكر المصادر.'
                           )
                         }
                         className="ab-btn-accent-soft"
@@ -1671,7 +1692,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
           >
             {mentionPreview && (
               <p className="mb-1.5 text-[11px] text-ab-accent">
-                سيتم توجيه الرد إلى {mentionPreview.nameAr}
+                سيتم توجيه الرد إلى {mentionPreview.nameAr} — يبدأ فوراً عند
+                الإرسال
               </p>
             )}
             {!mentionPreview &&
@@ -1680,10 +1702,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
               collabMode === 'team' &&
               roomAgents.length > 1 && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                اكتب <span dir="ltr">@</span> واسم الوكيل (مثل{' '}
-                <span dir="ltr">@reports</span>) أو اختر من القائمة — حتى{' '}
+                الوكلاء متواجدون: اكتب <span dir="ltr">@</span> واسم الوكيل (مثل{' '}
+                <span dir="ltr">@reports</span>) أو اضغط مقعده — يبدأ فوراً. حتى{' '}
                 {Math.min(ASSISTANT_PARALLEL_DEFAULT, roomAgents.length)}{' '}
-                وكيل/مهمة معاً. المقاعد مشتركة لكل الموظفين.
+                وكيل/مهمة معاً.
               </p>
             )}
             {!mentionPreview &&
@@ -1692,13 +1714,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
               usesSharedRoomRoster(activeScopeId) &&
               collabMode !== 'team' && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                اكتب <span dir="ltr">@</span> واسم الوكيل لاختيار من يرد —
-                حتى {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة معاً في غرفة الفريق.
+                الوكلاء متواجدون دائماً — اكتب <span dir="ltr">@</span> واسم
+                الوكيل أو أرسل طلباً واضحاً فيبدأ فوراً (حتى{' '}
+                {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة).
               </p>
             )}
             {!isGuest && !agentsWorking && (
               <p className="mb-1.5 text-[11px] text-stone-500">
-                ملاحظة للفريق فقط — لتفعيل ردود الوكلاء اختر «الوكلاء يعملون معنا».
+                ملاحظة فقط — لتفعيل ردود الوكلاء اختر «الوكلاء معنا».
               </p>
             )}
             {mentionMenu.length > 0 && (

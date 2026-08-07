@@ -96,19 +96,27 @@ export function AgentSeatsPanel({
 
   return (
     <div className={cn('space-y-1', className)} dir="rtl">
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="text-[10px] font-medium text-stone-400">وكلاء</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          </span>
+          متواجدون
+          {agents.length > 0 ? (
+            <span className="text-stone-400">· {agents.length}</span>
+          ) : null}
+        </span>
         {agents.map((agent) => {
           const active = activeAgentId === agent.id
           const answering = answeringAgentId === agent.id
           const model = shortCapability(agent.preferredModel)
           const tip = [
-            `اضغط للهوية والصلاحيات`,
-            `@${agent.slug}`,
+            `اضغط للإشارة بـ @${agent.slug} — يبدأ فوراً`,
             agent.taskAr ? `مهمة: ${agent.taskAr}` : null,
             collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
-            answering ? 'يجيب الآن…' : null,
-            signedIn ? 'حضور حقيقي' : 'معاينة',
+            answering ? 'يعمل الآن…' : 'جاهز',
+            signedIn ? 'حضور حي' : 'معاينة',
           ]
             .filter(Boolean)
             .join(' · ')
@@ -127,22 +135,36 @@ export function AgentSeatsPanel({
                   ? 'border-ab-accent bg-ab-accent/15 font-semibold text-ab-accent ring-1 ring-ab-accent/30'
                   : active
                     ? 'border-ab-accent bg-ab-accent/10 font-medium text-ab-accent'
-                    : 'border-transparent bg-stone-100 text-ab-ink hover:bg-stone-200/80'
+                    : 'border-emerald-100 bg-emerald-50/70 text-ab-ink hover:bg-emerald-50'
               )}
             >
-              <span
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[9px] font-bold text-white"
-                style={{ backgroundColor: `hsl(${agent.avatarHue} 55% 42%)` }}
-                aria-hidden
-              >
-                {agent.nameAr.slice(0, 1)}
+              <span className="relative shrink-0">
+                <span
+                  className="flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-white"
+                  style={{
+                    backgroundColor: `hsl(${agent.avatarHue} 55% 42%)`,
+                  }}
+                  aria-hidden
+                >
+                  {agent.nameAr.slice(0, 1)}
+                </span>
+                <span
+                  className={cn(
+                    'absolute -bottom-0.5 -start-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white',
+                    answering ? 'bg-ab-accent' : 'bg-emerald-500'
+                  )}
+                  aria-hidden
+                />
               </span>
               <span className="truncate">{agent.nameAr}</span>
               {answering ? (
-                <span className="shrink-0 text-[9px] text-ab-accent">يجيب…</span>
-              ) : model ? (
-                <span className="shrink-0 text-[9px] text-stone-400">{model}</span>
-              ) : null}
+                <span className="shrink-0 text-[9px] text-ab-accent">يعمل…</span>
+              ) : (
+                <span className="shrink-0 text-[9px] text-emerald-600">
+                  جاهز
+                  {model ? ` · ${model}` : ''}
+                </span>
+              )}
             </button>
           )
         })}
@@ -152,13 +174,13 @@ export function AgentSeatsPanel({
       {answeringAgentId && (
         <p className="text-[10px] font-medium text-ab-accent">
           {agents.find((a) => a.id === answeringAgentId)?.nameAr || 'وكيل'}{' '}
-          يكتب الآن…
+          يعمل الآن…
         </p>
       )}
       {!answeringAgentId && agents.length > 0 && (
         <p className="truncate text-[10px] text-stone-400">
-          اضغط مقعد وكيل لرؤية الهوية والصلاحيات وسجل التدقيق ·{' '}
-          {collabMode === 'team' ? 'وضع تعاون نشط' : 'وضع منفصل نشط'}
+          اضغط مقعد وكيل لـ @mention — يبدأ العمل فوراً ·{' '}
+          {collabMode === 'team' ? 'تعاون نشط' : 'منفصل'}
           {signedIn ? ' · حضور حي' : ''}
         </p>
       )}

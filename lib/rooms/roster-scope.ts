@@ -19,6 +19,14 @@ export function usesSharedRoomRoster(scopeId: string): boolean {
   return true
 }
 
+/**
+ * Shared team rooms always keep agents present and ready.
+ * Personal desks may still pause agent replies («محادثة فقط»).
+ */
+export function agentsAlwaysPresentInRoom(scopeId: string): boolean {
+  return usesSharedRoomRoster(scopeId)
+}
+
 /** Slice a full client payload down to one room (for shared DB row). */
 export function exportScopeRosterSlice(
   scopeId: string,
@@ -39,7 +47,9 @@ export function exportScopeRosterSlice(
     }
   }
   const collab = full.collabModeByScope?.[scopeId]
-  const enabled = full.agentsEnabledByScope?.[scopeId]
+  const enabled = agentsAlwaysPresentInRoom(scopeId)
+    ? true
+    : full.agentsEnabledByScope?.[scopeId]
   return {
     customAgents,
     removedFromScope: { [scopeId]: removed },

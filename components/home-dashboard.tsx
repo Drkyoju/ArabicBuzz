@@ -955,7 +955,7 @@ export function HomeDashboard({
                   ١. غرفة الفريق
                 </p>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">
-                  غرفة واحدة للموظفين والوكلاء — شغّل أو أوقف «الوكلاء يعملون معنا».
+                  الوكلاء متواجدون دائماً — اكتب @اسم_الوكيل فيبدأ العمل فوراً.
                 </p>
                 <button
                   type="button"

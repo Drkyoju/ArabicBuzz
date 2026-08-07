@@ -9,7 +9,11 @@ import {
   type RoomAgent,
 } from '@/lib/rooms/agents'
 import type { AgentRosterPayload } from '@/lib/rooms/roster-types'
-import { mergeScopeRosterSlice } from '@/lib/rooms/roster-scope'
+import {
+  agentsAlwaysPresentInRoom,
+  mergeScopeRosterSlice,
+  usesSharedRoomRoster,
+} from '@/lib/rooms/roster-scope'
 
 export type AgentOverride = Partial<
   Pick<
@@ -197,10 +201,14 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         }))
       },
 
-      agentsEnabledFor: (scopeId) =>
-        get().agentsEnabledByScope[scopeId] !== false,
+      agentsEnabledFor: (scopeId) => {
+        // Team rooms: agents stay continuous — cannot go «بشر فقط».
+        if (agentsAlwaysPresentInRoom(scopeId)) return true
+        return get().agentsEnabledByScope[scopeId] !== false
+      },
 
       setAgentsEnabled: (scopeId, enabled) => {
+        if (agentsAlwaysPresentInRoom(scopeId) && !enabled) return
         set((s) => ({
           agentsEnabledByScope: {
             ...s.agentsEnabledByScope,
@@ -219,12 +227,16 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       }),
 
       hydrateFromCloud: (payload) => {
+        const enabled = { ...(payload.agentsEnabledByScope || {}) }
+        for (const scopeId of Object.keys(enabled)) {
+          if (usesSharedRoomRoster(scopeId)) enabled[scopeId] = true
+        }
         set({
           customAgents: payload.customAgents || [],
           removedFromScope: payload.removedFromScope || {},
           addedToScope: payload.addedToScope || {},
           collabModeByScope: payload.collabModeByScope || {},
-          agentsEnabledByScope: payload.agentsEnabledByScope || {},
+          agentsEnabledByScope: enabled,
           agentOverrides: payload.agentOverrides || {},
           cloudSyncedAt: Date.now(),
         })
@@ -233,12 +245,14 @@ export const useAgentRosterStore = create<AgentRosterState>()(
       hydrateScopeFromCloud: (scopeId, payload) => {
         const current = get().exportPayload()
         const merged = mergeScopeRosterSlice(scopeId, current, payload)
+        const enabled = { ...(merged.agentsEnabledByScope || {}) }
+        if (usesSharedRoomRoster(scopeId)) enabled[scopeId] = true
         set({
           customAgents: merged.customAgents,
           removedFromScope: merged.removedFromScope,
           addedToScope: merged.addedToScope,
           collabModeByScope: merged.collabModeByScope,
-          agentsEnabledByScope: merged.agentsEnabledByScope || {},
+          agentsEnabledByScope: enabled,
           agentOverrides: merged.agentOverrides,
           cloudSyncedAt: Date.now(),
         })
@@ -445,15 +459,23 @@ export const useAgentRosterStore = create<AgentRosterState>()(
     }),
     {
       name: 'arabic-buzz-agent-roster',
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const p = (persisted || {}) as Partial<AgentRosterState>
+        const enabled = { ...(p.agentsEnabledByScope || {}) }
+        // Re-open team rooms that were left on «محادثة فقط» / humans-only.
+        for (const scopeId of Object.keys(enabled)) {
+          if (usesSharedRoomRoster(scopeId)) enabled[scopeId] = true
+        }
+        for (const scopeId of Object.keys(SCOPE_AGENT_IDS)) {
+          if (usesSharedRoomRoster(scopeId)) enabled[scopeId] = true
+        }
         return {
           customAgents: Array.isArray(p.customAgents) ? p.customAgents : [],
           removedFromScope: p.removedFromScope || {},
           addedToScope: p.addedToScope || {},
           collabModeByScope: p.collabModeByScope || {},
-          agentsEnabledByScope: p.agentsEnabledByScope || {},
+          agentsEnabledByScope: enabled,
           agentOverrides: p.agentOverrides || {},
         }
       },

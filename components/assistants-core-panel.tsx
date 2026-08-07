@@ -728,7 +728,7 @@ export function AssistantsCorePanel({
         <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
         <p className="ab-subtitle">
           {catalog?.subtitleAr ||
-            'مهام تشغيل عامة للمساحة (بريد/تقويم) — غرفة الفريق للمحادثة والوكلاء بـ @.'}
+            'مهام تشغيل للمساحة (بريد/تقويم) — غرفة الفريق = محادثة حية ووكلاء متواجدون بـ @.'}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span
