@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser } from '@/lib/auth/session'
-import { forbidOrgMailIfMember } from '@/lib/email/org-mail-access'
 import {
   countUnread,
   getMailboxPublic,
@@ -13,18 +12,6 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
-
-  const denied = forbidOrgMailIfMember(auth.user)
-  if (denied) {
-    // Members: no org mailbox metadata leak — empty safe payload.
-    return NextResponse.json({
-      configured: false,
-      unread: 0,
-      emailAddress: null,
-      lastSyncAt: null,
-      forbidden: true,
-    })
-  }
 
   const configured = await isImapConfigured()
   if (!configured) {

@@ -151,11 +151,6 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   }, [])
 
   const loadMessages = useCallback(async () => {
-    if (!isOwner) {
-      setMessages([])
-      setUnread(0)
-      return
-    }
     const headers = await authHeaders()
     const res = await fetch('/api/mail/messages?limit=50', { headers })
     const data = await res.json()
@@ -168,16 +163,13 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     } catch {
       /* ignore */
     }
-  }, [isOwner])
+  }, [])
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const tasks = isOwner
-        ? [loadSettings(), loadMessages()]
-        : [loadSettings()]
-      const results = await Promise.allSettled(tasks)
+      const results = await Promise.allSettled([loadSettings(), loadMessages()])
       const firstErr = results.find((r) => r.status === 'rejected')
       if (firstErr && firstErr.status === 'rejected') {
         setError(
@@ -191,15 +183,14 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     } finally {
       setLoading(false)
     }
-  }, [isOwner, loadMessages, loadSettings])
+  }, [loadMessages, loadSettings])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  // Deep-link ?msg= — owner/admin mode only
+  // Deep-link ?msg=
   useEffect(() => {
-    if (!isOwner) return
     try {
       const id = new URLSearchParams(window.location.search).get('msg')
       if (id) void openMessage(id)
@@ -207,10 +198,10 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       /* ignore */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner])
+  }, [])
 
   useEffect(() => {
-    if (!isOwner || !configured) return
+    if (!configured) return
     let cancelled = false
     const ac = new AbortController()
     const kill = window.setTimeout(() => ac.abort(), 20_000)
@@ -235,7 +226,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       ac.abort()
       window.clearTimeout(kill)
     }
-  }, [configured, isOwner, loadMessages])
+  }, [configured, loadMessages])
 
   async function saveSettings() {
     if (!isOwner) return
@@ -338,7 +329,6 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   }
 
   async function openMessage(id: string) {
-    if (!isOwner) return
     setBusy('read')
     setError('')
     setAskA('')
@@ -380,7 +370,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   }
 
   async function sendReply() {
-    if (!selected || !isOwner) return
+    if (!selected) return
     setBusy('send')
     setError('')
     setOkMsg('')
@@ -485,7 +475,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
               إعدادات الربط
             </button>
           )}
-          {isOwner && configured && (
+          {configured && (
             <button
               type="button"
               disabled={busy === 'sync'}
@@ -503,20 +493,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         </div>
       </div>
 
-      {!isOwner && (
-        <p
-          className="rounded-xl border border-ab-border bg-stone-50 px-4 py-6 text-center text-sm text-stone-700"
-          role="status"
-        >
-          <span className="font-semibold text-ab-ink">للمالك فقط</span>
-          <span className="mt-1 block text-xs text-stone-500">
-            صندوق بريد الجمعية ({DEFAULT_EMAIL}) متاح في وضع الإدارة للمالك —
-            الأعضاء لا يرون الرسائل.
-          </span>
-        </p>
-      )}
-
-      {mailbox?.lastErrorAr && isOwner && (
+      {mailbox?.lastErrorAr && (
         <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {mailbox.lastErrorAr}
@@ -684,7 +661,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         </p>
       )}
 
-      {isOwner && configured && mailbox && (
+      {configured && mailbox && (
         <div
           className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-ab-border/80 bg-stone-50/90 px-3 py-2 text-[11px] leading-snug text-stone-600"
           role="status"
@@ -711,7 +688,6 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         </div>
       )}
 
-      {isOwner && (
       <div className="flex items-center gap-2 text-xs text-stone-500">
         <Inbox className="h-3.5 w-3.5" aria-hidden />
         {loading
@@ -722,9 +698,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 : ''
             }`}
       </div>
-      )}
 
-      {isOwner && (
       <div className="grid gap-4 lg:grid-cols-5">
         <ul className="space-y-1 lg:col-span-2">
           {messages.map((m) => (
@@ -973,8 +947,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 )}
               </div>
 
-              {isOwner && (
-                <div className="space-y-2 border-t border-ab-border pt-3">
+              <div className="space-y-2 border-t border-ab-border pt-3">
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -1078,12 +1051,10 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     أو ارفض SMTP في رسالة الخطأ.
                   </p>
                 </div>
-              )}
             </>
           )}
         </div>
       </div>
-      )}
     </section>
   )
 }

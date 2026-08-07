@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRealUser } from '@/lib/auth/session'
-import { forbidOrgMailIfMember } from '@/lib/email/org-mail-access'
 import { sendSmtpMail } from '@/lib/email/smtp-send'
 
 export const dynamic = 'force-dynamic'
@@ -8,9 +7,6 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   const auth = await requireRealUser(req)
   if (!auth.ok) return auth.response
-
-  const denied = forbidOrgMailIfMember(auth.user)
-  if (denied) return denied
 
   let body: {
     to?: string
