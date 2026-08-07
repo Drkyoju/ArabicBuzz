@@ -73,6 +73,7 @@ import {
   saveWorkspaceFile,
 } from '@/lib/documents/workspace'
 import { executeBrowserTask } from '@/lib/tools/browser-rpa'
+import { executeCuaAction } from '@/lib/tools/cua-bridge'
 import { executeArabicOcr } from '@/lib/agents/tools/arabic-ocr-tool'
 import { triggerExternalWorkflow } from '@/lib/tools/workflow-bridge'
 import {
@@ -415,6 +416,22 @@ export const toolRegistry: Record<string, ToolExecutor> = {
       String(params.taskPrompt || params.task || ''),
       String(params.targetUrl || params.url || '')
     )
+  },
+  cua_computer: async (_n, params) => {
+    const action = String(params.action || params.tool || '').trim()
+    const args =
+      params.args && typeof params.args === 'object'
+        ? (params.args as Record<string, unknown>)
+        : (() => {
+            const {
+              action: _a,
+              tool: _t,
+              args: _args,
+              ...rest
+            } = params as Record<string, unknown>
+            return rest
+          })()
+    return executeCuaAction(action, args)
   },
   ingest_url_to_brain: async (_n, params) => {
     const scopeId = String(params.scopeId || 'shared-demo')

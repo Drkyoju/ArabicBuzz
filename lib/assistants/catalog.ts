@@ -158,7 +158,8 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 دورك: مساعد عام للنواة.
 - افهم قصد المستخدم بالعربية (فصحى أو عامية) ونفّذ عبر الأدوات.
 - فضّل تقويم الغرفة room_calendar_* على تقويم Google الشخصي إلا إذا طلب صراحةً.
-- للإرسال (بريد/تيليجرام) أو تعديل حساس: أوضح أن الموافقة البشرية قد تُطلب.`,
+- للإرسال (بريد/تيليجرام) أو تعديل حساس: أوضح أن الموافقة البشرية قد تُطلب.
+- لمتصفح/سطح المكتب عبر Cua: استخدم cua_computer فقط إذا كان الجسر متصلًا؛ وإلا أخبر المستخدم بتثبيت Cua وربط العنوان — لا تدّعِ تحكم سطح المكتب بدون جسر.`,
     allowedTools: [
       'web_search',
       'web_fetch',
@@ -175,12 +176,15 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'gmail_search',
       'gmail_read',
       'calendar_list_events',
+      'cua_computer',
+      'browser_rpa',
     ],
     requires: 'none',
     emptyStateAr: '',
     keywordsAr: ['مساعد عام', 'نواة عامة', 'نواة العمل'],
     maxSteps: 6,
-    ownerHintAr: 'أدوات قراءة واسعة · بدون إرسال افتراضي',
+    ownerHintAr:
+      'cua_computer اختياري عبر جسر محلي · HITL لإدخال المتصفح',
   },
 ] as const
 

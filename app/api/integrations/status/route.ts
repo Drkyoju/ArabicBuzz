@@ -6,6 +6,11 @@ import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { MCP_CATALOG } from '@/lib/mcp/catalog'
 import { isLangfuseConfigured } from '@/lib/observability/langfuse'
 import { isBrowserRpaConfigured } from '@/lib/tools/browser-rpa'
+import {
+  cuaBridgeConfigured,
+  cuaHealth,
+  cuaStatusAr,
+} from '@/lib/tools/cua-bridge'
 import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
 import { ensurePooledDatabaseUrl } from '@/lib/db-url'
 import { getProvidersSnapshot } from '@/lib/ai/provider-availability'
@@ -43,6 +48,22 @@ export async function GET() {
     mcpTools = list.reduce((n, s) => n + s.tools.length, 0)
   } catch {
     /* ignore */
+  }
+
+  let cuaOnline = false
+  let cuaMessageAr =
+    'ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.'
+  const cuaConfigured = cuaBridgeConfigured()
+  if (cuaConfigured) {
+    try {
+      const h = await cuaHealth()
+      cuaOnline = h.online
+      cuaMessageAr = h.messageAr
+    } catch {
+      cuaOnline = false
+      cuaMessageAr =
+        'جسر Cua مضبوط لكنه غير متصل. شغّل cua-driver serve ثم npm run cua:bridge.'
+    }
   }
 
   let tokenrouterConfigured = Boolean(process.env.TOKENROUTER_API_KEY?.trim())
@@ -119,6 +140,10 @@ export async function GET() {
     hitlDisabled: isHitlDisabled(),
     arabicQuality: buildArabicQualitySignal(),
     macSyncConfigured: Boolean(process.env.MAC_SYNC_URL?.trim()),
+    cuaBridgeConfigured: cuaConfigured,
+    cuaBridgeOnline: cuaOnline,
+    cuaStatusAr: cuaStatusAr(cuaOnline, cuaConfigured),
+    cuaMessageAr,
     brainPrimaryMac:
       (process.env.BRAIN_PRIMARY || '').toLowerCase() === 'mac',
     triggerDispatchConfigured: Boolean(

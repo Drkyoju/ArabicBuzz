@@ -64,6 +64,19 @@ npx ngrok http 7420
 
 5. **Google Drive company brain:** set `GOOGLE_DRIVE_BRAIN_FOLDER_ID` (default: [ملفات الجمعية](https://drive.google.com/drive/folders/1Zu2vgbR8p0f8xnn1_cTnUZwsTLHUiHhW?usp=sharing)). Connect Google in Settings (includes `drive.readonly`), then **مزامنة المجلد → عقل الشركة**. Enable Drive API in Google Cloud. Sync is HITL-gated via `drive_sync_brain`.
 
+## Cua Driver bridge (optional computer / browser use)
+
+Open-source [Cua](https://github.com/trycua/cua) — runs on **your desktop**, not inside Netlify. See [`docs/cua-bridge.md`](docs/cua-bridge.md).
+
+```bash
+# install from https://cua.ai/cua-driver
+cua-driver serve
+CUA_BRIDGE_SECRET=your-secret npm run cua:bridge
+npx ngrok http 7430
+```
+
+Netlify: `CUA_BRIDGE_URL` + `CUA_BRIDGE_SECRET`. UI: حالة الربط → «جسر Cua» (متصل / غير متصل).
+
 ## Verify secrets
 
 ```bash
@@ -136,7 +149,7 @@ npm run storage:sync                # Mac agent: /health /task /markitdown
 npm run ops:health                  # probe MAC_SYNC_URL / Toolbox
 ```
 
-Free path (no keys): `web_search` (DuckDuckGo / Wikipedia / gov.sa) and URL ingest (Jina Reader / fetch). Optional: `LANGFUSE_*` (free hobby), `BRAVE_API_KEY` (free tier), `FIRECRAWL_API_KEY` (upgrade). Also: `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`. TokenRouter stays tombstoned until a paid key works.
+Free path (no keys): `web_search` (DuckDuckGo / Wikipedia / gov.sa) and URL ingest (Jina Reader / fetch). Optional: `LANGFUSE_*` (free hobby), `BRAVE_API_KEY` (free tier), `FIRECRAWL_API_KEY` (upgrade). Also: `MCP_TOOLBOX_URL`, `MAC_SYNC_URL`, `CUA_BRIDGE_URL`, `BROWSER_USE_URL`, `STEEL_API_KEY`. TokenRouter stays tombstoned until a paid key works.
 
 ## Multi-tenant RBAC + RLS
 

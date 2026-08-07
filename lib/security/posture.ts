@@ -78,6 +78,7 @@ const HIGH_RISK_TOOLS = new Set([
   'gmail_send',
   'drive_sync_brain',
   'browser_rpa',
+  'cua_computer',
   'trigger_workflow',
   'room_calendar_create',
   'room_calendar_update',
@@ -117,6 +118,29 @@ export function evaluateActionRisk(
       return { riskLevel: 'LOW', requiresApproval: true }
     }
     return { riskLevel: 'LOW', requiresApproval: false }
+  }
+
+  // Cua: observation / health is low-risk; input & navigation stay HITL-gated.
+  if (toolName === 'cua_computer') {
+    const action = String(params.action || params.tool || '').trim()
+    const readOnly = new Set([
+      'health_report',
+      'list_windows',
+      'list_apps',
+      'check_permissions',
+      'get_window_state',
+      'get_browser_state',
+    ]).has(action)
+    if (readOnly) {
+      if (mode === 'STRICT') {
+        return { riskLevel: 'LOW', requiresApproval: true }
+      }
+      return { riskLevel: 'LOW', requiresApproval: false }
+    }
+    if (mode === 'DANGEROUS') {
+      return { riskLevel: 'HIGH', requiresApproval: false }
+    }
+    return { riskLevel: 'HIGH', requiresApproval: true }
   }
 
   const riskLevel: RiskLevel =

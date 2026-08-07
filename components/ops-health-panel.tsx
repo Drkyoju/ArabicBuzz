@@ -15,6 +15,9 @@ type Snapshot = {
   kimiDetailAr?: string
   macOnline?: boolean
   macConfigured?: boolean
+  cuaOnline?: boolean
+  cuaConfigured?: boolean
+  cuaStatusAr?: string
   modelsReady?: number
   pendingApprovals?: number
   searchReady?: boolean
@@ -79,11 +82,12 @@ export function OpsHealthPanel() {
           window.setTimeout(() => resolve({}), 4_000)
         ),
       ])
-      const [cal, drive, integ, mac, providers, approvals] = await Promise.all([
+      const [cal, drive, integ, mac, cua, providers, approvals] = await Promise.all([
         fetchJson('/api/google/calendar?action=status', { headers: h }),
         fetchJson('/api/google/drive/brain', { headers: h }),
         fetchJson('/api/integrations/status', undefined, 18_000),
         fetchJson('/api/mac/status', { headers: h }),
+        fetchJson('/api/cua/status', { headers: h }),
         fetchJson('/api/settings/providers', undefined, 18_000),
         fetchJson('/api/agent/approvals', { headers: h }),
       ])
@@ -112,6 +116,16 @@ export function OpsHealthPanel() {
         kimiDetailAr: tokenrouterStatusAr || undefined,
         macOnline: Boolean(mac?.online),
         macConfigured: Boolean(mac?.configured || integ?.macSyncConfigured),
+        cuaOnline: Boolean(cua?.online ?? integ?.cuaBridgeOnline),
+        cuaConfigured: Boolean(
+          cua?.configured ?? integ?.cuaBridgeConfigured
+        ),
+        cuaStatusAr:
+          typeof cua?.statusAr === 'string'
+            ? cua.statusAr
+            : typeof integ?.cuaStatusAr === 'string'
+              ? integ.cuaStatusAr
+              : undefined,
         modelsReady: Number(providers?.serviceableCount || 0),
         pendingApprovals: Array.isArray(approvals?.approvals)
           ? (approvals.approvals as Array<{ status?: string }>).filter(
@@ -220,6 +234,18 @@ export function OpsHealthPanel() {
               ? 'غير متصل'
               : 'غير مضبوط',
           soft: !snap.macOnline,
+        },
+        {
+          label: 'جسر Cua',
+          ok: Boolean(snap.cuaOnline),
+          detail: snap.cuaStatusAr
+            ? snap.cuaStatusAr
+            : snap.cuaOnline
+              ? 'متصل'
+              : snap.cuaConfigured
+                ? 'غير متصل'
+                : 'ثبّت Cua على جهازك ثم اربط العنوان هنا',
+          soft: !snap.cuaOnline,
         },
         {
           label: 'تقويم Google',

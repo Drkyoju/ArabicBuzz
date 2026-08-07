@@ -1222,6 +1222,30 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('browser_rpa'),
         }),
     }),
+    cua_computer: tool({
+      description:
+        'جسر Cua Driver الاختياري (محلي/سطح مكتب) — تنقّل/نقر/كتابة/لقطة عبر cua-driver عند اتصال CUA_BRIDGE_URL. لا يعمل داخل Netlify. إن كان الجسر غير متصل أرجع رسالة عربية واضحة. إجراءات الإدخال عالية المخاطر تخضع لـ HITL.',
+      inputSchema: z.object({
+        action: z
+          .string()
+          .describe(
+            'مثل health_report، list_windows، get_browser_state، browser_navigate، browser_click، browser_type، click، type_text'
+          ),
+        args: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('وسائط أداة Cua MCP (JSON)'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'cua_computer',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('cua_computer'),
+        }),
+    }),
     ingest_url_to_brain: tool({
       description:
         'سحب صفحة سياسات/أنظمة إلى معرفة الغرفة (مجاني: Jina Reader ثم جلب مباشر؛ Firecrawl اختياري بمفتاح).',

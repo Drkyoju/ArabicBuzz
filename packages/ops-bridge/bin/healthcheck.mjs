@@ -19,6 +19,9 @@ if (process.env.BROWSER_USE_URL?.trim()) {
     `${process.env.BROWSER_USE_URL.replace(/\/$/, '')}/health`
   )
 }
+if (process.env.CUA_BRIDGE_URL?.trim()) {
+  targets.push(`${process.env.CUA_BRIDGE_URL.replace(/\/$/, '')}/health`)
+}
 if (process.env.MCP_TOOLBOX_URL?.trim()) {
   // Toolbox often exposes /mcp; try root/health if present
   const base = process.env.MCP_TOOLBOX_URL.replace(/\/mcp\/?$/, '').replace(
@@ -32,7 +35,7 @@ if (process.env.MCP_TOOLBOX_URL?.trim()) {
 const unique = [...new Set(targets)]
 if (!unique.length) {
   console.error(
-    'No targets. Pass a URL or set MAC_SYNC_URL / BROWSER_USE_URL / MCP_TOOLBOX_URL.'
+    'No targets. Pass a URL or set MAC_SYNC_URL / BROWSER_USE_URL / CUA_BRIDGE_URL / MCP_TOOLBOX_URL.'
   )
   process.exit(2)
 }
@@ -41,10 +44,12 @@ let failed = 0
 for (const url of unique) {
   process.stdout.write(`→ ${url} ... `)
   try {
+    const secret =
+      process.env.CUA_BRIDGE_SECRET?.trim() ||
+      process.env.MAC_SYNC_SECRET?.trim() ||
+      ''
     const res = await fetch(url, {
-      headers: process.env.MAC_SYNC_SECRET
-        ? { Authorization: `Bearer ${process.env.MAC_SYNC_SECRET}` }
-        : {},
+      headers: secret ? { Authorization: `Bearer ${secret}` } : {},
       signal: AbortSignal.timeout(10_000),
     })
     console.log(`${res.status} ${res.ok ? 'OK' : 'FAIL'}`)

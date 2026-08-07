@@ -91,6 +91,17 @@ Order: **BROWSER_USE_URL → MAC_SYNC_URL → STEEL_API_KEY**. Unreachable hops 
 
 Arabic errors tell operators which env to set. Catalog: `browser-use`, `playwright` (fallback), `steel` (cloud).
 
+## D2. Cua Driver bridge (optional computer/browser use)
+
+Open-source [trycua/cua](https://github.com/trycua/cua) — **not** inside Netlify Functions.
+
+1. Install: https://cua.ai/cua-driver
+2. `cua-driver serve` + `npm run cua:bridge` (HTTP → `cua-driver call`)
+3. Tunnel → `CUA_BRIDGE_URL` + `CUA_BRIDGE_SECRET` (may reuse `MAC_SYNC_SECRET`)
+4. Agent tool: `cua_computer` (HITL for input/navigation). Status: `/api/cua/status`, integrations status `cuaStatusAr`.
+
+See [`docs/cua-bridge.md`](./cua-bridge.md).
+
 ## E. MarkItDown
 
 - Mac agent: `POST /markitdown` (used by `read_decision_document`)
@@ -108,7 +119,7 @@ Do **not** set fake keys on Netlify. Firecrawl MCP auto-connects only when a key
 
 ## G. Integrations status
 
-`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, Steel, browser RPA, TokenRouter (tombstoned `tokenrouterAvailable: false`).
+`/api/integrations/status` reports (no secrets): free-path readiness + Arabic labels (`braveStatusAr`, `firecrawlStatusAr`, `langfuseStatusAr`), Langfuse/Brave/Firecrawl booleans, MCP Toolbox, Mac bridge, **Cua bridge** (`cuaBridgeConfigured`, `cuaBridgeOnline`, `cuaStatusAr`), Steel, browser RPA, TokenRouter (tombstoned `tokenrouterAvailable: false`).
 
 UI labels: **مجاني مدمج** vs **اختياري بمفتاح** — search/crawl are ready without Brave/Firecrawl.
 
@@ -135,8 +146,9 @@ npm run evals:fetch-arabic-fc   # regenerate vendor subset from HF
 1. Core app keys (models / DB / auth) — search & crawl work without Brave/Firecrawl
 2. **MCP Toolbox** container (Fly/Railway/VPS via `deploy/toolbox`) + `MCP_TOOLBOX_URL` (if needed)
 3. **Mac bridge** (`storage:sync` + ngrok/Cloudflare tunnel) + `MAC_SYNC_*` (if needed)
-4. Optional free signups (no pressure): Langfuse hobby · Brave free tier
-5. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`
-6. Redeploy Netlify → verify صحة التشغيل — search/crawl should show **مجاني مدمج**
-7. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify). Repo secret `CRON_SECRET` is required; trigger manually via Actions → Cron runner → Run workflow.
-8. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in
+4. **Cua bridge** (optional): `cua-driver serve` + `npm run cua:bridge` + `CUA_BRIDGE_*` — see `docs/cua-bridge.md`
+5. Optional free signups (no pressure): Langfuse hobby · Brave free tier
+6. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`
+7. Redeploy Netlify → verify صحة التشغيل — search/crawl should show **مجاني مدمج**
+8. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify). Repo secret `CRON_SECRET` is required; trigger manually via Actions → Cron runner → Run workflow.
+9. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in

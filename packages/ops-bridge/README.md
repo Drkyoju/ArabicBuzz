@@ -40,9 +40,22 @@ MCP_GITHUB_URL=https://your-tunnel/mcp
 ```bash
 MAC_SYNC_URL=https://xxxx.ngrok-free.app MAC_SYNC_SECRET=… \
   node packages/ops-bridge/bin/healthcheck.mjs
+# also probes BROWSER_USE_URL / CUA_BRIDGE_URL / MCP_TOOLBOX_URL when set
 ```
 
 Mac sync agent exposes `GET /health` (Bearer secret optional depending on agent build).
+
+## Cua Driver (optional)
+
+Computer/browser use via open-source [trycua/cua](https://github.com/trycua/cua) — not inside Netlify:
+
+```bash
+cua-driver serve
+CUA_BRIDGE_SECRET=… npm run cua:bridge
+# tunnel port 7430 → CUA_BRIDGE_URL on Netlify
+```
+
+See [docs/cua-bridge.md](../../docs/cua-bridge.md).
 
 ## Netlify env map
 
@@ -50,6 +63,8 @@ Mac sync agent exposes `GET /health` (Bearer secret optional depending on agent 
 |----------|---------|
 | `MAC_SYNC_URL` | Mac agent (vault, `/task`, `/markitdown`, `/health`) |
 | `MAC_SYNC_SECRET` | Bearer for Mac agent |
+| `CUA_BRIDGE_URL` | Optional Cua HTTP bridge (`npm run cua:bridge`) |
+| `CUA_BRIDGE_SECRET` | Bearer for Cua bridge (may reuse `MAC_SYNC_SECRET`) |
 | `BROWSER_USE_URL` | Optional dedicated browser-use bridge (else Mac `/task`) |
 | `BROWSER_USE_SECRET` | Bearer for dedicated bridge |
 | `STEEL_API_KEY` | Cloud failover for `browser_rpa` |

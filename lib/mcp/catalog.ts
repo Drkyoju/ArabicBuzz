@@ -219,6 +219,29 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     recommended: true,
   },
   {
+    id: 'cua-driver',
+    nameAr: 'جسر Cua (متصفح/سطح مكتب)',
+    nameEn: 'Cua Driver',
+    descriptionAr:
+      'تحكم اختياري بالمتصفح وسطح المكتب عبر trycua/cua على جهازك — أداة cua_computer. لا يعمل داخل Netlify؛ يحتاج cua-driver serve + npm run cua:bridge + نفق. HITL لإجراءات الإدخال.',
+    benefitsAr:
+      'صفحة واعية بدون امتداد كروم + خلفية سطح مكتب عند اتصال الجسر المحلي.',
+    categoryAr: 'أتمتة',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr:
+      'ثبّت من cua.ai/cua-driver ثم: cua-driver serve && npm run cua:bridge. Netlify: CUA_BRIDGE_URL + CUA_BRIDGE_SECRET. الدليل: docs/cua-bridge.md',
+    envKeys: [
+      'CUA_BRIDGE_URL',
+      'CUA_BRIDGE_SECRET',
+      'CUA_BRIDGE_PORT',
+      'CUA_DRIVER_BIN',
+      'CUA_DRIVER_SOCKET',
+    ],
+    docsUrl: 'https://github.com/trycua/cua',
+    recommended: true,
+  },
+  {
     id: 'playwright',
     nameAr: 'متصفح Playwright (ماك · احتياطي)',
     nameEn: 'Playwright (fallback)',

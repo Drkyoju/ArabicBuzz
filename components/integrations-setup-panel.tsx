@@ -14,6 +14,9 @@ export function IntegrationsSetupPanel() {
   const [zoom, setZoom] = useState<ZoomHint | null>(null)
   const [macOnline, setMacOnline] = useState<boolean | null>(null)
   const [macConfigured, setMacConfigured] = useState<boolean | null>(null)
+  const [cuaOnline, setCuaOnline] = useState<boolean | null>(null)
+  const [cuaConfigured, setCuaConfigured] = useState<boolean | null>(null)
+  const [cuaStatusAr, setCuaStatusAr] = useState<string | null>(null)
   const [tg, setTg] = useState<boolean | null>(null)
   const [waStatusAr, setWaStatusAr] = useState<string | null>(null)
   const [waBridge, setWaBridge] = useState(false)
@@ -22,9 +25,10 @@ export function IntegrationsSetupPanel() {
     void (async () => {
       try {
         const headers = await authHeaders()
-        const [z, m] = await Promise.all([
+        const [z, m, c] = await Promise.all([
           fetch('/api/integrations/status').then((r) => r.json()).catch(() => null),
           fetch('/api/mac/status', { headers }).then((r) => r.json()).catch(() => null),
+          fetch('/api/cua/status', { headers }).then((r) => r.json()).catch(() => null),
         ])
         if (z) {
           setZoom({ configured: Boolean(z.zoomConfigured) })
@@ -33,11 +37,29 @@ export function IntegrationsSetupPanel() {
             typeof z.whatsappStatusAr === 'string' ? z.whatsappStatusAr : null
           )
           setWaBridge(Boolean(z.whatsappBridgeConfigured))
+          if (!c) {
+            setCuaConfigured(Boolean(z.cuaBridgeConfigured))
+            setCuaOnline(Boolean(z.cuaBridgeOnline))
+            setCuaStatusAr(
+              typeof z.cuaStatusAr === 'string' ? z.cuaStatusAr : null
+            )
+          }
         } else {
           setZoom({ configured: false })
         }
         setMacConfigured(Boolean(m?.configured))
         setMacOnline(Boolean(m?.online))
+        if (c) {
+          setCuaConfigured(Boolean(c.configured))
+          setCuaOnline(Boolean(c.online))
+          setCuaStatusAr(
+            typeof c.statusAr === 'string'
+              ? c.statusAr
+              : c.online
+                ? 'متصل'
+                : 'غير متصل'
+          )
+        }
       } catch {
         setZoom({ configured: false })
       }
@@ -48,7 +70,7 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات اختيارية (Telegram · واتساب مجاني · Zoom · الماك)
+        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua)
       </h3>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
@@ -223,6 +245,71 @@ export function IntegrationsSetupPanel() {
             </li>
             <li>Redeploy ثم اضغط «فحص» في لوحة خزنة الماك</li>
           </ol>
+        </DevDisclosure>
+      </div>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3">
+        <p className="mb-1 font-semibold text-ab-ink">
+          جسر Cua{' '}
+          <span className="font-normal text-stone-400">
+            · {cuaStatusAr || (cuaConfigured === false ? 'غير متصل' : cuaOnline ? 'متصل' : 'غير متصل')}
+          </span>
+        </p>
+        <p className="mb-1 text-[11px]">
+          ثبّت Cua على جهازك ثم اربط العنوان هنا — لا يعمل داخل Netlify مباشرة.
+        </p>
+        <DevDisclosure summaryAr="تثبيت وربط Cua (مسؤول)">
+          <ol className="list-decimal space-y-1 pe-4">
+            <li>
+              ثبّت من{' '}
+              <a
+                href="https://cua.ai/cua-driver"
+                target="_blank"
+                rel="noreferrer"
+                className="text-ab-accent underline"
+              >
+                cua.ai/cua-driver
+              </a>
+              :{' '}
+              <code dir="ltr" className="break-all text-[10px]">
+                /bin/bash -c &quot;$(curl -fsSL
+                https://cua.ai/driver/install.sh)&quot;
+              </code>
+            </li>
+            <li>
+              شغّل الـ daemon:{' '}
+              <code dir="ltr">cua-driver serve</code> ثم الجسر:{' '}
+              <code dir="ltr">npm run cua:bridge</code> (منفذ 7430)
+            </li>
+            <li>
+              نفق: <code dir="ltr">npx ngrok http 7430</code>
+            </li>
+            <li>
+              Netlify:{' '}
+              <code dir="ltr">CUA_BRIDGE_URL</code>=رابط النفق ·{' '}
+              <code dir="ltr">CUA_BRIDGE_SECRET</code> (أو نفس{' '}
+              <code dir="ltr">MAC_SYNC_SECRET</code>) ثم Redeploy
+            </li>
+            <li>
+              من المساعدين: أداة{' '}
+              <code dir="ltr">cua_computer</code> — إجراءات الإدخال تخضع لـ HITL
+            </li>
+          </ol>
+          <p className="mt-2 text-[11px] text-stone-500">
+            دليل:{' '}
+            <span dir="ltr" className="font-mono">
+              docs/cua-bridge.md
+            </span>{' '}
+            · مفتوح المصدر:{' '}
+            <a
+              href="https://github.com/trycua/cua"
+              target="_blank"
+              rel="noreferrer"
+              className="text-ab-accent underline"
+            >
+              trycua/cua
+            </a>
+          </p>
         </DevDisclosure>
       </div>
     </div>

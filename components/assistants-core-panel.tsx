@@ -62,6 +62,7 @@ export function AssistantsCorePanel({
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null)
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null)
   const [telegramReady, setTelegramReady] = useState<boolean | null>(null)
+  const [cuaStatusAr, setCuaStatusAr] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<AssistantId | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -86,6 +87,7 @@ export function AssistantsCorePanel({
     if (signedIn !== true) {
       setGoogleConnected(null)
       setTelegramReady(null)
+      setCuaStatusAr(null)
       return
     }
     let cancelled = false
@@ -100,16 +102,27 @@ export function AssistantsCorePanel({
         const ij = (await i.json()) as {
           telegramConfigured?: boolean
           telegramOutboundReady?: boolean
+          cuaStatusAr?: string
+          cuaBridgeOnline?: boolean
+          cuaBridgeConfigured?: boolean
         }
         if (cancelled) return
         setGoogleConnected(Boolean(gj.connected))
         setTelegramReady(
           Boolean(ij.telegramConfigured || ij.telegramOutboundReady)
         )
+        setCuaStatusAr(
+          typeof ij.cuaStatusAr === 'string'
+            ? ij.cuaStatusAr
+            : ij.cuaBridgeOnline
+              ? 'متصل'
+              : 'غير متصل'
+        )
       } catch {
         if (!cancelled) {
           setGoogleConnected(false)
           setTelegramReady(false)
+          setCuaStatusAr('غير متصل')
         }
       }
     })()
@@ -207,6 +220,24 @@ export function AssistantsCorePanel({
         {canAccessOpsUi && catalog?.telegramHintAr ? (
           <p className="mt-2 text-[12px] text-stone-500">
             {catalog.telegramHintAr}
+          </p>
+        ) : null}
+        {canAccessOpsUi && cuaStatusAr !== null ? (
+          <p className="mt-2 text-[12px] text-stone-600">
+            جسر Cua:{' '}
+            <span
+              className={
+                cuaStatusAr === 'متصل' ? 'text-emerald-700' : 'text-stone-500'
+              }
+            >
+              {cuaStatusAr}
+            </span>
+            {cuaStatusAr !== 'متصل' ? (
+              <span className="text-stone-500">
+                {' '}
+                — ثبّت Cua على جهازك ثم اربط العنوان من الإعدادات
+              </span>
+            ) : null}
           </p>
         ) : null}
       </div>

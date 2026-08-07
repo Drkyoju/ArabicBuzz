@@ -115,5 +115,9 @@ export async function GET() {
     whatsappTransport: resolveWhatsAppTransport(),
     whatsappStatusAr: whatsappTransportStatusAr().detailAr,
     arabicQuality: buildArabicQualitySignal(),
+    cuaBridgeConfigured: Boolean(process.env.CUA_BRIDGE_URL?.trim()),
+    cuaStatusAr: process.env.CUA_BRIDGE_URL?.trim()
+      ? 'مضبوط · افحص /api/cua/status للاتصال الحي'
+      : 'غير متصل — ثبّت Cua على جهازك ثم اربط CUA_BRIDGE_URL',
   })
 }
