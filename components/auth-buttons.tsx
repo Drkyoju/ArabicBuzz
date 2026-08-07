@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  ensureSupabaseBrowserConfig,
   getBrowserSession,
   isSupabaseConfigured,
   sendEmailOtp,
@@ -25,7 +26,19 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [demoEnabled, setDemoEnabled] = useState(false)
-  const configured = isSupabaseConfigured()
+  const [configured, setConfigured] = useState<boolean | null>(null)
+
+  // Resolve Supabase public config (runtime inject /api/public-config if needed).
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const ok = await ensureSupabaseBrowserConfig()
+      if (!cancelled) setConfigured(ok)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // The demo endpoint returns DEMO_DISABLED unless ALLOW_DEMO_LOGIN=true, so
   // only render the button when the server actually accepts it.
@@ -199,6 +212,10 @@ export function AuthButtons({ compact = false }: { compact?: boolean }) {
     } finally {
       setBusy(null)
     }
+  }
+
+  if (configured === null) {
+    return <p className="text-xs text-stone-500">جاري تجهيز تسجيل الدخول…</p>
   }
 
   if (!configured) {

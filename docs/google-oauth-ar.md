@@ -10,17 +10,20 @@
 | شاشة تحذير Google عند كل دخول | الدخول العادي أبسط؛ التحذير يظهر فقط عند «ربط التقويم / Gmail / Drive» لاحقاً |
 | رمز البريد مخفي خلف زر | رمز البريد (OTP) ظاهر كبديل واضح بدون Google |
 
-روابط التطبيق:
-- الموقع: `https://arabicbuzz.netlify.app/`
-- سياسة الخصوصية: `https://arabicbuzz.netlify.app/privacy`
-- ردّ التوجيه بعد الدخول: `https://arabicbuzz.netlify.app/auth/callback`
+روابط التطبيق (المسار الحي = CranL):
+- الموقع: `https://arabicbuzz-fooc9h.cranl.net/`
+- سياسة الخصوصية: `https://arabicbuzz-fooc9h.cranl.net/privacy`
+- ردّ التوجيه بعد الدخول: `https://arabicbuzz-fooc9h.cranl.net/auth/callback`
 - Callback عند Google/Supabase: `https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback`
+- احتياطي Netlify (اختياري): `https://arabicbuzz.netlify.app/…` — أبقِه في القوائم فقط إن بقي الموقع القديم
 
 ---
 
 ## قائمة تحقق — Google Cloud Console (مطلوب من المالك)
 
 الحساب: `ryodan71@gmail.com`
+
+> لا يمكن للكود أو لـ CranL CLI إضافة هذه الروابط نيابةً عنك — تحتاج ضغطات في لوحة Google.
 
 ### 1) شاشة موافقة OAuth (OAuth consent screen)
 
@@ -29,9 +32,9 @@
 3. اضبط:
    - **App name:** `Arabic Buzz`
    - **User support email:** `ryodan71@gmail.com`
-   - **Application home page:** `https://arabicbuzz.netlify.app/`
-   - **Privacy policy:** `https://arabicbuzz.netlify.app/privacy`
-   - **Authorized domains:** أضف `arabicbuzz.netlify.app` و `supabase.co`
+   - **Application home page:** `https://arabicbuzz-fooc9h.cranl.net/`
+   - **Privacy policy:** `https://arabicbuzz-fooc9h.cranl.net/privacy`
+   - **Authorized domains:** أضف `cranl.net` و `supabase.co` (وأبقِ `arabicbuzz.netlify.app` إن بقي الاحتياطي)
    - **Developer contact:** `ryodan71@gmail.com`
 4. ارفع شعاراً إن أمكن (من `public/icon-512.png`)
 
@@ -50,17 +53,18 @@
 1. OAuth consent screen → **Test users** → Add users
 2. أضف بريد كل زميل يحتاج دخول Google قبل النشر
 
-### 4) معرّف OAuth (Credentials)
+### 4) معرّف OAuth (Credentials) — Origins بعد النقل لـ CranL
 
 1. [Credentials](https://console.cloud.google.com/apis/credentials) → OAuth 2.0 Client ID (Web)
-2. **Authorized JavaScript origins:**
-   - `https://arabicbuzz.netlify.app`
+2. **Authorized JavaScript origins** — أضف (ولا تحذف Netlify قبل التأكد):
+   - `https://arabicbuzz-fooc9h.cranl.net`
    - `https://vqhbgujxhyodxcneexss.supabase.co`
+   - (اختياري احتياطي) `https://arabicbuzz.netlify.app`
 3. **Authorized redirect URIs** (مهم جداً — تطابق حرفي):
    - `https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback`
 4. انسخ Client ID + Secret إلى:
    - Supabase → Authentication → Providers → Google
-   - Netlify env: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (لتجديد رموز التقويم)
+   - CranL Application → Environment: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (لتجديد رموز التقويم)
 
 ### 5) تفعيل واجهات Google (للربط لاحقاً وليس للدخول)
 
@@ -75,14 +79,20 @@
 
 ---
 
-## قائمة تحقق — Supabase
+## قائمة تحقق — Supabase (ضغطات لوحة — لا CLI للمضيف السحابي)
 
-1. Authentication → URL Configuration
-   - **Site URL:** `https://arabicbuzz.netlify.app`
-   - **Redirect URLs:** `https://arabicbuzz.netlify.app/auth/callback`
-2. Providers → Google: مفعّل + نفس Client ID/Secret
-3. Providers → Email: مفعّل (لرمز OTP) — تأكد من إعدادات البريد / SMTP إن تجاوزت حد البريد الافتراضي
-4. Providers → GitHub: اختياري (الزر موجود في الواجهة)
+1. [Supabase Dashboard](https://supabase.com/dashboard) → مشروع Arabic Buzz → **Authentication** → **URL Configuration**
+2. اضبط:
+   - **Site URL:** `https://arabicbuzz-fooc9h.cranl.net`
+   - **Redirect URLs** (سطر لكل قيمة):
+     - `https://arabicbuzz-fooc9h.cranl.net/auth/callback`
+     - (اختياري احتياطي) `https://arabicbuzz.netlify.app/auth/callback`
+3. **Save**
+4. Providers → Google: مفعّل + نفس Client ID/Secret
+5. Providers → Email: مفعّل (لرمز OTP) — تأكد من إعدادات البريد / SMTP إن تجاوزت حد البريد الافتراضي
+6. Providers → GitHub: اختياري (الزر موجود في الواجهة)
+
+ملاحظة: ملف `supabase/config.toml` في المستودع محدّث لـ CranL كمرجع محلي فقط — **لا يغيّر** إعدادات مشروع Supabase السحابي تلقائياً.
 
 ---
 
@@ -108,33 +118,27 @@
 
 ---
 
-## خطوات عربية مختصرة — نشر Production (حساب المالك فقط)
+## خطوات عربية مختصرة — بعد قطع CranL (حساب المالك فقط)
 
 الحساب المتوقع: `ryodan71@gmail.com`
 
-> **لا يمكن للكود أو للموقع الضغط على Publish نيابةً عنك.** هذه النقرة في Google Cloud Console إلزامية من حساب المالك.
+> **لا يمكن للكود أو للموقع الضغط على Publish أو حفظ Redirects نيابةً عنك.**
 
 ### قائمة تحقق سريعة (انسخها)
 
-- [ ] فتحت [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
-- [ ] App name = `Arabic Buzz` · Privacy = `https://arabicbuzz.netlify.app/privacy`
-- [ ] تحت **Publishing status**: إن كان **Testing** → ضغطت **Publish app** → **In production**
-- [ ] (اختياري قبل النشر) أضفت الزملاء في **Test users**
-- [ ] داخل Arabic Buzz: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم يضغط هذا بنفسه مرة واحدة
+- [ ] Google Consent: Home + Privacy = روابط `arabicbuzz-fooc9h.cranl.net`
+- [ ] Google Credentials: أضفت Origin `https://arabicbuzz-fooc9h.cranl.net`
+- [ ] إن كان Publishing = Testing → **Publish app** أو أضفت Test users
+- [ ] Supabase URL Configuration: Site URL + Redirect = CranL `/auth/callback`
+- [ ] جرّبت الدخول من https://arabicbuzz-fooc9h.cranl.net/auth/login
+- [ ] (أمان) دوّرت مفتاح CranL API إن لُصق سابقاً في محادثة
 
 ### التفصيل
 
 1. افتح [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
-2. تأكد من:
-   - App name = `Arabic Buzz`
-   - Privacy policy = `https://arabicbuzz.netlify.app/privacy`
-   - Home page = `https://arabicbuzz.netlify.app/`
-3. تحت **Publishing status**:
-   - إذا **Testing** → اضغط **Publish app** → أكّد الانتقال إلى **In production**
-4. (اختياري قبل النشر) أضف الزملاء في **Test users** حتى يعملوا فوراً
-5. داخل Arabic Buzz: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم يضغط هذا بنفسه مرة واحدة لتحويل PDF→Word والفهرسة
-
-الكود لا يستطيع نشر التطبيق في Google Cloud نيابةً عنك — هذه النقرة في Console إلزامية من حساب المالك.
+2. Home = `https://arabicbuzz-fooc9h.cranl.net/` · Privacy = `https://arabicbuzz-fooc9h.cranl.net/privacy`
+3. Credentials → أضف JavaScript origin للـ CranL host
+4. Supabase → Authentication → URL Configuration → احفظ Site URL + Redirect لـ CranL
+5. داخل Arabic Buzz بعد الدخول: الإعدادات → عقل الشركة → **«١) ربط Google (Drive)»** — كل مستخدم مرة واحدة
 
 بعد النشر: إن بقي تحذير «غير موثّق» عند ربط Drive فقط، فهذا طبيعي لصلاحيات حساسة حتى Verification — استخدم Advanced → Continue أو أكمل التحقق لاحقاً.
-

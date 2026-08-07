@@ -368,7 +368,13 @@ export async function executeConvertDocument(
     }
   }
 
-  if (arabicBroken && engine === 'auto') {
+  const forceBroken =
+    params.forceBrokenRebuild === true ||
+    params.acceptBrokenText === true ||
+    String(params.forceBrokenRebuild || '').toLowerCase() === 'true'
+
+  // Never emit silent طلاسم — refuse broken ToUnicode unless explicitly forced.
+  if (arabicBroken && !forceBroken) {
     throw new Error(
       brokenToUnicodeErrorAr({
         hasMac: macSyncConfigured(),

@@ -20,10 +20,10 @@ async function probeSignedIn(): Promise<boolean> {
   if (inflight) return inflight
   inflight = (async () => {
     try {
-      const { getBrowserSession, isSupabaseConfigured } = await import(
+      const { getBrowserSession, ensureSupabaseBrowserConfig } = await import(
         '@/lib/supabase/browser'
       )
-      if (!isSupabaseConfigured()) return false
+      if (!(await ensureSupabaseBrowserConfig())) return false
       const s = await Promise.race([
         getBrowserSession(),
         new Promise<null>((resolve) =>
@@ -69,9 +69,11 @@ export function useSignedIn(): SignedIn {
     let unsub: (() => void) | undefined
     void (async () => {
       try {
-        const { createBrowserSupabaseClient, isSupabaseConfigured } =
-          await import('@/lib/supabase/browser')
-        if (!isSupabaseConfigured()) return
+        const {
+          createBrowserSupabaseClient,
+          ensureSupabaseBrowserConfig,
+        } = await import('@/lib/supabase/browser')
+        if (!(await ensureSupabaseBrowserConfig())) return
         const sb = createBrowserSupabaseClient()
         const { data } = sb.auth.onAuthStateChange((_event, session) => {
           publish(Boolean(session?.user))

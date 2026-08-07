@@ -10,7 +10,7 @@ import {
 } from '@/lib/security/airgap'
 
 const MAX_CHARS = 12_000
-const UA = 'ArabicBuzzBot/1.0 (+https://arabicbuzz.netlify.app)'
+const UA = 'ArabicBuzzBot/1.0 (+https://arabicbuzz-fooc9h.cranl.net)'
 
 export type WebSearchHit = {
   title: string

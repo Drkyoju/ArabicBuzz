@@ -211,7 +211,7 @@ export function IntegrationsSetupPanel() {
           <li>
             Webhook:{' '}
             <code dir="ltr" className="break-all text-[10px]">
-              https://arabicbuzz.netlify.app/api/webhooks/telegram
+              https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram
             </code>
           </li>
           <li>
@@ -231,7 +231,7 @@ export function IntegrationsSetupPanel() {
         </p>
         <p className="mb-2 text-[11px] text-amber-900/90">
           {waStatusAr ||
-            'لا يعمل على Netlify وحده — جلسة واتساب ويب تحتاج عملية دائمة (VPS أو جهازك).'}
+            'لا يعمل على CranL وحده — جلسة واتساب ويب تحتاج عملية دائمة (VPS أو جهازك).'}
         </p>
         <p className="mb-1 text-[11px]">
           المسار المجاني الموصى به: Evolution API (مفتوح المصدر / Baileys) على
@@ -247,11 +247,11 @@ export function IntegrationsSetupPanel() {
             <li>
               وجّه Webhook الجسر إلى{' '}
               <code dir="ltr" className="break-all text-[10px]">
-                https://arabicbuzz.netlify.app/api/webhooks/whatsapp
+                https://arabicbuzz-fooc9h.cranl.net/api/webhooks/whatsapp
               </code>
             </li>
             <li>
-              Netlify:{' '}
+              CranL env:{' '}
               <code dir="ltr">WHATSAPP_BRIDGE_URL</code> = عنوان REST للجسر ·{' '}
               <code dir="ltr">WHATSAPP_BRIDGE_SECRET</code> · اختياري{' '}
               <code dir="ltr">WHATSAPP_BRIDGE_INSTANCE</code> ·{' '}

@@ -53,16 +53,17 @@ export function GoogleSetupChecklist({
           شاشة موافقة OAuth: اسم التطبيق{' '}
           <span className="font-medium">Arabic Buzz</span> · سياسة الخصوصية{' '}
           <a
-            href="https://arabicbuzz.netlify.app/privacy"
+            href="https://arabicbuzz-fooc9h.cranl.net/privacy"
             className="text-ab-accent underline"
             target="_blank"
             rel="noreferrer"
             dir="ltr"
           >
-            arabicbuzz.netlify.app/privacy
+            arabicbuzz-fooc9h.cranl.net/privacy
           </a>{' '}
-          · النطاقات: <span dir="ltr">arabicbuzz.netlify.app</span> و{' '}
+          · النطاقات: <span dir="ltr">cranl.net</span> و{' '}
           <span dir="ltr">supabase.co</span>
+          {' '}(أبقِ Netlify إن بقي كاحتياطي)
         </li>
         <li>
           <strong className="text-ab-ink">نشر التطبيق (إلزامي):</strong>{' '}
@@ -75,9 +76,13 @@ export function GoogleSetupChecklist({
           <span dir="ltr" className="font-mono text-[10px]">
             …supabase.co/auth/v1/callback
           </span>
+          {' '}· Origins:{' '}
+          <span dir="ltr" className="font-mono text-[10px]">
+            https://arabicbuzz-fooc9h.cranl.net
+          </span>
         </li>
         <li>فعّل APIs: Calendar · Gmail · Sheets · Drive</li>
-        <li>فعّل موفّر Google في Supabase + انسخ Client ID/Secret لـ Netlify</li>
+        <li>فعّل موفّر Google في Supabase + انسخ Client ID/Secret لـ CranL env</li>
         <li>{lastStep}</li>
       </ol>
       <p className="mt-2 text-[11px] leading-relaxed text-stone-500">

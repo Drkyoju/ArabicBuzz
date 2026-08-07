@@ -305,7 +305,7 @@ async function notifyNewMailTelegram(): Promise<number> {
     if (m.snippet) lines.push(`  ${m.snippet.slice(0, 120)}`)
     lines.push('')
   }
-  lines.push('👉 راجع الوارد: https://arabicbuzz.netlify.app/?section=mail')
+  lines.push('👉 راجع الوارد: https://arabicbuzz-fooc9h.cranl.net/?section=mail')
   const r = await emitNotification({
     channel: 'telegram',
     textAr: lines.join('\n').slice(0, 3500),

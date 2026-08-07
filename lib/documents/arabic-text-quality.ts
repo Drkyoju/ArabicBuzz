@@ -55,6 +55,8 @@ export function brokenToUnicodeErrorAr(opts?: {
       'أو شغّل جسر الماك (MAC_SYNC_URL + npm run storage:sync) لنسخة Word مرئية (تخطيط 100%).'
     )
   }
-  parts.push('مرّر engine=free فقط إن قبلت جودة منخفضة.')
+  parts.push(
+    'لن نُنتج Word بنص معطوب صامتاً. لفرض المسار النصّي رغم العطب مرّر forceBrokenRebuild=true (جودة منخفضة).'
+  )
   return parts.join(' ')
 }

@@ -22,7 +22,7 @@ export type WebIngestResult = {
 }
 
 const UA =
-  'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz.netlify.app)'
+  'ArabicBuzzKnowledgeBot/1.0 (+https://arabicbuzz-fooc9h.cranl.net)'
 
 async function viaAnybrowse(url: string): Promise<string | null> {
   try {

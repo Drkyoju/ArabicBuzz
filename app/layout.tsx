@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { IBM_Plex_Sans_Arabic } from 'next/font/google'
+import Script from 'next/script'
+import { readServerPublicConfig } from '@/lib/public-runtime-config'
 import './globals.css'
 
 const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
@@ -40,11 +42,23 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Runtime inject — CranL Docker may not bake NEXT_PUBLIC_* at build time.
+  const publicConfig = readServerPublicConfig()
+  const publicBoot =
+    publicConfig.supabaseUrl && publicConfig.supabaseAnonKey
+      ? `window.__AB_PUBLIC__=${JSON.stringify(publicConfig)};`
+      : ''
+
   return (
     <html lang="ar" dir="rtl">
       <body
         className={`${ibmPlexSansArabic.variable} ${ibmPlexSansArabic.className} bg-ab-bg text-ab-ink antialiased`}
       >
+        {publicBoot ? (
+          <Script id="ab-public-config" strategy="beforeInteractive">
+            {publicBoot}
+          </Script>
+        ) : null}
         {children}
       </body>
     </html>

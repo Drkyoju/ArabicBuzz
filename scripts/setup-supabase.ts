@@ -105,7 +105,7 @@ function syncPublicEnvFile() {
 }
 
 function printAuthChecklist() {
-  const appUrl = 'https://arabicbuzz.netlify.app'
+  const appUrl = 'https://arabicbuzz-fooc9h.cranl.net'
 
   console.log(`
 Auth (Google + Apple) — Supabase Dashboard
@@ -113,7 +113,7 @@ Auth (Google + Apple) — Supabase Dashboard
 2. Authentication → URL Configuration:
    - Site URL: ${appUrl}
    - Redirect URLs: ${appUrl}/auth/callback
-3. Netlify / .env.local must include:
+3. CranL / .env.local must include:
    NEXT_PUBLIC_SUPABASE_URL
    NEXT_PUBLIC_SUPABASE_ANON_KEY
    SUPABASE_URL

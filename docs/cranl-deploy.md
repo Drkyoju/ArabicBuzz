@@ -54,6 +54,12 @@ Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
 
 - `GET https://arabicbuzz-fooc9h.cranl.net/api/health/free`
 - `GET https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram`
+- `GET https://arabicbuzz-fooc9h.cranl.net/api/public-config` → `supabaseConfigured: true`
+- Login UI: `https://arabicbuzz-fooc9h.cranl.net/auth/login` must show Google / email buttons (not «غير جاهز»)
+
+### Auth note (Docker / NEXT_PUBLIC_*)
+
+Next.js inlines `NEXT_PUBLIC_*` at **build** time. CranL often only has env at **runtime**. The app injects public Supabase URL+anon via layout script + `/api/public-config` so login works without rebuild args. Dockerfile still accepts optional `ARG NEXT_PUBLIC_*` when the host can pass build args.
 
 ## Local Docker build (optional)
 

@@ -4,8 +4,17 @@ import {
   GOOGLE_CALENDAR_SCOPES,
   GOOGLE_LOGIN_SCOPES,
 } from '@/lib/google/scopes'
+import {
+  applyBrowserPublicConfig,
+  readBrowserPublicConfig,
+  type AbPublicConfig,
+} from '@/lib/public-runtime-config'
 
 function publicSupabaseConfig() {
+  const runtime = readBrowserPublicConfig()
+  if (runtime) {
+    return { url: runtime.supabaseUrl, anonKey: runtime.supabaseAnonKey }
+  }
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''
   const anonKey =
@@ -18,6 +27,32 @@ function publicSupabaseConfig() {
 export function isSupabaseConfigured() {
   const { url, anonKey } = publicSupabaseConfig()
   return Boolean(url && anonKey)
+}
+
+/** Load public Supabase config when Docker build omitted NEXT_PUBLIC_* inlining. */
+export async function ensureSupabaseBrowserConfig(): Promise<boolean> {
+  if (isSupabaseConfigured()) return true
+  if (typeof window === 'undefined') return false
+  try {
+    const res = await fetch('/api/public-config', { cache: 'no-store' })
+    if (!res.ok) return false
+    const data = (await res.json()) as {
+      supabaseUrl?: string | null
+      supabaseAnonKey?: string | null
+      appUrl?: string | null
+    }
+    if (!data.supabaseUrl || !data.supabaseAnonKey) return false
+    const cfg: AbPublicConfig = {
+      supabaseUrl: data.supabaseUrl,
+      supabaseAnonKey: data.supabaseAnonKey,
+      appUrl: data.appUrl || '',
+    }
+    applyBrowserPublicConfig(cfg)
+    browserClient = null
+    return isSupabaseConfigured()
+  } catch {
+    return false
+  }
 }
 
 let browserClient: SupabaseClient | null = null

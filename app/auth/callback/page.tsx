@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createBrowserSupabaseClient,
+  ensureSupabaseBrowserConfig,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
 import { persistGoogleProviderTokens } from '@/lib/google/persist-provider-tokens'
@@ -21,7 +22,8 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     async function finish() {
-      if (!isSupabaseConfigured()) {
+      const ready = await ensureSupabaseBrowserConfig()
+      if (!ready || !isSupabaseConfigured()) {
         setMessage('Supabase غير مُعدّ.')
         router.replace('/auth/login?error=supabase_not_configured')
         return

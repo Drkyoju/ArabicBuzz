@@ -47,15 +47,16 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 - **Sign-in** uses Google identity only (`openid email profile`) — avoids Google’s “unverified app” scare screens on every login.
 - **Calendar / Gmail / Drive** are linked later via «ربط تقويم Google» (`connectGoogleCalendar()`), which still requests sensitive scopes and may show verification warnings until Google verifies the OAuth app.
 - **Email OTP** is a first-class alternative on `/auth/login` (no Google required).
-- Privacy policy URL for the consent screen: `https://arabicbuzz.netlify.app/privacy`
+- Privacy policy URL for the consent screen: `https://arabicbuzz-fooc9h.cranl.net/privacy`
 
 ### 1) Supabase URL config
 
 **Authentication → URL Configuration**
 
-- **Site URL:** `https://arabicbuzz.netlify.app`
+- **Site URL:** `https://arabicbuzz-fooc9h.cranl.net`
 - **Redirect URLs:**
-  - `https://arabicbuzz.netlify.app/auth/callback`
+  - `https://arabicbuzz-fooc9h.cranl.net/auth/callback`
+  - (optional fallback) `https://arabicbuzz.netlify.app/auth/callback`
 
 ### 2) Google (Gmail)
 
@@ -66,7 +67,7 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 
 3. Supabase → **Authentication → Providers → Google** → enable → paste Client ID + Secret.
 4. In [Google Cloud Console](https://console.cloud.google.com/) enable **Google Calendar API**, **Gmail API**, **Google Sheets API**, and **Google Drive API**.
-5. OAuth consent screen → App name **Arabic Buzz**, home `https://arabicbuzz.netlify.app/`, privacy `https://arabicbuzz.netlify.app/privacy`, then **Publish app** (see Arabic checklist).
+5. OAuth consent screen → App name **Arabic Buzz**, home `https://arabicbuzz-fooc9h.cranl.net/`, privacy `https://arabicbuzz-fooc9h.cranl.net/privacy`, then **Publish app** (see Arabic checklist).
 6. OAuth consent screen → add scopes (needed only for workspace link, not basic login):
    - `.../auth/calendar`
    - `.../auth/calendar.events`
@@ -75,13 +76,13 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
    - `.../auth/spreadsheets`
    - `.../auth/drive.readonly`
    - `.../auth/drive.file`
-7. On Netlify set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
+7. On CranL set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (same client as Supabase) so Calendar tokens can refresh.
 8. In the app: **الإعدادات → ربط تقويم Google**. Chat tools can then create/update/delete events, search/read/send Gmail, and read/write Sheets (`gmail_send` / Sheets writes go through HITL in AUTO/STRICT). Re-link after scope changes (e.g. adding `gmail.send`) so Google re-consents.
 
 ### 3) GitHub
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
-   - Homepage URL: `https://arabicbuzz.netlify.app`
+   - Homepage URL: `https://arabicbuzz-fooc9h.cranl.net`
    - Authorization callback URL:
 
      `https://vqhbgujxhyodxcneexss.supabase.co/auth/v1/callback`
@@ -90,7 +91,7 @@ Anyone on your team can sign in; **model API keys stay on Netlify** (shared serv
 
 ### 4) Mac vault (optional, large files + local brain)
 
-On your Mac: `npm run storage:sync` + a public tunnel. On Netlify set `MAC_SYNC_URL`, `MAC_SYNC_SECRET`, `NEXT_PUBLIC_MAC_UPLOAD_URL`, and `BRAIN_PRIMARY=mac`. See root README «Mac vault».
+On your Mac: `npm run storage:sync` + a public tunnel. On CranL set `MAC_SYNC_URL`, `MAC_SYNC_SECRET`, `NEXT_PUBLIC_MAC_UPLOAD_URL`, and `BRAIN_PRIMARY=mac`. See root README «Mac vault».
 
 ### 5) Shared models on Netlify
 

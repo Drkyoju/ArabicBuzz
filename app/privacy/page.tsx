@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 /**
  * Public privacy policy — required URL for Google OAuth consent screen branding.
- * Keep this page live at https://arabicbuzz.netlify.app/privacy
+ * Keep this page live at https://arabicbuzz-fooc9h.cranl.net/privacy
  */
 export default function PrivacyPage() {
   return (
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
       <p className="mt-2 text-sm text-stone-600">
         آخر تحديث: أغسطس 2026 · الموقع:{' '}
         <span dir="ltr" className="font-mono text-xs">
-          https://arabicbuzz.netlify.app
+          https://arabicbuzz-fooc9h.cranl.net
         </span>
       </p>
 
