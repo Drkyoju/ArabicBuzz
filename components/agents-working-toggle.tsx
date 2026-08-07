@@ -40,18 +40,18 @@ export function AgentsWorkingToggle({
             compact ? 'py-0.5 text-[10px]' : 'py-1 text-[11px]'
           )}
           role="status"
-          title="الوكلاء متواجدون دائماً — كل رسالة يطّلع عليها وكيل جاهز فوراً (بلا @)"
+          title="الوكلاء متاحون — الرسالة توقظ وكيل١ (والباقي نائم حتى الإشارة أو الازدحام)"
         >
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
           <Radio className={cn(compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
-          متواجدون · جاهزون
+          متاحون · نوم افتراضي
         </div>
         {!compact && (
           <p className="text-[10px] leading-snug text-ab-muted">
-            أي رسالة في الغرفة يراجعها وكيل شغال فوراً. اضغط المقعد: شغال ↔ طافي.
+            أي رسالة توقظ وكيل١ فقط. إن كان يعمل تُوقظ التالية. بعد المهمة يعود للنوم.
           </p>
         )}
       </div>

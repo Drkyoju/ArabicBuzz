@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   agentModelLabelAr,
+  ROOM_AGENT_DEFAULT_MODEL,
   ROOM_AGENT_IDEAL_SEATS,
   ROOM_AGENT_SOFT_CAP,
   type RoomAgent,
@@ -54,6 +55,11 @@ export function AgentSeatsPanel({
   const [profileAgent, setProfileAgent] = useState<RoomAgent | null>(null)
   const signedIn = useSignedIn()
   const [liveActions, setLiveActions] = useState<string[]>([])
+  const [pressTip, setPressTip] = useState<string | null>(null)
+  const longPressRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null
+    tip: string
+  }>({ timer: null, tip: '' })
 
   useEffect(() => {
     if (signedIn === false) {
@@ -124,35 +130,34 @@ export function AgentSeatsPanel({
             agentsEnabled && isAgentOnline(scopeId, agent.id)
           const active = activeAgentId === agent.id
           const answering = answeringAgentId === agent.id
-          const model = shortCapability(agent.preferredModel)
+          const model = shortCapability(
+            agent.preferredModel || ROOM_AGENT_DEFAULT_MODEL
+          )
           const power =
             RUN_EFFORT_LABELS_AR[parseRunEffort(agent.preferredEffort)]
           const statusAr = !agentsEnabled
-            ? 'طافي'
+            ? 'نائم'
             : !online
-              ? 'طافي'
+              ? 'نائم'
               : answering
                 ? 'يعمل'
                 : 'شغال'
-          const tip = [
-            online
-              ? 'اضغط لإيقاف الوكيل (طافي)'
-              : 'اضغط لتشغيل الوكيل (شغال)',
-            'نقرة مزدوجة للإعدادات',
-            model ? `نموذج: ${model}` : null,
-            `قوة: ${power}`,
-            collabMode === 'team' ? 'وضع تعاون' : 'وضع منفصل',
-            statusAr,
-          ]
+          const tip = [agent.nameAr, model || 'Gemini Flash', `قوة ${power}`]
             .filter(Boolean)
             .join(' · ')
+          const clearLongPress = () => {
+            if (longPressRef.current.timer) {
+              clearTimeout(longPressRef.current.timer)
+              longPressRef.current.timer = null
+            }
+          }
           return (
             <button
               key={agent.id}
               type="button"
-              title={tip}
+              title={`${tip} — ${statusAr} (اضغط لإيقاظ/تنويم)`}
               aria-pressed={online}
-              aria-label={`${agent.nameAr} — ${statusAr}`}
+              aria-label={`${tip} — ${statusAr}`}
               onClick={() => {
                 if (!agentsEnabled) return
                 const next = toggleAgentOnline(scopeId, agent.id)
@@ -162,6 +167,17 @@ export function AgentSeatsPanel({
                 e.preventDefault()
                 setProfileAgent(agent)
               }}
+              onTouchStart={() => {
+                longPressRef.current.tip = tip
+                clearLongPress()
+                longPressRef.current.timer = setTimeout(() => {
+                  setPressTip(longPressRef.current.tip)
+                  window.setTimeout(() => setPressTip(null), 2200)
+                }, 480)
+              }}
+              onTouchEnd={clearLongPress}
+              onTouchCancel={clearLongPress}
+              onTouchMove={clearLongPress}
               className={cn(
                 'inline-flex max-w-[11rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition-colors',
                 !online
@@ -201,6 +217,8 @@ export function AgentSeatsPanel({
               </span>
               {answering ? (
                 <span className="shrink-0 text-[9px] text-ab-accent">يعمل</span>
+              ) : !online ? (
+                <span className="shrink-0 text-[9px] text-stone-400">نائم</span>
               ) : null}
             </button>
           )
@@ -208,6 +226,14 @@ export function AgentSeatsPanel({
         <AgentsManagePanel scopeId={scopeId} compact />
         <CollabModeToggle scopeId={scopeId} />
       </div>
+      {pressTip ? (
+        <p
+          className="rounded-md border border-ab-border bg-stone-50 px-2 py-1 text-[10px] text-stone-700"
+          role="status"
+        >
+          {pressTip}
+        </p>
+      ) : null}
       {answeringAgentId && (
         <p className="text-[10px] font-medium text-ab-accent">
           {agents.find((a) => a.id === answeringAgentId)?.nameAr || 'وكيل'}{' '}
@@ -216,7 +242,7 @@ export function AgentSeatsPanel({
       )}
       {!answeringAgentId && agents.length > 0 && agents.length <= ROOM_AGENT_SOFT_CAP && (
         <p className="truncate text-[10px] text-stone-400">
-          شغال ↔ طافي · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
+          شغال / نائم · الرسالة توقظ وكيل١ · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
         </p>
       )}
 

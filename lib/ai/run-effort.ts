@@ -1,24 +1,30 @@
 /**
  * User-facing run power / effort for room chat and `/api/chat`.
  * Maps to tool step budget + sampling temperature (no separate provider effort API).
+ * Legacy `MAX` / «أقصى» is remapped to HIGH (no longer selectable).
  */
 
-export type RunEffort = 'LOW' | 'MEDIUM' | 'HIGH' | 'MAX'
+export type RunEffort = 'LOW' | 'MEDIUM' | 'HIGH'
 
-export const RUN_EFFORT_ORDER: RunEffort[] = ['LOW', 'MEDIUM', 'HIGH', 'MAX']
+export const RUN_EFFORT_ORDER: RunEffort[] = ['LOW', 'MEDIUM', 'HIGH']
 
 export const RUN_EFFORT_LABELS_AR: Record<RunEffort, string> = {
   LOW: 'منخفضة',
   MEDIUM: 'متوسطة',
   HIGH: 'عالية',
-  MAX: 'أقصى',
+}
+
+/** Short labels under power buttons. */
+export const RUN_EFFORT_SHORT_AR: Record<RunEffort, string> = {
+  LOW: 'أسرع · أقل أدوات',
+  MEDIUM: 'توازن يومي',
+  HIGH: 'أدق · أكثر خطوات',
 }
 
 export const RUN_EFFORT_HINTS_AR: Record<RunEffort, string> = {
-  LOW: 'ردود سريعة بخطوات أدوات أقل.',
-  MEDIUM: 'التوازن اليومي — جودة معقولة.',
-  HIGH: 'تحليل أعمق وخطوات أدوات أكثر.',
-  MAX: 'أقصى جهد للمسائل المعقدة (أبطأ).',
+  LOW: 'أسرع وأرخص رموزاً — خطوتان للأدوات وحرارة منخفضة؛ للإجابات القصيرة.',
+  MEDIUM: 'توازن بين السرعة والجودة — ٥ خطوات للأدوات؛ للاستخدام اليومي.',
+  HIGH: 'أعمق وأكثر تحققاً — ٨ خطوات للأدوات؛ للتحليل والمهام المركّبة.',
 }
 
 export type RunEffortParams = {
@@ -31,8 +37,10 @@ export function parseRunEffort(raw: unknown): RunEffort {
   const v = String(raw || '')
     .trim()
     .toUpperCase()
-  if (v === 'LOW' || v === 'MEDIUM' || v === 'HIGH' || v === 'MAX') return v
-  return 'MEDIUM'
+  if (v === 'LOW' || v === 'MEDIUM' || v === 'HIGH') return v
+  // Legacy «أقصى» / MAX → عالية (no longer offered)
+  if (v === 'MAX') return 'HIGH'
+  return 'LOW'
 }
 
 export function effortToRunParams(effort: RunEffort): RunEffortParams {
@@ -57,13 +65,6 @@ export function effortToRunParams(effort: RunEffort): RunEffortParams {
         temperature: 0.55,
         systemHintAr:
           'وضع القوة: عالية — حلّل بعمق أكثر، وتحقق بالأدوات عند الحاجة.',
-      }
-    case 'MAX':
-      return {
-        maxSteps: 10,
-        temperature: 0.65,
-        systemHintAr:
-          'وضع القوة: أقصى — ابذل أقصى جهد معقول ضمن حدود الوقت؛ استخدم الأدوات اللازمة.',
       }
   }
 }

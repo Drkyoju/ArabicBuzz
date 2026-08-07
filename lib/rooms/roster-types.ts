@@ -11,8 +11,9 @@ export type AgentRosterPayload = {
    */
   agentsEnabledByScope?: Record<string, boolean>
   /**
-   * Per-seat power in a scope. Missing agent id = online/ready (default ON, 24h).
-   * `false` = طافي — user toggled off; skipped for watch/work.
+   * Per-seat شغال/نائم. Missing agent id = asleep (default OFF).
+   * `true` = شغال temporarily (message / manual / @mention).
+   * `false` = نائم — skipped until woken.
    */
   agentOnlineByScope?: Record<string, Record<string, boolean>>
   agentOverrides: Record<

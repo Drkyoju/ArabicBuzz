@@ -70,6 +70,10 @@ import { useSecurityPostureStore } from '@/lib/security/posture-store'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { resolveMentionHandoff, type RoomAgent } from '@/lib/rooms/agents'
 import {
+  planRoomRunAdaptation,
+} from '@/lib/rooms/run-adapt'
+import { pickAgentSeatsForMessage } from '@/lib/rooms/wake-policy'
+import {
   memberMentionToken,
   type MentionableMember,
 } from '@/lib/rooms/member-mentions'
@@ -81,7 +85,6 @@ import {
 } from '@/lib/assistants/parallel'
 import { agentsAlwaysPresentInRoom, usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
 import {
-  agentsForSharedRoomMessage,
   resolveRoomMessageIntent,
   roomIntentPromptNudge,
   VOICE_HOW_TO_AR,
@@ -234,6 +237,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const localUploadRef = useRef<LocalUploadHandle>(null)
   const runAbortRef = useRef<AbortController | null>(null)
+  /** Agents currently streaming a reply — used for wake cascade. */
+  const busyAgentsRef = useRef<Set<string>>(new Set())
+  const activeRunsRef = useRef(0)
 
   function attachComposerFile(file: UploadedRoomFile) {
     setComposerFiles((prev) => {
@@ -272,6 +278,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   )
   const readyAgentsForScope = useAgentRosterStore((s) => s.readyAgentsForScope)
   const agentOnlineByScope = useAgentRosterStore((s) => s.agentOnlineByScope)
+  const wakeSeats = useAgentRosterStore((s) => s.wakeSeats)
+  const sleepSeatAfterRun = useAgentRosterStore((s) => s.sleepSeatAfterRun)
   const roomAgents = useMemo(
     () => agentsForScopeFn(activeScopeId),
     [agentsForScopeFn, activeScopeId]
@@ -798,7 +806,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   function stopAgentRun() {
     runAbortRef.current?.abort()
     runAbortRef.current = null
+    busyAgentsRef.current.clear()
+    activeRunsRef.current = 0
     setStreaming(false)
+    setAnsweringAgentId(null)
   }
 
   async function streamOneAgent(opts: {
@@ -809,6 +820,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
     headers: HeadersInit
     signal?: AbortSignal
     attachedFiles?: UploadedRoomFile[]
+    /** When true, specialty handoff is allowed for this seat. */
+    allowHandoff?: boolean
   }): Promise<string> {
     if (opts.signal?.aborted) {
       updatePost(activeScopeId, opts.postId, {
@@ -820,10 +833,50 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     const { model: roomModel, effort: roomEffort } =
       resolveModelPrefs(activeScopeId)
-    // Seat prefs win when set; room composer is the default fallback.
-    const modelId = opts.agent.preferredModel || roomModel
-    const effortLevel = opts.agent.preferredEffort || roomEffort
+    const seatModel = opts.agent.preferredModel || roomModel
+    const seatEffort = opts.agent.preferredEffort || roomEffort
+    const adapt = planRoomRunAdaptation({
+      prompt: opts.prompt,
+      baseEffort: seatEffort,
+      baseModel: seatModel,
+      currentAgent: opts.agent,
+      catalog: roomAgents,
+      hasAttachments: Boolean(opts.attachedFiles?.length),
+      allowHandoff: opts.allowHandoff !== false,
+    })
+    const runAgent = adapt.handoffAgent || opts.agent
+    const modelId = adapt.modelSlug
+    const effortLevel = adapt.effort
 
+    busyAgentsRef.current.add(runAgent.id)
+    wakeSeats(activeScopeId, [runAgent.id])
+    setAnsweringAgentId(runAgent.id)
+
+    if (adapt.noticesAr.length) {
+      appendPost({
+        id: `adapt-${Date.now()}-${runAgent.id}`,
+        scopeId: activeScopeId,
+        authorKind: 'system',
+        authorId: 'system',
+        authorNameAr: 'تكييف التشغيل',
+        content: adapt.noticesAr.join(' · '),
+        createdAt: Date.now(),
+      })
+      if (adapt.handoffAgent) {
+        updatePost(activeScopeId, opts.postId, {
+          authorId: runAgent.id,
+          authorNameAr: runAgent.nameAr,
+          mentionAgentId: runAgent.id,
+        })
+      }
+    }
+
+    const finishSeat = () => {
+      busyAgentsRef.current.delete(runAgent.id)
+      sleepSeatAfterRun(activeScopeId, runAgent.id)
+    }
+
+    try {
     let res: Response
     try {
       res = await fetch('/api/chat', {
@@ -835,15 +888,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
           modelId,
           effortLevel,
           scopeId: activeScopeId,
-          agentId: opts.agent.id,
+          agentId: runAgent.id,
           agentProfile: {
-            id: opts.agent.id,
-            nameAr: opts.agent.nameAr,
-            slug: opts.agent.slug,
-            systemPromptAr: opts.agent.systemPromptAr,
-            taskAr: opts.agent.taskAr,
-            preferredModel: opts.agent.preferredModel,
-            preferredEffort: opts.agent.preferredEffort,
+            id: runAgent.id,
+            nameAr: runAgent.nameAr,
+            slug: runAgent.slug,
+            systemPromptAr: runAgent.systemPromptAr,
+            taskAr: runAgent.taskAr,
+            preferredModel: runAgent.preferredModel,
+            preferredEffort: runAgent.preferredEffort,
           },
           peerContextAr: opts.peerContextAr,
           collabMode,
@@ -858,6 +911,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             name: f.name,
             mimeType: f.mimeType,
           })),
+          autoAdapt: false,
         }),
       })
     } catch (e) {
@@ -1099,13 +1153,16 @@ export function RoomWorkspace({ className }: { className?: string }) {
           scopeId: activeScopeId,
           content: finalContent,
           authorKind: 'agent',
-          authorId: opts.agent.id,
-          authorNameAr: opts.agent.nameAr,
-          mentionAgentId: opts.agent.id,
+          authorId: runAgent.id,
+          authorNameAr: runAgent.nameAr,
+          mentionAgentId: runAgent.id,
         }),
       })
     }
     return finalContent
+    } finally {
+      finishSeat()
+    }
   }
 
   async function sendPrompt(overridePrompt?: string) {
@@ -1116,7 +1173,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
       (filesForSend.length
         ? `عدّل الملف المرفق «${filesForSend[0].name}» وفق طلب العمل وأعد نسخة قابلة للتنزيل في الشات.`
         : '')
-    if ((!prompt && !filesForSend.length) || streaming) return
+    if ((!prompt && !filesForSend.length)) return
+    // Allow concurrent messages while an agent is busy — cascade wakes the next seat.
     if (isGuest) {
       // Keep the text so nothing the user typed disappears silently.
       setSendBlockedAr(
@@ -1145,49 +1203,38 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const sharedRoom = usesSharedRoomRoster(activeScopeId)
     const intent = resolveRoomMessageIntent(
       handoff.cleanPrompt || promptAfterTeam,
-      readyAgents.length ? readyAgents : roomAgents
+      roomAgents
     )
-    const runTeamCollab =
-      collabMode === 'team' &&
-      multiMentioned.length === 0 &&
-      intent.kind !== 'directed'
-    // Shared room: one watcher by default (no 40-agent hello spam).
-    // Fan-out only for @الجميع / «أبغا للجميع» / multi-@ / explicit broadcast.
-    const runTeam =
-      wantsAll || intent.kind === 'broadcast'
+    const runTeam = wantsAll || intent.kind === 'broadcast'
     const runMultiMentions = !runTeam && multiMentioned.length > 1
 
-    // Shared team room: every message is glanced by ≥1 ready agent (no @ needed).
-    // Personal desk: keep prior behavior (mention / team / first seat).
+    // Wake/sleep: asleep by default → wake seat 1; cascade to 2+ while prior busy.
+    // Manual @mention / @الجميع still honored. Manually-awake seats are preferred
+    // when free and not busy.
     let agentsToRun: RoomAgent[] = []
+    let wakeNoticeAr: string | undefined
     if (agentsWorking) {
-      if (sharedRoom) {
-        agentsToRun = agentsForSharedRoomMessage({
-          intent,
-          readyAgents,
-          mentioned: multiMentioned,
-          wantsAll,
-          teamCap: ROOM_TEAM_RUN_CAP,
-          runTeamCollab: false,
-        })
-        // If all seats طافي — no watcher (user turned everyone off).
-      } else {
-        const teamAgents = readyAgents.slice(0, ROOM_TEAM_RUN_CAP)
-        agentsToRun =
-          (runTeamCollab || wantsAll)
-            ? teamAgents.length
-              ? teamAgents
-              : readyAgents[0]
-                ? [readyAgents[0]]
-                : []
-            : multiMentioned.length
-              ? multiMentioned
-                  .filter((a) => readyAgents.some((r) => r.id === a.id))
-                  .slice(0, ROOM_TEAM_RUN_CAP)
-              : ([readyAgents[0] || roomAgents[0]].filter(
-                  Boolean
-                ) as RoomAgent[])
-      }
+      const manuallyAwake = roomAgents.filter(
+        (a) =>
+          useAgentRosterStore.getState().isAgentOnline(activeScopeId, a.id) &&
+          !busyAgentsRef.current.has(a.id)
+      )
+      const pick = pickAgentSeatsForMessage({
+        seated: roomAgents,
+        busyAgentIds: busyAgentsRef.current,
+        mentioned: multiMentioned.length
+          ? multiMentioned
+          : intent.kind === 'directed'
+            ? intent.agents
+            : manuallyAwake.length === 1 && !runTeam
+              ? manuallyAwake
+              : [],
+        wantsAll: runTeam,
+        teamCap: ROOM_TEAM_RUN_CAP,
+      })
+      agentsToRun = pick.agents
+      wakeNoticeAr = pick.noticeAr
+      if (pick.wokeIds.length) wakeSeats(activeScopeId, pick.wokeIds)
     }
     const teamParallel = Math.min(
       ASSISTANT_PARALLEL_DEFAULT,
@@ -1197,7 +1244,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const cleanPrompt =
       (handoff.cleanPrompt || intent.cleanPrompt || prompt).trim() || prompt
     const promptForAgents =
-      sharedRoom && agentsToRun.length
+      agentsToRun.length
         ? `${cleanPrompt}${roomIntentPromptNudge(intent)}`
         : cleanPrompt
     const humanId = `h-${Date.now()}`
@@ -1292,21 +1339,33 @@ export function RoomWorkspace({ className }: { className?: string }) {
         authorKind: 'system',
         authorId: 'system',
         authorNameAr: 'النظام',
-        content: sharedRoom
-          ? readyAgents.length === 0 && roomAgents.length > 0
-            ? 'كل مقاعد الوكلاء طافية — اضغط مقعداً لتشغيله (شغال) ليطّلع على الرسائل.'
-            : 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».'
-          : 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
+        content: wakeNoticeAr
+          ? wakeNoticeAr
+          : roomAgents.length > 0
+            ? 'الوكلاء نائمون أو مشغولون — أرسل مجدداً أو اضغط مقعداً لإيقاظه، أو أشر بـ @.'
+            : 'لا وكلاء في الغرفة — أضفهم من «إدارة الوكلاء».',
         createdAt: Date.now(),
       })
       return
     }
 
-    runAbortRef.current?.abort()
-    const abort = new AbortController()
+    if (wakeNoticeAr) {
+      appendPost({
+        id: `wake-${Date.now()}`,
+        scopeId: activeScopeId,
+        authorKind: 'system',
+        authorId: 'system',
+        authorNameAr: 'إيقاظ',
+        content: wakeNoticeAr,
+        createdAt: Date.now(),
+      })
+    }
+
+    // Do not abort in-flight runs — concurrent messages cascade to the next seat.
+    const abort = runAbortRef.current || new AbortController()
     runAbortRef.current = abort
+    activeRunsRef.current += 1
     setStreaming(true)
-    setAnsweringAgentId(null)
     try {
       localStorage.setItem('ab-first-chat', '1')
       window.dispatchEvent(new Event('ab-first-chat'))
@@ -1381,9 +1440,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
         })
       }
     } finally {
-      if (runAbortRef.current === abort) runAbortRef.current = null
-      setStreaming(false)
-      setAnsweringAgentId(null)
+      activeRunsRef.current = Math.max(0, activeRunsRef.current - 1)
+      if (activeRunsRef.current === 0) {
+        if (runAbortRef.current === abort) runAbortRef.current = null
+        setStreaming(false)
+        setAnsweringAgentId(null)
+      }
     }
   }
 
@@ -1445,7 +1507,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </h2>
                 <p className="mt-0.5 truncate text-[11px] text-stone-500">
                   {shared
-                    ? 'وكالة جاهزة · اضغط المقعد شغال/طافي'
+                    ? 'الوكلاء نائمون · الرسالة توقظ وكيل١'
                     : `${PERSONAL_DESK_COPY.taglineAr} — خاص بك فقط`}
                   {' · '}
                   الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
@@ -1841,8 +1903,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   onSeatClick={(a, online) => {
                     setMicNote(
                       online
-                        ? `${a.nameAr} شغال — يطّلع على الرسائل فوراً`
-                        : `${a.nameAr} طافي — لن يرد حتى تشغّله`
+                        ? `${a.nameAr} شغال — اضغط لتنويمه`
+                        : `${a.nameAr} نائم — اضغط لإيقاظه أو أرسل رسالة`
                     )
                   }}
                 />
@@ -1993,11 +2055,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 usesSharedRoomRoster(activeScopeId)) && (
               <p className="mb-1.5 text-[11px] leading-snug text-stone-500">
                 {collabMode === 'team' && roomAgents.length > 1
-                  ? `كل رسالة يراجعها وكيل فوراً (بلا @). للجميع: «أبغا للجميع» أو @الجميع. حتى ${Math.min(
+                  ? `الوكلاء نائمون افتراضياً. الرسالة توقظ وكيل١؛ إن كان يعمل تُوقظ التالية. @slug أو اضغط المقعد لإيقاظ يدوي. للجميع: @الجميع. حتى ${Math.min(
                       ASSISTANT_PARALLEL_DEFAULT,
-                      readyAgents.length || roomAgents.length
-                    )} وكيل — اضغط المقعد: شغال ↔ طافي.`
-                  : 'الوكلاء يطّلعون فوراً (بلا @). أمثلة: «حوّل إلى Word» · «عدّل الملف». اضغط المقعد لإيقاف وكيل.'}
+                      roomAgents.length
+                    )} وكيل.`
+                  : 'الوكلاء نائمون حتى الرسالة أو @ أو الضغط على المقعد. أمثلة: «حوّل إلى Word» · «عدّل الملف».'}
               </p>
             )}
             {!isGuest && !agentsWorking && (

@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 
 /**
  * Font size zoom (حجم الخط) — A− / A+.
- * Distinct from EffortPicker القوة (منخفضة…أقصى).
+ * Distinct from EffortPicker القوة (منخفضة…عالية).
  */
 export function FontScalePicker({
   compact,

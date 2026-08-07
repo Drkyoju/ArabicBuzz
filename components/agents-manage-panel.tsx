@@ -7,6 +7,8 @@ import {
   agentModelOptionLabelAr,
   BUILTIN_ROOM_AGENTS,
   ROOM_AGENT_BATCH_DEFAULT,
+  ROOM_AGENT_DEFAULT_EFFORT,
+  ROOM_AGENT_DEFAULT_MODEL,
   ROOM_AGENT_IDEAL_SEATS,
   ROOM_AGENT_SOFT_CAP,
   roomAgentModelCatalog,
@@ -23,13 +25,15 @@ import {
   RUN_EFFORT_HINTS_AR,
   RUN_EFFORT_LABELS_AR,
   RUN_EFFORT_ORDER,
+  RUN_EFFORT_SHORT_AR,
   parseRunEffort,
   type RunEffort,
 } from '@/lib/ai/run-effort'
 import { cn } from '@/lib/utils'
 
 const MODEL_OPTIONS = roomAgentModelCatalog()
-const DEFAULT_MODEL: string = MODEL_OPTIONS[0]?.slug || 'gemini-3.1-pro'
+const DEFAULT_MODEL: string = ROOM_AGENT_DEFAULT_MODEL
+const DEFAULT_EFFORT: RunEffort = ROOM_AGENT_DEFAULT_EFFORT
 
 export function AgentsManagePanel({
   scopeId,
@@ -66,9 +70,9 @@ export function AgentsManagePanel({
   const [slug, setSlug] = useState('')
   const [prompt, setPrompt] = useState('')
   const [model, setModel] = useState(DEFAULT_MODEL)
-  const [effort, setEffort] = useState<RunEffort>('MEDIUM')
+  const [effort, setEffort] = useState<RunEffort>(DEFAULT_EFFORT)
   const [batchModel, setBatchModel] = useState(DEFAULT_MODEL)
-  const [batchEffort, setBatchEffort] = useState<RunEffort>('MEDIUM')
+  const [batchEffort, setBatchEffort] = useState<RunEffort>(DEFAULT_EFFORT)
   const [batchCount, setBatchCount] = useState(ROOM_AGENT_BATCH_DEFAULT)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -94,7 +98,7 @@ export function AgentsManagePanel({
     setSlug('')
     setPrompt('')
     setModel(DEFAULT_MODEL)
-    setEffort('MEDIUM')
+    setEffort(DEFAULT_EFFORT)
     setEditingId(null)
   }
 
@@ -304,6 +308,11 @@ export function AgentsManagePanel({
                   <p className="text-[11px] font-semibold text-stone-600">
                     إضافة بعدد (نفس النموذج والقوة)
                   </p>
+                  <p className="text-[10px] leading-snug text-stone-500">
+                    الافتراضي: Gemini 2.5 Flash (سريع) · قوة منخفضة — يمكن تغييره
+                    لكل مقعد. أثناء المهمة قد تُرفع القوة أو يُبدَّل النموذج تلقائياً ثم
+                    يعود المقعد للخفيف.
+                  </p>
                   <div className="flex flex-wrap items-end gap-2">
                     <label className="flex min-w-[10rem] flex-1 flex-col gap-0.5 text-[10px] text-stone-500">
                       النموذج
@@ -337,6 +346,9 @@ export function AgentsManagePanel({
                           </option>
                         ))}
                       </select>
+                      <span className="text-[9px] leading-snug text-stone-400">
+                        {RUN_EFFORT_SHORT_AR[batchEffort]}
+                      </span>
                     </label>
                     <label className="inline-flex flex-col gap-0.5 text-[10px] text-stone-500">
                       العدد
@@ -436,6 +448,10 @@ export function AgentsManagePanel({
                           </option>
                         ))}
                       </select>
+                      <span className="text-[9px] leading-snug text-stone-400">
+                        {RUN_EFFORT_SHORT_AR[effort]} —{' '}
+                        {RUN_EFFORT_HINTS_AR[effort]}
+                      </span>
                     </label>
                   </div>
                   <label className="flex flex-col gap-0.5 text-[10px] text-stone-500">

@@ -27,7 +27,7 @@ export type RunAssistantInput = {
   /** Skip Google/mail gate (e.g. Telegram path already validated). */
   skipRequirementCheck?: boolean
   modelSlug?: string
-  /** Run power — LOW | MEDIUM | HIGH | MAX */
+  /** Run power — LOW | MEDIUM | HIGH */
   effortLevel?: RunEffort | string
 }
 
@@ -138,9 +138,7 @@ export async function runAssistant(
       ? Math.max(6, Math.min(catalogSteps, 8))
       : effort === 'MEDIUM'
         ? Math.max(8, Math.min(catalogSteps, 10))
-        : effort === 'HIGH'
-          ? catalogSteps
-          : Math.min(16, catalogSteps + 2)
+        : catalogSteps
 
   const system = await buildScopedSystemPrompt(
     `${assistant.systemPromptAr}\n\n${effortParams.systemHintAr}`,

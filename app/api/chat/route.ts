@@ -32,6 +32,8 @@ import {
   effortToRunParams,
   parseRunEffort,
 } from '@/lib/ai/run-effort'
+import { ROOM_AGENT_DEFAULT_MODEL } from '@/lib/rooms/agents'
+import { planRoomRunAdaptation } from '@/lib/rooms/run-adapt'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -101,11 +103,13 @@ type ChatBody = {
     name?: string
     mimeType?: string
   }[]
-  /** Power / effort: LOW | MEDIUM | HIGH | MAX */
+  /** Power / effort: LOW | MEDIUM | HIGH (legacy MAX → HIGH) */
   effort?: string
   effortLevel?: string
   maxSteps?: number
   temperature?: number
+  /** When true (default), server may bump power/model for hard prompts. */
+  autoAdapt?: boolean
 }
 
 type StreamTextResult = ReturnType<typeof streamText>
@@ -205,12 +209,48 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ChatBody
     const profile = body.agentProfile
     // Client sends seat preferredModel as modelId when set; profile is fallback.
-    const modelId =
+    let modelId =
       body.modelId ||
       body.modelSlug ||
       profile?.preferredModel ||
       process.env.DEFAULT_HARNESS_MODEL ||
-      'gemini-3.1-pro'
+      ROOM_AGENT_DEFAULT_MODEL
+
+    let effort = parseRunEffort(body.effortLevel || body.effort)
+    const adaptNotices: string[] = []
+    if (body.autoAdapt !== false && !Array.isArray(body.messages)) {
+      const adapt = planRoomRunAdaptation({
+        prompt: String(body.prompt || body.message || ''),
+        baseEffort: effort,
+        baseModel: modelId,
+        currentAgent: profile
+          ? {
+              id: profile.id || 'agent',
+              nameAr: profile.nameAr || 'وكيل',
+              slug: profile.slug || 'agent',
+              systemPromptAr: profile.systemPromptAr || '',
+              avatarHue: 160,
+              preferredModel: profile.preferredModel,
+              preferredEffort: parseRunEffort(profile.preferredEffort),
+              taskAr: profile.taskAr,
+            }
+          : null,
+        catalog: agentsForScope(body.scopeId || 'shared-demo'),
+        hasAttachments: Boolean(body.attachedFiles?.length),
+        // Handoff already handled client-side when profile is set.
+        allowHandoff: !profile?.id,
+      })
+      if (adapt.effort !== effort) {
+        effort = adapt.effort
+        adaptNotices.push(...adapt.noticesAr.filter((n) => n.includes('القوة')))
+      }
+      if (adapt.modelSlug !== modelId) {
+        modelId = adapt.modelSlug
+        adaptNotices.push(
+          ...adapt.noticesAr.filter((n) => n.includes('النموذج'))
+        )
+      }
+    }
 
     const model = getModel(modelId)
     const scopeId = body.scopeId || 'shared-demo'
@@ -264,7 +304,6 @@ export async function POST(req: Request) {
               | 'LOW'
               | 'MEDIUM'
               | 'HIGH'
-              | 'MAX'
               | undefined,
             avatarHue: 160,
           }
@@ -342,8 +381,11 @@ export async function POST(req: Request) {
 
     const persistAgent = body.persist !== false
     const enableTools = body.enableTools !== false
-    const effort = parseRunEffort(body.effortLevel || body.effort)
     const effortParams = effortToRunParams(effort)
+    const noticeBlock =
+      adaptNotices.length > 0
+        ? `\n\n[تكييف تلقائي: ${adaptNotices.join(' · ')}]`
+        : ''
     const baseMaxSteps =
       typeof body.maxSteps === 'number' &&
       Number.isFinite(body.maxSteps) &&
@@ -360,7 +402,7 @@ export async function POST(req: Request) {
       Number.isFinite(body.temperature)
         ? Math.min(1.2, Math.max(0, body.temperature))
         : effortParams.temperature
-    const systemWithEffort = `${system}\n\n${effortParams.systemHintAr}`
+    const systemWithEffort = `${system}\n\n${effortParams.systemHintAr}${noticeBlock}`
 
     const tools = enableTools
       ? {

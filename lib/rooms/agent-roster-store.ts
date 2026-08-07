@@ -4,6 +4,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   BUILTIN_ROOM_AGENTS,
+  ROOM_AGENT_DEFAULT_EFFORT,
+  ROOM_AGENT_DEFAULT_MODEL,
   ROOM_AGENT_IDEAL_SEATS,
   ROOM_AGENT_SOFT_CAP,
   SCOPE_AGENT_IDS,
@@ -54,7 +56,7 @@ export type AgentRosterState = {
   /** Master switch: agents reply when true (default). */
   agentsEnabledByScope: Record<string, boolean>
   /**
-   * Per-seat شغال/طافي. Missing key = online (default ON, 24h).
+   * Per-seat شغال/نائم. Missing key = asleep (default OFF).
    * Nested: scopeId → agentId → boolean
    */
   agentOnlineByScope: Record<string, Record<string, boolean>>
@@ -104,10 +106,14 @@ export type AgentRosterState = {
   collabModeFor: (scopeId: string) => AgentCollabMode
   setAgentsEnabled: (scopeId: string, enabled: boolean) => void
   agentsEnabledFor: (scopeId: string) => boolean
-  /** Per-seat power — default true (شغال). */
+  /** Per-seat awake — default false (نائم). */
   isAgentOnline: (scopeId: string, agentId: string) => boolean
   setAgentOnline: (scopeId: string, agentId: string, online: boolean) => void
   toggleAgentOnline: (scopeId: string, agentId: string) => boolean
+  /** Put seat back to sleep + light habitual model/effort after a run. */
+  sleepSeatAfterRun: (scopeId: string, agentId: string) => void
+  /** Wake seats for a run (temporary شغال). */
+  wakeSeats: (scopeId: string, agentIds: string[]) => void
   /** Ready seats only (online + in scope). */
   readyAgentsForScope: (scopeId: string) => RoomAgent[]
   agentsForScope: (scopeId: string) => RoomAgent[]
@@ -147,23 +153,52 @@ function uniqueSlug(base: string, taken: Set<string>) {
   return slug
 }
 
-const GEMINI_DEFAULT = 'gemini-3.1-pro'
+const GEMINI_DEFAULT = ROOM_AGENT_DEFAULT_MODEL
 const GLM_DEFAULT = 'glm-4.5'
 
-function mergeBuiltin(agent: RoomAgent, override?: AgentOverride): RoomAgent {
-  if (!override) return agent
+function normalizeSeatEffort(raw: unknown): RunEffort {
+  return parseRunEffort(raw ?? ROOM_AGENT_DEFAULT_EFFORT)
+}
+
+function normalizeSeatModel(raw: unknown): string {
+  const s = String(raw || '').trim()
+  return s || ROOM_AGENT_DEFAULT_MODEL
+}
+
+/** One-time remap helper (kept for clarity). */
+function remapSeatLightDefaults<
+  T extends { preferredModel?: string; preferredEffort?: RunEffort },
+>(agent: T): T {
   return {
     ...agent,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
+  }
+}
+
+function mergeBuiltin(agent: RoomAgent, override?: AgentOverride): RoomAgent {
+  const base: RoomAgent = {
+    ...agent,
+    preferredModel: agent.preferredModel || ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: normalizeSeatEffort(agent.preferredEffort),
+  }
+  if (!override) return base
+  return {
+    ...base,
     ...override,
-    nameAr: override.nameAr?.trim() || agent.nameAr,
-    slug: override.slug ? slugify(override.slug, agent.slug) : agent.slug,
-    systemPromptAr: override.systemPromptAr?.trim() || agent.systemPromptAr,
+    nameAr: override.nameAr?.trim() || base.nameAr,
+    slug: override.slug ? slugify(override.slug, base.slug) : base.slug,
+    systemPromptAr: override.systemPromptAr?.trim() || base.systemPromptAr,
     taskAr:
       override.taskAr !== undefined
         ? override.taskAr.trim() || undefined
-        : agent.taskAr,
-    preferredModel: override.preferredModel || agent.preferredModel,
-    preferredEffort: override.preferredEffort || agent.preferredEffort,
+        : base.taskAr,
+    preferredModel: normalizeSeatModel(
+      override.preferredModel || base.preferredModel
+    ),
+    preferredEffort: normalizeSeatEffort(
+      override.preferredEffort ?? base.preferredEffort
+    ),
   }
 }
 
@@ -274,8 +309,9 @@ export const useAgentRosterStore = create<AgentRosterState>()(
 
       isAgentOnline: (scopeId, agentId) => {
         const map = get().agentOnlineByScope[scopeId]
-        if (!map || map[agentId] === undefined) return true
-        return map[agentId] !== false
+        // Missing key = نائم (asleep by default)
+        if (!map || map[agentId] === undefined) return false
+        return map[agentId] === true
       },
 
       setAgentOnline: (scopeId, agentId, online) => {
@@ -294,6 +330,29 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         const next = !get().isAgentOnline(scopeId, agentId)
         get().setAgentOnline(scopeId, agentId, next)
         return next
+      },
+
+      wakeSeats: (scopeId, agentIds) => {
+        if (!agentIds.length) return
+        set((s) => {
+          const map = { ...(s.agentOnlineByScope[scopeId] || {}) }
+          for (const id of agentIds) map[id] = true
+          return {
+            agentOnlineByScope: {
+              ...s.agentOnlineByScope,
+              [scopeId]: map,
+            },
+          }
+        })
+      },
+
+      sleepSeatAfterRun: (scopeId, agentId) => {
+        get().setAgentOnline(scopeId, agentId, false)
+        const defaults = {
+          preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+          preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
+        }
+        get().updateAgent(agentId, defaults)
       },
 
       readyAgentsForScope: (scopeId) => {
@@ -371,8 +430,12 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           slug,
           systemPromptAr,
           taskAr: taskAr || undefined,
-          preferredModel: input.preferredModel || GEMINI_DEFAULT,
-          preferredEffort: parseRunEffort(input.preferredEffort),
+          preferredModel: normalizeSeatModel(
+            input.preferredModel || GEMINI_DEFAULT
+          ),
+          preferredEffort: normalizeSeatEffort(
+            input.preferredEffort ?? ROOM_AGENT_DEFAULT_EFFORT
+          ),
           avatarHue: hueFromId(id),
           custom: true,
         }
@@ -426,7 +489,9 @@ export const useAgentRosterStore = create<AgentRosterState>()(
           : Math.min(roomLeft, requested)
         if (count <= 0) return []
         const model = resolveBatchModel(input)
-        const effort = parseRunEffort(input.preferredEffort)
+        const effort = normalizeSeatEffort(
+          input.preferredEffort ?? ROOM_AGENT_DEFAULT_EFFORT
+        )
         const created: RoomAgent[] = []
         const taken = new Set(get().allAgents().map((a) => a.slug))
         const useCustomPrefix = Boolean(input.namePrefixAr?.trim())
@@ -607,7 +672,7 @@ export const useAgentRosterStore = create<AgentRosterState>()(
     }),
     {
       name: 'arabic-buzz-agent-roster',
-      version: 5,
+      version: 7,
       migrate: (persisted) => {
         const p = (persisted || {}) as Partial<AgentRosterState>
         const enabled = { ...(p.agentsEnabledByScope || {}) }
@@ -618,14 +683,48 @@ export const useAgentRosterStore = create<AgentRosterState>()(
         for (const scopeId of Object.keys(SCOPE_AGENT_IDS)) {
           if (usesSharedRoomRoster(scopeId)) enabled[scopeId] = true
         }
+        const customAgents = (
+          Array.isArray(p.customAgents) ? p.customAgents : []
+        ).map((a) => ({
+          ...(a as RoomAgent),
+          preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+          preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
+        }))
+        const agentOverrides: Record<string, AgentOverride> = {}
+        for (const [id, ov] of Object.entries(p.agentOverrides || {})) {
+          agentOverrides[id] = {
+            ...ov,
+            preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+            preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
+          }
+        }
+        // All seats asleep by default (wake on message / @ / click).
+        const agentOnlineByScope: Record<string, Record<string, boolean>> = {}
+        const allIds = new Set<string>([
+          ...BUILTIN_ROOM_AGENTS.map((a) => a.id),
+          ...customAgents.map((a) => a.id),
+        ])
+        const scopeKeys = new Set<string>([
+          ...Object.keys(p.addedToScope || {}),
+          ...Object.keys(p.removedFromScope || {}),
+          ...Object.keys(p.agentOnlineByScope || {}),
+          ...Object.keys(SCOPE_AGENT_IDS),
+        ])
+        for (const scopeId of scopeKeys) {
+          const map: Record<string, boolean> = {}
+          for (const id of allIds) map[id] = false
+          // Preserve mid-run awake only if previously true — still migrate to asleep
+          // (user asked default asleep; active stream will re-wake via wakeSeats).
+          agentOnlineByScope[scopeId] = map
+        }
         return {
-          customAgents: Array.isArray(p.customAgents) ? p.customAgents : [],
+          customAgents,
           removedFromScope: p.removedFromScope || {},
           addedToScope: p.addedToScope || {},
           collabModeByScope: p.collabModeByScope || {},
           agentsEnabledByScope: enabled,
-          agentOnlineByScope: p.agentOnlineByScope || {},
-          agentOverrides: p.agentOverrides || {},
+          agentOnlineByScope,
+          agentOverrides,
         }
       },
       partialize: (s) => ({

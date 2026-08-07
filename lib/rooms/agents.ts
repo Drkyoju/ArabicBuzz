@@ -16,7 +16,7 @@ export type RoomAgent = {
   custom?: boolean
   /** Preferred harness model slug (Gemini / GLM / AgentRouter). */
   preferredModel?: string
-  /** Per-agent run power — LOW | MEDIUM | HIGH | MAX */
+  /** Per-agent run power — LOW | MEDIUM | HIGH */
   preferredEffort?: RunEffort
   /**
    * Optional legacy short task label. Seats are request-driven via @mention;
@@ -33,6 +33,15 @@ const PROVIDER_LABEL_AR: Record<string, string> = {
   agentrouter: 'AgentRouter',
   ollama: 'محلي',
 }
+
+/**
+ * Default seat model — fastest / cheapest flash-class in the cloud catalog.
+ * New agents and one-time remaps use this; users can change per seat.
+ */
+export const ROOM_AGENT_DEFAULT_MODEL = 'gemini-2.5-flash' as const
+
+/** Default seat power — fewest tool steps / tokens. */
+export const ROOM_AGENT_DEFAULT_EFFORT: RunEffort = 'LOW'
 
 /** Room seat models — same cloud catalog as the room composer (no Ollama). */
 export function roomAgentModelCatalog(): HarnessModelMeta[] {
@@ -71,6 +80,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     systemPromptAr:
       'أنت وكيل١ (التقارير) في غرفة Arabic Buzz. ركّز على الملخصات التنفيذية بالعربية الفصحى.',
     avatarHue: 170,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'التقارير والملخصات التنفيذية',
   },
   {
@@ -80,6 +91,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     systemPromptAr:
       'أنت وكيل٢ (الامتثال). نبّه للمخاطر والموافقات البشرية قبل أي إجراء حساس.',
     avatarHue: 25,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'الامتثال والمخاطر',
   },
   {
@@ -88,6 +101,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     slug: 'scheduler',
     systemPromptAr: 'أنت وكيل٣ (الجدولة). تابع المهام الخلفية وملخصات الـ Cron.',
     avatarHue: 210,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'الجدولة والمهام الخلفية',
   },
   {
@@ -97,6 +112,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     systemPromptAr:
       'أنت وكيل٤ (القنوات). اربط تيليجرام بالغرفة وأبلغ عن حالة الإرسال.',
     avatarHue: 280,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'القنوات والتيليجرام',
   },
   {
@@ -106,6 +123,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     systemPromptAr:
       'أنت وكيل٥ (المكتب الشخصي). ساعد في المهام السريعة والتنظيم والملفات الخاصة. كن موجزاً وعملياً.',
     avatarHue: 150,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'المكتب اليومي',
   },
   {
@@ -115,6 +134,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     systemPromptAr:
       'أنت وكيل٦ (البحث والمسودات). هذه مساحة للتحليل والتجربة قبل مشاركة أي شيء مع الفريق. اكتب مسودات، قارن خيارات، واذكر مصادر/فجوات — ولا تفترض أن العمل نهائي للنشر.',
     avatarHue: 45,
+    preferredModel: ROOM_AGENT_DEFAULT_MODEL,
+    preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
     taskAr: 'البحث والمسودات',
   },
 ]
