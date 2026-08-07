@@ -194,10 +194,12 @@ export async function POST(req: Request) {
 
     const body = (await req.json()) as ChatBody
     const profile = body.agentProfile
+    // Room composer modelId wins over agent preferredModel so the UI picker
+    // actually changes the run (custom agents always have a preferredModel).
     const modelId =
-      profile?.preferredModel ||
       body.modelId ||
       body.modelSlug ||
+      profile?.preferredModel ||
       process.env.DEFAULT_HARNESS_MODEL ||
       'gemini-3.1-pro'
 

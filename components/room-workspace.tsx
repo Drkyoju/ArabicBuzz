@@ -635,7 +635,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
         signal: opts.signal,
         body: JSON.stringify({
           prompt: opts.prompt,
-          modelId: opts.agent.preferredModel || roomModel,
+          // Room ModelPicker is the run control; agent preferredModel is fallback only.
+          modelId: roomModel || opts.agent.preferredModel,
           effortLevel: roomEffort,
           scopeId: activeScopeId,
           agentId: opts.agent.id,
