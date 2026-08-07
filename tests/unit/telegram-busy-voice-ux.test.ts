@@ -62,6 +62,8 @@ describe('voice quick UX', () => {
     const json = JSON.stringify(kb)
     expect(json).toMatch(/نفّذ/)
     expect(json).toMatch(/موعد/)
+    expect(json).toMatch(/بريد/)
+    expect(json).toMatch(/أيقظ/)
     expect(json).toMatch(/للمجموعة/)
   })
 })

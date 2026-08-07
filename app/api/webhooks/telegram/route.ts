@@ -97,17 +97,21 @@ export async function GET() {
         process.env.TELEGRAM_HEAVY_MODEL ||
         process.env.DEFAULT_HARNESS_MODEL ||
         'gemini-3.1-pro',
-      maxStepsChat: 4,
-      maxStepsHeavy: 6,
-      mcpDefault: process.env.TELEGRAM_INCLUDE_MCP === '1',
+      maxStepsChat: 6,
+      maxStepsHeavy: 8,
+      mcpDefault:
+        process.env.TELEGRAM_INCLUDE_MCP?.trim() === '1' ||
+        process.env.TELEGRAM_INCLUDE_MCP?.trim() !== '0',
       voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY || 'auto',
       voiceQuickButtons: [
         'run',
         'appointment',
         'task',
         'file',
+        'mail',
         'message',
         'broadcast',
+        'wake',
       ],
       fastPath: [
         'greeting',
@@ -122,11 +126,15 @@ export async function GET() {
         'appointment',
         'task',
         'file',
+        'mail',
         'message',
         'question',
+        'wake_agent',
         'coordination_via_message',
       ],
-      roomToolParity: 'full_native_on_work_turns',
+      roomToolParity: 'full_native_on_all_non_casual_turns',
+      orgMailMembersAllowed: true,
+      neverDeleteTelegramMessages: true,
       multiCommitteeLink: ['/link finance', '/link programs', '/link board'],
       messagingLimitsAr:
         'خاص فقط لمن بدأ البوت (Start). وإلا منشور موجّه في المجموعة المربوطة.',

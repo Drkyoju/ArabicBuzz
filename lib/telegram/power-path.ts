@@ -1,8 +1,8 @@
 /**
- * Telegram ↔ room parity helpers:
- * - Arabic work intent (موعد / مهمة / ملف / سؤال)
+ * Telegram ↔ room parity helpers (max power):
+ * - Arabic work intents (موعد / مهمة / ملف / بريد / رسالة / إيقاظ)
  * - Wake cascade (وكيل١ → ٢…) like the site room
- * - Tool allow-lists closer to /api/chat
+ * - Full native tool surface on every non-casual turn
  */
 
 import {
@@ -25,6 +25,7 @@ export type TelegramWorkKind =
   | 'appointment'
   | 'task'
   | 'file'
+  | 'mail'
   | 'message'
   | 'question'
   | 'casual'
@@ -39,22 +40,32 @@ export type TelegramWorkIntent = {
 }
 
 const APPOINTMENT_RE =
-  /(?:موعد|مواعيد|اجتماع|لقاء|جدو[لّ]|احجز|احجزي|احجزوا|أضف\s*(?:موعد|اجتماع)|سج[ّل]\s*(?:موعد|اجتماع)|cancel\s*meeting|meeting|appointment|calendar|تقويم)/iu
+  /(?:موعد|مواعيد|اجتماع|لقاء|جدو[لّ]|احجز|احجزي|احجزوا|أضف\s*(?:موعد|اجتماع)|سج[ّل]\s*(?:موعد|اجتماع)|cancel\s*meeting|meeting|appointment|calendar|تقويم|أجندة|اجندة)/iu
 
 const TASK_RE =
-  /(?:مهم[ةه]|مهام|تاسك|task|to-?do|أضف\s*مهم|سج[ّل]\s*مهم|ذك[ّر]ني|تذكير|تابع|متابعة)/iu
+  /(?:مهم[ةه]|مهام|تاسك|task|to-?do|أضف\s*مهم|سج[ّل]\s*مهم|ذك[ّر]ني|تذكير|تابع|متابعة|checklist)/iu
 
 const FILE_RE =
-  /(?:ملف|ملفات|مستند|وثيق|لائح|عقد|نموذج|جدول|ورد|وورد|word|excel|xlsx|pdf|pptx|باور|حو[ّ]?ل|عد[ّ]?ل|استخرج|ocr|درايف|drive|عقل\s*الشركة|قاعدة\s*المعرفة|ابحث\s*عن\s*(?:ال)?(?:ملف|لائح))/iu
+  /(?:ملف|ملفات|مستند|وثيق|لائح|عقد|نموذج|جدول|ورد|وورد|word|excel|xlsx|pdf|pptx|باور|حو[ّ]?ل|عد[ّ]?ل|استخرج|ocr|درايف|drive|عقل\s*الشركة|قاعدة\s*المعرفة|ابحث\s*عن\s*(?:ال)?(?:ملف|لائح)|زامن\s*(?:ال)?درايف)/iu
+
+const MAIL_RE =
+  /(?:بريد|إيميل|ايميل|إيميل|رسالة\s*إلكتروني|email|gmail|inbox|صندوق\s*(?:ال)?وارد|أرسل\s*(?:بريد|إيميل|ايميل)|رد\s*على\s*(?:ال)?بريد|mail_search|mail_send|ابحث\s*في\s*(?:ال)?بريد)/iu
 
 const QUESTION_RE =
-  /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف)/u
+  /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف|لخ[ّ]?ص|ابحث|دور)/u
 
 /** Explicit seat wake / agent mention — prefer full room agent turn. */
 const WAKE_RE =
-  /(?:أيقظ|ايقاظ|وق[ّ]?ظ|wake)\s*(?:ال)?(?:وكيل|agent)|@(?:وكيل|agent)[\u0600-\u06FF0-9a-z_\-]*|وك[ّ]?ل\s+(?:ال)?وكيل|شغ[ّ]?ل\s+(?:ال)?وكيل/iu
+  /(?:أيقظ|ايقاظ|وق[ّ]?ظ|wake)\s*(?:ال)?(?:وكيل|agent)|(?:يا\s+)?وك[يـ]?ل[٠-٩0-9]+|@(?:وكيل|agent)[\u0600-\u06FF0-9a-z_\-]*|وك[ّ]?ل\s+(?:ال)?وكيل|شغ[ّ]?ل\s+(?:ال)?وكيل|(?:للوكلاء|أبغا\s+للجميع)/iu
 
-/** Chat turns — same core surface as room (no slow Drive full-sync / RPA by default). */
+/** Gulf/MSA action cues — treat as work, not idle chat. */
+const ACTION_RE =
+  /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|افتح|ور[ّ]?ني|وريني)/iu
+
+/**
+ * Light subset — only used for pure greetings / short thanks.
+ * Work turns bind the full native toolset (site parity).
+ */
 export const TELEGRAM_SITE_CHAT_TOOLS = [
   'search_knowledge_base',
   'memory_search',
@@ -83,13 +94,19 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'room_memory_add',
   'send_message',
   'notify_room_member',
+  'send_file',
   'web_search',
   'web_fetch',
   'convert_document',
   'convert_file',
+  'gmail_search',
+  'gmail_read',
+  'mail_search',
+  'mail_read',
+  'mail_sync',
 ] as const
 
-/** File / OCR / mail / Drive pull — closer to site heavy turns. */
+/** Heavy / file / OCR / mail send / Drive — still used when fullRoom=false. */
 export const TELEGRAM_SITE_HEAVY_TOOLS = [
   ...TELEGRAM_SITE_CHAT_TOOLS,
   'pdf_create',
@@ -97,6 +114,7 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'pdf_merge',
   'pdf_list_fields',
   'pdf_fill_form',
+  'pdf_replace_text',
   'arabic_ocr',
   'edit_image',
   'generate_image_edit',
@@ -104,12 +122,16 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'fill_policy_audit',
   'read_decision_document',
   'drive_sync_brain',
-  'gmail_search',
-  'gmail_read',
-  'mail_search',
-  'mail_read',
-  'mail_sync',
+  'gmail_send',
+  'mail_send',
+  'sheets_read',
+  'sheets_write',
+  'calendar_list_events',
+  'calendar_create_event',
+  'calendar_find_alignment',
   'ingest_url_to_brain',
+  'trigger_workflow',
+  'report_room_attendance',
 ] as const
 
 const busyByScope = new Map<string, { ids: Set<string>; until: number }>()
@@ -148,7 +170,7 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
   }
 
   if (
-    /^(?:السلام\s*عليكم|سلام|مرحبا|مرحباً|أهلا|اهلا|هلا|شكرا|شكراً|مشكور|تسلم|صباح\s*الخير|مساء\s*الخير)[\s!.؟?…]*$/iu.test(
+    /^(?:السلام\s*عليكم|سلام|مرحبا|مرحباً|أهلا|اهلا|هلا|شكرا|شكراً|مشكور|تسلم|صباح\s*الخير|مساء\s*الخير|تمام|طيب|اوك|أوك|ok)[\s!.؟?…]*$/iu.test(
       t
     )
   ) {
@@ -172,7 +194,15 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     return {
       kind: 'question',
       labelAr: 'إيقاظ وكيل',
-      forceHeavy: t.length > 180 || FILE_RE.test(t),
+      forceHeavy: t.length > 180 || FILE_RE.test(t) || MAIL_RE.test(t),
+      preferFullAgent: true,
+    }
+  }
+  if (MAIL_RE.test(t)) {
+    return {
+      kind: 'mail',
+      labelAr: 'بريد',
+      forceHeavy: true,
       preferFullAgent: true,
     }
   }
@@ -200,11 +230,11 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
-  if (QUESTION_RE.test(t) || t.length >= 40) {
+  if (ACTION_RE.test(t) || QUESTION_RE.test(t) || t.length >= 28) {
     return {
       kind: 'question',
-      labelAr: 'سؤال',
-      forceHeavy: t.length > 280 || FILE_RE.test(t),
+      labelAr: ACTION_RE.test(t) ? 'طلب عمل' : 'سؤال',
+      forceHeavy: t.length > 220 || FILE_RE.test(t) || MAIL_RE.test(t),
       preferFullAgent: true,
     }
   }
@@ -239,7 +269,15 @@ function workKindNudge(kind: TelegramWorkKind): string {
         'عدّل/حوّل (edit_document / convert_document) ثم return_file — الناتج يُرسل كمرفق هنا.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'إن لم يُربط Google: قل ذلك صراحة واعرض خزنة الغرفة فقط — لا تختلق ملفات Drive.',
-        'OCR للصور/PDF الممسوح: arabic_ocr (جودة أعلى إن توفّر جسر ماك؛ وإلا مسار السحابة).',
+        'OCR للصور/PDF الممسوح: arabic_ocr.',
+      ].join(' ')
+    case 'mail':
+      return [
+        '[قصد تيليجرام: بريد]',
+        'صندوق الجمعية (IMAP): mail_search / mail_read / mail_send / mail_sync — متاح لأعضاء الجلسة المسجّلين.',
+        'Gmail الشخصي المربوط: gmail_search / gmail_read / gmail_send.',
+        'نفّذ فوراً ثم لخّص النتائج بالعربية (المرسل · الموضوع · مقتطف). لا تختلق رسائل.',
+        'قبل الإرسال: أكّد المستلم والموضوع بإيجاز بعد التنفيذ.',
       ].join(' ')
     case 'message':
       return [
@@ -252,9 +290,9 @@ function workKindNudge(kind: TelegramWorkKind): string {
       ].join(' ')
     case 'question':
       return [
-        '[قصد تيليجرام: سؤال / إيقاظ وكيل]',
+        '[قصد تيليجرام: سؤال / إيقاظ وكيل / طلب عمل]',
         'أنت مقعد غرفة الموقع — نفّذ فوراً دون انتظار أوامر إضافية.',
-        'أجب مباشرة؛ استخدم أدوات البحث/التقويم/الملفات عند الحاجة ثم لخّص ما نُفّذ.',
+        'استخدم كل أدوات الغرفة المتاحة (تقويم/مهام/ملفات/Drive/بريد/تبليغ/بحث) ثم لخّص ما نُفّذ.',
         'إن ذُكر وكيل٢ أو انشغل وكيل١ اتبع سياسة الإيقاظ في الغرفة.',
       ].join(' ')
     default:
@@ -305,7 +343,8 @@ export function buildTelegramPowerPrompt(opts: {
     baseModel: wakeAgent?.preferredModel,
     currentAgent: wakeAgent,
     catalog,
-    hasAttachments: opts.work.kind === 'file',
+    hasAttachments:
+      opts.work.kind === 'file' || opts.work.kind === 'mail',
     allowHandoff: !mentioned.length && !wantsAll,
   })
 
@@ -317,7 +356,7 @@ export function buildTelegramPowerPrompt(opts: {
     roomIntentPromptNudge(roomIntent),
     workKindNudge(opts.work.kind),
     runAgent
-      ? `\n[مقعد الغرفة: ${runAgent.nameAr} @${runAgent.slug} — نفس قدرات وكلاء الموقع]`
+      ? `\n[مقعد الغرفة: ${runAgent.nameAr} @${runAgent.slug} — نفس قدرات وكلاء الموقع كاملة]`
       : '',
     adapt.noticesAr.length
       ? `[تكييف: ${adapt.noticesAr.join(' · ')}]`
@@ -338,8 +377,8 @@ export function telegramEffortMaxSteps(
   heavy: boolean
 ): number {
   const base = effortToRunParams(effort).maxSteps
-  if (heavy) return Math.max(base, 6)
-  return Math.max(base, 4)
+  if (heavy) return Math.max(base, 8)
+  return Math.max(base, 6)
 }
 
 export async function telegramGoogleLinkedHintAr(
@@ -354,14 +393,16 @@ export async function telegramGoogleLinkedHintAr(
   return (
     'ملاحظة: Google Drive غير مربوط لهذا المالك — البحث/الفتح من عقل الشركة قد يفشل. ' +
     'اربط Google من الموقع (الإعدادات) أو اعمل على ملفات خزنة الغرفة المرفوعة. ' +
-    'OCR الممسوح أدق مع جسر ماك إن وُجد؛ وإلا مسار سحابة محدود.'
+    'بريد الجمعية (IMAP) يعمل للأعضاء المسجّلين دون Google إن رُبط الصندوق من الإعدادات.'
   )
 }
 
-export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة:
+export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة:
+- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات، Drive، تقويم الغرفة، مهام، بريد، تبليغ، بحث، تحويل، OCR).
+- أيقظ وكيل١ ثم وكيل٢ عند الانشغال؛ «يا وكيل١» / «أبغا للجميع» يوجّهان المقاعد.
 - عقل الشركة (Drive): يحتاج ربط Google من الموقع؛ بدون ربط استخدم خزنة الغرفة فقط وأخبر المستخدم.
-- التحويل PDF↔Word الأفضل عبر Google؛ بدون ربط قد تفشل الجودة أو يُطلب CloudConvert.
-- arabic_ocr للصور/PDF الممسوح: يعمل سحابياً؛ المسار البصري عبر جسر ماك اختياري لجودة أعلى.
-- الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start على البوت سابقاً؛ وإلا منشور موجّه في المجموعة المربوطة. لا تختلق وصول خاص.
-- الحذف فقط يحتاج موافقة بشرية (أزرار). باقي العمل يُنفَّذ مباشرة مثل غرفة الموقع.
-- أنت نفس وكلاء غرفة الموقع: أيقظ مقعد وكيل١ (ثم ٢…) ونفّذ بالأدوات؛ النتيجة تُرد هنا وتُحفظ في الغرفة.`
+- بريد الجمعية (mail_*): متاح لأعضاء الجلسة المسجّلين — لا تقصر الاستخدام على المالك.
+- Gmail الشخصي: يحتاج ربط Google لنفس هوية القناة.
+- الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start؛ وإلا منشور في المجموعة المربوطة. لا تختلق وصول خاص.
+- الحذف فقط يحتاج موافقة بشرية (أزرار) على ملفات الغرفة/Drive — ممنوع حذف رسائل تيليجرام نهائياً (عدّل أو اترك + رد جديد).
+- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). لا تختلق مواعيد.`

@@ -119,20 +119,19 @@ let bot: Bot | null = null
 let botInitPromise: Promise<void> | null = null
 let commandsRegistered = false
 
-const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — هذه القناة = غرفة الفريق على الموقع (نفس الأدوات والمقاعد).
-- افهم العربية الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
-- لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة بعد /link.
-- أيقظ وكيل١ (ثم ٢ عند الانشغال) ونفّذ كما في غرفة الموقع: ملفات، Drive، تحويل، تقويم، مهام، بريد إن وُجد، بحث، تبليغ أعضاء.
-- إن عجزت وحدك عن جزء: استخدم أدوات الغرفة نفسها (نفس pipeline الموقع) وأعد النتيجة هنا مع المرفقات.
-- أجب بإيجاز. للأسئلة البسيطة أجب مباشرة دون أدوات إن أمكن.
-- التقويم: مصدر الفريق الوحيد هو room_calendar_* (نفس تقويم الموقع). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع اختلاق أو تلفيق مواعيد. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
-- اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC.
-- لطلب موعد جديد: room_calendar_create فوراً ثم أكّد.
-- الملفات: list_workspace_files / search_knowledge_base → brain_open_document → read/edit/convert → return_file (يُرسل كمرفق هنا).
-- صور / PDF ممسوح: arabic_ocr. عقل الشركة: search_knowledge_base / brain_* — لا drive_sync_brain إلا بطلب مزامنة صريح.
-- «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم البوت؛ وإلا المجموعة المربوطة — اشرح بصراحة.
-- للإجراءات عالية المخاطر (الحذف فقط على ملفات الغرفة/Drive) اطلب موافقة بشرية. لا تختلق لوائح أو قرارات.
-- ممنوع نهائياً حذف رسائل أو وسائط أو محادثات تيليجرام — عدّل رسالة التقدّم أو اتركها وأرسل رداً جديداً فقط.
+const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — أقصى قوة: نفس غرفة الموقع + كل الأدوات الأصلية.
+- افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
+- لا تنتظر /ask — بعد /link نفّذ أي طلب عمل فوراً (نص · صوت · ملف · صورة).
+- أيقظ وكيل١ ثم وكيل٢ عند الانشغال. «يا وكيل١» / @وكيل٢ / «أبغا للجميع» يوجّهون المقاعد مثل الموقع.
+- نفّذ بكل الأدوات: ملفات، Drive/عقل الشركة، تحويل، OCR، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث ويب، تبليغ أعضاء، سير عمل.
+- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
+- موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
+- مهام: room_tasks_create / update فوراً.
+- ملفات: list_workspace_files / search_knowledge_base → brain_open_document → read/edit/convert → return_file (مرفق هنا).
+- صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
+- بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
+- «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة.
+- الحذف على ملفات الغرفة/Drive فقط بموافقة بشرية (أزرار). ممنوع نهائياً حذف أي شيء على تيليجرام — عدّل رسالة التقدّم أو اتركها + رد جديد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
@@ -369,7 +368,7 @@ async function bindTelegramTools(opts: {
     scopeId: opts.scopeId,
     mode: parsePosture('DANGEROUS'),
   })
-  // Parity with غرفة الفريق: full native toolset for work; subset only for light chat.
+  // Max power: full native toolset for work turns; light subset only for greetings.
   const subset = opts.fullRoom
     ? native
     : pickToolSubset(
@@ -377,14 +376,17 @@ async function bindTelegramTools(opts: {
         opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
       )
 
-  // MCP env connect is slow on cold start — opt-in only for Telegram.
-  if (process.env.TELEGRAM_INCLUDE_MCP === '1') {
+  // MCP: on by default for full-room turns (parity with /api/chat). Opt-out: TELEGRAM_INCLUDE_MCP=0
+  const mcpFlag = process.env.TELEGRAM_INCLUDE_MCP?.trim()
+  const wantMcp =
+    mcpFlag === '1' || (opts.fullRoom && mcpFlag !== '0')
+  if (wantMcp) {
     try {
       await connectEnvMcpServers()
       const mcpTools = await getMCPHostManager().getCombinedToolSet()
       return { ...subset, ...mcpTools }
     } catch {
-      /* optional */
+      /* optional — native tools still run */
     }
   }
   return subset
@@ -785,10 +787,15 @@ async function runTelegramAgentTurn(opts: {
     Boolean(opts.forceHeavy) ||
     work.forceHeavy ||
     work.kind === 'file' ||
+    work.kind === 'mail' ||
     work.kind === 'question' ||
     isHeavyTelegramPrompt(opts.promptSource)
+  // Max power: every non-casual turn gets the full site native tool surface.
   const useFullRoomTools =
-    work.kind !== 'casual' || heavy || Boolean(opts.forceHeavy)
+    work.kind !== 'casual' ||
+    work.preferFullAgent ||
+    heavy ||
+    Boolean(opts.forceHeavy)
   const modelSlug = resolveTelegramModelSlug(heavy, powered.adapt.modelSlug)
   const maxSteps = telegramEffortMaxSteps(
     powered.adapt.effort,
@@ -1442,9 +1449,11 @@ export function getTelegramBot() {
             ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
             : voiceWork.kind === 'file'
               ? '\n[صوت: ملف — ابحث/عدّل/حوّل وأعد المرفق]'
-              : voiceWork.kind === 'message'
-                ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
-                : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة إن لزم]',
+              : voiceWork.kind === 'mail'
+                ? '\n[صوت: بريد — mail_*/gmail_* فوراً ولخّص]'
+                : voiceWork.kind === 'message'
+                  ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
+                  : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة]',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',
@@ -1459,7 +1468,10 @@ export function getTelegramBot() {
         chatId,
         userId,
         scope,
-        forceHeavy: voiceWork.forceHeavy || voiceWork.kind === 'question',
+        forceHeavy:
+          voiceWork.forceHeavy ||
+          voiceWork.kind === 'question' ||
+          voiceWork.kind === 'mail',
         workLabelAr: voiceWork.labelAr,
       })
       // TTS is handled inside runTelegramAgentTurn (short summaries / TELEGRAM_VOICE_REPLY).
@@ -1646,13 +1658,17 @@ export function getTelegramBot() {
               ? 'جاري إضافة موعد…'
               : voiceAction === 'task'
                 ? 'جاري تسجيل مهمة…'
-                : voiceAction === 'message'
-                  ? 'جاري إرسال الرسالة…'
-                  : voiceAction === 'broadcast'
-                    ? 'جاري تبليغ المجموعة…'
-                    : voiceAction === 'run'
-                      ? 'جاري التنفيذ الكامل…'
-                      : 'جاري البحث عن الملف…',
+                : voiceAction === 'mail'
+                  ? 'جاري البريد…'
+                  : voiceAction === 'message'
+                    ? 'جاري إرسال الرسالة…'
+                    : voiceAction === 'broadcast'
+                      ? 'جاري تبليغ المجموعة…'
+                      : voiceAction === 'wake'
+                        ? 'جاري إيقاظ الوكيل…'
+                        : voiceAction === 'run'
+                          ? 'جاري التنفيذ الكامل…'
+                          : 'جاري البحث عن الملف…',
         })
       } catch {
         /* already answered */

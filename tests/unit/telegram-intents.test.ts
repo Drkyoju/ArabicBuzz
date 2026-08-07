@@ -49,7 +49,7 @@ describe('parseTelegramMessageIntent', () => {
 })
 
 describe('classifyTelegramWorkIntent', () => {
-  it('classifies appointment / task / file / wake', () => {
+  it('classifies appointment / task / file / mail / wake', () => {
     expect(classifyTelegramWorkIntent('احجز موعد غداً ١٠ص').kind).toBe(
       'appointment'
     )
@@ -57,7 +57,14 @@ describe('classifyTelegramWorkIntent', () => {
       'task'
     )
     expect(classifyTelegramWorkIntent('حوّل الملف إلى Word').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('ابحث في البريد عن الفاتورة').kind).toBe(
+      'mail'
+    )
     expect(classifyTelegramWorkIntent('أيقظ الوكيل ولخّص القرارات').kind).toBe(
+      'question'
+    )
+    expect(classifyTelegramWorkIntent('أبغا اللائحة').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('لخّص قرارات اللجنة الأخيرة').kind).toBe(
       'question'
     )
     expect(classifyTelegramWorkIntent('السلام عليكم').kind).toBe('casual')
@@ -80,11 +87,13 @@ describe('formatTelegramErrorAr', () => {
 })
 
 describe('help copy', () => {
-  it('covers wake, site URL, and ping constant', () => {
+  it('covers wake, mail, site URL, and ping constant', () => {
     const help = buildTelegramHelpAr({ botUsername: 'alhuda14bot' })
     expect(help).toContain(TELEGRAM_SITE_URL)
     expect(help).toContain('/link@alhuda14bot')
     expect(help).toMatch(/وكيل١/)
+    expect(help).toMatch(/بريد/)
+    expect(help).toMatch(/لا يحذف/)
     expect(help).toContain('/ping')
     expect(TELEGRAM_PING_OK_AR).toMatch(/يعمل/)
   })

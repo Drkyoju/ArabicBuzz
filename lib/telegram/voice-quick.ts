@@ -7,8 +7,10 @@ export type VoiceQuickAction =
   | 'appointment'
   | 'task'
   | 'file'
+  | 'mail'
   | 'message'
   | 'broadcast'
+  | 'wake'
   | 'run'
 
 type VoiceQuickCache = {
@@ -54,8 +56,10 @@ export const VOICE_QUICK_PREFIX = {
   appointment: 'vq_appt',
   task: 'vq_task',
   file: 'vq_file',
+  mail: 'vq_mail',
   message: 'vq_msg',
   broadcast: 'vq_cast',
+  wake: 'vq_wake',
   run: 'vq_run',
 } as const
 
@@ -65,8 +69,10 @@ export function parseVoiceQuickCallback(
   if (data === VOICE_QUICK_PREFIX.appointment) return 'appointment'
   if (data === VOICE_QUICK_PREFIX.task) return 'task'
   if (data === VOICE_QUICK_PREFIX.file) return 'file'
+  if (data === VOICE_QUICK_PREFIX.mail) return 'mail'
   if (data === VOICE_QUICK_PREFIX.message) return 'message'
   if (data === VOICE_QUICK_PREFIX.broadcast) return 'broadcast'
+  if (data === VOICE_QUICK_PREFIX.wake) return 'wake'
   if (data === VOICE_QUICK_PREFIX.run) return 'run'
   return null
 }
@@ -79,8 +85,11 @@ export function buildVoiceQuickKeyboard(): InlineKeyboard {
     .text('✅ مهمة', VOICE_QUICK_PREFIX.task)
     .text('📁 ملف', VOICE_QUICK_PREFIX.file)
     .row()
-    .text('✉️ لعضو', VOICE_QUICK_PREFIX.message)
+    .text('✉️ بريد', VOICE_QUICK_PREFIX.mail)
+    .text('👤 لعضو', VOICE_QUICK_PREFIX.message)
+    .row()
     .text('📣 للمجموعة', VOICE_QUICK_PREFIX.broadcast)
+    .text('🤖 أيقظ وكيل', VOICE_QUICK_PREFIX.wake)
 }
 
 export function voiceQuickPrompt(
@@ -96,7 +105,7 @@ export function voiceQuickPrompt(
           transcript,
           '',
           '[زر سريع: نفّذ]',
-          'نفّذ الطلب بالكامل بأدوات غرفة الموقع (تقويم/مهام/ملفات/Drive/تبليغ) وأعد ملخصاً واضحاً مع المرفقات.',
+          'نفّذ الطلب بالكامل بأدوات غرفة الموقع كاملة (تقويم/مهام/ملفات/Drive/بريد/تبليغ) وأعد ملخصاً واضحاً مع المرفقات.',
         ].join('\n'),
       }
     case 'appointment':
@@ -134,6 +143,18 @@ export function voiceQuickPrompt(
           'استخدم list_workspace_files / search_knowledge_base / brain_open_document ثم return_file عند الحاجة.',
         ].join('\n'),
       }
+    case 'mail':
+      return {
+        labelAr: 'بريد',
+        forceHeavy: true,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: بريد]',
+          'نفّذ عبر mail_search/mail_read/mail_send (صندوق الجمعية) أو gmail_* إن لزم.',
+          'لخّص النتائج بالعربية — لا تختلق رسائل.',
+        ].join('\n'),
+      }
     case 'message':
       return {
         labelAr: 'رسالة / تبليغ',
@@ -157,6 +178,18 @@ export function voiceQuickPrompt(
           '[زر سريع: للمجموعة]',
           'انشر النص للجميع عبر notify_room_member مع targetNameAr=المجموعة.',
           'لخّص ما أُرسل.',
+        ].join('\n'),
+      }
+    case 'wake':
+      return {
+        labelAr: 'إيقاظ وكيل',
+        forceHeavy: true,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: أيقظ وكيل]',
+          'أيقظ وكيل١ (ثم ٢ عند الانشغال) ونفّذ الطلب بأدوات الغرفة الكاملة مثل الموقع.',
+          'لخّص ما نُفّذ والمرفقات إن وُجدت.',
         ].join('\n'),
       }
   }
