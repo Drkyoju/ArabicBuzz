@@ -9,9 +9,14 @@ import { FilePreviewPane } from '@/components/file-preview-pane'
 import { ComposerMicButton } from '@/components/composer-mic-button'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useFilePreviewStore } from '@/lib/files/preview-store'
+import { TelegramMirrorChat } from '@/components/telegram-mirror-chat'
 import {
   AB_ATTACH_ROOM,
+  AB_FILE_DND,
   consumePendingRoomAttach,
+  formatDownloadMarker,
+  getBridgeDragData,
+  setBridgeDragData,
 } from '@/lib/files/workspace-bridge'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import {
@@ -180,8 +185,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [streaming, setStreaming] = useState(false)
   const [answeringAgentId, setAnsweringAgentId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('أنت')
-  const [outboundMsg, setOutboundMsg] = useState('')
-  const [telegramReady, setTelegramReady] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [typing, setTyping] = useState(false)
   const [showCanvas, setShowCanvas] = useState(false)
@@ -191,10 +194,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [presenceSurface, setPresenceSurface] = useState('feed')
   /** Files attached from device / preview for the next agent turn. */
   const [composerFiles, setComposerFiles] = useState<UploadedRoomFile[]>([])
+  const [composerDrag, setComposerDrag] = useState(false)
   const [mentionMembers, setMentionMembers] = useState<MentionableMember[]>([])
   const [mentionMenu, setMentionMenu] = useState<
     Array<{ kind: 'agent' | 'member'; labelAr: string; insert: string }>
   >([])
+  const [mentionHighlight, setMentionHighlight] = useState(0)
   const prevArtifactCount = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -280,19 +285,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-    void fetch('/api/integrations/status')
-      .then((r) => r.json())
-      .then((data: { telegramOutboundReady?: boolean }) => {
-        if (cancelled) return
-        setTelegramReady(Boolean(data.telegramOutboundReady))
-      })
-      .catch(() => {
-        /* ignore */
-      })
-    return () => {
-      cancelled = true
+    function onFocusPost(e: Event) {
+      const postId = String((e as CustomEvent).detail?.postId || '')
+      if (!postId) return
+      window.setTimeout(() => {
+        document
+          .getElementById(`room-post-${postId}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 120)
     }
+    window.addEventListener('ab-focus-room-post', onFocusPost)
+    return () => window.removeEventListener('ab-focus-room-post', onFocusPost)
   }, [])
 
   useEffect(() => {
@@ -431,7 +434,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   useEffect(() => {
     setInput('')
-    setOutboundMsg('')
     setComposerFiles([])
     // Canvas store is global — hide cross-room artifacts when switching desks
     useCanvasStore.setState({ artifacts: [], activeId: null })
@@ -562,7 +564,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   ])
 
   const shared = activeScope ? isSharedScope(activeScope) : false
-  const { agent: mentionPreview } = resolveMentionHandoff(input, agentCatalog)
+  const { agent: mentionPreview, agents: mentionPreviewAgents } =
+    resolveMentionHandoff(input, agentCatalog)
 
   useEffect(() => {
     if (signedIn !== true || !shared) {
@@ -605,6 +608,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const m = value.match(/@([\u0600-\u06FFa-zA-Z0-9_\-]*)$/)
     if (!m) {
       setMentionMenu([])
+      setMentionHighlight(0)
       return
     }
     const q = m[1].toLowerCase()
@@ -635,7 +639,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
         labelAr: `${mem.displayNameAr} · عضو`,
         insert: mem.mentionToken,
       }))
-    setMentionMenu([...agentItems, ...memberItems].slice(0, 8))
+    const next = [...agentItems, ...memberItems].slice(0, 8)
+    setMentionMenu(next)
+    setMentionHighlight(0)
   }
 
   function applyMentionInsert(token: string) {
@@ -643,7 +649,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
       prev.replace(/@([\u0600-\u06FFa-zA-Z0-9_\-]*)$/, `@${token} `)
     )
     setMentionMenu([])
+    setMentionHighlight(0)
     composerRef.current?.focus()
+  }
+
+  function confirmMentionHighlight() {
+    const item = mentionMenu[mentionHighlight]
+    if (!item) return false
+    applyMentionInsert(item.insert)
+    return true
   }
 
   if (!activeScope) {
@@ -918,7 +932,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const fileFooter =
       attachments.length > 0
         ? `\n\n${attachments
-            .map((a) => `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`)
+            .map((a) =>
+              formatDownloadMarker({
+                name: a.name,
+                fileId: a.fileId,
+                kind: (a.mimeType || '').startsWith('audio/')
+                  ? 'voice'
+                  : 'file',
+              })
+            )
             .join('\n')}`
         : ''
     const finalContent =
@@ -986,8 +1008,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
       ? prompt.trim().slice(teamMention![0].length).trim() || prompt.trim()
       : prompt
     const handoff = resolveMentionHandoff(promptAfterTeam, agentCatalog)
+    const multiMentioned = handoff.agents
     const runTeam =
-      (collabMode === 'team' && !handoff.agent) || wantsAll
+      (collabMode === 'team' && multiMentioned.length === 0) || wantsAll
+    const runMultiMentions = !runTeam && multiMentioned.length > 1
     const teamAgents = roomAgents.slice(0, ROOM_TEAM_RUN_CAP)
     const agentsToRun: RoomAgent[] = agentsWorking
       ? runTeam
@@ -996,7 +1020,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
           : roomAgents[0]
             ? [roomAgents[0]]
             : []
-        : ([handoff.agent || roomAgents[0]].filter(Boolean) as RoomAgent[])
+        : multiMentioned.length
+          ? multiMentioned.slice(0, ROOM_TEAM_RUN_CAP)
+          : ([roomAgents[0]].filter(Boolean) as RoomAgent[])
       : []
     const teamParallel = Math.min(
       ASSISTANT_PARALLEL_DEFAULT,
@@ -1007,9 +1033,17 @@ export function RoomWorkspace({ className }: { className?: string }) {
     const humanId = `h-${Date.now()}`
     const fileNote =
       filesForSend.length > 0
-        ? `\n\n📎 مرفق للتعديل: ${filesForSend
-            .map((f) => `«${f.name}» (id:${f.fileId})`)
-            .join(' · ')}`
+        ? `\n\n${filesForSend
+            .map((f) =>
+              formatDownloadMarker({
+                name: f.name,
+                fileId: f.fileId,
+                kind: (f.mimeType || '').startsWith('audio/')
+                  ? 'voice'
+                  : 'file',
+              })
+            )
+            .join('\n')}`
         : ''
     const humanContent = `${prompt}${fileNote}`
 
@@ -1022,7 +1056,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
         content: humanContent,
         authorNameAr: displayName,
         mentionAgentId:
-          agentsWorking && !runTeam ? agentsToRun[0]?.id : undefined,
+          agentsWorking && !runTeam && !runMultiMentions
+            ? agentsToRun[0]?.id
+            : undefined,
       }),
     }).catch(() => null)
 
@@ -1136,7 +1172,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
             await streamOneAgent({
               prompt: cleanPrompt,
               agent,
-              peerContextAr: runTeam ? peerContextAr : undefined,
+              peerContextAr:
+                runTeam || runMultiMentions ? peerContextAr : undefined,
               postId,
               headers,
               signal: abort.signal,
@@ -1174,29 +1211,6 @@ export function RoomWorkspace({ className }: { className?: string }) {
       setStreaming(false)
       setAnsweringAgentId(null)
     }
-  }
-
-  async function sendOutboundTelegram() {
-    const text = input.trim()
-    if (!text) {
-      setOutboundMsg('اكتب نصاً في الحقل ثم أرسل للقناة.')
-      return
-    }
-    const res = await fetch('/api/rooms/outbound', {
-      method: 'POST',
-      headers: await authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        scopeId: activeScopeId,
-        textAr: text,
-        channel: 'telegram',
-      }),
-    })
-    const data = (await res.json()) as { noteAr?: string; error?: string }
-    setOutboundMsg(
-      res.ok
-        ? data.noteAr || 'تم الإرسال'
-        : data.error || data.noteAr || `فشل الإرسال (HTTP ${res.status})`
-    )
   }
 
   function dismissOnboarding() {
@@ -1435,11 +1449,22 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-1">
                   <RoomTeamPanel scopeId={activeScopeId} />
-                  <TelegramOutboundBlock
-                    telegramReady={telegramReady}
-                    outboundMsg={outboundMsg}
-                    onSend={() => void sendOutboundTelegram()}
+                  <TelegramMirrorChat
+                    variant="embedded"
+                    className="min-h-[14rem] max-h-[22rem]"
+                    onSendToRoom={(file) =>
+                      attachComposerFile({
+                        fileId: file.fileId,
+                        name: file.name,
+                        mimeType: file.mimeType,
+                        scopeId: file.scopeId || activeScopeId,
+                      })
+                    }
                   />
+                  <p className="text-[10px] leading-snug text-stone-500">
+                    اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
+                    مربع الكتابة هنا.
+                  </p>
                 </div>
               </div>
 
@@ -1453,11 +1478,22 @@ export function RoomWorkspace({ className }: { className?: string }) {
               >
                 <div className="relative z-30 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
                   <RoomTeamPanel scopeId={activeScopeId} />
-                  <TelegramOutboundBlock
-                    telegramReady={telegramReady}
-                    outboundMsg={outboundMsg}
-                    onSend={() => void sendOutboundTelegram()}
+                  <TelegramMirrorChat
+                    variant="embedded"
+                    className="min-h-[14rem] max-h-[22rem]"
+                    onSendToRoom={(file) =>
+                      attachComposerFile({
+                        fileId: file.fileId,
+                        name: file.name,
+                        mimeType: file.mimeType,
+                        scopeId: file.scopeId || activeScopeId,
+                      })
+                    }
                   />
+                  <p className="text-[10px] leading-snug text-stone-500">
+                    اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
+                    مربع الكتابة هنا.
+                  </p>
                 </div>
                 <div
                   role="separator"
@@ -1632,8 +1668,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     {isGuest
                       ? 'سجّل الدخول للكتابة والإرسال. المعاينة للقراءة فقط.'
                       : agentsWorking
-                        ? 'اكتب @reports أو @compliance (أو اضغط مقعد الوكيل) ثم أرسل طلبك — يبدأ العمل فوراً. أو @الجميع لتشغيل الفريق معاً.'
-                        : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو @الجميع.'}
+                        ? 'اكتب @reports @compliance معاً (أو اضغط مقعد الوكيل) ثم أرسل — يعملون فوراً. أو @الجميع لتشغيل الفريق.'
+                        : 'اكتب مهمة أو تكلم بالميكروفون. وجّه بـ @اسم أو عدة أسماء أو @الجميع.'}
                   </p>
                   {!isGuest && agentsWorking && roomAgents.length > 0 && (
                     <p className="mt-2 text-[11px] text-emerald-700">
@@ -1690,12 +1726,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
             )}
             aria-hidden={showMore && shared ? true : undefined}
           >
-            {mentionPreview && (
+            {mentionPreviewAgents.length > 1 ? (
+              <p className="mb-1.5 text-[11px] text-ab-accent">
+                سيتم توجيه الرد إلى{' '}
+                {mentionPreviewAgents.map((a) => a.nameAr).join(' و ')} — يعملون
+                معاً عند الإرسال
+              </p>
+            ) : mentionPreview ? (
               <p className="mb-1.5 text-[11px] text-ab-accent">
                 سيتم توجيه الرد إلى {mentionPreview.nameAr} — يبدأ فوراً عند
                 الإرسال
               </p>
-            )}
+            ) : null}
             {!mentionPreview &&
               !isGuest &&
               agentsWorking &&
@@ -1705,7 +1747,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 الوكلاء متواجدون: اكتب <span dir="ltr">@</span> واسم الوكيل (مثل{' '}
                 <span dir="ltr">@reports</span>) أو اضغط مقعده — يبدأ فوراً. حتى{' '}
                 {Math.min(ASSISTANT_PARALLEL_DEFAULT, roomAgents.length)}{' '}
-                وكيل/مهمة معاً.
+                وكيل/مهمة معاً. عدة إشارات في رسالة واحدة تعمل معاً.
               </p>
             )}
             {!mentionPreview &&
@@ -1716,7 +1758,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
               <p className="mb-1.5 text-[11px] text-stone-500">
                 الوكلاء متواجدون دائماً — اكتب <span dir="ltr">@</span> واسم
                 الوكيل أو أرسل طلباً واضحاً فيبدأ فوراً (حتى{' '}
-                {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة).
+                {ASSISTANT_PARALLEL_DEFAULT} وكيل/مهمة). يمكنك الإشارة لعدة
+                وكلاء في رسالة واحدة.
               </p>
             )}
             {!isGuest && !agentsWorking && (
@@ -1729,15 +1772,27 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 className="mb-1.5 max-h-40 overflow-y-auto rounded-lg border border-ab-border bg-white py-1 shadow-sm"
                 role="listbox"
                 aria-label="اقتراحات الإشارة"
+                id="room-mention-listbox"
               >
-                {mentionMenu.map((item) => (
-                  <li key={`${item.kind}-${item.insert}`}>
+                {mentionMenu.map((item, idx) => (
+                  <li
+                    key={`${item.kind}-${item.insert}`}
+                    id={`room-mention-option-${idx}`}
+                    role="option"
+                    aria-selected={idx === mentionHighlight}
+                  >
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-start text-[11px] hover:bg-stone-50"
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-start text-[11px]',
+                        idx === mentionHighlight
+                          ? 'bg-ab-accent/10 text-ab-ink'
+                          : 'hover:bg-stone-50'
+                      )}
+                      onMouseEnter={() => setMentionHighlight(idx)}
                       onClick={() => applyMentionInsert(item.insert)}
                     >
-                      <span className="font-medium text-ab-ink">
+                      <span className="font-medium text-ab-ink" dir="ltr">
                         @{item.insert}
                       </span>
                       <span className="text-stone-500">{item.labelAr}</span>
@@ -1802,7 +1857,20 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 {composerFiles.map((f) => (
                   <span
                     key={f.fileId}
-                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-ab-accent/30 bg-ab-accent/5 px-2 py-0.5 text-[10px] text-ab-ink"
+                    draggable
+                    onDragStart={(e) => {
+                      setBridgeDragData(e.dataTransfer, {
+                        fileId: f.fileId,
+                        name: f.name,
+                        mimeType: f.mimeType,
+                        scopeId: f.scopeId,
+                        kind: (f.mimeType || '').startsWith('audio/')
+                          ? 'voice'
+                          : 'file',
+                      })
+                    }}
+                    title="اسحب إلى تيليجرام للإرسال للمجموعة"
+                    className="inline-flex max-w-full cursor-grab items-center gap-1 rounded-full border border-ab-accent/30 bg-ab-accent/5 px-2 py-0.5 text-[10px] text-ab-ink active:cursor-grabbing"
                   >
                     <span className="truncate" title={f.name}>
                       📎 {f.name}
@@ -1818,17 +1886,42 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   </span>
                 ))}
                 <span className="self-center text-[10px] text-stone-500">
-                  اكتب طلب التعديل ثم أرسل — النتيجة زر تنزيل
+                  افتح/نزّل من الشات — أو اسحب لتيليجرام
                 </span>
               </div>
             )}
             <form
-              className="flex items-end gap-1.5"
+              className={`flex items-end gap-1.5 rounded-xl ${
+                composerDrag ? 'ring-2 ring-ab-accent/40' : ''
+              }`}
               onSubmit={(e) => {
                 e.preventDefault()
                 void sendPrompt()
               }}
               onFocusCapture={() => setPresenceSurface('composer')}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (
+                  e.dataTransfer.types.includes(AB_FILE_DND) ||
+                  e.dataTransfer.types.includes('Files')
+                ) {
+                  setComposerDrag(true)
+                }
+              }}
+              onDragLeave={() => setComposerDrag(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setComposerDrag(false)
+                const bridge = getBridgeDragData(e.dataTransfer)
+                if (bridge) {
+                  attachComposerFile({
+                    fileId: bridge.fileId,
+                    name: bridge.name,
+                    mimeType: bridge.mimeType,
+                    scopeId: bridge.scopeId || activeScopeId,
+                  })
+                }
+              }}
             >
               <LocalUploadPanel
                 scopeId={activeScopeId}
@@ -1873,10 +1966,33 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   typingTimer.current = setTimeout(() => setTyping(false), 1200)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Escape' && mentionMenu.length) {
-                    e.preventDefault()
-                    setMentionMenu([])
-                    return
+                  if (mentionMenu.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setMentionHighlight(
+                        (i) => (i + 1) % mentionMenu.length
+                      )
+                      return
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setMentionHighlight(
+                        (i) =>
+                          (i - 1 + mentionMenu.length) % mentionMenu.length
+                      )
+                      return
+                    }
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault()
+                      confirmMentionHighlight()
+                      return
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setMentionMenu([])
+                      setMentionHighlight(0)
+                      return
+                    }
                   }
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
@@ -1899,6 +2015,16 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 }
                 className="ab-input max-h-28 min-h-[2.5rem] min-w-0 flex-1 resize-none rounded-xl !py-2.5 disabled:opacity-50"
                 aria-label="رسالة الغرفة"
+                aria-autocomplete="list"
+                aria-controls={
+                  mentionMenu.length ? 'room-mention-listbox' : undefined
+                }
+                aria-activedescendant={
+                  mentionMenu.length
+                    ? `room-mention-option-${mentionHighlight}`
+                    : undefined
+                }
+                aria-expanded={mentionMenu.length > 0}
               />
               {streaming ? (
                 <button
@@ -2067,40 +2193,3 @@ export function RoomWorkspace({ className }: { className?: string }) {
   )
 }
 
-function TelegramOutboundBlock({
-  telegramReady,
-  outboundMsg,
-  onSend,
-}: {
-  telegramReady: boolean
-  outboundMsg: string
-  onSend: () => void
-}) {
-  return (
-    <div className="rounded-md border border-dashed border-ab-border bg-white p-2">
-      <p className="mb-1.5 text-[11px] font-semibold text-ab-ink">
-        تنبيه تيليجرام
-      </p>
-      <p className="mb-2 text-[10px] text-stone-500">
-        يرسل نص الحقل الحالي إلى شات تيليجرام المضبوط — لا يضيف أحداً للغرفة.
-      </p>
-      {!telegramReady ? (
-        <p className="text-[10px] text-stone-500">
-          تيليجرام غير جاهز للإرسال — من الإعدادات افتح «ربط هذه المساحة»
-          (محادثة خاصة) أو اربط مجموعة اللجان.
-        </p>
-      ) : (
-        <button
-          type="button"
-          onClick={onSend}
-          className="rounded-md border border-ab-border bg-white px-2 py-1.5 text-xs"
-        >
-          إرسال تنبيه
-        </button>
-      )}
-      {outboundMsg && (
-        <p className="mt-1.5 text-[10px] text-stone-500">{outboundMsg}</p>
-      )}
-    </div>
-  )
-}
