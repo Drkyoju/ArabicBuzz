@@ -12,9 +12,7 @@ import {
   X,
   FolderOpen,
   Sparkles,
-  Brain,
   MoreHorizontal,
-  KeyRound,
   CalendarDays,
   Activity,
   Home,
@@ -96,16 +94,6 @@ const PRIMARY_NAV: Array<{
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
   { id: 'settings', labelAr: 'الإعدادات', icon: Settings },
-]
-
-const MORE_NAV: Array<{
-  id: SidebarSection
-  labelAr: string
-  icon: LucideIcon
-}> = [
-  { id: 'memory', labelAr: 'الذاكرة', icon: Brain },
-  { id: 'api-keys', labelAr: 'مفاتيح النماذج', icon: KeyRound },
-  { id: 'ops', labelAr: 'حالة الربط', icon: Activity },
 ]
 
 function SidebarBody({
@@ -230,14 +218,6 @@ function SidebarBody({
     }
     return true
   })
-  const moreNav = MORE_NAV.filter(
-    (n) =>
-      roleReady &&
-      isEmployeeSection(n.id, mode) &&
-      signedIn === true &&
-      canAccessOpsUi &&
-      mode === 'admin'
-  )
   const scopes = useWorkspaceStore((s) => s.scopes)
   const primaryRoom = useMemo(
     () => scopes.find((s) => s.id === PRIMARY_TEAM_SCOPE_ID && !s.archived),
@@ -260,9 +240,6 @@ function SidebarBody({
   )
   const [menuId, setMenuId] = useState<string | null>(null)
   const [showOtherRooms, setShowOtherRooms] = useState(false)
-  const [showMoreNav, setShowMoreNav] = useState(() =>
-    MORE_NAV.some((n) => n.id === activeSection)
-  )
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   // Old clutter demo rooms → land on the primary team room.
@@ -271,12 +248,6 @@ function SidebarBody({
       setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
     }
   }, [activeScopeId, setActiveScopeId])
-
-  useEffect(() => {
-    if (MORE_NAV.some((n) => n.id === activeSection)) {
-      setShowMoreNav(true)
-    }
-  }, [activeSection])
 
   useEffect(() => {
     if (!menuId) return
@@ -429,45 +400,6 @@ function SidebarBody({
             )
           })}
         </ul>
-        {moreNav.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowMoreNav((v) => !v)}
-            className="mt-1 w-full rounded-md px-2.5 py-1.5 text-right text-[11px] text-stone-500 hover:bg-stone-50"
-          >
-            {showMoreNav ? 'إخفاء المزيد' : 'المزيد…'}
-          </button>
-        )}
-        {showMoreNav && moreNav.length > 0 && (
-          <ul className="mt-0.5 space-y-0.5">
-            {moreNav.map(({ id, labelAr, icon: Icon }) => {
-              const active = activeSection === id
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSectionChange?.(id)
-                      onNavigate?.()
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors',
-                      active
-                        ? 'bg-ab-accent/10 font-semibold text-ab-accent'
-                        : 'text-ab-ink hover:bg-stone-100'
-                    )}
-                  >
-                    <Icon
-                      className="h-3.5 w-3.5 shrink-0 opacity-70"
-                      aria-hidden
-                    />
-                    <span>{labelAr}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
       </nav>
 
       <div className="flex-1 overflow-y-auto p-2">

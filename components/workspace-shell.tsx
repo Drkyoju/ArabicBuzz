@@ -871,6 +871,13 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                         </button>
                         <button
                           type="button"
+                          onClick={() => setSection('memory')}
+                          className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
+                        >
+                          الذاكرة
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setSection('api-keys')}
                           className="rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs"
                         >
