@@ -1,12 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Eye, Pencil, Users } from 'lucide-react'
 import {
   createBrowserSupabaseClient,
   getBrowserSession,
   isSupabaseConfigured,
 } from '@/lib/supabase/browser'
+import {
+  coordsForAnchoredFloating,
+  type AnchoredFloatingCoords,
+} from '@/lib/ui/anchored-floating'
 import { cn } from '@/lib/utils'
 
 export type PresencePeer = {
@@ -148,10 +160,15 @@ export function RoomPresenceBar({
   const [peers, setPeers] = useState<PresencePeer[]>([])
   const [edits, setEdits] = useState<RoomEditEvent[]>([])
   const [open, setOpen] = useState(false)
+  const [panelCoords, setPanelCoords] = useState<AnchoredFloatingCoords | null>(
+    null
+  )
   const [remoteAgentTyping, setRemoteAgentTyping] = useState<{
     name: string
   } | null>(null)
   const [tick, setTick] = useState(0)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const channelRef = useRef<{
     track: (payload: Record<string, unknown>) => Promise<unknown>
@@ -431,6 +448,55 @@ export function RoomPresenceBar({
     }
   }, [scopeId, pushEdit])
 
+  const repositionPanel = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    setPanelCoords(
+      coordsForAnchoredFloating(el.getBoundingClientRect(), {
+        width: Math.min(352, typeof window !== 'undefined' ? window.innerWidth - 16 : 352),
+        estimatedHeight: panelRef.current?.offsetHeight || 280,
+        gap: 6,
+        padding: 8,
+      })
+    )
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelCoords(null)
+      return
+    }
+    repositionPanel()
+    const raf = requestAnimationFrame(() => repositionPanel())
+    window.addEventListener('resize', repositionPanel)
+    window.addEventListener('scroll', repositionPanel, true)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', repositionPanel)
+      window.removeEventListener('scroll', repositionPanel, true)
+    }
+  }, [open, repositionPanel, peers.length, edits.length])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Node | null
+      if (!t) return
+      if (triggerRef.current?.contains(t)) return
+      if (panelRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointer, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointer, true)
+    }
+  }, [open])
+
   void tick // refresh relative times
 
   const humans = useMemo(
@@ -467,6 +533,7 @@ export function RoomPresenceBar({
 
   const summary = (
     <button
+      ref={triggerRef}
       type="button"
       onClick={() => setOpen((v) => !v)}
       className={cn(
@@ -474,6 +541,7 @@ export function RoomPresenceBar({
         compact ? 'px-1 py-0.5' : 'px-1.5 py-1'
       )}
       aria-expanded={open}
+      aria-haspopup="dialog"
       title="من في الغرفة الآن"
     >
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
@@ -494,85 +562,106 @@ export function RoomPresenceBar({
     </button>
   )
 
-  const panel = open && (
-    <div
-      className="absolute start-0 top-full z-30 mt-1 w-[min(100vw-2rem,22rem)] rounded-xl border border-ab-border bg-white p-3 shadow-lg"
-      dir="rtl"
-    >
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ab-ink">
-        <Users className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
-        من في الغرفة الآن
-      </p>
-      <ul className="max-h-48 space-y-2 overflow-auto">
-        {online.map((p) => (
-          <li
-            key={p.key}
-            className="flex items-start gap-2 rounded-lg border border-ab-border/70 bg-stone-50/80 px-2 py-1.5"
+  const panel =
+    open && panelCoords
+      ? createPortal(
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label="من في الغرفة الآن"
+            className="fixed z-[80] overflow-y-auto rounded-xl border border-ab-border bg-white p-3 shadow-lg"
+            style={{
+              top: panelCoords.top,
+              left: panelCoords.left,
+              width: panelCoords.width,
+              maxHeight: panelCoords.maxHeight,
+            }}
+            dir="rtl"
           >
-            <span
-              className={cn(
-                'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white',
-                p.status === 'away'
-                  ? 'bg-stone-400'
-                  : p.typing
-                    ? 'bg-ab-accent'
-                    : 'bg-emerald-700'
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ab-ink">
+              <Users className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+              من في الغرفة الآن
+            </p>
+            <ul className="max-h-48 space-y-2 overflow-auto">
+              {online.map((p) => (
+                <li
+                  key={p.key}
+                  className="flex items-start gap-2 rounded-lg border border-ab-border/70 bg-stone-50/80 px-2 py-1.5"
+                >
+                  <span
+                    className={cn(
+                      'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white',
+                      p.status === 'away'
+                        ? 'bg-stone-400'
+                        : p.typing
+                          ? 'bg-ab-accent'
+                          : 'bg-emerald-700'
+                    )}
+                  >
+                    {initials(peerLabel(p))}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] font-semibold text-ab-ink">
+                      {peerLabel(p)}
+                      {p.status === 'away' && (
+                        <span className="mr-1 text-[10px] font-normal text-stone-400">
+                          (بعيد / تبويب مخفي)
+                        </span>
+                      )}
+                      {p.typing && (
+                        <span className="mr-1 text-[10px] font-normal text-ab-accent">
+                          يكتب…
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-[10px] text-stone-500" dir="ltr">
+                      {peerDetail(p) || 'بدون بريد ظاهر'}
+                    </p>
+                    <p className="text-[10px] text-stone-400">
+                      يشاهد: {surfaceLabel(p.surface)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-3 border-t border-ab-border pt-2">
+              <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-ab-ink">
+                <Pencil className="h-3 w-3 text-ab-accent" aria-hidden />
+                آخر التعديلات
+              </p>
+              {edits.length === 0 ? (
+                <p className="text-[10px] text-stone-400">لا تعديلات مسجّلة بعد.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {edits.slice(0, 5).map((e) => (
+                    <li
+                      key={e.id}
+                      className="text-[10px] leading-snug text-stone-600"
+                    >
+                      <span className="font-semibold text-ab-ink">{e.actorAr}</span>
+                      {' · '}
+                      {e.actionAr}
+                      {e.detailAr ? ` — ${e.detailAr.slice(0, 60)}` : ''}
+                      <span className="text-stone-400">
+                        {' '}
+                        · {relativeAr(e.at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
-            >
-              {initials(peerLabel(p))}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-semibold text-ab-ink">
-                {peerLabel(p)}
-                {p.status === 'away' && (
-                  <span className="mr-1 text-[10px] font-normal text-stone-400">
-                    (بعيد / تبويب مخفي)
-                  </span>
-                )}
-                {p.typing && (
-                  <span className="mr-1 text-[10px] font-normal text-ab-accent">
-                    يكتب…
-                  </span>
-                )}
-              </p>
-              <p className="truncate text-[10px] text-stone-500" dir="ltr">
-                {peerDetail(p) || 'بدون بريد ظاهر'}
-              </p>
-              <p className="text-[10px] text-stone-400">
-                يشاهد: {surfaceLabel(p.surface)}
-              </p>
             </div>
-          </li>
-        ))}
-      </ul>
 
-      <div className="mt-3 border-t border-ab-border pt-2">
-        <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-ab-ink">
-          <Pencil className="h-3 w-3 text-ab-accent" aria-hidden />
-          آخر التعديلات
-        </p>
-        {edits.length === 0 ? (
-          <p className="text-[10px] text-stone-400">لا تعديلات مسجّلة بعد.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {edits.slice(0, 5).map((e) => (
-              <li key={e.id} className="text-[10px] leading-snug text-stone-600">
-                <span className="font-semibold text-ab-ink">{e.actorAr}</span>
-                {' · '}
-                {e.actionAr}
-                {e.detailAr ? ` — ${e.detailAr.slice(0, 60)}` : ''}
-                <span className="text-stone-400"> · {relativeAr(e.at)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {showAgent && (
-        <p className="mt-2 text-[10px] text-violet-700">AI نشط: {agentDisplay}</p>
-      )}
-    </div>
-  )
+            {showAgent && (
+              <p className="mt-2 text-[10px] text-violet-700">
+                AI نشط: {agentDisplay}
+              </p>
+            )}
+          </div>,
+          document.body
+        )
+      : null
 
   if (compact) {
     return (

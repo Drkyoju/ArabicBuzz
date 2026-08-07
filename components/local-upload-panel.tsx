@@ -3,10 +3,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { FileUp, Mic, Paperclip, Link2 } from 'lucide-react'
 import {
   checkBrowserRecordSupport,
@@ -21,6 +23,10 @@ import {
   pickDeviceFile,
 } from '@/lib/files/pick-device-file'
 import { getBridgeDragData } from '@/lib/files/workspace-bridge'
+import {
+  coordsForAnchoredFloating,
+  type AnchoredFloatingCoords,
+} from '@/lib/ui/anchored-floating'
 import { cn } from '@/lib/utils'
 
 type StoredFile = {
@@ -54,12 +60,17 @@ export function LocalUploadPanel({
   compact?: boolean
 }) {
   const mediaRef = useRef<ActiveRecording | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [message, setMessage] = useState('')
   const [files, setFiles] = useState<StoredFile[]>([])
   const [open, setOpen] = useState(false)
+  const [panelCoords, setPanelCoords] = useState<AnchoredFloatingCoords | null>(
+    null
+  )
   const [macConfigured, setMacConfigured] = useState(false)
   const [needsGoogle, setNeedsGoogle] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -98,6 +109,56 @@ export function LocalUploadPanel({
       mediaRef.current?.stream.getTracks().forEach((t) => t.stop())
     }
   }, [])
+
+  const repositionPanel = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    setPanelCoords(
+      coordsForAnchoredFloating(el.getBoundingClientRect(), {
+        width: 320,
+        estimatedHeight: panelRef.current?.offsetHeight || 300,
+        gap: 8,
+        padding: 8,
+      })
+    )
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelCoords(null)
+      return
+    }
+    repositionPanel()
+    // Second pass after paint so estimated height matches real panel.
+    const raf = requestAnimationFrame(() => repositionPanel())
+    window.addEventListener('resize', repositionPanel)
+    window.addEventListener('scroll', repositionPanel, true)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', repositionPanel)
+      window.removeEventListener('scroll', repositionPanel, true)
+    }
+  }, [open, repositionPanel, files.length, message, needsGoogle, progress])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    const onPointer = (e: MouseEvent | PointerEvent) => {
+      const t = e.target as Node | null
+      if (!t) return
+      if (triggerRef.current?.contains(t)) return
+      if (panelRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointer, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointer, true)
+    }
+  }, [open])
 
   function notifyReady(
     meta: {
@@ -454,118 +515,139 @@ export function LocalUploadPanel({
   )
 
   if (compact) {
+    const panel =
+      open && panelCoords
+        ? createPortal(
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-label="رفع ملف من جهازك"
+              dir="rtl"
+              className="fixed z-[80] overflow-y-auto rounded-xl border border-ab-border bg-white p-2 shadow-lg"
+              style={{
+                top: panelCoords.top,
+                left: panelCoords.left,
+                width: panelCoords.width,
+                maxHeight: panelCoords.maxHeight,
+              }}
+            >
+              <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-500">
+                اسحب الملف هنا أو اضغط للاختيار — يُحفظ في الغرفة ويُرفع تلقائياً إلى
+                عقل الشركة (Drive).
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void pickAndUpload()}
+                onDragOver={onDropZoneDragOver}
+                onDragLeave={onDropZoneDragLeave}
+                onDrop={onDropZoneDrop}
+                className={cn(dropZoneClass, 'w-full py-5')}
+              >
+                <FileUp className="h-6 w-6 text-ab-accent" aria-hidden />
+                <span className="text-xs font-semibold text-ab-ink">
+                  اسحب الملف هنا
+                </span>
+                <span className="text-[10px] text-stone-500">
+                  أو اضغط للاختيار من جهازك
+                </span>
+              </button>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void toggleMacRecord()}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
+                    recording
+                      ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
+                      : 'border-ab-border'
+                  )}
+                >
+                  <Mic className="h-3 w-3" />
+                  {recording
+                    ? 'إيقاف'
+                    : macConfigured
+                      ? 'تسجيل للماك'
+                      : 'ملف صوتي'}
+                </button>
+              </div>
+              {progress != null && (
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                  <div
+                    className="h-full rounded-full bg-ab-accent transition-all"
+                    style={{ width: `${Math.min(100, progress)}%` }}
+                  />
+                </div>
+              )}
+              {message && (
+                <p className="mt-1.5 text-[10px] text-stone-500">{message}</p>
+              )}
+              {googleBanner}
+              {files.length > 0 && (
+                <ul className="mt-1.5 max-h-20 space-y-0.5 overflow-y-auto text-[10px] text-stone-600">
+                  {files.slice(0, 5).map((f) => (
+                    <li key={f.id} className="flex justify-between gap-2">
+                      <button
+                        type="button"
+                        className="truncate text-start hover:text-ab-accent hover:underline"
+                        title="إرفاق للشات وتعديل الوكيل"
+                        onClick={() => {
+                          onFileReady?.({
+                            fileId: f.id,
+                            name: f.originalName,
+                            scopeId,
+                          })
+                          openFilePreviewInChat({
+                            fileId: f.id,
+                            scopeId,
+                            name: f.originalName,
+                          })
+                          setOpen(false)
+                        }}
+                      >
+                        {f.originalName}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="shrink-0 text-ab-accent hover:underline"
+                        onClick={() =>
+                          void (async () => {
+                            setBusy(true)
+                            const brain = await syncToCompanyBrain(f.id)
+                            setMessage(brain.message)
+                            setBusy(false)
+                          })()
+                        }
+                      >
+                        عقل
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>,
+            document.body
+          )
+        : null
+
     return (
       <div className="relative" dir="rtl">
         <button
+          ref={triggerRef}
           type="button"
           disabled={busy}
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-ab-border bg-white text-ab-ink hover:bg-stone-50 disabled:opacity-40"
           aria-label="ارفع من جهازك"
+          aria-expanded={open}
+          aria-haspopup="dialog"
           title="ارفع من جهازك — اسحب الملف أو اختر"
         >
           <Paperclip className="h-4 w-4" />
         </button>
-        {open && (
-          <div className="absolute bottom-full end-0 z-20 mb-2 w-80 rounded-xl border border-ab-border bg-white p-2 shadow-lg">
-            <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-500">
-              اسحب الملف هنا أو اضغط للاختيار — يُحفظ في الغرفة ويُرفع تلقائياً إلى
-              عقل الشركة (Drive).
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void pickAndUpload()}
-              onDragOver={onDropZoneDragOver}
-              onDragLeave={onDropZoneDragLeave}
-              onDrop={onDropZoneDrop}
-              className={cn(dropZoneClass, 'w-full py-5')}
-            >
-              <FileUp className="h-6 w-6 text-ab-accent" aria-hidden />
-              <span className="text-xs font-semibold text-ab-ink">
-                اسحب الملف هنا
-              </span>
-              <span className="text-[10px] text-stone-500">
-                أو اضغط للاختيار من جهازك
-              </span>
-            </button>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void toggleMacRecord()}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px]',
-                  recording
-                    ? 'border-ab-warn bg-ab-warn/10 text-ab-warn'
-                    : 'border-ab-border'
-                )}
-              >
-                <Mic className="h-3 w-3" />
-                {recording
-                  ? 'إيقاف'
-                  : macConfigured
-                    ? 'تسجيل للماك'
-                    : 'ملف صوتي'}
-              </button>
-            </div>
-            {progress != null && (
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
-                <div
-                  className="h-full rounded-full bg-ab-accent transition-all"
-                  style={{ width: `${Math.min(100, progress)}%` }}
-                />
-              </div>
-            )}
-            {message && (
-              <p className="mt-1.5 text-[10px] text-stone-500">{message}</p>
-            )}
-            {googleBanner}
-            {files.length > 0 && (
-              <ul className="mt-1.5 max-h-20 space-y-0.5 overflow-y-auto text-[10px] text-stone-600">
-                {files.slice(0, 5).map((f) => (
-                  <li key={f.id} className="flex justify-between gap-2">
-                    <button
-                      type="button"
-                      className="truncate text-start hover:text-ab-accent hover:underline"
-                      title="إرفاق للشات وتعديل الوكيل"
-                      onClick={() => {
-                        onFileReady?.({
-                          fileId: f.id,
-                          name: f.originalName,
-                          scopeId,
-                        })
-                        openFilePreviewInChat({
-                          fileId: f.id,
-                          scopeId,
-                          name: f.originalName,
-                        })
-                        setOpen(false)
-                      }}
-                    >
-                      {f.originalName}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="shrink-0 text-ab-accent hover:underline"
-                      onClick={() =>
-                        void (async () => {
-                          setBusy(true)
-                          const brain = await syncToCompanyBrain(f.id)
-                          setMessage(brain.message)
-                          setBusy(false)
-                        })()
-                      }
-                    >
-                      عقل
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {panel}
       </div>
     )
   }
