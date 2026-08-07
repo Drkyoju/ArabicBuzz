@@ -102,11 +102,23 @@ export async function emitNotification(opts: {
     const chatId = opts.to || (await resolveTelegramTarget(opts.meta))
     if (!token || !chatId) return { ok: false }
     try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: opts.textAr }),
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: opts.textAr.slice(0, 4000),
+        }),
       })
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '')
+        console.warn(
+          '[telegram] sendMessage failed',
+          res.status,
+          errBody.slice(0, 200)
+        )
+        return { ok: false }
+      }
       return { ok: true }
     } catch {
       return { ok: false }

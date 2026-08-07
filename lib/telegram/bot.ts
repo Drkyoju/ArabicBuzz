@@ -74,6 +74,12 @@ import {
   telegramGoogleLinkedHintAr,
 } from '@/lib/telegram/power-path'
 import { effortToRunParams } from '@/lib/ai/run-effort'
+import { parseTelegramMessageIntent } from '@/lib/telegram/message-intent'
+import {
+  deliverGroupBroadcast,
+  deliverNamedTelegramMessage,
+  rememberTelegramPeer,
+} from '@/lib/telegram/peer-directory'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -105,21 +111,18 @@ let bot: Bot | null = null
 let botInitPromise: Promise<void> | null = null
 let commandsRegistered = false
 
-const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — هذه القناة مثل غرفة الموقع تماماً.
+const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — هذه القناة = غرفة الفريق على الموقع (نفس الأدوات والمقاعد).
 - افهم العربية الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
-- لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة.
+- لا تنتظر أوامر مثل /ask — أي طلب عمل عادي يُنفَّذ مباشرة بعد /link.
+- أيقظ وكيل١ (ثم ٢ عند الانشغال) ونفّذ كما في غرفة الموقع: ملفات، Drive، تحويل، تقويم، مهام، بريد إن وُجد، بحث، تبليغ أعضاء.
+- إن عجزت وحدك عن جزء: استخدم أدوات الغرفة نفسها (نفس pipeline الموقع) وأعد النتيجة هنا مع المرفقات.
 - أجب بإيجاز. للأسئلة البسيطة أجب مباشرة دون أدوات إن أمكن.
-- أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اسحب من Drive (إن مربوط)، اقرأ/عدّل/حوّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا مع ملخص «ما نُفّذ».
-- التقويم: مصدر الفريق هو room_calendar_* فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC ولا تحوّل لعدة مناطق زمنية في نفس الرد.
-- لسؤال «كم موعد» أو مواعيد اليوم: رد واحد قصير (العدد + عنوان كل موعد ووقته) بدون سؤال متابعة مثل «هل تود إضافة…».
+- التقويم: مصدر الفريق هو room_calendar_* فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC.
 - لطلب موعد جديد: room_calendar_create فوراً ثم أكّد.
-- الملفات: list_workspace_files / search_knowledge_base → brain_open_document (Drive) → read_document / read_excel → edit_document(replacements) / edit_excel → convert_document → return_file.
-  أي ملف تُنشئه أو تعدّله أو تحوّله يُرسل تلقائياً كمرفق في هذه المحادثة (معاينة+تنزيل) — لا تكتفِ بوصف الرابط أو ملفات الفريق.
-- صور / PDF ممسوح (نص غير قابل للنسخ) أو طلب «اقرأ» / «ابحث عن…»: استخدم arabic_ocr مع fileId (يحفظ النص في ذاكرة الغرفة وملف .txt). للبحث داخل الصورة مرّر searchQuery. لاحقاً: memory_search.
-  لقرارات طويلة ممسوحة: read_decision_document. للمستندات النصية العادية: read_document كافٍ.
-- عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.
-  لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف») — البحث يكفي عادة.
-- للإجراءات عالية المخاطر (الحذف فقط) اطلب موافقة بشرية (أزرار الموافقة). لا تختلق لوائح أو قرارات.
+- الملفات: list_workspace_files / search_knowledge_base → brain_open_document → read/edit/convert → return_file (يُرسل كمرفق هنا).
+- صور / PDF ممسوح: arabic_ocr. عقل الشركة: search_knowledge_base / brain_* — لا drive_sync_brain إلا بطلب مزامنة صريح.
+- «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم البوت؛ وإلا المجموعة المربوطة — اشرح بصراحة.
+- للإجراءات عالية المخاطر (الحذف فقط) اطلب موافقة بشرية. لا تختلق لوائح أو قرارات.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
@@ -306,6 +309,8 @@ async function bindTelegramTools(opts: {
   requesterId: string
   scopeId: string
   heavy: boolean
+  /** Full room tool surface (same as /api/chat) — default for work turns. */
+  fullRoom?: boolean
 }): Promise<ToolSet> {
   const { parsePosture } = await import('@/lib/security/posture')
   const native = getNativeAiTools({
@@ -313,8 +318,13 @@ async function bindTelegramTools(opts: {
     scopeId: opts.scopeId,
     mode: parsePosture('DANGEROUS'),
   })
-  const names = opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
-  const subset = pickToolSubset(native, names)
+  // Parity with غرفة الفريق: full native toolset for work; subset only for light chat.
+  const subset = opts.fullRoom
+    ? native
+    : pickToolSubset(
+        native,
+        opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
+      )
 
   // MCP env connect is slow on cold start — opt-in only for Telegram.
   if (process.env.TELEGRAM_INCLUDE_MCP === '1') {
@@ -517,8 +527,79 @@ async function runTelegramAgentTurn(opts: {
   if (seatId) markTelegramSeatBusy(scopeId, seatId)
 
   try {
+  // Deterministic «أرسل لفلان» / بث المجموعة — قبل الوكيل
+  const msgIntent = parseTelegramMessageIntent(opts.promptSource)
+  if (msgIntent && work.kind === 'message') {
+    try {
+      const fromLabelAr = opts.ctx.from?.first_name || undefined
+      const groupChatId = opts.chatId.startsWith('-') ? opts.chatId : null
+      const result =
+        msgIntent.kind === 'broadcast'
+          ? groupChatId
+            ? await deliverGroupBroadcast({
+                scopeId,
+                textAr: msgIntent.bodyAr,
+                groupChatId,
+                fromLabelAr,
+              })
+            : {
+                ok: false as const,
+                via: 'none' as const,
+                messageAr:
+                  'للبث للمجموعة أرسل من داخل المجموعة المربوطة بـ /link، أو حدد عضواً بالاسم.',
+              }
+          : await deliverNamedTelegramMessage({
+              scopeId,
+              targetNameAr: msgIntent.targetNameAr,
+              textAr: msgIntent.bodyAr,
+              groupChatId,
+              fromLabelAr,
+            })
+      const text = [result.messageAr, result.limitsAr].filter(Boolean).join('\n')
+      try {
+        await opts.ctx.api.editMessageText(
+          opts.ctx.chat!.id,
+          ack.message_id,
+          text.slice(0, 4000)
+        )
+      } catch {
+        try {
+          await opts.ctx.api.deleteMessage(opts.ctx.chat!.id, ack.message_id)
+        } catch {
+          /* ignore */
+        }
+        await opts.ctx.reply(text.slice(0, 4000))
+      }
+      void mirrorChannelTurnToRoom({
+        scopeId,
+        channel: 'telegram',
+        externalId: opts.chatId,
+        userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+        userMessageAr: opts.promptSource,
+        agentReplyAr: text,
+      })
+      await maybeSendTelegramVoiceReply(opts.ctx, text)
+      return {
+        text,
+        citations: [] as RoomCitation[],
+        pendingApprovalIds: [] as string[],
+        attachmentsSent: [] as string[],
+      }
+    } catch (e) {
+      console.error('[telegram] message-path', e)
+      /* fall through to full agent */
+    }
+  }
+
   const fastKind = classifyTelegramFastPath(opts.promptSource)
-  if (fastKind && !opts.forceHeavy && work.kind !== 'appointment' && work.kind !== 'file') {
+  if (
+    fastKind &&
+    !opts.forceHeavy &&
+    work.kind !== 'appointment' &&
+    work.kind !== 'file' &&
+    work.kind !== 'message' &&
+    work.kind !== 'task'
+  ) {
     try {
       const text = await runTelegramFastPath({
         kind: fastKind,
@@ -654,9 +735,16 @@ async function runTelegramAgentTurn(opts: {
   const heavy =
     Boolean(opts.forceHeavy) ||
     work.forceHeavy ||
+    work.kind === 'file' ||
+    work.kind === 'question' ||
     isHeavyTelegramPrompt(opts.promptSource)
+  const useFullRoomTools =
+    work.kind !== 'casual' || heavy || Boolean(opts.forceHeavy)
   const modelSlug = resolveTelegramModelSlug(heavy, powered.adapt.modelSlug)
-  const maxSteps = telegramEffortMaxSteps(powered.adapt.effort, heavy)
+  const maxSteps = telegramEffortMaxSteps(
+    powered.adapt.effort,
+    heavy || useFullRoomTools
+  )
   const needDialect = shouldNormalizeTelegramDialect(opts.promptSource)
   const effortHint = effortToRunParams(powered.adapt.effort).systemHintAr
 
@@ -682,6 +770,7 @@ async function runTelegramAgentTurn(opts: {
     requesterId,
     scopeId,
     heavy,
+    fullRoom: useFullRoomTools,
   })
   const prepMs = Date.now() - tPrep
   const tStream = Date.now()
@@ -1036,18 +1125,20 @@ export function getTelegramBot() {
           '',
           'بعد /link:',
           '• اكتب بالعربية العادية (فصحى أو لهجة) — يشتغل لحاله مثل غرفة الموقع',
-          '• أرسل رسالة صوتية → تفريغ عربي → أزرار سريعة (موعد/مهمة/ملف) → تنفيذ',
+          '• أرسل رسالة صوتية → تفريغ عربي → قصد (موعد/مهمة/ملف/رسالة/سؤال) → أزرار أو تنفيذ فوري',
+          '• نفس أدوات غرفة الموقع: Drive · تحويل · تقويم · مهام · بحث · بريد إن مربوط',
+          '• وكيل١ يستيقظ في الغرفة المربوطة ويرد هنا بالمرفقات',
+          '• «أرسل لأحمد: …» أو «بلّغ المجموعة: …» → خاص إن بدأ البوت، وإلا منشور في المجموعة',
           '• أرسل ملف Word/Excel/PDF/صورة → يقرأ/يعدّل/يحوّل ويرجع الملف',
-          '• اطلب ملفاً من Drive أو خزنة الغرفة → يفتح/يعدّل ويرسل النتيجة هنا',
-          '• موعد بالصوت أو النص → يُضاف لتقويم الغرفة · تذكير ≈ ساعة قبل الموعد',
-          '• ملخص صباحي يومي للمجموعة (توقيت السعودية) — مهام + مواعيد',
-          '• صورة أو PDF ممسوح + «اقرأ» أو «ابحث عن …» → OCR',
+          '• موعد بالصوت أو النص → تقويم الغرفة · تذكير ≈ ساعة قبل',
+          '• صورة أو PDF ممسوح + «اقرأ» → OCR',
           '',
           'عدة لجان/مجموعات:',
           `/link${tag} scope_<id>__c_finance|programs|board`,
           'أو /link finance داخل مجموعة اللجنة',
           '',
-          'لا حاجة لـ /ask. الموافقة البشرية للحذف فقط.',
+          'لا حاجة لـ /ask بعد /link. الموافقة البشرية للحذف فقط.',
+          'حد خاص: لا DM لمن لم يضغط Start على البوت.',
           '',
           'أوامر اختيارية:',
           '/link أو /start — الربط مرة واحدة لكل مجموعة',
@@ -1149,6 +1240,13 @@ export function getTelegramBot() {
     }
 
     try {
+      void rememberTelegramPeer({
+        scopeId: scope.scope.id,
+        tgUserId: userId,
+        firstName: ctx.from?.first_name,
+        lastName: ctx.from?.last_name,
+        username: ctx.from?.username,
+      })
       await runTelegramAgentTurn({
         ctx,
         promptSource,
@@ -1220,6 +1318,14 @@ export function getTelegramBot() {
         userId,
       })
 
+      void rememberTelegramPeer({
+        scopeId: scope.scope.id,
+        tgUserId: userId,
+        firstName: ctx.from?.first_name,
+        lastName: ctx.from?.last_name,
+        username: ctx.from?.username,
+      })
+
       await ctx.replyWithChatAction('typing')
       const stt = await transcribeArabicSpeech(buffer, mime)
       const transcript = stt.text
@@ -1281,7 +1387,9 @@ export function getTelegramBot() {
             ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
             : voiceWork.kind === 'file'
               ? '\n[صوت: ملف — ابحث/عدّل/حوّل وأعد المرفق]'
-              : '',
+              : voiceWork.kind === 'message'
+                ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
+                : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة إن لزم]',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',
@@ -1289,15 +1397,14 @@ export function getTelegramBot() {
         .filter(Boolean)
         .join('\n')
 
-      // For clear appointment/task/file intent, run immediately.
-      // Casual/question: buttons alone are enough; still run a short turn.
+      // Clear intents auto-act; buttons remain for override/clarify.
       await runTelegramAgentTurn({
         ctx,
         promptSource,
         chatId,
         userId,
         scope,
-        forceHeavy: voiceWork.forceHeavy,
+        forceHeavy: voiceWork.forceHeavy || voiceWork.kind === 'question',
         workLabelAr: voiceWork.labelAr,
       })
       // TTS is handled inside runTelegramAgentTurn (short summaries / TELEGRAM_VOICE_REPLY).
@@ -1485,7 +1592,9 @@ export function getTelegramBot() {
               ? 'جاري إضافة موعد…'
               : voiceAction === 'task'
                 ? 'جاري تسجيل مهمة…'
-                : 'جاري البحث عن الملف…',
+                : voiceAction === 'message'
+                  ? 'جاري إرسال الرسالة…'
+                  : 'جاري البحث عن الملف…',
         })
       } catch {
         /* already answered */

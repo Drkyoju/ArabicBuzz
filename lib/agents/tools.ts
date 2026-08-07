@@ -30,6 +30,7 @@ import {
   executeRoomCalendarUpdate,
 } from '@/lib/agents/tools/room-calendar-tools'
 import {
+  executeNotifyRoomMember,
   executeRoomMemoryAdd,
   executeRoomMemoryList,
   executeRoomTasksCreate,
@@ -280,6 +281,7 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   room_tasks_reconcile: executeRoomTasksReconcile,
   room_memory_list: executeRoomMemoryList,
   room_memory_add: executeRoomMemoryAdd,
+  notify_room_member: executeNotifyRoomMember,
   web_search: executeWebSearch,
   web_fetch: executeWebFetch,
   drive_sync_brain: async (_n, params) => {

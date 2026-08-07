@@ -64,6 +64,7 @@ const TOOL_LABEL_AR: Record<string, string> = {
   read_document: 'قراءة مستند',
   brain_open_document: 'فتح مستند العقل',
   send_message: 'تيليجرام',
+  notify_room_member: 'تبليغ عضو',
   web_search: 'بحث ويب',
   web_fetch: 'جلب صفحة',
 }

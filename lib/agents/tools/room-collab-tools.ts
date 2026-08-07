@@ -142,3 +142,76 @@ export async function executeRoomMemoryAdd(
   })
   return { ok: true, memory: mem, messageAr: 'أُضيفت لذاكرة الغرفة.' }
 }
+
+/** أرسل لفلان / بلّغ المجموعة — DM إن بدأ البوت، وإلا المجموعة المربوطة. */
+export async function executeNotifyRoomMember(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = scopeOf(params)
+  const textAr = String(
+    params.textAr || params.messageAr || params.text || ''
+  ).trim()
+  const targetNameAr = String(
+    params.targetNameAr || params.memberNameAr || params.toNameAr || ''
+  ).trim()
+  const fromLabelAr = params.fromLabelAr
+    ? String(params.fromLabelAr)
+    : undefined
+
+  if (!textAr) throw new Error('يلزم textAr لنص الرسالة.')
+
+  const {
+    deliverNamedTelegramMessage,
+    deliverGroupBroadcast,
+  } = await import('@/lib/telegram/peer-directory')
+  const { getSupabaseAdmin } = await import('@/lib/supabase/server')
+
+  let groupChatId =
+    params.groupChatId != null ? String(params.groupChatId) : ''
+  if (!groupChatId) {
+    const sb = getSupabaseAdmin()
+    if (sb) {
+      const { data } = await sb
+        .from('channel_bindings')
+        .select('external_id')
+        .eq('channel', 'telegram')
+        .eq('scope_id', scopeId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const group = (data || []).find((r) =>
+        String(r.external_id || '').startsWith('-')
+      )
+      if (group?.external_id) groupChatId = String(group.external_id)
+    }
+  }
+
+  const broadcastAliases =
+    /^(المجموعة|القروب|الفريق|الأعضاء|الاعضاء|الجميع|all|team|group)$/iu
+  if (!targetNameAr || broadcastAliases.test(targetNameAr)) {
+    if (!groupChatId) {
+      return {
+        ok: false,
+        via: 'none',
+        messageAr:
+          'لا مجموعة مربوطة بهذه الغرفة. اربط بـ /link داخل المجموعة أولاً.',
+        limitsAr:
+          'البوت يبلّغ المجموعة المربوطة أو خاص من بدأ Start — لا يخترع وصولاً.',
+      }
+    }
+    return deliverGroupBroadcast({
+      scopeId,
+      textAr,
+      groupChatId,
+      fromLabelAr,
+    })
+  }
+
+  return deliverNamedTelegramMessage({
+    scopeId,
+    targetNameAr,
+    textAr,
+    groupChatId: groupChatId || null,
+    fromLabelAr,
+  })
+}

@@ -756,6 +756,27 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('send_message'),
         }),
     }),
+    notify_room_member: tool({
+      description:
+        'تبليغ عضو بالاسم عبر تيليجرام (خاص إن بدأ البوت، وإلا منشور موجّه في المجموعة المربوطة). لبث المجموعة استخدم targetNameAr=المجموعة.',
+      inputSchema: z.object({
+        targetNameAr: z
+          .string()
+          .describe('اسم العضو أو «المجموعة»/«الفريق» للبث'),
+        textAr: z.string().min(1),
+        fromLabelAr: z.string().optional(),
+        groupChatId: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'notify_room_member',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('notify_room_member'),
+        }),
+    }),
     send_file: tool({
       description:
         'إرسال ملف من مساحة العمل كمرفق تيليجرام و/أو بريد إلكتروني لزميل.',

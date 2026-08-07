@@ -1,10 +1,10 @@
 /**
  * Inline quick-actions after Telegram voice STT:
- * أضِف موعد · مهمة · ابحث عن الملف
+ * أضِف موعد · مهمة · ملف · أرسل رسالة
  */
 import { InlineKeyboard } from 'grammy'
 
-export type VoiceQuickAction = 'appointment' | 'task' | 'file'
+export type VoiceQuickAction = 'appointment' | 'task' | 'file' | 'message'
 
 type VoiceQuickCache = {
   transcript: string
@@ -49,6 +49,7 @@ export const VOICE_QUICK_PREFIX = {
   appointment: 'vq_appt',
   task: 'vq_task',
   file: 'vq_file',
+  message: 'vq_msg',
 } as const
 
 export function parseVoiceQuickCallback(
@@ -57,6 +58,7 @@ export function parseVoiceQuickCallback(
   if (data === VOICE_QUICK_PREFIX.appointment) return 'appointment'
   if (data === VOICE_QUICK_PREFIX.task) return 'task'
   if (data === VOICE_QUICK_PREFIX.file) return 'file'
+  if (data === VOICE_QUICK_PREFIX.message) return 'message'
   return null
 }
 
@@ -66,6 +68,7 @@ export function buildVoiceQuickKeyboard(): InlineKeyboard {
     .text('مهمة', VOICE_QUICK_PREFIX.task)
     .row()
     .text('ابحث عن الملف', VOICE_QUICK_PREFIX.file)
+    .text('أرسل رسالة', VOICE_QUICK_PREFIX.message)
 }
 
 export function voiceQuickPrompt(
@@ -106,6 +109,19 @@ export function voiceQuickPrompt(
           '[زر سريع: ابحث عن الملف]',
           'ابحث في خزنة الغرفة و/أو عقل الشركة (Drive إن مربوط) وأعد الملف أو ملخصاً قصيراً.',
           'استخدم list_workspace_files / search_knowledge_base / brain_open_document ثم return_file عند الحاجة.',
+        ].join('\n'),
+      }
+    case 'message':
+      return {
+        labelAr: 'رسالة / تبليغ',
+        forceHeavy: false,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: أرسل رسالة]',
+          'استخرج اسم المستلم ونص الرسالة.',
+          'نفّذ عبر notify_room_member فوراً (أو targetNameAr=المجموعة للبث).',
+          'اشرح إن وصلت خاصاً أو نُشرت في المجموعة، وحدود Start للبوت.',
         ].join('\n'),
       }
   }

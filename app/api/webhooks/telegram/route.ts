@@ -101,13 +101,23 @@ export async function GET() {
       maxStepsHeavy: 6,
       mcpDefault: process.env.TELEGRAM_INCLUDE_MCP === '1',
       voiceReplyTts: process.env.TELEGRAM_VOICE_REPLY || 'auto',
-      voiceQuickButtons: ['appointment', 'task', 'file'],
-      fastPath: ['greeting', 'calendar_count', 'tasks_count'],
+      voiceQuickButtons: ['appointment', 'task', 'file', 'message'],
+      fastPath: ['greeting', 'calendar_count', 'tasks_count', 'message_dm_broadcast'],
       updateDedupe: 'update_id_ttl_10m',
       calendarDisplayTz: 'Asia/Riyadh',
       wakePolicy: 'agent1_cascade',
-      workIntents: ['appointment', 'task', 'file', 'question'],
+      workIntents: [
+        'appointment',
+        'task',
+        'file',
+        'message',
+        'question',
+        'coordination_via_message',
+      ],
+      roomToolParity: 'full_native_on_work_turns',
       multiCommitteeLink: ['/link finance', '/link programs', '/link board'],
+      messagingLimitsAr:
+        'خاص فقط لمن بدأ البوت (Start). وإلا منشور موجّه في المجموعة المربوطة.',
     },
   })
 }

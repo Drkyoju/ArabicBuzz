@@ -19,11 +19,13 @@ import { pickAgentSeatsForMessage } from '@/lib/rooms/wake-policy'
 import { planRoomRunAdaptation } from '@/lib/rooms/run-adapt'
 import { effortToRunParams, type RunEffort } from '@/lib/ai/run-effort'
 import { listGoogleAccounts } from '@/lib/google/tokens'
+import { looksLikeTelegramMessaging } from '@/lib/telegram/message-intent'
 
 export type TelegramWorkKind =
   | 'appointment'
   | 'task'
   | 'file'
+  | 'message'
   | 'question'
   | 'casual'
 
@@ -75,6 +77,8 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'room_tasks_reconcile',
   'room_memory_list',
   'room_memory_add',
+  'send_message',
+  'notify_room_member',
   'web_search',
   'web_fetch',
   'convert_document',
@@ -152,6 +156,14 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     }
   }
 
+  if (looksLikeTelegramMessaging(t)) {
+    return {
+      kind: 'message',
+      labelAr: 'رسالة / تبليغ',
+      forceHeavy: false,
+      preferFullAgent: true,
+    }
+  }
   if (APPOINTMENT_RE.test(t) && !/كم\s*(?:موعد|مواعيد)/i.test(t)) {
     return {
       kind: 'appointment',
@@ -181,7 +193,7 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       kind: 'question',
       labelAr: 'سؤال',
       forceHeavy: t.length > 280 || FILE_RE.test(t),
-      preferFullAgent: false,
+      preferFullAgent: true,
     }
   }
   return {
@@ -216,6 +228,15 @@ function workKindNudge(kind: TelegramWorkKind): string {
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'إن لم يُربط Google: قل ذلك صراحة واعرض خزنة الغرفة فقط — لا تختلق ملفات Drive.',
         'OCR للصور/PDF الممسوح: arabic_ocr (جودة أعلى إن توفّر جسر ماك؛ وإلا مسار السحابة).',
+      ].join(' ')
+    case 'message':
+      return [
+        '[قصد تيليجرام: رسالة / تبليغ / تنسيق]',
+        'استخرج اسم المستلم ونص الرسالة.',
+        'نفّذ فوراً عبر notify_room_member (اسم العضو + النص) أو send_message.',
+        'إن كان الطلب للمجموعة/الفريق استخدم targetNameAr=المجموعة أو البث عبر الأداة.',
+        'حدود صادقة: البوت لا يرسل خاصاً لمن لم يضغط Start سابقاً — عند الفشل انشر في المجموعة المربوطة واشرح السبب.',
+        'لا تختلق أن الرسالة وصلت خاصاً إن فشلت الأداة.',
       ].join(' ')
     case 'question':
       return [
@@ -327,4 +348,6 @@ export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة:
 - عقل الشركة (Drive): يحتاج ربط Google من الموقع؛ بدون ربط استخدم خزنة الغرفة فقط وأخبر المستخدم.
 - التحويل PDF↔Word الأفضل عبر Google؛ بدون ربط قد تفشل الجودة أو يُطلب CloudConvert.
 - arabic_ocr للصور/PDF الممسوح: يعمل سحابياً؛ المسار البصري عبر جسر ماك اختياري لجودة أعلى.
-- الحذف فقط يحتاج موافقة بشرية (أزرار). باقي العمل يُنفَّذ مباشرة مثل غرفة الموقع.`
+- الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start على البوت سابقاً؛ وإلا منشور موجّه في المجموعة المربوطة. لا تختلق وصول خاص.
+- الحذف فقط يحتاج موافقة بشرية (أزرار). باقي العمل يُنفَّذ مباشرة مثل غرفة الموقع.
+- أنت نفس وكلاء غرفة الموقع: أيقظ مقعد وكيل١ (ثم ٢…) ونفّذ بالأدوات؛ النتيجة تُرد هنا وتُحفظ في الغرفة.`
