@@ -24,6 +24,7 @@ import {
   Home,
   Bot,
   Mail,
+  Gauge,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -94,6 +95,7 @@ export type SidebarSection =
   | 'skills'
   | 'api-keys'
   | 'ops'
+  | 'usage'
   | 'settings'
 
 const PRIMARY_NAV: Array<{
@@ -107,6 +109,7 @@ const PRIMARY_NAV: Array<{
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   // غرفة الفريق: single entry under «الغرفة» below (fuller room row) — no nav duplicate.
   { id: 'files', labelAr: 'ملفات الفريق', icon: FolderOpen },
+  { id: 'usage', labelAr: 'استهلاك الرموز', icon: Gauge },
   { id: 'approvals', labelAr: 'الموافقات', icon: ShieldCheck },
   { id: 'audit', labelAr: 'سجل العمل', icon: Activity },
   { id: 'skills', labelAr: 'مهارات', icon: Sparkles },
@@ -261,6 +264,9 @@ function SidebarBody({
     if (!isEmployeeSection(n.id, mode)) return false
     // Skills catalog/management — sole workspace owner only (admin chrome).
     if (n.id === 'skills') {
+      return canAccessOpsUi && mode === 'admin'
+    }
+    if (n.id === 'usage' || n.id === 'audit') {
       return canAccessOpsUi && mode === 'admin'
     }
     // Never keep an empty «الموافقات» nav item — only when a delete is pending.

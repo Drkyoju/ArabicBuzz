@@ -7,6 +7,7 @@ import {
   Download,
   Eye,
   FileText,
+  FileType2,
   MessageSquare,
   Mic,
   Pencil,
@@ -66,6 +67,7 @@ export function FilesPanel() {
   const postsByScope = useWorkspaceStore((s) => s.postsByScope)
 
   const [backingUp, setBackingUp] = useState(false)
+  const [syncNote, setSyncNote] = useState('')
 
   const load = useCallback(async () => {
     if (signedIn !== true) {
@@ -78,16 +80,24 @@ export function FilesPanel() {
     setError('')
     try {
       const res = await fetch(
-        `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}`,
+        `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}&sync=1`,
         { headers: await authHeaders() }
       )
       const data = (await res.json()) as {
         files?: ListedFile[]
         source?: string
         error?: string
+        noteAr?: string
+        fromChat?: number
       }
       setFiles(data.files || [])
       setSource(data.source || 'none')
+      setSyncNote(
+        data.noteAr ||
+          (data.fromChat
+            ? `زُامن ${data.fromChat} مرفقاً من الشات.`
+            : '')
+      )
       if (data.error) {
         const raw = data.error
         setError(
@@ -356,12 +366,63 @@ export function FilesPanel() {
     }
   }
 
+  async function convertCleanPdf(f: ListedFile) {
+    const fileId = f.id || ''
+    if (!fileId) {
+      setNote('معرّف الملف غير متاح.')
+      return
+    }
+    setBusyId(fileId)
+    setNote('جاري التحويل النظيف عبر Drive…')
+    try {
+      const res = await fetch('/api/storage/convert', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          scopeId,
+          fileId,
+          toFormat: 'docx',
+          engine: 'auto',
+        }),
+      })
+      const data = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        messageAr?: string
+        fileId?: string
+        name?: string
+        mimeType?: string
+      }
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'فشل التحويل')
+      }
+      setNote(data.messageAr || 'تم التحويل — الناتج في الأرشيف والشات.')
+      if (data.fileId) {
+        openFilePreviewInChat({
+          fileId: data.fileId,
+          scopeId,
+          name: data.name || 'converted.docx',
+          mimeType:
+            data.mimeType ||
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+      }
+      await load()
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل التحويل')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const sourceLabel =
     source === 'local' || source === 'mac'
       ? 'خزنة الماك المشتركة — الجميع يضيف ويعدّل ويحذف'
       : source === 'cloud'
         ? 'ملفات الغرفة + عقل الشركة (Drive)'
-        : 'لا ملفات بعد — اختر ملفاً للرفع'
+        : source === 'merged'
+          ? 'أرشيف مدمج (خزنة + مرفقات الشات)'
+          : 'لا ملفات بعد — اختر ملفاً للرفع'
 
   const emptyHint =
     'الأرشيف فارغ — ارفع من هنا أو من غرفة الفريق. كل الملفات والصوتيات تظهر هنا بلا ضجيج المحادثة.'
@@ -484,6 +545,11 @@ export function FilesPanel() {
           {note}
         </p>
       )}
+      {syncNote && !note ? (
+        <p className="rounded-md border border-ab-border bg-ab-surface px-3 py-2 text-xs text-ab-muted">
+          {syncNote}
+        </p>
+      ) : null}
 
       {loading && files.length === 0 ? (
         <p className="text-sm text-ab-muted">جاري التحميل…</p>
@@ -559,6 +625,19 @@ export function FilesPanel() {
                     <Eye className="h-3 w-3" />
                     معاينة
                   </button>
+                  {/\.pdf$/i.test(name) ||
+                  (f.mimeType || '').includes('pdf') ? (
+                    <button
+                      type="button"
+                      disabled={!id || busy}
+                      onClick={() => void convertCleanPdf(f)}
+                      className="ab-btn-secondary !py-1 text-[11px]"
+                      title="تحويل PDF→Word عبر Google Drive (المسار النظيف)"
+                    >
+                      <FileType2 className="h-3 w-3" />
+                      حوّل نظيف
+                    </button>
+                  ) : null}
                   {postByFileId[id] ? (
                     <button
                       type="button"

@@ -42,6 +42,30 @@ async function main() {
   }
 
   try {
+    await check('health/live', '/api/health/live', (status, body) => {
+      if (status !== 200) throw new Error(`status ${status}`)
+      const b = body as { ok?: boolean; status?: string }
+      if (!b.ok || b.status !== 'live') throw new Error('not live')
+    })
+  } catch (e) {
+    failed++
+    console.error('✗ health/live', e)
+  }
+
+  try {
+    await check('health/ready', '/api/health/ready', (status, body) => {
+      if (status !== 200 && status !== 503) throw new Error(`status ${status}`)
+      if (!body || typeof body !== 'object') throw new Error('empty body')
+      if (status === 503) {
+        console.warn('  (ready returned 503 — deps may be warming)')
+      }
+    })
+  } catch (e) {
+    failed++
+    console.error('✗ health/ready', e)
+  }
+
+  try {
     await check('health/free', '/api/health/free', (status, body) => {
       if (status !== 200) throw new Error(`status ${status}`)
       if (!body || typeof body !== 'object') throw new Error('empty body')

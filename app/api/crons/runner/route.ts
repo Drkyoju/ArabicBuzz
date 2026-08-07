@@ -315,6 +315,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Scheduled vault archive backup (index + small files when feasible).
+  let vaultBackup: unknown = null
+  try {
+    const { runScheduledVaultBackups } = await import(
+      '@/lib/storage/vault-backup'
+    )
+    vaultBackup = await runScheduledVaultBackups()
+  } catch (e) {
+    vaultBackup = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'vault backup error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -327,5 +341,6 @@ export async function POST(req: NextRequest) {
     imapMailSync,
     autoWire,
     roomChatRetention,
+    vaultBackup,
   })
 }

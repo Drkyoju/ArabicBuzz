@@ -52,10 +52,32 @@ Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
 
 ## Smoke
 
-- `GET https://arabicbuzz-fooc9h.cranl.net/api/health/free`
+- **Liveness (fast):** `GET /api/health/live` — process up; use for Docker/CranL HEALTHCHECK
+- **Readiness:** `GET /api/health/ready` — cheap DB/Supabase check (503 if not ready)
+- **Diagnostics:** `GET /api/health/free` — full free-stack flags (not for frequent probes)
 - `GET https://arabicbuzz-fooc9h.cranl.net/api/webhooks/telegram`
 - `GET https://arabicbuzz-fooc9h.cranl.net/api/public-config` → `supabaseConfigured: true`
 - Login UI: `https://arabicbuzz-fooc9h.cranl.net/auth/login` must show Google / email buttons (not «غير جاهز»)
+
+## Probes & graceful restart
+
+CranL rebuilds the Docker image on push to `main`. There is no guaranteed zero-downtime rolling swap on Basic; expect a short window of 502 until the new container passes probes.
+
+| Probe | URL | Interval guidance |
+| --- | --- | --- |
+| Liveness | `/api/health/live` | Every 10–15s, timeout 3s, start-period ≥20s |
+| Readiness | `/api/health/ready` | Every 15–30s, timeout 3s; fail open traffic until 200 |
+| Deep | `/api/health/free` | Manual / ops only |
+
+**Restart expectations**
+
+1. Push `main` or `cranl apps deploy <app-id>` → new image build.
+2. Old process receives SIGTERM (Node standalone exits); in-flight agent/webhook turns may abort — clients retry.
+3. Container is healthy when `/api/health/live` returns 200; traffic should wait for `/api/health/ready` when the platform supports readiness separately.
+4. Dockerfile embeds `HEALTHCHECK` against `/api/health/live`.
+5. Avoid pointing load balancers at `/api/health/free` — it hits Supabase + Prisma and is slower/flakier during blips.
+
+If CranL later exposes stop-grace / rolling restart in the UI, keep liveness on `live` and readiness on `ready` — do not invent a custom drain unless the platform documents one.
 
 ### Auth note (Docker / NEXT_PUBLIC_*)
 

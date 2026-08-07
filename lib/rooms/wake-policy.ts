@@ -63,18 +63,33 @@ export function pickAgentSeatsForMessage(opts: {
   // Cascade: first seat that is not busy (order = وكيل١, وكيل٢, …)
   const freeIdx = seated.findIndex((a) => !busy.has(a.id))
   if (freeIdx < 0) {
+    const busyNames = seated
+      .filter((a) => busy.has(a.id))
+      .map((a) => a.nameAr)
+      .slice(0, 4)
+    const who =
+      busyNames.length > 0 ? ` (${busyNames.join('، ')})` : ''
     return {
       agents: [],
       wokeIds: [],
-      noticeAr: 'كل الوكلاء يعملون الآن — انتظر أو أوقف تشغيلاً ثم أعد الإرسال.',
+      noticeAr: [
+        `⏳ الطابور ممتلئ — كل المقاعد تعمل الآن${who}.`,
+        'رسالتك محفوظة عند الإعادة: انتظر قليلاً ثم أعد الإرسال، أو أوقف تشغيلاً من الموقع.',
+        'لا تُحذف رسائل تيليجرام — سنرد بتعديل/رسالة جديدة عند التفرّغ.',
+      ].join('\n'),
     }
   }
 
   const free = seated[freeIdx]
+  const busyAhead = freeIdx
   const noticeAr =
     freeIdx === 0
       ? undefined
-      : `أُيقظ ${free.nameAr} تلقائياً لأن المقعد السابق ما زال يعمل`
+      : [
+          `أُيقظ ${free.nameAr} لأن ${busyAhead} مقعد${busyAhead > 1 ? 'اً' : ''} قبله ما زال يعمل.`,
+          'أنت في الطابور التالي — جاري التنفيذ الآن.',
+        ].join('\n')
+
 
   return {
     agents: [free],

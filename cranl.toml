@@ -1,6 +1,11 @@
 # CranL deploy notes (committed, no secrets)
-# Docs: https://docs.cranl.com/
+# Docs: https://docs.cranl.com/ · repo docs/cranl-deploy.md
 # CLI: cranl login <api-key> && cranl projects select <id>
+#
+# Platform probes (set in CranL UI if available):
+#   liveness  = GET /api/health/live
+#   readiness = GET /api/health/ready
+# Dockerfile also defines HEALTHCHECK → /api/health/live
 
 name = "arabicbuzz"
 build_type = "dockerfile"

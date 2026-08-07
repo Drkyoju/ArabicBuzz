@@ -48,8 +48,15 @@ export function getLocalStorageRoot(): string {
 }
 
 export function isLocalStorageEnabled(): boolean {
-  if (process.env.STORAGE_BACKEND === 'none') return false
-  if (process.env.STORAGE_BACKEND === 'local') return true
+  const backend = process.env.STORAGE_BACKEND?.trim().toLowerCase()
+  if (backend === 'local') return true
+  // 'none' / 'cloud' / 'mac' all explicitly opt out of the server's own
+  // filesystem — required on CranL/Docker where the container disk is
+  // ephemeral (wiped on redeploy), which used to silently orphan files that
+  // chat markers still referenced (archive looked empty).
+  if (backend === 'none' || backend === 'cloud' || backend === 'mac') {
+    return false
+  }
   // Auto: enable on non-Netlify / when explicitly allowed
   if (process.env.LOCAL_STORAGE_ROOT) return true
   // Netlify / OpenNext / Lambda — home vault is not writable

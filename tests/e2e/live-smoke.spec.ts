@@ -13,6 +13,21 @@ test.describe('CranL live smoke', () => {
     expect(String(body.appUrl || '')).toMatch(/cranl\.net/)
   })
 
+  test('health/live is up', async ({ request }) => {
+    const res = await request.get('/api/health/live')
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json()
+    expect(body.ok).toBe(true)
+    expect(body.status).toBe('live')
+  })
+
+  test('health/ready responds', async ({ request }) => {
+    const res = await request.get('/api/health/ready')
+    expect([200, 503]).toContain(res.status())
+    const body = await res.json()
+    expect(body).toHaveProperty('status')
+  })
+
   test('health/free is healthy enough to boot', async ({ request }) => {
     const res = await request.get('/api/health/free')
     expect(res.ok()).toBeTruthy()

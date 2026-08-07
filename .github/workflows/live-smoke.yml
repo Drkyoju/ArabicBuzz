@@ -1,0 +1,45 @@
+# Live CranL smoke on every push to main (and manual dispatch).
+# Secrets (optional): LIVE_APP_URL — defaults to production CranL host.
+name: Live smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Live API smoke
+        env:
+          # Optional repo secret LIVE_APP_URL; defaults to production CranL.
+          LIVE_APP_URL: ${{ secrets.LIVE_APP_URL }}
+        run: |
+          set -euo pipefail
+          BASE="${LIVE_APP_URL:-https://arabicbuzz-fooc9h.cranl.net}"
+          BASE="${BASE%/}"
+          export PLAYWRIGHT_BASE_URL="$BASE"
+          export NEXT_PUBLIC_APP_URL="$BASE"
+          echo "Smoke target: ${BASE}"
+          code=$(curl -sS -o /tmp/live.json -w '%{http_code}' --max-time 20 "${BASE}/api/health/live")
+          echo "live HTTP ${code}"
+          test "$code" = "200"
+          code=$(curl -sS -o /tmp/ready.json -w '%{http_code}' --max-time 25 "${BASE}/api/health/ready" || true)
+          echo "ready HTTP ${code}"
+          head -c 400 /tmp/ready.json || true
+          echo
+          npx tsx scripts/live-smoke.ts

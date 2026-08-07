@@ -73,14 +73,14 @@ export function parseVoiceQuickCallback(
 
 export function buildVoiceQuickKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
-    .text('✅ نفّذ الآن', VOICE_QUICK_PREFIX.run)
-    .text('أضِف موعد', VOICE_QUICK_PREFIX.appointment)
+    .text('✅ نفّذ', VOICE_QUICK_PREFIX.run)
+    .text('📅 موعد', VOICE_QUICK_PREFIX.appointment)
     .row()
-    .text('مهمة', VOICE_QUICK_PREFIX.task)
-    .text('ابحث عن الملف', VOICE_QUICK_PREFIX.file)
+    .text('✅ مهمة', VOICE_QUICK_PREFIX.task)
+    .text('📁 ملف', VOICE_QUICK_PREFIX.file)
     .row()
-    .text('أرسل لعضو', VOICE_QUICK_PREFIX.message)
-    .text('بلّغ المجموعة', VOICE_QUICK_PREFIX.broadcast)
+    .text('✉️ لعضو', VOICE_QUICK_PREFIX.message)
+    .text('📣 للمجموعة', VOICE_QUICK_PREFIX.broadcast)
 }
 
 export function voiceQuickPrompt(
@@ -95,7 +95,7 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: نفّذ الآن]',
+          '[زر سريع: نفّذ]',
           'نفّذ الطلب بالكامل بأدوات غرفة الموقع (تقويم/مهام/ملفات/Drive/تبليغ) وأعد ملخصاً واضحاً مع المرفقات.',
         ].join('\n'),
       }
@@ -106,7 +106,7 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: أضِف موعد]',
+          '[زر سريع: موعد]',
           'استخرج العنوان والتاريخ/الوقت (Asia/Riyadh) وأنشئ عبر room_calendar_create فوراً.',
           'أكّد بالعربية: العنوان · الوقت · أنه في تقويم الغرفة.',
         ].join('\n'),
@@ -129,7 +129,7 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: ابحث عن الملف]',
+          '[زر سريع: ملف]',
           'ابحث في خزنة الغرفة و/أو عقل الشركة (Drive إن مربوط) وأعد الملف أو ملخصاً قصيراً.',
           'استخدم list_workspace_files / search_knowledge_base / brain_open_document ثم return_file عند الحاجة.',
         ].join('\n'),
@@ -141,7 +141,7 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: أرسل لعضو]',
+          '[زر سريع: لعضو]',
           'استخرج اسم المستلم ونص الرسالة.',
           'نفّذ عبر notify_room_member فوراً.',
           'اشرح إن وصلت خاصاً أو نُشرت في المجموعة، وحدود Start للبوت.',
@@ -154,7 +154,7 @@ export function voiceQuickPrompt(
         prompt: [
           transcript,
           '',
-          '[زر سريع: بلّغ المجموعة]',
+          '[زر سريع: للمجموعة]',
           'انشر النص للجميع عبر notify_room_member مع targetNameAr=المجموعة.',
           'لخّص ما أُرسل.',
         ].join('\n'),
@@ -167,17 +167,17 @@ export function formatVoiceSttSummaryAr(opts: {
   intentLabelAr: string
   providerLabelAr: string
 }): string {
-  const t = opts.transcript.trim().slice(0, 3200)
+  const raw = opts.transcript.trim()
+  const short =
+    raw.length > 280 ? `${raw.slice(0, 277).trimEnd()}…` : raw
   return [
-    '🎤 تفريغ الصوت',
-    `المحرك: ${opts.providerLabelAr}`,
-    `القصد المقترح: ${opts.intentLabelAr}`,
+    '🎤 فهمت:',
+    `«${short}»`,
     '',
-    '«' + t + '»',
-    '',
-    'راجع النص أعلاه. إن كان صحيحاً سيُنفَّذ تلقائياً، أو اختر زراً سريعاً:',
+    `القصد: ${opts.intentLabelAr} · ${opts.providerLabelAr}`,
+    'صح؟ سيُنفَّذ تلقائياً — أو اختر زراً:',
   ].join('\n')
 }
 
 export const VOICE_QUICK_HINT_AR =
-  'أزرار سريعة — أو اكتب تصحيحاً/طلباً جديداً:'
+  'أزرار سريعة — أو اكتب تصحيحاً:'

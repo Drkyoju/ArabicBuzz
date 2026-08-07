@@ -558,18 +558,40 @@ async function runTelegramAgentTurn(opts: {
 
   // Ack immediately so group UX feels responsive while we prep.
   void opts.ctx.replyWithChatAction('typing').catch(() => undefined)
-  const ackBits = ['⏳ جاري العمل…']
-  if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
-  else if (powered.wakeAgent) {
-    ackBits.push(`أُيقظ ${powered.wakeAgent.nameAr} في غرفة الموقع`)
-  }
-  if (opts.workLabelAr || work.kind !== 'casual') {
-    ackBits.push(`القصد: ${opts.workLabelAr || work.labelAr}`)
-  }
-  if (work.kind === 'file' || work.forceHeavy) {
-    ackBits.push('أدوات كاملة مثل الموقع (ملفات/Drive/تحويل)')
+  const ackBits: string[] = []
+  if (!powered.wakeAgent && powered.wakeNoticeAr) {
+    // All seats busy — clear queue messaging (never delete prior messages).
+    ackBits.push(powered.wakeNoticeAr)
+  } else {
+    ackBits.push('⏳ استلمت — جاري العمل…')
+    if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
+    else if (powered.wakeAgent) {
+      ackBits.push(`المقعد: ${powered.wakeAgent.nameAr}`)
+    }
+    if (opts.workLabelAr || work.kind !== 'casual') {
+      ackBits.push(`القصد: ${opts.workLabelAr || work.labelAr}`)
+    }
+    if (work.kind === 'file' || work.forceHeavy) {
+      ackBits.push('أدوات كاملة (ملفات / Drive / تحويل)')
+    }
   }
   const ack = await opts.ctx.reply(ackBits.join('\n'))
+
+  // All seats busy — keep the queue notice (edit path via finalize; never delete).
+  if (!powered.wakeAgent && powered.wakeNoticeAr) {
+    await finalizeTelegramAck({
+      ctx: opts.ctx,
+      chatId: opts.ctx.chat!.id,
+      messageId: ack.message_id,
+      text: powered.wakeNoticeAr,
+    })
+    return {
+      text: powered.wakeNoticeAr,
+      citations: [] as RoomCitation[],
+      pendingApprovalIds: [] as string[],
+      attachmentsSent: [] as string[],
+    }
+  }
 
   if (seatId) markTelegramSeatBusy(scopeId, seatId)
 

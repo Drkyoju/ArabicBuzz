@@ -21,6 +21,7 @@ import { AccreditationExportPanel } from '@/components/accreditation-export-pane
 import { IntegrationsSetupPanel } from '@/components/integrations-setup-panel'
 import { OpsHealthPanel } from '@/components/ops-health-panel'
 import { FilesPanel } from '@/components/files-panel'
+import { TokenUsagePanel } from '@/components/token-usage-panel'
 import { AirGapBadge } from '@/components/airgap-badge'
 import { AuthButtons } from '@/components/auth-buttons'
 import { HelpTip } from '@/components/help-tip'
@@ -244,6 +245,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     if (
       section === 'api-keys' ||
       section === 'ops' ||
+      section === 'usage' ||
       section === 'audit' ||
       section === 'skills'
     ) {
@@ -476,6 +478,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'chats' && <RoomWorkspace />}
 
         {section === 'files' && <FilesPanel />}
+
+        {section === 'usage' && signedIn && canAccessOpsUi && mode === 'admin' && (
+          <TokenUsagePanel />
+        )}
 
         {section === 'calendar' && (
           <section className="ab-page" dir="rtl">

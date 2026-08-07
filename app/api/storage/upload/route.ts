@@ -96,6 +96,7 @@ export async function GET(req: Request) {
     })
   }
   const scopeId = url.searchParams.get('scopeId') || 'shared-demo'
+  const wantSync = url.searchParams.get('sync') !== '0'
   try {
     const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
     const gate = await assertRoomCanAccess(
@@ -106,6 +107,31 @@ export async function GET(req: Request) {
     if (!gate.ok) {
       return Response.json({ error: gate.error, files: [] }, { status: 403 })
     }
+
+    if (wantSync) {
+      const { syncVaultWithChatAttachments } = await import(
+        '@/lib/files/vault-sync'
+      )
+      const synced = await syncVaultWithChatAttachments(scopeId)
+      return Response.json({
+        files: synced.files,
+        source: synced.source === 'none' ? 'none' : 'merged',
+        fromVault: synced.fromVault,
+        fromChat: synced.fromChat,
+        noteAr: synced.noteAr,
+        storage: getStorageStatus(),
+        macSyncConfigured: macSyncConfigured(),
+        directUpload: direct,
+        hopMaxBytes: NETLIFY_MAC_HOP_MAX,
+        error:
+          synced.files.length === 0 &&
+          !isLocalStorageEnabled() &&
+          !macSyncConfigured()
+            ? 'لا خزنة ماك هنا — ارفع للسحابة (حتى ~4MB) أو اربط وكيل المزامنة للملفات الكبيرة.'
+            : undefined,
+      })
+    }
+
     let files: unknown[] = []
     let source: 'local' | 'mac' | 'cloud' | 'none' = 'none'
     let listError: string | undefined

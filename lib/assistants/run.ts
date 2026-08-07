@@ -151,6 +151,8 @@ export async function runAssistant(
     modelSlug: input.modelSlug || assistant.modelSlug,
     scopeId: input.scopeId,
     requesterId: input.requesterId,
+    agentId: assistant.id,
+    agentNameAr: assistant.nameAr,
     mode: input.mode,
     includeMcpTools: false,
     maxSteps,

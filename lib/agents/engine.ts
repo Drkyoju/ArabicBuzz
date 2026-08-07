@@ -1618,6 +1618,9 @@ export type AgentEngineInput = {
   scopeId?: string
   mode?: SecurityPostureMode
   requesterId?: string
+  /** Seat / agent id for usage metering. */
+  agentId?: string
+  agentNameAr?: string
   /** When false, skip MCP tool binding (local stubs only). Default true. */
   includeMcpTools?: boolean
   maxSteps?: number
@@ -1707,6 +1710,27 @@ export async function runAgentEngine(
     )
 
     const extracted = extractFromAgentSteps(result.steps)
+
+    try {
+      const { recordTokenUsage, usageFromGenerateResult } = await import(
+        '@/lib/usage/record'
+      )
+      const usage = usageFromGenerateResult(
+        result as {
+          usage?: Record<string, unknown>
+          totalUsage?: Record<string, unknown>
+        }
+      )
+      void recordTokenUsage({
+        scopeId: input.scopeId,
+        agentId: input.agentId,
+        agentNameAr: input.agentNameAr,
+        modelSlug,
+        ...usage,
+      })
+    } catch {
+      /* metering must not break the agent */
+    }
 
     return {
       text: result.text,

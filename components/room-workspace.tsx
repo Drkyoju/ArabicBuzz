@@ -220,6 +220,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showTelegram, setShowTelegram] = useState(false)
   /** Collapsed model/effort/font controls — keeps غرفة الفريق header clean. */
   const [showRoomTools, setShowRoomTools] = useState(false)
+  /** Overflow menu for secondary header actions (declutter). */
+  const [showHeaderMore, setShowHeaderMore] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
@@ -1533,131 +1535,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <ZoomLivePanel compact />
                 </div>
               </div>
-              <div className="ab-toolbar shrink-0 justify-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => void deleteTodayChat()}
-                  disabled={deletingToday}
-                  className={
-                    confirmDeleteToday
-                      ? 'ab-btn-secondary !border-ab-warn !py-1 !text-ab-warn text-[11px]'
-                      : 'ab-btn-ghost !py-1 text-[11px] text-stone-500'
-                  }
-                  aria-label="حذف شات اليوم"
-                  title="حذف رسائل يوم اليوم فقط — أرشيف الملفات يبقى"
-                >
-                  <Trash2 className="h-3 w-3" aria-hidden />
-                  {deletingToday
-                    ? 'جاري الحذف…'
-                    : confirmDeleteToday
-                      ? 'تأكيد'
-                      : 'مسح اليوم'}
-                </button>
-                {confirmDeleteToday && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmDeleteToday(false)
-                      setDeleteTodayNote('')
-                    }}
-                    className="ab-btn-secondary !py-1 text-[11px]"
-                    aria-label="إلغاء حذف شات اليوم"
-                  >
-                    إلغاء
-                  </button>
-                )}
+              <div className="ab-toolbar relative shrink-0 justify-end gap-1">
                 <AgentsWorkingToggle scopeId={activeScopeId} compact />
-                <button
-                  type="button"
-                  onClick={() => setShowRoomTools((v) => !v)}
-                  className={cn(
-                    '!py-1 text-[11px]',
-                    showRoomTools ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
-                  )}
-                  aria-expanded={showRoomTools}
-                  aria-label="أدوات النموذج والجهد"
-                >
-                  أدوات
-                </button>
-                {hasArtifacts && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const mobile =
-                        typeof window !== 'undefined' &&
-                        window.matchMedia('(max-width: 767px)').matches
-                      if (mobile) {
-                        if (isCanvasFullscreen) {
-                          toggleCanvasFullscreen()
-                          setShowCanvas(false)
-                        } else {
-                          setShowCanvas(true)
-                          setSideTab('canvas')
-                          toggleCanvasFullscreen()
-                        }
-                      } else {
-                        setShowCanvas((v) => !v)
-                        setSideTab('canvas')
-                      }
-                    }}
-                    className="ab-btn-secondary !py-1 text-[11px]"
-                    aria-label={
-                      canvasOpen || isCanvasFullscreen
-                        ? 'إخفاء اللوحة'
-                        : 'فتح اللوحة'
-                    }
-                  >
-                    <PanelRightOpen className="h-3 w-3" />
-                    {canvasOpen || isCanvasFullscreen ? 'إخفاء' : 'لوحة'}
-                  </button>
-                )}
-                {previewOpen && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closePreview()
-                    }}
-                    className="ab-btn-accent-soft !py-1 text-[11px]"
-                    aria-label="إغلاق معاينة الملف"
-                  >
-                    <Eye className="h-3 w-3" />
-                    إغلاق المعاينة
-                  </button>
-                )}
-                {shared && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowTelegram((v) => {
-                        const next = !v
-                        if (next) {
-                          setShowMore(false)
-                          if (
-                            typeof window !== 'undefined' &&
-                            window.matchMedia('(max-width: 767px)').matches
-                          ) {
-                            setSeatsCollapsed(true)
-                          }
-                        }
-                        return next
-                      })
-                    }}
-                    className={cn(
-                      '!py-1 text-[11px]',
-                      showTelegram ? 'ab-btn-accent-soft' : 'ab-btn-ghost'
-                    )}
-                    aria-label={
-                      showTelegram
-                        ? 'إخفاء نافذة تيليجرام المباشرة'
-                        : 'فتح نافذة تيليجرام المباشرة للمجموعة'
-                    }
-                    aria-expanded={showTelegram}
-                    aria-controls="room-telegram-live-pane"
-                  >
-                    <MessageCircle className="h-3 w-3" aria-hidden />
-                    تيليجرام
-                  </button>
-                )}
                 {shared && (
                   <button
                     type="button"
@@ -1666,6 +1545,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                         const next = !v
                         if (next) {
                           setShowTelegram(false)
+                          setShowHeaderMore(false)
                           const mobile =
                             typeof window !== 'undefined' &&
                             window.matchMedia('(max-width: 767px)').matches
@@ -1695,6 +1575,144 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     أعضاء
                   </button>
                 )}
+                {previewOpen && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closePreview()
+                    }}
+                    className="ab-btn-accent-soft !py-1 text-[11px]"
+                    aria-label="إغلاق معاينة الملف"
+                  >
+                    <Eye className="h-3 w-3" />
+                    إغلاق
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowHeaderMore((v) => !v)}
+                  className={cn(
+                    '!py-1 text-[11px]',
+                    showHeaderMore || showRoomTools
+                      ? 'ab-btn-accent-soft'
+                      : 'ab-btn-ghost'
+                  )}
+                  aria-expanded={showHeaderMore}
+                  aria-label="المزيد من أدوات الغرفة"
+                >
+                  المزيد
+                </button>
+                {showHeaderMore ? (
+                  <div
+                    className="absolute end-0 top-full z-30 mt-1 min-w-[11rem] rounded-lg border border-ab-border bg-ab-surface p-1 shadow-ab-md"
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowRoomTools((v) => !v)
+                        setShowHeaderMore(false)
+                      }}
+                      className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px]"
+                    >
+                      نموذج وجهد
+                    </button>
+                    {hasArtifacts ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          const mobile =
+                            typeof window !== 'undefined' &&
+                            window.matchMedia('(max-width: 767px)').matches
+                          if (mobile) {
+                            if (isCanvasFullscreen) {
+                              toggleCanvasFullscreen()
+                              setShowCanvas(false)
+                            } else {
+                              setShowCanvas(true)
+                              setSideTab('canvas')
+                              toggleCanvasFullscreen()
+                            }
+                          } else {
+                            setShowCanvas((v) => !v)
+                            setSideTab('canvas')
+                          }
+                          setShowHeaderMore(false)
+                        }}
+                        className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px]"
+                      >
+                        <PanelRightOpen className="h-3 w-3" />
+                        {canvasOpen || isCanvasFullscreen
+                          ? 'إخفاء اللوحة'
+                          : 'لوحة'}
+                      </button>
+                    ) : null}
+                    {shared ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setShowTelegram((v) => {
+                            const next = !v
+                            if (next) {
+                              setShowMore(false)
+                              if (
+                                typeof window !== 'undefined' &&
+                                window.matchMedia('(max-width: 767px)').matches
+                              ) {
+                                setSeatsCollapsed(true)
+                              }
+                            }
+                            return next
+                          })
+                          setShowHeaderMore(false)
+                        }}
+                        className="ab-btn-ghost flex w-full !justify-start !py-1.5 text-[11px]"
+                      >
+                        <MessageCircle className="h-3 w-3" aria-hidden />
+                        {showTelegram ? 'إخفاء تيليجرام' : 'تيليجرام'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setShowHeaderMore(false)
+                        void deleteTodayChat()
+                      }}
+                      disabled={deletingToday}
+                      className={cn(
+                        'flex w-full !justify-start !py-1.5 text-[11px]',
+                        confirmDeleteToday
+                          ? 'ab-btn-secondary !border-ab-warn !text-ab-warn'
+                          : 'ab-btn-ghost text-stone-500'
+                      )}
+                    >
+                      <Trash2 className="h-3 w-3" aria-hidden />
+                      {deletingToday
+                        ? 'جاري الحذف…'
+                        : confirmDeleteToday
+                          ? 'تأكيد مسح اليوم'
+                          : 'مسح شات اليوم'}
+                    </button>
+                    {confirmDeleteToday ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setConfirmDeleteToday(false)
+                          setDeleteTodayNote('')
+                          setShowHeaderMore(false)
+                        }}
+                        className="ab-btn-secondary flex w-full !justify-start !py-1.5 text-[11px]"
+                      >
+                        إلغاء المسح
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
             {showRoomTools ? (
@@ -2080,11 +2098,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 usesSharedRoomRoster(activeScopeId)) && (
               <p className="mb-1.5 text-[11px] leading-snug text-stone-500">
                 {collabMode === 'team' && roomAgents.length > 1
-                  ? `الوكلاء نائمون افتراضياً. الرسالة توقظ وكيل١؛ إن كان يعمل تُوقظ التالية. @slug أو اضغط المقعد لإيقاظ يدوي. للجميع: @الجميع. حتى ${Math.min(
-                      ASSISTANT_PARALLEL_DEFAULT,
-                      roomAgents.length
-                    )} وكيل.`
-                  : 'الوكلاء نائمون حتى الرسالة أو @ أو الضغط على المقعد. أمثلة: «حوّل إلى Word» · «عدّل الملف».'}
+                  ? 'الرسالة توقظ وكيل١ ثم التالي إن كان مشغولاً. للإشارة: @slug أو @الجميع.'
+                  : 'اكتب طلبك — أمثلة: «حوّل إلى Word» · «عدّل الملف».'}
               </p>
             )}
             {!isGuest && !agentsWorking && (

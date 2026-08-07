@@ -95,59 +95,10 @@ async function forwardToMacSync(opts: {
 export async function listWorkspaceFiles(
   scopeId: string
 ): Promise<WorkspaceFileRef[]> {
-  if (isLocalStorageEnabled()) {
-    try {
-      const local = listLocalFiles(scopeId)
-      if (local.length) {
-        return local.map((f) => ({
-          id: f.id,
-          originalName: f.originalName,
-          mimeType: f.mimeType,
-          kind: f.kind,
-          size: f.size,
-          createdAt: f.createdAt,
-          editedAt: f.editedAt,
-          editedBy: f.editedBy,
-          tags: f.tags,
-          source: 'local' as const,
-        }))
-      }
-    } catch {
-      /* continue */
-    }
-  }
-
-  if (macSyncConfigured()) {
-    const mac = await listMacRemoteFiles(scopeId)
-    if (mac.length) {
-      return mac.map((f) => ({
-        id: f.id,
-        originalName: f.originalName,
-        mimeType: f.mimeType,
-        kind: f.kind,
-        size: f.size,
-        createdAt: f.createdAt,
-        editedAt: f.editedAt,
-        editedBy: f.editedBy,
-        tags: f.tags,
-        source: 'mac' as const,
-      }))
-    }
-  }
-
-  const cloud = await listCloudFiles(scopeId)
-  return cloud.map((f) => ({
-    id: f.id,
-    originalName: f.originalName,
-    mimeType: f.mimeType,
-    kind: f.kind,
-    size: f.size,
-    createdAt: f.createdAt,
-    editedAt: f.editedAt,
-    editedBy: f.editedBy,
-    tags: f.tags,
-    source: 'cloud' as const,
-  }))
+  const { listWorkspaceFilesAllSources } = await import(
+    '@/lib/files/vault-sync'
+  )
+  return listWorkspaceFilesAllSources(scopeId)
 }
 
 export async function readWorkspaceFile(
