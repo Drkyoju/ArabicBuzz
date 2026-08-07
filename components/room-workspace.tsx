@@ -28,6 +28,7 @@ import {
 import { isSharedScope } from '@/lib/scopes/manager'
 import {
   PRIMARY_TEAM_SCOPE_ID,
+  shouldRedirectLegacyPersonalDesk,
   shouldRedirectToPrimary,
 } from '@/lib/scopes/primary-room'
 import {
@@ -45,6 +46,7 @@ import { AgentsManagePanel } from '@/components/agents-manage-panel'
 import { AgentsWorkingToggle } from '@/components/agents-working-toggle'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { RoomTeamPanel } from '@/components/room-team-panel'
+import { PersonalMailPanel } from '@/components/personal-mail-panel'
 import { ModelPicker } from '@/components/model-picker'
 import { EffortPicker } from '@/components/effort-picker'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -63,6 +65,7 @@ import {
   ROOM_TEAM_RUN_CAP,
 } from '@/lib/assistants/parallel'
 import { agentsAlwaysPresentInRoom, usesSharedRoomRoster } from '@/lib/rooms/roster-scope'
+import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import type {
   RoomCitation,
   RoomFileAttachment,
@@ -345,18 +348,37 @@ export function RoomWorkspace({ className }: { className?: string }) {
     }
   }, [setActiveScopeId])
 
-  // Sync membership rooms into sidebar (association / invites survive reload)
+  // Sync membership rooms + ensure private personal desk
   useEffect(() => {
     if (signedIn !== true) return
     let cancelled = false
     void (async () => {
       try {
+        const session = await getBrowserSession()
+        const uid = session?.user?.id
+        if (uid) {
+          const deskId = useWorkspaceStore.getState().ensurePersonalDesk(uid)
+          const legacy = shouldRedirectLegacyPersonalDesk(
+            useWorkspaceStore.getState().activeScopeId,
+            uid
+          )
+          if (legacy) setActiveScopeId(legacy)
+          else if (
+            useWorkspaceStore.getState().activeScopeId === 'personal-demo'
+          ) {
+            setActiveScopeId(deskId)
+          }
+        }
         const res = await fetch('/api/rooms/mine', {
           headers: await authHeaders(),
         })
         if (!res.ok || cancelled) return
         const data = (await res.json()) as {
           rooms?: { scopeId: string; nameAr?: string; kind?: 'personal' | 'shared' }[]
+          personalDeskScopeId?: string
+        }
+        if (uid && data.personalDeskScopeId) {
+          useWorkspaceStore.getState().ensurePersonalDesk(uid)
         }
         if (data.rooms?.length) {
           useWorkspaceStore.getState().syncRemoteRooms(data.rooms)
@@ -368,7 +390,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     return () => {
       cancelled = true
     }
-  }, [signedIn])
+  }, [signedIn, setActiveScopeId])
 
   // When preview opens from files panel, attach that file for the next send
   useEffect(() => {
@@ -1270,7 +1292,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 <p className="mt-0.5 truncate text-[11px] text-stone-500">
                   {shared
                     ? 'الوكلاء متواجدون دائماً — @mention أو اطلب فيبدأون فوراً'
-                    : 'مساحتك الخاصة للمسودات والملفات — قبل مشاركة الفريق'}
+                    : `${PERSONAL_DESK_COPY.taglineAr} — الوكلاء والبريد والملفات هنا لا يراها أحد غيرك`}
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <RoomPresenceBar
@@ -1436,7 +1458,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <span className="h-1 w-12 rounded-full bg-stone-300" />
                   <div className="flex w-full items-center justify-between gap-2">
                     <p className="text-[12px] font-semibold text-ab-ink">
-                      الأعضاء والسجل
+                      {shared ? 'الأعضاء والسجل' : 'بريدي وخصوصيتي'}
                     </p>
                     <button
                       type="button"
@@ -1448,23 +1470,34 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   </div>
                 </div>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-1">
-                  <RoomTeamPanel scopeId={activeScopeId} />
-                  <TelegramMirrorChat
-                    variant="embedded"
-                    className="min-h-[14rem] max-h-[22rem]"
-                    onSendToRoom={(file) =>
-                      attachComposerFile({
-                        fileId: file.fileId,
-                        name: file.name,
-                        mimeType: file.mimeType,
-                        scopeId: file.scopeId || activeScopeId,
-                      })
-                    }
-                  />
-                  <p className="text-[10px] leading-snug text-stone-500">
-                    اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
-                    مربع الكتابة هنا.
-                  </p>
+                  {shared ? (
+                    <>
+                      <RoomTeamPanel scopeId={activeScopeId} />
+                      <TelegramMirrorChat
+                        variant="embedded"
+                        className="min-h-[14rem] max-h-[22rem]"
+                        onSendToRoom={(file) =>
+                          attachComposerFile({
+                            fileId: file.fileId,
+                            name: file.name,
+                            mimeType: file.mimeType,
+                            scopeId: file.scopeId || activeScopeId,
+                          })
+                        }
+                      />
+                      <p className="text-[10px] leading-snug text-stone-500">
+                        اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
+                        مربع الكتابة هنا.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] leading-relaxed text-stone-600">
+                        {PERSONAL_DESK_COPY.descriptionAr}
+                      </p>
+                      <PersonalMailPanel compact />
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1477,23 +1510,34 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 }}
               >
                 <div className="relative z-30 min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pointer-events-auto">
-                  <RoomTeamPanel scopeId={activeScopeId} />
-                  <TelegramMirrorChat
-                    variant="embedded"
-                    className="min-h-[14rem] max-h-[22rem]"
-                    onSendToRoom={(file) =>
-                      attachComposerFile({
-                        fileId: file.fileId,
-                        name: file.name,
-                        mimeType: file.mimeType,
-                        scopeId: file.scopeId || activeScopeId,
-                      })
-                    }
-                  />
-                  <p className="text-[10px] leading-snug text-stone-500">
-                    اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
-                    مربع الكتابة هنا.
-                  </p>
+                  {shared ? (
+                    <>
+                      <RoomTeamPanel scopeId={activeScopeId} />
+                      <TelegramMirrorChat
+                        variant="embedded"
+                        className="min-h-[14rem] max-h-[22rem]"
+                        onSendToRoom={(file) =>
+                          attachComposerFile({
+                            fileId: file.fileId,
+                            name: file.name,
+                            mimeType: file.mimeType,
+                            scopeId: file.scopeId || activeScopeId,
+                          })
+                        }
+                      />
+                      <p className="text-[10px] leading-snug text-stone-500">
+                        اسحب ملفاً/صوتاً من الشات إلى تيليجرام — أو من تيليجرام إلى
+                        مربع الكتابة هنا.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] leading-relaxed text-stone-600">
+                        {PERSONAL_DESK_COPY.descriptionAr}
+                      </p>
+                      <PersonalMailPanel compact />
+                    </>
+                  )}
                 </div>
                 <div
                   role="separator"
