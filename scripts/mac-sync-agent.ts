@@ -619,6 +619,144 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Local PDF↔DOCX (LibreOffice / pdf2docx / visual pages) — quality-aware
+  if (req.method === 'POST' && url.pathname === '/pdf-docx-convert') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        filename?: string
+        contentBase64?: string
+        toFormat?: string
+        mode?: string
+      }
+      const b64 = String(body.contentBase64 || '')
+      if (!b64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const toFormat = String(body.toFormat || 'docx').toLowerCase()
+      if (toFormat !== 'docx' && toFormat !== 'pdf') {
+        json(res, 400, { error: 'toFormat must be docx or pdf' })
+        return
+      }
+      const {
+        writeFileSync,
+        readFileSync,
+        unlinkSync,
+        mkdtempSync,
+        existsSync,
+      } = await import('node:fs')
+      const { join } = await import('node:path')
+      const { tmpdir } = await import('node:os')
+      const { spawn } = await import('node:child_process')
+      const { fileURLToPath } = await import('node:url')
+
+      const here = fileURLToPath(new URL('.', import.meta.url))
+      const root = join(here, '..')
+      const script = join(root, 'scripts/pdf-docx-convert.py')
+      const pyCandidates = [
+        process.env.PDF_CONVERT_PYTHON?.trim(),
+        join(root, 'tmp/pdf-venv/bin/python'),
+        join(root, 'scripts/pdf-tools-venv/bin/python'),
+        'python3',
+      ].filter(Boolean) as string[]
+
+      const dir = mkdtempSync(join(tmpdir(), 'ab-conv-'))
+      const inName = String(
+        body.filename || `in.${toFormat === 'docx' ? 'pdf' : 'docx'}`
+      )
+      const inExt = inName.includes('.')
+        ? inName.slice(inName.lastIndexOf('.'))
+        : '.bin'
+      const inPath = join(dir, `in${inExt}`)
+      const outPath = join(dir, `out.${toFormat}`)
+      writeFileSync(inPath, Buffer.from(b64, 'base64'))
+
+      const mode = String(body.mode || 'auto')
+      let lastErr = ''
+      let ok = false
+      let log = ''
+      for (const py of pyCandidates) {
+        if (py.includes('/') && !existsSync(py)) continue
+        if (!existsSync(script)) {
+          lastErr = 'pdf-docx-convert.py missing'
+          break
+        }
+        const result = await new Promise<{
+          code: number
+          out: string
+          err: string
+        }>((resolve) => {
+          const child = spawn(
+            py,
+            [script, inPath, '-o', outPath, '--mode', mode],
+            { timeout: 300_000 }
+          )
+          let out = ''
+          let err = ''
+          child.stdout?.on('data', (d) => {
+            out += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            err += String(d)
+          })
+          child.on('close', (code) =>
+            resolve({ code: code ?? 1, out, err })
+          )
+          child.on('error', (e) =>
+            resolve({ code: 1, out: '', err: String(e) })
+          )
+        })
+        if (result.code === 0 && existsSync(outPath)) {
+          ok = true
+          log = (result.out + '\n' + result.err).trim()
+          break
+        }
+        lastErr = result.err || result.out || `exit ${result.code}`
+      }
+
+      if (!ok || !existsSync(outPath)) {
+        try {
+          unlinkSync(inPath)
+        } catch {
+          /* ignore */
+        }
+        json(res, 500, {
+          error: lastErr || 'convert failed',
+          hintAr:
+            'ثبّت LibreOffice أو pdf2docx في tmp/pdf-venv، أو استخدم Google Drive من الموقع.',
+        })
+        return
+      }
+
+      const outBuf = readFileSync(outPath)
+      try {
+        unlinkSync(inPath)
+        unlinkSync(outPath)
+      } catch {
+        /* ignore */
+      }
+      json(res, 200, {
+        ok: true,
+        filename:
+          String(body.filename || 'converted').replace(/\.[^.]+$/, '') +
+          `.${toFormat}`,
+        contentBase64: outBuf.toString('base64'),
+        size: outBuf.length,
+        log: log.slice(0, 800),
+      })
+    } catch (e) {
+      json(res, 500, {
+        error: e instanceof Error ? e.message : 'convert failed',
+      })
+    }
+    return
+  }
+
   // MarkItDown — convert PDF/Office → markdown for decision deep-read
   if (req.method === 'POST' && url.pathname === '/markitdown') {
     if (!checkAuth(req)) {
@@ -862,6 +1000,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /brain/ingest | /brain/search`)
   console.log(`  POST /task       (Playwright / browser-use RPA)`)
   console.log(`  POST /pdf-replace (Arabic PDF find/replace via PyMuPDF)`)
+  console.log(`  POST /pdf-docx-convert (PDF↔DOCX local quality path)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)

@@ -200,7 +200,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_document: tool({
       description:
-        'تحويل صيغ المستندات. الأفضل مجاناً: Google Drive عند ربط Google (pdf↔docx، xlsx↔pdf، pptx↔pdf…). احتياطي: CloudConvert إن وُجد المفتاح (مدفوع). أخيراً: إعادة بناء نصية pdf↔docx/txt/md. النتيجة للتنزيل في الشات.',
+        'تحويل صيغ المستندات وإرفاق الناتج في فقاعة الشات (معاينة+تنزيل · تم التعديل). الأفضل للعربية/التخطيط: Google Drive إن مربوط (pdf↔docx…). ثم CloudConvert إن وُجد المفتاح. أخيراً إعادة بناء نصية — تجنّبها لـ PDF عربي بطبقة نص معطوبة (تُنتج طلاسم). لا تستخدم pdf-lib/stamp لنص عربي. بعد التحويل لا تكتفِ بملفات الفريق — المرفق يظهر في الشات.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -212,7 +212,7 @@ export function getNativeAiTools(opts?: {
           .enum(['auto', 'google', 'free', 'cloudconvert'])
           .optional()
           .describe(
-            'auto: Google إن مربوط ثم CloudConvert ثم نصّي؛ google يفرض Drive'
+            'auto: Google إن مربوط ثم CloudConvert ثم نصّي؛ google يفرض Drive؛ لا تستخدم free لـ PDF عربي معقّد إن توفّر Google/CloudConvert'
           ),
       }),
       execute: async (params) =>
@@ -231,7 +231,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_file: tool({
       description:
-        'Alias لـ convert_document — تحويل ملف الغرفة إلى صيغة أخرى (Google Drive مجاناً إن مربوط، ثم CloudConvert، ثم نصّي).',
+        'Alias لـ convert_document — تحويل وإرفاق الناتج في الشات (معاينة+تنزيل). الأفضل: Google Drive ثم CloudConvert؛ تجنّب المسار النصّي لـ PDF عربي معقّد.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -259,7 +259,7 @@ export function getNativeAiTools(opts?: {
     }),
     return_file: tool({
       description:
-        'إظهار ملف موجود من مساحة الغرفة كزر تنزيل في الشات دون تعديله.',
+        'إظهار ملف موجود من مساحة الغرفة كمرفق شات (معاينة + تنزيل) دون تعديله.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف أو اسمه'),
       }),

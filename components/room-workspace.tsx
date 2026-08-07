@@ -978,7 +978,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 fileId: a.fileId,
                 kind: (a.mimeType || '').startsWith('audio/')
                   ? 'voice'
-                  : 'file',
+                  : a.edited
+                    ? 'edited'
+                    : 'file',
+                edited: Boolean(a.edited),
               })
             )
             .join('\n')}`
@@ -1170,6 +1173,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         name: f.name,
         mimeType: f.mimeType,
         scopeId: f.scopeId,
+        downloadPath: `/api/storage/file?id=${encodeURIComponent(f.fileId)}&scopeId=${encodeURIComponent(f.scopeId)}`,
       })),
     })
 

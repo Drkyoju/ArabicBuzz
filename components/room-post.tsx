@@ -190,7 +190,8 @@ function RoomMediaChip({
       <div className="flex flex-wrap items-center gap-1" dir="rtl">
         <button
           type="button"
-          title="معاينة في الغرفة"
+          title="معاينة في الغرفة دون تنزيل"
+          aria-label={`معاينة ${attachment.name}`}
           onClick={() =>
             openPreview({
               fileId: attachment.fileId,
@@ -208,10 +209,12 @@ function RoomMediaChip({
           className="inline-flex items-center gap-1 rounded-md border border-ab-accent/30 bg-ab-accent/5 px-1.5 py-0.5 text-[10px] font-medium text-ab-accent hover:bg-ab-accent/10"
         >
           <Eye className="h-3 w-3" aria-hidden />
-          فتح
+          معاينة
         </button>
         <button
           type="button"
+          title="تنزيل الملف إلى جهازك"
+          aria-label={`تنزيل ${attachment.name}`}
           disabled={busyId === attachment.fileId}
           onClick={() => {
             onError('')

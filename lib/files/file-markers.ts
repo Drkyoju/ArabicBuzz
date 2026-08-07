@@ -14,12 +14,13 @@ export type BridgeFilePayload = {
 }
 
 export function formatDownloadMarker(
-  a: Pick<BridgeFilePayload, 'name' | 'fileId' | 'kind'>
+  a: Pick<BridgeFilePayload, 'name' | 'fileId' | 'kind' | 'edited'>
 ): string {
+  const editedTag = a.edited ? ' · تم التعديل' : ''
   if (a.kind === 'voice') {
-    return `🎤 رسالة صوتية: ${a.name} (id:${a.fileId})`
+    return `🎤 رسالة صوتية: ${a.name}${editedTag} (id:${a.fileId})`
   }
-  return `📎 ملف جاهز للتنزيل: ${a.name} (id:${a.fileId})`
+  return `📎 ملف جاهز للتنزيل: ${a.name}${editedTag} (id:${a.fileId})`
 }
 
 function kindFromNameMime(
@@ -66,22 +67,30 @@ export function parseFileMarkersFromText(
     /(?:📎\s*)?ملف جاهز للتنزيل:\s*(.+?)\s*\(id:([^\)]+)\)/g
   let m: RegExpExecArray | null
   while ((m = reReady.exec(content))) {
+    const rawName = m[1].trim()
+    const edited = /(?:^|\s)·\s*تم التعديل\s*$/.test(rawName)
+    const name = rawName.replace(/(?:\s*·\s*تم التعديل\s*)$/, '').trim()
     push({
-      name: m[1].trim(),
+      name,
       fileId: m[2].trim(),
       scopeId,
       kind: 'file',
+      edited: edited || undefined,
     })
   }
 
   const reVoice = /🎤\s*رسالة صوتية:\s*(.+?)\s*\(id:([^\)]+)\)/g
   while ((m = reVoice.exec(content))) {
+    const rawName = m[1].trim()
+    const edited = /(?:^|\s)·\s*تم التعديل\s*$/.test(rawName)
+    const name = rawName.replace(/(?:\s*·\s*تم التعديل\s*)$/, '').trim()
     push({
-      name: m[1].trim(),
+      name,
       fileId: m[2].trim(),
       scopeId,
       kind: 'voice',
       mimeType: 'audio/ogg',
+      edited: edited || undefined,
     })
   }
 

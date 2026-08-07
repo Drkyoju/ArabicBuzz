@@ -187,9 +187,9 @@ export async function executeConvertDocument(
           engine: 'google-drive',
           sourceFileId: hit.meta.id,
           sourceName: hit.meta.originalName,
-          messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). الملف جاهز للتنزيل.`,
+          messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). نزّل أو عاين الملف من فقاعة الشات — تم التعديل.`,
           noteAr:
-            'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل مجاناً عند ربط Google.',
+            'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل للعربية والتخطيط. النتيجة مرفق شات (معاينة+تنزيل) وليست فقط ملفات الفريق.',
         })
       } catch (e) {
         if (engine === 'google') {
@@ -235,9 +235,9 @@ export async function executeConvertDocument(
         engine: 'cloudconvert',
         sourceFileId: hit.meta.id,
         sourceName: hit.meta.originalName,
-        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر CloudConvert (اختياري مدفوع). الملف جاهز للتنزيل.`,
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر CloudConvert (اختياري مدفوع). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
         noteAr:
-          'محرّك: CloudConvert. الأفضل مجاناً: اربط Google لاستخدام تحويل Drive.',
+          'محرّك: CloudConvert. الأفضل مجاناً: اربط Google. النتيجة مرفق شات (معاينة+تنزيل).',
       })
     } catch (e) {
       if (engine === 'cloudconvert') {
@@ -284,6 +284,22 @@ export async function executeConvertDocument(
     )
   }
 
+  // Broken Arabic ToUnicode (common in Sakkal Majalla Word→PDF exports)
+  const brokenHints = ['املادة', 'الالئحة', 'االسم', 'األساسية', 'واألهداف']
+  const brokenHits = brokenHints.filter((h) => text.includes(h)).length
+  const badLig = (text.match(/اال|امل[^ا]/g) || []).length
+  const goodLig = (text.match(/ال[اأإ]|الم/g) || []).length
+  const arabicBroken =
+    fromFormat === 'pdf' &&
+    toFormat === 'docx' &&
+    (brokenHits >= 2 || (badLig > goodLig * 1.5 && badLig > 8))
+
+  if (arabicBroken && engine === 'auto') {
+    throw new Error(
+      'طبقة النص في PDF العربي تبدو معطوبة (ToUnicode) — إعادة البناء النصية ستُنتج طلاسم. اربط Google من الإعدادات لاستخدام تحويل Drive، أو أضف CLOUDCONVERT_API_KEY، أو مرّر engine=free فقط إن قبلت جودة منخفضة.'
+    )
+  }
+
   const paragraphs = text
     .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
@@ -314,10 +330,10 @@ export async function executeConvertDocument(
     engine: 'free-rebuild',
     sourceFileId: hit.meta.id,
     sourceName: hit.meta.originalName,
-    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} بإعادة بناء نصية عربية (بدون صور/تخطيط أصلي). الملف جاهز للتنزيل.`,
+    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} بإعادة بناء نصية عربية (بدون صور/تخطيط أصلي). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
     noteAr: googleLinked
-      ? 'محرّك: إعادة بناء نصية. إن فشل Google/CloudConvert يُستخدم هذا المسار.'
-      : 'الأفضل مجاناً: اربط Google من الإعدادات لتحويل عالي الجودة (تخطيط أفضل). CloudConvert اختياري مدفوع.',
+      ? 'محرّك: إعادة بناء نصية (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
+      : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert. إعادة البناء النصية احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
     extra: {
       charCount: text.length,
       paragraphCount: paragraphs.length,

@@ -201,7 +201,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
     nameAr: 'مكتب الملفات',
     taglineAr: 'تعديل وتحويل Word/Excel/PDF/PPT',
     descriptionAr:
-      'يعدّل مستندات الغرفة موضعياً (حفظ التنسيق) ويحوّل الصيغ — الأفضل مجاناً عبر Google Drive إن مربوط.',
+      'يعدّل مستندات الغرفة موضعياً (حفظ التنسيق) ويحوّل الصيغ — الأفضل عبر Google Drive؛ الناتج مرفق شات (معاينة+تنزيل).',
     starterPromptAr:
       'عدّل أو حوّل الملف المرفق: (صف التعديل أو الصيغة الهدف مثل PDF أو Word).',
     systemPromptAr: `${MSA_CORE}
@@ -210,9 +210,9 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 يجب:
 1) list_workspace_files أو استخدم fileId المرفق؛ ثم read_document / read_excel حسب النوع.
 2) تعديل موضعي: edit_document(replacements) أو edit_excel(cells) أو pdf_* — لا تحوّل إن لم يُطلب.
-3) تحويل صيغة: convert_document / convert_file (engine=auto يفضّل Google إن مربوط).
-4) أظهر زر تنزيل عبر نتيجة الأداة. لا تكتفِ بالوصف.
-5) إن فشل التحويل: اطلب ربط Google (مجاني) أو وضّح الحد النصّي.`,
+3) تحويل صيغة: convert_document / convert_file (engine=auto → Google إن مربوط، ثم CloudConvert؛ تجنّب المسار النصّي لـ PDF عربي معقّد).
+4) أظهر الناتج كمرفق في فقاعة الشات (معاينة + تنزيل · تم التعديل). لا تكتفِ بملفات الفريق أو بالوصف.
+5) إن فشل التحويل: اطلب ربط Google (مجاني) أو CloudConvert — لا تستخدم pdf-lib لنص عربي.`,
     allowedTools: [
       'list_workspace_files',
       'list_files',

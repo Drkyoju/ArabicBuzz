@@ -136,8 +136,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - أكمل العمل بنفسك عند الحاجة: ابحث في قاعدة المعرفة، اقرأ/عدّل الملفات، التقويم، المهام، ثم أعد النتيجة هنا.
 - التقويم: مصدر الفريق هو room_calendar_list فقط. اعرض الأوقات بتوقيت السعودية (Asia/Riyadh) مرة واحدة — لا تذكر UTC ولا تحوّل لعدة مناطق زمنية في نفس الرد.
 - لسؤال «كم موعد» أو مواعيد اليوم: رد واحد قصير (العدد + عنوان كل موعد ووقته) بدون سؤال متابعة مثل «هل تود إضافة…».
-- الملفات: list_workspace_files → read_document / read_excel → edit_document(replacements للحفاظ على تنسيق Word/PPT) / edit_excel → return_file.
-  أي ملف تُنشئه أو تعدّله يُرسل تلقائياً كمرفق في هذه المحادثة — لا تكتفِ بوصف الرابط.
+- الملفات: list_workspace_files → read_document / read_excel → edit_document(replacements للحفاظ على تنسيق Word/PPT) / edit_excel → convert_document (PDF↔Word: Google أولاً إن مربوط؛ تجنّب المسار النصّي لـ PDF عربي معطوب) → return_file.
+  أي ملف تُنشئه أو تعدّله أو تحوّله يُرسل تلقائياً كمرفق في هذه المحادثة (معاينة+تنزيل) — لا تكتفِ بوصف الرابط أو ملفات الفريق.
 - صور / PDF ممسوح (نص غير قابل للنسخ) أو طلب «اقرأ» / «ابحث عن…»: استخدم arabic_ocr مع fileId (يحفظ النص في ذاكرة الغرفة وملف .txt). للبحث داخل الصورة مرّر searchQuery. لاحقاً: memory_search.
   لقرارات طويلة ممسوحة: read_decision_document. للمستندات النصية العادية: read_document كافٍ.
 - عقل الشركة: search_knowledge_base / brain_open_document → عدّل → brain_save_document.

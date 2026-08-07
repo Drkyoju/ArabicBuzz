@@ -312,10 +312,15 @@ export function FilePreviewPane({
           </pre>
         ) : (
           <div className="space-y-2 text-sm text-stone-600">
-            <p>لا معاينة مرئية لهذه الصيغة في المتصفح.</p>
-            <p className="text-xs text-stone-500">
-              يمكنك تنزيل الملف أو طلب تعديله في الشات — سيظهر النص المستخرج إن
-              وُجد.
+            <p>
+              {payload?.kind === 'docx' ||
+              /\.docx?$/i.test(file.name) ||
+              (file.mimeType || '').includes('word')
+                ? 'معاينة نصية لمستند Word (بدون تنزيل الملف الكامل).'
+                : 'لا معاينة مرئية لهذه الصيغة في المتصفح.'}
+            </p>
+            <p className="text-[11px] text-stone-500">
+              استخدم «تنزيل» للنسخة الكاملة، أو اطلب تعديلاً في الشات.
             </p>
             {payload?.text ? (
               <pre
@@ -324,7 +329,12 @@ export function FilePreviewPane({
               >
                 {payload.text}
               </pre>
-            ) : null}
+            ) : (
+              <p className="text-xs text-amber-800">
+                لم يُستخرج نص للمعاينة — يمكنك التنزيل أو التحويل عبر Google
+                Drive.
+              </p>
+            )}
           </div>
         )}
         {payload?.truncated && (
