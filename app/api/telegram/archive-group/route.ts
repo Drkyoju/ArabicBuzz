@@ -74,8 +74,18 @@ export async function POST(req: NextRequest) {
       pendingPdf &&
       'ok' in pendingPdf &&
       (pendingPdf as { ok: boolean }).ok
-        ? 'أُكملت مهمة نسخ صفحة فاضية وأُرسل الملف للمجموعة.'
-        : 'مهمة المعلم الأول ما زالت معلّقة صامتة إن لم تُوجد البايتات بعد.',
+        ? `أُكملت مهمة نسخ صفحة فاضية وأُرسل الملف للمجموعة${
+            typeof (pendingPdf as { emptySourcePage?: number })
+              .emptySourcePage === 'number'
+              ? ` (المصدر ص ${(pendingPdf as { emptySourcePage: number }).emptySourcePage}).`
+              : '.'
+          }`
+        : typeof pendingPdf === 'object' &&
+            pendingPdf &&
+            'errorAr' in pendingPdf &&
+            String((pendingPdf as { errorAr?: string }).errorAr || '')
+          ? String((pendingPdf as { errorAr: string }).errorAr)
+          : 'مهمة المعلم الأول ما زالت معلّقة صامتة إن لم تُوجد البايتات بعد.',
       archive.deepHistory?.credentialsReady === false
         ? archive.deepHistoryStatus.setupAr
         : '',

@@ -240,20 +240,46 @@ export async function rotatePdfPages(opts: {
 }
 
 /**
- * Find an existing content-less page («صفحة فاضية» = no writing).
- * Does NOT invent a white blank page. Prefers text-empty pages when the PDF
- * has a mixed text layer; otherwise uses pdfjs operator-count outliers
- * (typical blank leaf in scanned books) without rewriting the whole file.
+ * Normalize extractable PDF text for emptiness checks.
+ * Any remaining character counts as writing (headers, basmala, titles…).
+ */
+export function normalizePdfPageText(raw: string): string {
+  return String(raw || '')
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200d\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * True when extractable text contains any writing.
+ * «صفحة فاضية» = no writing at all — not “mostly blank”, not بسم الله /
+ * running headers / title leaves.
+ */
+export function pdfPageHasWriting(text: string): boolean {
+  return normalizePdfPageText(text).length > 0
+}
+
+/**
+ * Find an existing content-less page («صفحة فاضية» = no writing at all).
+ * Does NOT invent a white blank page.
+ *
+ * Rules:
+ * - Any extractable text (including بسم الله الرحمن الرحيم, headers) ⇒ NOT empty
+ * - Prefer pages with no extractable text AND low drawn-operator count
+ * - If every page has writing, return null (caller must report honestly)
+ * - Ops/footprint heuristics only apply among pages with zero extractable text
+ *   (typical blank leaf in scanned books with no OCR layer)
+ *
  * Returns 1-based page number, or null if none found.
  */
 export async function findEmptyContentPage(opts: {
   pdf: Buffer | Uint8Array
-  /** Skip very early pages (covers); 1-based inclusive start to search. Default 2. */
+  /** Skip very early pages (covers); 1-based inclusive start to search. Default 1. */
   searchFromPage?: number
 }): Promise<number | null> {
   const bytes =
     opts.pdf instanceof Buffer ? opts.pdf : Buffer.from(opts.pdf)
-  const from = Math.max(1, Math.floor(Number(opts.searchFromPage ?? 2)))
+  const from = Math.max(1, Math.floor(Number(opts.searchFromPage ?? 1)))
 
   try {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -271,11 +297,11 @@ export async function findEmptyContentPage(opts: {
     for (let i = from; i <= n; i++) {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
-      const text = (content.items as Array<{ str?: string }>)
-        .map((it) => it.str || '')
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
+      const text = normalizePdfPageText(
+        (content.items as Array<{ str?: string }>)
+          .map((it) => it.str || '')
+          .join(' ')
+      )
       let ops = 0
       try {
         const list = await page.getOperatorList()
@@ -286,29 +312,39 @@ export async function findEmptyContentPage(opts: {
       hints.push({ page: i, textLen: text.length, ops })
     }
 
-    const withText = hints.filter((h) => h.textLen >= 40)
-    const textEmpty = hints.filter((h) => h.textLen < 8)
-    if (withText.length > 0 && textEmpty.length > 0) {
-      return textEmpty[0]!.page
+    // Strict: any extractable writing ⇒ not empty (basmala, headers, titles…).
+    const textEmpty = hints.filter((h) => h.textLen === 0)
+    if (textEmpty.length === 0) return null
+
+    // Prefer the lowest-ops text-empty page (least drawn content).
+    const byOps = [...textEmpty].sort((a, b) => a.ops - b.ops)
+    const smallest = byOps[0]!
+
+    // Mixed text layer: any zero-text page is a real empty leaf.
+    const withWriting = hints.filter((h) => h.textLen > 0)
+    if (withWriting.length > 0) {
+      return smallest.page
     }
 
-    // Scanned / no usable text: lowest operator-count outlier.
-    if (hints.length < 3) return textEmpty[0]?.page ?? null
-    const byOps = [...hints].sort((a, b) => a.ops - b.ops)
-    const median = byOps[Math.floor(byOps.length / 2)]!.ops
-    const smallest = byOps[0]!
+    // Fully scanned / no OCR: require ops outlier vs peers (still text-empty only).
+    if (hints.length < 3) return smallest.page
+    const allByOps = [...hints].sort((a, b) => a.ops - b.ops)
+    const median = allByOps[Math.floor(allByOps.length / 2)]!.ops
     if (median > 0 && smallest.ops <= median * 0.5) {
       return smallest.page
     }
-    const upper = byOps.slice(Math.floor(byOps.length / 2))
+    const upper = allByOps.slice(Math.floor(allByOps.length / 2))
     const upperMean =
       upper.reduce((s, x) => s + x.ops, 0) / Math.max(1, upper.length)
     if (upperMean > 0 && smallest.ops <= upperMean * 0.4) {
       return smallest.page
     }
-    return textEmpty[0]?.page ?? null
+    // Absolute near-blank operator list (no peers to compare).
+    if (smallest.ops > 0 && smallest.ops <= 40) return smallest.page
+    return null
   } catch {
     // Last resort: single-page footprint sample (cap pages to avoid OOM/timeout).
+    // Only used when pdfjs fails — cannot verify text, so stay conservative.
     try {
       const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
       const n = src.getPageCount()
@@ -330,7 +366,12 @@ export async function findEmptyContentPage(opts: {
       const sorted = [...footprints].sort((a, b) => a.footprint - b.footprint)
       const median = sorted[Math.floor(sorted.length / 2)]!.footprint
       const smallest = sorted[0]!
-      if (smallest.footprint > 0 && smallest.footprint <= median * 0.45) {
+      // Very strict footprint gap — still may pick a light title page; prefer null.
+      if (
+        smallest.footprint > 0 &&
+        median > 0 &&
+        smallest.footprint <= median * 0.25
+      ) {
         return smallest.page
       }
       return null

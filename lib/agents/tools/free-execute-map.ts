@@ -24,9 +24,10 @@ const RULES: Rule[] = [
       {
         toolName: 'pdf_duplicate_page',
         libAr: 'pdf-lib (مدمج)',
-        whyAr: 'نسخ صفحة فاضية موجودة من الملف (بلا كتابة) مجاناً محلياً',
+        whyAr:
+          'نسخ صفحة فاضية موجودة من الملف (بلا أي كتابة إطلاقاً — ليست بسم الله/ترويسة) مجاناً محلياً',
         instructionAr:
-          'نفّذ فوراً pdf_duplicate_page مع findEmptyPage=true وafterPage المطلوب ثم return_file. ممنوع mode=blank وممنوع افتراض copyPage=48 وممنوع اختراع صفحة بيضاء.',
+          'نفّذ فوراً pdf_duplicate_page مع findEmptyPage=true وafterPage المطلوب ثم return_file. صفحة فاضية = بلا كتابة إطلاقاً (ممنوع صفحة فيها بسم الله أو عنوان). إن لم توجد أبلغ المجموعة. ممنوع mode=blank وممنوع افتراض copyPage=48 وممنوع اختراع صفحة بيضاء.',
       },
     ],
   },

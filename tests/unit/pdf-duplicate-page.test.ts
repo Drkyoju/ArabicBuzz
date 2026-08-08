@@ -76,4 +76,72 @@ describe('findEmptyContentPage', () => {
     const found = await findEmptyContentPage({ pdf: bytes, searchFromPage: 2 })
     expect(found).toBe(7)
   })
+
+  it('never treats basmala / short header as empty', async () => {
+    const src = await PDFDocument.create()
+    const font = await src.embedFont(StandardFonts.Helvetica)
+    // Page 1: content
+    {
+      const page = src.addPage([400, 600])
+      page.drawText('Chapter body with lots of words on this page', {
+        x: 40,
+        y: 500,
+        size: 14,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    // Page 2: «بسم الله» style short writing — MUST NOT count as empty
+    {
+      const page = src.addPage([400, 600])
+      page.drawText('Bismillah short title', {
+        x: 40,
+        y: 500,
+        size: 18,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    // Pages 3–5: more content
+    for (let i = 0; i < 3; i++) {
+      const page = src.addPage([400, 600])
+      page.drawText(`More body text page ${i + 3} with writing`, {
+        x: 40,
+        y: 500,
+        size: 14,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    // Page 6: truly empty (no text)
+    src.addPage([400, 600])
+    const bytes = Buffer.from(await src.save())
+    const { findEmptyContentPage, pdfPageHasWriting } = await import(
+      '@/lib/documents/pdf'
+    )
+    expect(pdfPageHasWriting('بسم الله الرحمن الرحيم')).toBe(true)
+    expect(pdfPageHasWriting('   ')).toBe(false)
+    const found = await findEmptyContentPage({ pdf: bytes, searchFromPage: 1 })
+    expect(found).toBe(6)
+    expect(found).not.toBe(2)
+  })
+
+  it('returns null when every page has writing', async () => {
+    const src = await PDFDocument.create()
+    const font = await src.embedFont(StandardFonts.Helvetica)
+    for (let i = 0; i < 5; i++) {
+      const page = src.addPage([400, 600])
+      page.drawText(i === 1 ? 'Bismillah' : `PAGE-${i + 1}`, {
+        x: 40,
+        y: 500,
+        size: 16,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    const bytes = Buffer.from(await src.save())
+    const { findEmptyContentPage } = await import('@/lib/documents/pdf')
+    const found = await findEmptyContentPage({ pdf: bytes })
+    expect(found).toBeNull()
+  })
 })

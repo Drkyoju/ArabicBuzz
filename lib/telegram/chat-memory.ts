@@ -83,7 +83,7 @@ export async function buildTelegramGroupChatMemoryAr(opts: {
 
   lines.push(
     '',
-    'قواعد: لا تطلب إعادة إرسال. لا تستبدل بملف أحياء. إن وُجدت مهمة «صفحة فاضية» نفّذ pdf_duplicate_page مع findEmptyPage=true (ممنوع copyPage=48 وممنوع صفحة بيضاء مخترعة) ثم return_file عبر وكلاء الغرفة.'
+    'قواعد: لا تطلب إعادة إرسال. لا تستبدل بملف أحياء. إن وُجدت مهمة «صفحة فاضية» نفّذ pdf_duplicate_page مع findEmptyPage=true — صفحة فاضية = بلا أي كتابة إطلاقاً (ليست بسم الله/ترويسة). إن لم توجد أبلغ المجموعة. ممنوع copyPage=48 وممنوع صفحة بيضاء مخترعة ثم return_file عبر وكلاء الغرفة.'
   )
   return lines.join('\n')
 }

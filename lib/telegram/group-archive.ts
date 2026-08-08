@@ -338,6 +338,30 @@ export async function resolveAndRunPendingPdfJob(opts: {
       ? Number(job.workParams.copyPage)
       : undefined)
 
+  // CranL thin image 504s on ~160MB pdf-lib — hop to Mac Local Bot API + vault.
+  const onMacAgent = process.env.ARABIC_BUZZ_MAC_SYNC_AGENT === '1'
+  if (!onMacAgent) {
+    const { macSyncConfigured, macRunPendingPdfJob } = await import(
+      '@/lib/storage/mac-sync-client'
+    )
+    if (macSyncConfigured()) {
+      try {
+        return await macRunPendingPdfJob({
+          jobId: opts.jobId,
+          chatId: opts.chatId,
+          scopeId: opts.scopeId,
+          findEmptyPage: findEmpty,
+          afterPage,
+          copyPage: findEmpty ? undefined : copyPageExplicit,
+          queryNames: opts.queryNames,
+        })
+      } catch (e) {
+        console.warn('[telegram] mac pending-pdf hop failed', e)
+        // Fall through to local attempt (may still 504 on CranL).
+      }
+    }
+  }
+
   const { findAcrossStorageMesh } = await import('@/lib/telegram/storage-mesh')
   const queryNames =
     opts.queryNames?.length
@@ -377,9 +401,36 @@ export async function resolveAndRunPendingPdfJob(opts: {
   if (findEmpty || copyPage == null) {
     const found = await findEmptyContentPage({ pdf: hit.buffer })
     if (found == null) {
+      const honestAr =
+        `تعذّر إكمال المهمة: لم أجد صفحة فاضية بلا أي كتابة إطلاقاً في «${hit.fileName}».` +
+        ' (صفحة فاضية ≠ شبه فاضية ≠ صفحة فيها بسم الله الرحمن الرحيم أو ترويسة.)' +
+        ' لن أخترع صفحة بيضاء ولن أنسخ صفحة فيها كتابة. حدّدوا رقم صفحة للنسخ إن رغبتم.'
+      const tokenMissing = !process.env.TELEGRAM_BOT_TOKEN
+      if (!tokenMissing) {
+        try {
+          await fetch(
+            `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: opts.chatId,
+                text: honestAr.slice(0, 3900),
+              }),
+            }
+          )
+        } catch {
+          /* best-effort notify */
+        }
+      }
+      await updateTelegramFileJob(opts.jobId, {
+        status: 'failed',
+        lastErrorAr: honestAr,
+        workParams: { findEmptyPage: true, afterPage },
+      }).catch(() => null)
       return {
         ok: false,
-        errorAr: 'لم أجد صفحة فاضية بلا كتابة في الملف.',
+        errorAr: honestAr,
       }
     }
     copyPage = found

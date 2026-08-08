@@ -810,7 +810,7 @@ export function getNativeAiTools(opts?: {
     }),
     pdf_duplicate_page: tool({
       description:
-        'نسخ صفحة PDF بمحتواها وإدراج النسخة بعد صفحة أخرى. لـ«صفحة فاضية/فارغة» استخدم findEmptyPage=true مع afterPage (يعثر على صفحة بلا كتابة داخل الملف وينسخها) — ممنوع اختراع صفحة بيضاء وممنوع افتراض copyPage=48. mode=blank فقط إن طُلبت صفحة بيضاء مخترعة صراحة.',
+        'نسخ صفحة PDF بمحتواها وإدراج النسخة بعد صفحة أخرى. لـ«صفحة فاضية/فارغة» استخدم findEmptyPage=true مع afterPage: صفحة فاضية = بلا أي كتابة إطلاقاً (ليست «شبه فاضية» ولا صفحة عنوان فيها بسم الله الرحمن الرحيم ولا ترويسة). إن لم توجد صفحة بلا كتابة أبلغ بذلك — ممنوع اختراع صفحة بيضاء وممنوع افتراض copyPage=48. mode=blank فقط إن طُلبت صفحة بيضاء مخترعة صراحة.',
       inputSchema: z.object({
         fileId: z.string(),
         copyPage: z
@@ -826,7 +826,7 @@ export function getNativeAiTools(opts?: {
           .boolean()
           .optional()
           .describe(
-            'true = ابحث عن صفحة فاضية موجودة بلا كتابة وانسخها (ليس بيضاء مخترعة)'
+            'true = ابحث عن صفحة فاضية موجودة بلا أي كتابة إطلاقاً وانسخها (ليس بسم الله / ترويسة / عنوان، وليس بيضاء مخترعة)'
           ),
         mode: z.enum(['duplicate', 'blank']).optional(),
         sizeFromPage: z.number().optional(),
