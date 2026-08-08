@@ -121,7 +121,7 @@ export function requireRealUser(req: Request) {
 }
 
 /**
- * Require the sole workspace owner email (ryodan71@gmail.com).
+ * Require the sole workspace owner email (OWNER_EMAIL or ryodan71@gmail.com).
  * Use for owner-only management UIs (skills catalog, mail settings, etc.).
  */
 export async function requireWorkspaceOwner(

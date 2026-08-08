@@ -3,7 +3,7 @@
  * OAuth (Google once) and IMAP password remain the only one-time credentials.
  */
 import { appBaseUrl } from '@/lib/app-url'
-import { DEFAULT_DIRECTOR_EMAIL } from '@/lib/auth/roles'
+import { getWorkspaceOwnerEmail } from '@/lib/auth/roles'
 import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
 import { resolveChannelOwnerUserIdAsync } from '@/lib/channels/owner-context'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
@@ -141,7 +141,7 @@ async function findOwnerGoogleRow(): Promise<{
   const { data: byEmail } = await sb
     .from('google_oauth_tokens')
     .select('user_id, email, updated_at')
-    .ilike('email', DEFAULT_DIRECTOR_EMAIL)
+    .ilike('email', getWorkspaceOwnerEmail())
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()

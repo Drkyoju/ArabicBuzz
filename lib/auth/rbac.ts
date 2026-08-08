@@ -15,6 +15,9 @@ import {
   orgRoleForEmail,
   personaForEmail,
   roomRoleForEmail,
+  getWorkspaceOwnerEmail,
+  getDirectorEmails,
+  DEFAULT_DIRECTOR_EMAIL,
 } from '@/lib/auth/roles'
 
 export type { Role, UiPersona }
@@ -31,6 +34,9 @@ export {
   orgRoleForEmail,
   personaForEmail,
   roomRoleForEmail,
+  getWorkspaceOwnerEmail,
+  getDirectorEmails,
+  DEFAULT_DIRECTOR_EMAIL,
 }
 
 export const ARABIC_AUTHZ_ERROR =
@@ -57,7 +63,10 @@ export function isRole(value: unknown): value is Role {
   return typeof value === 'string' && ROLES.includes(value as Role)
 }
 
-/** Directors and admins may open the full ops / integrations shell. */
+/**
+ * Role-rank helper only — do not use alone for product admin chrome.
+ * Full ops UI is gated by {@link isWorkspaceOwnerEmail} (see /api/me/role).
+ */
 export function canAccessOpsUi(role: Role): boolean {
   return ROLE_RANK[role] >= ROLE_RANK.DEPARTMENT_MANAGER
 }

@@ -32,8 +32,9 @@ function defaultOrgId(req: NextRequest) {
 }
 
 /**
- * Current user's org role — full admin UI only for ryodan71@gmail.com.
- * Anyone else → موظف (simple member UI). Room-owner role never elevates UI.
+ * Current user's org role — full admin UI only for the sole workspace owner
+ * (OWNER_EMAIL or ryodan71@gmail.com). Anyone else → موظف (simple member UI).
+ * Room-owner role never elevates UI.
  */
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req)

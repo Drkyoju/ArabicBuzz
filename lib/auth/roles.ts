@@ -1,8 +1,8 @@
 import type { Role, UiPersona } from '@/lib/auth/rbac-types'
 
 /**
- * Sole workspace owner email — full admin UI only for this address.
- * Compare with normalizeEmail (case-insensitive).
+ * Fallback sole workspace owner email — full admin UI only for this address
+ * (or `OWNER_EMAIL` when set). Compare with normalizeEmail (case-insensitive).
  */
 export const DEFAULT_DIRECTOR_EMAIL = 'ryodan71@gmail.com'
 
@@ -11,18 +11,26 @@ export function normalizeEmail(email: string | null | undefined): string {
 }
 
 /**
- * True only for ryodan71@gmail.com (case-insensitive).
+ * Single source of truth for the product owner address.
+ * `OWNER_EMAIL` env overrides the default; otherwise ryodan71@gmail.com.
+ */
+export function getWorkspaceOwnerEmail(): string {
+  return normalizeEmail(process.env.OWNER_EMAIL) || DEFAULT_DIRECTOR_EMAIL
+}
+
+/**
+ * True only for the sole workspace owner email (case-insensitive).
  * Room-owner role alone must never grant full admin UI.
  */
 export function isWorkspaceOwnerEmail(
   email: string | null | undefined
 ): boolean {
-  return normalizeEmail(email) === DEFAULT_DIRECTOR_EMAIL
+  return normalizeEmail(email) === getWorkspaceOwnerEmail()
 }
 
 /**
- * Director allow-list for digests / legacy callers.
- * Product owner UI still requires {@link isWorkspaceOwnerEmail}.
+ * Digest recipients only — never elevates admin UI.
+ * Always includes the workspace owner; may add DIRECTOR_EMAIL(S) for mail.
  */
 export function getDirectorEmails(): string[] {
   const fromList = (process.env.DIRECTOR_EMAILS || '')
@@ -30,12 +38,12 @@ export function getDirectorEmails(): string[] {
     .map((e) => normalizeEmail(e))
     .filter(Boolean)
   const legacy = normalizeEmail(process.env.DIRECTOR_EMAIL)
-  const set = new Set<string>([DEFAULT_DIRECTOR_EMAIL, ...fromList])
+  const set = new Set<string>([getWorkspaceOwnerEmail(), ...fromList])
   if (legacy) set.add(legacy)
   return [...set]
 }
 
-/** Alias: elevated director powers follow the sole workspace owner email. */
+/** Alias: elevated director / admin powers follow the sole workspace owner. */
 export function isDirectorEmail(email: string | null | undefined): boolean {
   return isWorkspaceOwnerEmail(email)
 }

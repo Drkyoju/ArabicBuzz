@@ -12,7 +12,7 @@ type State = {
   /** Arabic badge: مدير / موظف / مسؤول */
   labelAr: string | null
   displayNameAr: string | null
-  /** True only for ryodan71@gmail.com — never trust room-owner alone. */
+  /** True only for the sole workspace owner email — never trust room-owner alone. */
   canAccessOpsUi: boolean
   /**
    * False until /api/me/role (or guest path) settles — avoids flashing member
@@ -34,7 +34,7 @@ type State = {
 }
 
 /**
- * Workspace owner (ryodan71@gmail.com) = full shell + toggle.
+ * Workspace owner (OWNER_EMAIL or ryodan71@gmail.com) = full shell + toggle.
  * Everyone else = rooms, files, calendar, approvals (if HITL), settings only.
  */
 export const useWorkspaceModeStore = create<State>()(
@@ -96,7 +96,7 @@ export const useWorkspaceModeStore = create<State>()(
   )
 )
 
-/** Sections visible to members (no audit, skills, API keys, ops, memory). */
+/** Sections visible to members (no audit, skills, usage, API keys, ops, memory). */
 export const EMPLOYEE_SECTIONS = new Set([
   'home',
   'assistants',
