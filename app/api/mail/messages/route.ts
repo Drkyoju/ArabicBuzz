@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser } from '@/lib/auth/session'
 import { countUnread, listMessages } from '@/lib/email/imap-store'
 import { getMailboxPublic } from '@/lib/email/imap-store'
+import { searchOrgMailCorpus } from '@/lib/email/mail-corpus-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,30 @@ export async function GET(req: NextRequest) {
         ? ('Sent' as const)
         : ('INBOX' as const)
 
+  // Full corpus: mail (inbox+sent+attachments) + workspace/knowledge files.
+  if (url.searchParams.get('corpus') === '1' && q?.trim()) {
+    try {
+      const result = await searchOrgMailCorpus({
+        query: q.trim(),
+        limit,
+        folder: folderRaw === 'inbox' ? 'INBOX' : folder,
+        includeFiles: url.searchParams.get('files') !== '0',
+      })
+      return NextResponse.json({
+        ...result,
+        features: { corpusSearch: true, sentSync: true, aiReplyActions: true },
+      })
+    } catch (e) {
+      return NextResponse.json(
+        {
+          error: e instanceof Error ? e.message : 'فشل البحث',
+          hits: [],
+        },
+        { status: 500 }
+      )
+    }
+  }
+
   const [mailbox, messages, unread] = await Promise.all([
     getMailboxPublic(),
     listMessages({ unreadOnly, query: q, limit, folder }),
@@ -34,6 +59,7 @@ export async function GET(req: NextRequest) {
     lastSyncAt: mailbox?.lastSyncAt || null,
     lastErrorAr: mailbox?.lastErrorAr || null,
     folder,
+    features: { corpusSearch: true, sentSync: true, aiReplyActions: true },
     messages: messages.map((m) => ({
       id: m.id,
       uid: Number(m.uid),

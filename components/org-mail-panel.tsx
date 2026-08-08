@@ -519,11 +519,19 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setError('')
     try {
       const headers = await authHeaders()
-      const res = await fetch(
-        `/api/mail/search?q=${encodeURIComponent(q)}&folder=all&limit=40`,
+      // Prefer corpus on messages (always deployed with mail API); fall back to /search.
+      let res = await fetch(
+        `/api/mail/messages?corpus=1&q=${encodeURIComponent(q)}&folder=all&limit=40`,
         { headers }
       )
-      const data = await res.json()
+      let data = await res.json()
+      if (res.status === 404) {
+        res = await fetch(
+          `/api/mail/search?q=${encodeURIComponent(q)}&folder=all&limit=40`,
+          { headers }
+        )
+        data = await res.json()
+      }
       if (!res.ok) throw new Error(data.error || 'فشل البحث')
       setCorpusHits((data.hits || []) as CorpusHit[])
       setCorpusNote(data.messageAr || '')

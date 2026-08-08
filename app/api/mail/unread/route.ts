@@ -34,5 +34,6 @@ export async function GET(req: NextRequest) {
     emailAddress: mailbox?.emailAddress || null,
     lastSyncAt: mailbox?.lastSyncAt || null,
     lastErrorAr: mailbox?.lastErrorAr || null,
+    features: { corpusSearch: true, sentSync: true, aiReplyActions: true },
   })
 }
