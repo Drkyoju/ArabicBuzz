@@ -56,33 +56,30 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 
 ## سلسلة التحويل (`convert_document` / `convert_file`)
 
-عند `engine: "auto"` (الافتراضي):
+عند `engine: "auto"` و**PDF→Office** (Gemini أولاً — يتصدر [OCR Arena](https://www.ocrarena.ai/leaderboard)):
 
-1. **Google Drive** — إن مربوط المستخدم وزوج الصيغ مدعوم (نفس العائلة):
-   - Word/PDF/نص ↔ Google Docs ↔ `docx` / `pdf` / `txt`…
-   - Excel/CSV ↔ Google Sheets ↔ `xlsx` / `pdf` / `csv`…
-   - PowerPoint ↔ Google Slides ↔ `pptx` / `pdf`…
-   - يُرفع ملف مؤقت → يُصدَّر → يُنقل لسلة المهملات (`drive.file`).
-2. **LibreOffice** — إن `soffice` متوفر (اختياري عبر `INSTALL_LIBREOFFICE=1`).
-3. **CloudConvert** — إن `CLOUDCONVERT_API_KEY` مضبوط (اختياري مدفوع).
-4. **إعادة بناء نصية** — `pdf` ↔ `docx` / `txt` / `md` / جداول منظّمة…
-5. **خطأ عربي واضح** — يوجّه لربط Google أو إضافة المفتاح المدفوع.
+1. **Gemini Flash OCR/vision** — استخراج نص عربي نظيف ثم إعادة بناء DOCX/XLSX/PPTX بـ RTL.
+2. **Gemini أقوى** (مثل `gemini-3.1-pro`) إن فشل Flash بوابة الجودة.
+3. **PaddleOCR** — احتياطي رخيص ذاتي الاستضافة (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`) بعد فشل Gemini فقط؛ ليس لأنه أقوى من Gemini.
+4. **Mistral OCR** — فقط إن وُجد `MISTRAL_API_KEY` وما زال لازماً بعد Paddle (لا مفاتيح مخترعة).
+5. **استخراج محلي نظيف** — `pdf-parse-safe` / صفحات **فقط** إن اجتاز بوابة الجودة.
+6. وإلا **`{ ok: false, reason_ar }`** — بلا مرفق. لا طلاسم، لا كذب.
+
+أزواج غير PDF→Office: Google Drive (بوابة) → LibreOffice → CloudConvert اختياري.
 
 فرض المحرّك: `engine: "google" | "libreoffice" | "cloudconvert" | "free" | "auto"`.
 
 ### مخرجات الشات (إلزامي)
 
-- كل تحويل ناجح يعيد `attachments[]` مع `downloadPath` و`edited: true`.
-- واجهة الغرفة تعرض في فقاعة الرسالة زرّي **معاينة** (لوحة `/api/storage/preview` — بدون OCR لـ PDF) و**تنزيل**.
-- أرشفة «ملفات الفريق» / Drive اختيارية إضافية — **التنزيل من الشات هو المسار الأساسي**.
+- كل تحويل ناجح يعيد `ok: true` و`attachments[]` مع `downloadPath` و`edited: true`.
+- كل رفض جودة يعيد `ok: false` و`reason_ar` بالعربية — **بدون** مرفق مضلّل.
+- واجهة الغرفة تعرض في فقاعة الرسالة زرّي **معاينة** و**تنزيل** للنجاح فقط.
 
 ### تحذير: PDF عربي بطبقة ToUnicode معطوبة
 
-بعض لوائح Word→PDF (Sakkal Majalla وغيرها) تبدو صحيحة بصرياً لكن استخراج Unicode يعطي حروفاً مكسورة (مثل «املادة» بدل «المادة»). المسار النصّي و`pdf2docx` المحلي يرثان العطب → طلاسم في Word. **فضّل Google Drive أو CloudConvert**؛ ولا تستخدم pdf-lib كمحرّك تحويل.
+بعض اللوائح تبدو صحيحة بصرياً لكن Unicode يعطي «الالئحة / األساسية». المسارات المعطوبة (`pdf2docx`، Drive الفاسد، pdf-lib) **معطّلة**. المسار: Gemini (Arena)→Paddle→Mistral→محلي نظيف أو **رفض صادق**.
 
-عند فشل Google/CloudConvert ووجود `MAC_SYNC_URL`: `convert_document` ينتج **Word مرئي** (صورة لكل صفحة عبر `POST /pdf-docx-convert` mode=visual) — تخطيط مطابق 100%، غير قابل للتحرير النصي. للتحرير النصي: Drive OCR/تصدير.
-
-`convert_document(engine=auto)` **يرفض** إعادة البناء النصية عند اكتشاف العطب (خطأ عربي صريح) إلا إذا مرّرت `engine=free` صراحة.
+`convert_document(engine=auto)` **يرفض** عند أي شك (افتراضي).
 
 ## مصفوفة التحويل (صادق)
 

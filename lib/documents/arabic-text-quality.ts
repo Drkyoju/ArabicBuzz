@@ -71,6 +71,8 @@ export function hasArabicMojibake(text: string): boolean {
   if (q.broken || q.mojibakeHits > 0) return true
   if (/الالئحة|األساسية|واألهداف|املادة|االسم/.test(t)) return true
   if (/\uFFFD/.test(t)) return true
+  // Dense latin mojibake (UTF-8 misread as Latin-1 / CP1256)
+  if (/(?:Ã.|Â.|Ø.|Ù.){3,}/.test(t)) return true
   return false
 }
 
@@ -227,14 +229,26 @@ export function brokenToUnicodeErrorAr(opts?: {
   hasMac?: boolean
   hasGoogleHint?: boolean
   hasLibreOffice?: boolean
+  hasMistral?: boolean
+  hasPaddle?: boolean
 }): string {
   const parts = [
     'تعذّر إنتاج نص عربي نظيف للتحويل — لن نُسلّم طلاسم (مثل الالئحة/األساسية/U+FFFD).',
-    'جرّبنا الاستخراج المحلي وOCR عند الحاجة. إن بقي النص معطوباً نرفض التحويل بدل تسليم ملف فاسد.',
+    'المسار (Gemini أولاً — يتصدر OCR Arena): Flash → Gemini أقوى إن ضعف → PaddleOCR احتياطي رخيص ذاتي الاستضافة بعد فشل بوابة Gemini (ليس لأنه أقوى) → Mistral إن وُجد المفتاح وما زال لازماً → محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
   ]
+  if (opts?.hasPaddle === false) {
+    parts.push(
+      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي.'
+    )
+  }
+  if (opts?.hasMistral === false) {
+    parts.push(
+      'Mistral OCR غير مضبوط (اختياري عبر MISTRAL_API_KEY) — لم يُستخدم إلا بعد Paddle عند الحاجة.'
+    )
+  }
   if (opts?.hasMac) {
     parts.push(
-      'اختياري: جسر الماك (MAC_SYNC_URL) لنسخة Word مرئية (صور صفحات · تخطيط بصري بلا تحرير نصي).'
+      'جسر الماك اختياري لاستخراج حرّ؛ لا نُسلّم ملفاً مرئياً كبديل صامت عن نص معطوب.'
     )
   }
   if (opts?.hasLibreOffice) {
@@ -242,13 +256,25 @@ export function brokenToUnicodeErrorAr(opts?: {
   }
   if (opts?.hasGoogleHint) {
     parts.push(
-      'Drive يُستخدم فقط إن اجتاز بوابة الجودة العربية؛ التصدير المعطوب يُرفض تلقائياً.'
+      'Drive/pdf2docx للعربية المعطوبة معطّلان. لن نُرفق ملفاً يبدو سليماً وهو فاسد.'
     )
   }
   parts.push(
-    'تخطيط الصفحة الأصلي 100٪ + كل التشكيل غير مضمون مجاناً؛ النص يجب أن يكون عربياً مهنياً بلا طلاسم.'
+    'صدق الجودة: إن وُجد شك (صفحات ناقصة، ثقة منخفضة، طلاسم) نُخبرك صراحة بدل تسليم ملف مضلّل.'
   )
   return parts.join(' ')
+}
+
+/** Soft refuse payload for convert_document / API / Telegram — never attach a bad file. */
+export function convertRefuseResult(reasonAr: string, extra?: Record<string, unknown>) {
+  return {
+    ok: false as const,
+    reason_ar: reasonAr,
+    messageAr: reasonAr,
+    error: reasonAr,
+    attachments: [] as unknown[],
+    ...(extra || {}),
+  }
 }
 
 /**

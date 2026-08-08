@@ -20,7 +20,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | كشف PDF ممسوح | `lib/documents/scanned-detect.ts` | Netlify | صفحات فارغة/قصيرة أو ToUnicode معطوب |
 | قراءة وكيل صفحة بصفحة | `read_document` → `readDocumentPages` | Netlify + ماك | حتى 8 صفحات OCR لكل استدعاء ثم `nextPageStart` |
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
-| PDF→DOCX عربي | `convert_document` clean-or-refuse: pdf-parse-safe/OCR → DOCX RTL؛ Drive فقط بعد بوابة الجودة | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
+| PDF→DOCX عربي | `convert_document`: Gemini OCR → Mistral (إن المفتاح) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
 | Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
@@ -35,9 +35,12 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 
 1. يستخرج طبقة النص (pdfjs / mammoth / …).
 2. إن كانت الصورة أو معظم صفحات PDF فارغة/قصيرة/معطوبة → يُعلَّم «ممسوح».
-3. يشغّل OCR:
-   - أولاً جسر الماك: PyMuPDF يرسم الصفحة → Tesseract `ara+eng`
-   - ثم Qari (إن وُجد) → Gemini (مفتاح موجود عادة على الموقع)
+3. يشغّل OCR للتحويل النظيف (PDF→Office):
+   - Gemini Flash أولاً → Gemini أقوى إن ضعف النص
+   - ثم **PaddleOCR** إن وُجد (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`) — أرخص من Mistral؛ الجودة ليست دائماً أقوى
+   - ثم Mistral فقط إن وُجد `MISTRAL_API_KEY` وما زال لازماً
+   - وإلا رفض عربي صريح بلا ملف طلاسم
+   - للقراءة العامة: جسر الماك Tesseract → Qari → Gemini
 4. يعيد النص مع `ocrUsed=true` و`warningAr` إن لزم.
 5. للمستندات الطويلة: كرّر `read_document(pageStart=nextPageStart)` حتى `hasMore=false`.
 
@@ -79,7 +82,9 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 | متغير | إلزامي؟ | الدور |
 |-------|---------|--------|
 | `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك |
-| `GEMINI_API_KEY` | عادة موجود | احتياطي OCR على Netlify/CranL بدون ماك |
+| `GEMINI_API_KEY` | عادة موجود | Gemini Flash ثم نموذج أقوى في سلسلة التحويل |
+| `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | PaddleOCR — **أرخص من Mistral** عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى. لا يُضمَّن في صورة CranL الرقيقة — انظر `deploy/paddle-ocr/` |
+| `MISTRAL_API_KEY` | اختياري مدفوع | فقط بعد فشل Paddle إن وُجد المفتاح — لا تُخترع مفاتيح |
 | `QARI_OCR_URL` | اختياري | Qari محلي |
 | Google OAuth (ربط المستخدم) | لمسار Drive | لا مفتاح تحويل إضافي — يستخدم `drive.file` بعد الربط |
 | `CLOUDCONVERT_API_KEY` | اختياري مدفوع | تحويل صيغ فقط — **لا يُشترى تلقائياً** |

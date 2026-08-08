@@ -474,8 +474,8 @@ export function FilesPanel() {
     setBusyId(fileId)
     setNote(
       toFormat === 'docx'
-        ? 'جاري التحويل النظيف PDF→Word عبر Drive…'
-        : 'جاري التحويل النظيف Word→PDF عبر Drive…'
+        ? 'جاري التحويل النظيف PDF→Word (Gemini Flash→Paddle أرخص من Mistral→…)…'
+        : 'جاري التحويل النظيف Word→PDF…'
     )
     try {
       const res = await fetch('/api/storage/convert', {
@@ -491,13 +491,16 @@ export function FilesPanel() {
       const data = (await res.json()) as {
         ok?: boolean
         error?: string
+        reason_ar?: string
         messageAr?: string
         fileId?: string
         name?: string
         mimeType?: string
       }
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'فشل التحويل')
+      if (!res.ok || data.ok === false) {
+        throw new Error(
+          data.reason_ar || data.messageAr || data.error || 'فشل التحويل'
+        )
       }
       setNote(data.messageAr || 'تم التحويل — الناتج في الأرشيف والشات.')
       if (data.fileId) {

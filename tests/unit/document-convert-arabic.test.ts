@@ -22,11 +22,38 @@ describe('arabic-text-quality helpers', () => {
     expect(q.brokenHits).toBeGreaterThanOrEqual(2)
   })
 
-  it('accepts clean Arabic', () => {
-    const q = assessArabicTextQuality(
-      'المادة الأولى من النظام الأساسي للجمعية وأهداف المجلس'
+  it('flags dense latin mojibake', () => {
+    expect(hasArabicMojibake('Ã©Â«Ø§Ù„Ù„Ø§')).toBe(true)
+  })
+
+  it('convertRefuseResult never includes attachments', async () => {
+    const { convertRefuseResult } = await import(
+      '@/lib/documents/arabic-text-quality'
     )
-    expect(q.broken).toBe(false)
+    const r = convertRefuseResult('رفض تجريبي — طلاسم')
+    expect(r.ok).toBe(false)
+    expect(r.reason_ar).toContain('طلاسم')
+    expect(r.attachments).toEqual([])
+  })
+
+  it('accepts clean اللائحة', () => {
+    expect(hasArabicMojibake('اللائحة الأساسية للجمعية والمادة الأولى')).toBe(
+      false
+    )
+    expect(
+      pickBestCleanArabicText([
+        {
+          text:
+            'اللائحة الأساسية للجمعية والأهداف والانتساب والمادة الأولى من النظام مع نص كافٍ للبوابة العربية المهنية هنا.',
+          source: 'ocr-gemini',
+        },
+        {
+          text:
+            'الالئحة األساسية واألهداف االنتساب املادة مع نص كافٍ لكنه معطوب بالكامل هنا وهناك مراراً.',
+          source: 'drive-bad',
+        },
+      ])?.text
+    ).toContain('اللائحة')
   })
 
   it('flags Drive-style bylaws mojibake and prefers local clean extract', () => {

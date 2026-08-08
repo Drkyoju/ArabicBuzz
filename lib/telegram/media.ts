@@ -48,6 +48,8 @@ export function extractAttachmentsFromToolOutput(
       toolName: toolName || undefined,
     })
   }
+  // Never treat soft-fail convert/OCR results as deliverable files
+  if (o.ok === false) return found
   if (Array.isArray(o.attachments)) {
     for (const a of o.attachments) {
       if (a && typeof a === 'object') push(a as Record<string, unknown>)

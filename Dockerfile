@@ -33,6 +33,8 @@ WORKDIR /app
 # Default OFF on CranL (thin image) after LO-enabled builds failed on the host.
 # Opt in: docker build --build-arg INSTALL_LIBREOFFICE=1
 # Free convert without LO: Google Drive OAuth (drive.file).
+# Do NOT bake PaddleOCR into this image (multi-GB). Use PADDLE_OCR_URL sidecar
+# (deploy/paddle-ocr) or ENABLE_PADDLE_OCR=1 only where paddleocr is already installed.
 ARG INSTALL_LIBREOFFICE=0
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \

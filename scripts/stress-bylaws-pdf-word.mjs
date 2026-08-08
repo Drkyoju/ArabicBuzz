@@ -75,6 +75,14 @@ const result = await executeConvertDocument('convert_document', {
   outputName: 'STRESS_لائحة_بوابة_جودة.docx',
 })
 
+if (!result || result.ok === false) {
+  console.error('REFUSED (honest)', {
+    reason_ar: result?.reason_ar || result?.messageAr || result?.error,
+    result,
+  })
+  process.exit(1)
+}
+
 const out = await (
   await import('../lib/documents/workspace.ts')
 ).then((m) => unwrap(m).readWorkspaceFile(SCOPE, result.fileId))

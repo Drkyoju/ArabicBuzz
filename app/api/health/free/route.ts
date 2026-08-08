@@ -122,6 +122,13 @@ export async function GET() {
     libreOfficeOk,
     libreOfficeStatusAr,
     libreOfficeImageFlag: process.env.AB_LIBREOFFICE_IMAGE || '0',
+    paddleOcrConfigured: Boolean(
+      process.env.PADDLE_OCR_URL?.trim() ||
+        process.env.ENABLE_PADDLE_OCR?.trim() === '1'
+    ),
+    mistralOcrConfigured: Boolean(process.env.MISTRAL_API_KEY?.trim()),
+    ocrConvertCascadeAr:
+      'Gemini Flash → Gemini أقوى → PaddleOCR (أرخص من Mistral عند التثبيت؛ الجودة ليست دائماً أقوى) → Mistral إن وُجد المفتاح → رفض بلا طلاسم',
     googleDriveConvertHintAr:
       'مجاني مع حساب Google مربوط (drive.file) — الأفضل للعربية والتخطيط',
     cloudConvertOptionalPaid: true,

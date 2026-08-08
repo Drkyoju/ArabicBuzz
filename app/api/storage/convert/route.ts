@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 /**
- * One-click clean PDF↔Word (Drive-first). UI: «إلى Word» / «إلى PDF».
+ * Clean PDF↔Word (Gemini Flash → strong → Paddle → Mistral if key → local → refuse).
+ * UI: «إلى Word» / «إلى PDF». Never returns a طلاسم file as success.
  */
 export async function POST(req: Request) {
   const auth = await requireRealUser(req)
@@ -20,13 +21,19 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as typeof body
   } catch {
-    return Response.json({ error: 'JSON غير صالح' }, { status: 400 })
+    return Response.json(
+      { ok: false, reason_ar: 'JSON غير صالح', error: 'JSON غير صالح' },
+      { status: 400 }
+    )
   }
 
   const scopeId = String(body.scopeId || 'shared-demo').trim()
   const fileId = String(body.fileId || '').trim()
   if (!fileId) {
-    return Response.json({ error: 'مرّر fileId' }, { status: 400 })
+    return Response.json(
+      { ok: false, reason_ar: 'مرّر fileId', error: 'مرّر fileId' },
+      { status: 400 }
+    )
   }
 
   try {
@@ -37,31 +44,57 @@ export async function POST(req: Request) {
       auth.user.email
     )
     if (!gate.ok) {
-      return Response.json({ error: gate.error }, { status: 403 })
+      return Response.json(
+        { ok: false, reason_ar: gate.error, error: gate.error },
+        { status: 403 }
+      )
     }
 
     const result = await executeConvertDocument('convert_document', {
       scopeId,
       fileId,
       toFormat: body.toFormat || 'docx',
-      // Prefer Google Drive clean path when available
       engine: body.engine || 'auto',
       userId: auth.user.id,
       _userId: auth.user.id,
     })
 
+    const r = result as {
+      ok?: boolean
+      reason_ar?: string
+      messageAr?: string
+      error?: string
+    }
+
+    if (r.ok === false) {
+      const reason =
+        r.reason_ar || r.messageAr || r.error || 'رُفض التحويل — نص عربي غير نظيف'
+      return Response.json(
+        {
+          ...result,
+          ok: false,
+          reason_ar: reason,
+          messageAr: reason,
+          error: reason,
+        },
+        { status: 422 }
+      )
+    }
+
     return Response.json({
       ...result,
       ok: true,
       messageAr:
-        (result as { messageAr?: string }).messageAr ||
-        'تم التحويل — افتح المرفق من الشات أو الأرشيف.',
+        r.messageAr || 'تم التحويل — افتح المرفق من الشات أو الأرشيف.',
     })
   } catch (e) {
+    const msg = e instanceof Error ? e.message : 'فشل التحويل'
     return Response.json(
       {
         ok: false,
-        error: e instanceof Error ? e.message : 'فشل التحويل',
+        reason_ar: msg,
+        error: msg,
+        messageAr: msg,
       },
       { status: 500 }
     )

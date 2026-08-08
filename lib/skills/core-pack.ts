@@ -13,7 +13,7 @@
  * - agenda / follow-up / board pack: zapier/wade-skills + decision-board patterns
  * - Drive organize: googleworkspace/cli recipe-organize-drive-folder + file-naming
  * - volunteers / formal letters / KSA deadlines: association ops adaptations
- * - Word/PDF ops: convert_document clean-or-refuse (pdf-parse-safe/OCR; Drive only if Arabic gate passes)
+ * - Word/PDF ops: convert_document Gemini(Arena)→Paddle→Mistral→clean-or-refuse (never ship طلاسم)
  * - email→task / attachments: googleworkspace gws-workflow-email-to-task + recipe-save-email-attachments
  * - presentations: sultanalsafran/agent-skills arabic-presentations
  * - gov research: mattpocock research + free web_search path
