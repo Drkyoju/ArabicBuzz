@@ -455,10 +455,16 @@ export function inferPdfDuplicateWorkParams(
   const t = requestText.replace(/\s+/g, ' ')
 
   // Correction / empty-page intent wins over stale «صفحة 48» numbers.
-  const wantsEmptyFromDoc =
-    /صفح[ةه]\s*(?:فاضي[ةه]|فارغ[ةه])|(?:فاضي[ةه]|فارغ[ةه])\s*(?:من\s*)?(?:ال)?(?:كتاب[ةه]|محتوى|نص)?|(?:بدون|بلا)\s*(?:كتاب[ةه]|نص|محتوى)|empty\s*page|content[- ]?less\s*page/iu.test(
+  // «صفحة بيضاء» invent-blank only when clearly requested (not «ليست بيضاء»).
+  const asksInventedBlank =
+    /(?:أدرج|ادرج|أضف|اضف|ضع|حط|insert)\s+(?:صفحة\s*)?بيضاء|(?:^|[^\u0600-\u06FF])صفحة\s*بيضاء(?!\s*(?:مخترع|من\s*الملف))|blank\s*page|pdf_insert_blank/iu.test(
       t
-    ) && !/صفح[ةه]\s*بيضاء|blank\s*page|أدرج\s*صفحة\s*بيضاء|ادرج\s*صفحة\s*بيضاء/iu.test(t)
+    ) && !/(?:ليست|مو|ليس|لا|ممنوع|غير)\s*(?:اختراع\s*)?(?:صفحة\s*)?بيضاء/iu.test(t)
+
+  const wantsEmptyFromDoc =
+    /صفح[ةه]\s*(?:فاضي[ةه]|فارغ[ةه])|(?:فاضي[ةه]|فارغ[ةه])\s*(?:من\s*)?(?:ال)?(?:كتاب[ةه]|محتوى|نص)?|(?:بدون|بلا)\s*(?:كتاب[ةه]|نص|محتوى)|empty\s*page|content[- ]?less\s*page|findEmptyPage/iu.test(
+      t
+    ) && !asksInventedBlank
 
   const afterOnly = t.match(
     /(?:بعد|after)\s*(?:ال)?(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
