@@ -363,6 +363,10 @@ export async function resolveAndRunPendingPdfJob(opts: {
   }
 
   const { findAcrossStorageMesh } = await import('@/lib/telegram/storage-mesh')
+  /** Skip prior edit outputs (e.g. …_نسخ_صفحة2_بعد_45.pdf) — work the source book. */
+  const isDerivedPdfCopy = (name: string) =>
+    /_نسخ_صفحة\d+/i.test(name) || /_صفحة_بيضاء_/i.test(name)
+
   const queryNames =
     opts.queryNames?.length
       ? opts.queryNames
@@ -375,14 +379,44 @@ export async function resolveAndRunPendingPdfJob(opts: {
         ].filter(Boolean) as string[]
 
   let hit = null as Awaited<ReturnType<typeof findAcrossStorageMesh>>
-  for (const q of queryNames) {
-    hit = await findAcrossStorageMesh({
-      scopeId: opts.scopeId,
-      chatId: opts.chatId,
-      queryName: q,
-      hydrateBytes: true,
-    })
-    if (hit?.buffer?.length) break
+
+  // Prefer the job-bound vault file when it is the source book (not a prior نسخ).
+  if (job?.vaultFileId) {
+    try {
+      const { readWorkspaceFile } = await import('@/lib/documents/workspace')
+      const file = await readWorkspaceFile(opts.scopeId, job.vaultFileId)
+      if (
+        file.buffer?.byteLength &&
+        !isDerivedPdfCopy(file.meta.originalName || '')
+      ) {
+        hit = {
+          buffer: file.buffer,
+          fileName: file.meta.originalName,
+          source: 'room',
+          vaultFileId: job.vaultFileId,
+        }
+      }
+    } catch {
+      /* fall through to mesh */
+    }
+  }
+
+  if (!hit?.buffer?.length) {
+    for (const q of queryNames) {
+      const candidate = await findAcrossStorageMesh({
+        scopeId: opts.scopeId,
+        chatId: opts.chatId,
+        queryName: q,
+        hydrateBytes: true,
+      })
+      if (
+        candidate?.buffer?.length &&
+        !isDerivedPdfCopy(candidate.fileName || '')
+      ) {
+        hit = candidate
+        break
+      }
+    }
   }
   if (!hit?.buffer?.length) {
     return {
