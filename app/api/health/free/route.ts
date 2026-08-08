@@ -82,7 +82,7 @@ export async function GET() {
   const geminiKeyPresent = Boolean(
     process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
   )
-  // Mic cascade: Willow → Gemini → HF → Groq (backups optional)
+  // Mic STT: race Groq/Gemini/Willow/Deepgram → HF → OpenAI (edit-before-send)
   const sttPrimaryReady = willowConfigured || geminiKeyPresent
   const sttBackupReady = hfTokenPresent || groqKeyPresent
 
@@ -97,7 +97,7 @@ export async function GET() {
     sttPrimaryReady,
     sttBackupReady,
     sttCascadeAr:
-      'Willow → Gemini → Hugging Face → Groq — النسخ الاحتياطية (HF/Groq) اختيارية',
+      'سباق سريع: Groq/Gemini/Willow/Deepgram → Hugging Face → OpenAI — الميكروفون يملأ المربع دون إرسال تلقائي',
     dbHost,
     dbPooler,
     supabaseOk,
