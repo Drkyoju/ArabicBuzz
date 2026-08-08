@@ -81,10 +81,12 @@ export function serializeOpenClawSkill(skill: OpenClawSkill): string {
 }
 
 export function loadSkillsFromDirectory(dirPath: string): OpenClawSkill[] {
-  if (!fs.existsSync(dirPath)) return []
+  if (!fs.existsSync(/*turbopackIgnore: true*/ dirPath)) return []
   const out: OpenClawSkill[] = []
   const walk = (dir: string) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(/*turbopackIgnore: true*/ dir, {
+      withFileTypes: true,
+    })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) walk(full)
       else if (entry.name.endsWith('.md')) {

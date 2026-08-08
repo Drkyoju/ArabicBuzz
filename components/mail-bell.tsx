@@ -37,7 +37,8 @@ function showBrowserMailNotif(unread: number) {
   if (!canUseBrowserNotifications()) return
   if (Notification.permission !== 'granted') return
   try {
-    const n = new Notification('بريد جديد — جمعية الهدى والحكمة', {
+    // `renotify` is widely supported but missing from DOM lib typings.
+    const opts: NotificationOptions & { renotify?: boolean } = {
       body:
         unread === 1
           ? 'رسالة جديدة في بريد الجمعية — افتح الوارد للرد أو التلخيص.'
@@ -46,7 +47,8 @@ function showBrowserMailNotif(unread: number) {
       dir: 'rtl',
       lang: 'ar',
       renotify: true,
-    })
+    }
+    const n = new Notification('بريد جديد — جمعية الهدى والحكمة', opts)
     n.onclick = () => {
       try {
         window.focus()

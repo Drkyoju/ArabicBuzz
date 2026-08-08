@@ -14,6 +14,7 @@ import { displayNameFromUser, looksLikeEmailLabel } from '@/lib/auth/display-nam
 import {
   isOpenRoomTask,
   isRoomTaskAssignedToMe,
+  type RoomTaskStatus,
 } from '@/lib/rooms/room-tasks'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -22,7 +23,7 @@ type Task = {
   id: string
   titleAr: string
   notesAr: string | null
-  status: string
+  status: RoomTaskStatus
   priority: number
   dueAt: string | null
   assigneeAr: string | null
@@ -235,7 +236,7 @@ export function RoomTasksBoard() {
     }
   }
 
-  async function setStatus(id: string, status: string) {
+  async function setStatus(id: string, status: RoomTaskStatus) {
     await fetch('/api/rooms/tasks', {
       method: 'POST',
       headers: await authHeaders({ 'Content-Type': 'application/json' }),

@@ -185,8 +185,8 @@ export function saveLocalFile(opts: {
 export function listLocalFiles(scopeId: string): StoredFileMeta[] {
   assertLocalStorageAvailable()
   const { metaDir } = ensureVault(scopeId)
-  if (!existsSync(metaDir)) return []
-  return readdirSync(metaDir)
+  if (!existsSync(/*turbopackIgnore: true*/ metaDir)) return []
+  return readdirSync(/*turbopackIgnore: true*/ metaDir)
     .filter((f) => f.endsWith('.json'))
     .map((f) => {
       try {
@@ -326,9 +326,9 @@ export function getStorageStatus() {
   const enabled = isLocalStorageEnabled()
   let bytes = 0
   let fileCount = 0
-  if (enabled && existsSync(root)) {
+  if (enabled && existsSync(/*turbopackIgnore: true*/ root)) {
     const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
+      for (const name of readdirSync(/*turbopackIgnore: true*/ dir)) {
         const p = path.join(dir, name)
         const st = statSync(p)
         if (st.isDirectory()) walk(p)
