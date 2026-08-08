@@ -47,7 +47,12 @@ async function main() {
     for (const n of EXPECTED_NAMES) {
       const d = await searchDriveBrainExactName({ scopeId, exactName: n })
       if (d) {
-        hit = { id: d.vaultFileId, originalName: d.fileName }
+        hit = {
+          id: d.vaultFileId,
+          originalName: d.fileName,
+          mimeType: 'application/pdf',
+          source: 'cloud',
+        }
         break
       }
     }

@@ -107,10 +107,12 @@ export async function downloadTelegramFileBuffer(
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
 
   const declared = opts?.declaredSizeBytes
+  // Still attempt getFile even when declared >20MB — some files are mis-sized,
+  // and we need the error path to persist metadata. Only short-circuit if clearly huge.
   if (
     typeof declared === 'number' &&
     Number.isFinite(declared) &&
-    declared > TELEGRAM_MAX_DOWNLOAD_BYTES
+    declared > TELEGRAM_MAX_DOWNLOAD_BYTES * 3
   ) {
     throw new Error(
       telegramFileTooLargeAr({
@@ -121,22 +123,19 @@ export async function downloadTelegramFileBuffer(
   }
 
   const file = await ctx.api.getFile(fileId)
-  if (!file.file_path) throw new Error('مسار ملف تيليجرام غير متوفر')
+  if (!file.file_path) {
+    throw new Error(
+      telegramFileTooLargeAr({
+        fileName: opts?.fileName,
+        sizeBytes: declared,
+      })
+    )
+  }
   const remoteSize =
     typeof (file as { file_size?: number }).file_size === 'number'
       ? (file as { file_size?: number }).file_size
       : undefined
-  if (
-    typeof remoteSize === 'number' &&
-    remoteSize > TELEGRAM_MAX_DOWNLOAD_BYTES
-  ) {
-    throw new Error(
-      telegramFileTooLargeAr({
-        fileName: opts?.fileName,
-        sizeBytes: remoteSize,
-      })
-    )
-  }
+  // Prefer attempting download; Telegram may still serve ≤20MB despite declared size.
 
   const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`
   const res = await fetch(url)

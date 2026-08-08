@@ -92,7 +92,11 @@ import {
   resolveGroupReplyMode,
   type TelegramGroupReplyMode,
 } from '@/lib/telegram/group-reply-policy'
-import { resolveCapabilityGapReplyAr } from '@/lib/agents/tools/research-task-tools'
+import {
+  resolveCapabilityGapReplyAr,
+  resolveCapabilityGapResearch,
+} from '@/lib/agents/tools/research-task-tools'
+import { TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR } from '@/lib/telegram/capability-cascade'
 import { saveWorkspaceFile } from '@/lib/documents/workspace'
 import { formatDownloadMarker } from '@/lib/files/file-markers'
 import {
@@ -168,6 +172,118 @@ async function replyForCapabilityGapAr(opts: {
   }
 }
 
+/**
+ * After «ما عرفت»: research → if free builtins map, re-run agent once to EXECUTE
+ * and deliver via return_file. Paid gate only when free exhausted.
+ */
+async function researchThenMaybeFreeExecute(opts: {
+  task: string
+  agentText?: string
+  ctx: Context
+  prompt: string
+  system: string
+  modelSlug: string
+  scopeId: string
+  maxSteps: number
+  tools: ToolSet
+  runLocked: <T>(fn: () => Promise<T>) => Promise<T>
+  workKind: string
+}): Promise<{
+  handled: boolean
+  text: string
+  citations: RoomCitation[]
+  pendingApprovalIds: string[]
+  attachmentsSent: string[]
+}> {
+  let research: Awaited<ReturnType<typeof resolveCapabilityGapResearch>>
+  try {
+    research = await resolveCapabilityGapResearch({
+      task: opts.task,
+      agentText: opts.agentText,
+    })
+  } catch (e) {
+    console.warn('[telegram] free-execute research', e)
+    const gap = await replyForCapabilityGapAr({
+      task: opts.task,
+      agentText: opts.agentText,
+    })
+    await opts.ctx.reply(gap)
+    return {
+      handled: true,
+      text: gap,
+      citations: [],
+      pendingApprovalIds: [],
+      attachmentsSent: [],
+    }
+  }
+
+  if (research.canExecuteFree && research.executeNext.length) {
+    const forced = [
+      opts.prompt,
+      '',
+      research.messageAr,
+      '[إعادة محاولة إلزامية — مسار مجاني مدمج. نفّذ الأدوات أعلاه الآن ثم return_file. ممنوع السؤال.]',
+    ].join('\n')
+    try {
+      const retry = await opts.runLocked(() =>
+        runSilentTelegramTools({
+          prompt: forced,
+          system: opts.system,
+          modelSlug: opts.modelSlug,
+          scopeId: opts.scopeId,
+          maxSteps: Math.max(opts.maxSteps, 8),
+          tools: opts.tools,
+        })
+      )
+      const attachmentsSent = await deliverSilentTelegramResults({
+        ctx: opts.ctx,
+        attachments: retry.attachments,
+        pendingApprovalIds: retry.pendingApprovalIds,
+        workKind: opts.workKind,
+        prompt: opts.task,
+      })
+      const stillUnknown =
+        attachmentsSent.length === 0 &&
+        looksLikeUnknownOrNotFound(retry.text)
+      if (!stillUnknown) {
+        const text =
+          retry.text?.trim() ||
+          (attachmentsSent.length
+            ? `تم التنفيذ مجاناً عبر ${research.executeNext.map((h) => h.toolName).join(' · ')}.`
+            : research.messageAr)
+        if (text && attachmentsSent.length === 0) {
+          await opts.ctx.reply(text.slice(0, 3900))
+        } else if (attachmentsSent.length && text && !looksLikeUnknownOrNotFound(text)) {
+          await opts.ctx.reply(text.slice(0, 3900)).catch(() => undefined)
+        }
+        return {
+          handled: true,
+          text,
+          citations: retry.citations,
+          pendingApprovalIds: retry.pendingApprovalIds,
+          attachmentsSent,
+        }
+      }
+    } catch (e) {
+      console.warn('[telegram] free-execute retry', e)
+    }
+  }
+
+  // Paid gate / blocked — only interrupt user for money after free exhausted.
+  const gap = research.messageAr || (await replyForCapabilityGapAr({
+    task: opts.task,
+    agentText: opts.agentText,
+  }))
+  await opts.ctx.reply(gap)
+  return {
+    handled: true,
+    text: gap,
+    citations: [],
+    pendingApprovalIds: [],
+    attachmentsSent: [],
+  }
+}
+
 function resolveTelegramModelSlug(
   heavy: boolean,
   preferred?: string | null
@@ -207,10 +323,13 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
 - بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
 - بحث ويب: web_search / web_fetch عند طلب بحث أو معلومة خارجية.
-- إن عجزت الأدوات الحالية عن المهمة (أو «ما عرفت»): استدعِ research_task_tools فوراً ثم انشر messageAr حرفياً في المجموعة — ممنوع الصمت، ممنوع ادّعاء النجاح، وفضّل الاقتراحات المجانية/الأرخص.
+- تشغيل تلقائي مطلق: ممنوع «هل تريد؟» للعمل الروتيني. ممنوع طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم — استأنف ونفّذ.
+- إن عجزت الأدوات (أو «ما عرفت»): استدعِ research_task_tools → إن canExecuteFree/executeNext نفّذ الأدوات المجانية المدمجة فوراً (pdf-lib…) وreturn_file للمجموعة. لا تشغّل كود MCP بعيداً غير موثوق.
+- فقط إن blocked بعد استنفاد المجاني: انشر messageAr (بدائل مدفوعة الأرخص) وانتظر المفتاح/الموافقة — هذه المقاطعة الوحيدة للمستخدم بسبب المال.
 - «أرسل لفلان» / تبليغ شخص: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة. تنسيق/تعديل ملف ≠ تبليغ شخص.
-- الحذف على ملفات الغرفة/Drive فقط بموافقة بشرية (أزرار). ممنوع نهائياً حذف أي شيء على تيليجرام — عدّل رسالة التقدّم أو اتركها + رد جديد.
-${TELEGRAM_LIMITS_SYSTEM_AR}`
+- HITL فقط لحذف ملفات الغرفة/Drive الحساس (RBAC) أو بوابة الدفع — ممنوع HITL لتعديل/تحويل روتيني. ممنوع حذف رسائل تيليجرام.
+${TELEGRAM_LIMITS_SYSTEM_AR}
+${TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR}`
 
 async function ensureTelegramBotReady(): Promise<Bot> {
   const instance = getTelegramBot()
@@ -1290,33 +1409,11 @@ async function runTelegramAgentTurn(opts: {
         prompt: opts.promptSource,
       })
       if (looksLikeUnknownOrNotFound(text)) {
-        const gap = await replyForCapabilityGapAr({
-          task: opts.promptSource,
-          agentText: text,
-        })
-        await opts.ctx.reply(gap)
-        void mirrorChannelTurnToRoom({
-          scopeId,
-          channel: 'telegram',
-          externalId: opts.chatId,
-          userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
-          userMessageAr: opts.promptSource,
-          agentReplyAr: gap,
-          includeAgentReply: true,
-        })
-        console.info('[telegram] timing', {
-          path: 'assistant-silent',
+        // Fall through to full room agent + free-execute cascade (auto).
+        console.info('[telegram] assistant-silent unknown → agent cascade', {
           assistantId: routed.assistantId,
-          attachments: attachmentsSent.length,
-          totalMs: Date.now() - t0,
         })
-        return {
-          text: gap,
-          citations: run.citations || [],
-          pendingApprovalIds: run.pendingApprovalIds || [],
-          attachmentsSent,
-        }
-      }
+      } else {
       void mirrorChannelTurnToRoom({
         scopeId,
         channel: 'telegram',
@@ -1339,6 +1436,7 @@ async function runTelegramAgentTurn(opts: {
         citations: run.citations || [],
         pendingApprovalIds: run.pendingApprovalIds || [],
         attachmentsSent,
+      }
       }
     } catch (e) {
       console.error('[telegram] assistant-path', e)
@@ -1460,35 +1558,49 @@ async function runTelegramAgentTurn(opts: {
     })
     const unknown = looksLikeUnknownOrNotFound(silentOut.text)
     if (unknown) {
-      const gap = await replyForCapabilityGapAr({
+      const freeOut = await researchThenMaybeFreeExecute({
         task: opts.promptSource,
         agentText: silentOut.text,
+        ctx: opts.ctx,
+        prompt: normalized.normalizedPromptAr,
+        system: lockedSystem,
+        modelSlug,
+        scopeId,
+        maxSteps,
+        tools,
+        runLocked,
+        workKind: work.kind,
       })
-      await opts.ctx.reply(gap)
       void mirrorChannelTurnToRoom({
         scopeId,
         channel: 'telegram',
         externalId: opts.chatId,
         userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
         userMessageAr: opts.promptSource,
-        agentReplyAr: gap,
+        agentReplyAr: freeOut.text,
       })
       console.info('[telegram] timing', {
-        path: useTeam ? 'agent-silent-team' : 'agent-silent',
+        path: useTeam ? 'agent-silent-team-free' : 'agent-silent-free',
         heavy,
         work: work.kind,
         seats: teamAgents.map((a) => a.slug).join(','),
         unknown,
-        attachments: attachmentsSent.length,
+        attachments: freeOut.attachmentsSent.length || attachmentsSent.length,
         prepMs,
         streamMs: Date.now() - tStream,
         totalMs: Date.now() - t0,
       })
       return {
-        text: gap,
-        citations: silentOut.citations,
-        pendingApprovalIds: silentOut.pendingApprovalIds,
-        attachmentsSent,
+        text: freeOut.text,
+        citations: freeOut.citations.length
+          ? freeOut.citations
+          : silentOut.citations,
+        pendingApprovalIds: freeOut.pendingApprovalIds.length
+          ? freeOut.pendingApprovalIds
+          : silentOut.pendingApprovalIds,
+        attachmentsSent: freeOut.attachmentsSent.length
+          ? freeOut.attachmentsSent
+          : attachmentsSent,
       }
     }
     void mirrorChannelTurnToRoom({
@@ -2253,7 +2365,9 @@ export function getTelegramBot() {
     }
 
     // Auto-resume unfinished file jobs before treating this as a fresh ask.
-    if (needsRecentFile || workKindForPrompt === 'file') {
+    // needsRecentFile already covers workKind === 'file' | 'question' (and
+    // regex/reply ingest); do not re-compare workKind or TS narrows it away.
+    if (needsRecentFile) {
       const resumes = await prepareTelegramFileJobResumes({
         chatId,
         scopeId: scope.scope.id,

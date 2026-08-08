@@ -6,6 +6,11 @@ import { randomUUID } from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { matchWorkspaceFileExact } from '@/lib/files/file-source-policy'
 import {
+  isMuallimSeerahShortQuery,
+  matchMuallimSeerahFile,
+  pickMuallimSeerahFile,
+} from '@/lib/files/muallim-seerah-match'
+import {
   getRecoverableTelegramAttachment,
   telegramFileNeverStoredAr,
   type PersistedTelegramAttachment,
@@ -305,7 +310,10 @@ export async function resolveTelegramJobFile(
   try {
     const { listWorkspaceFiles } = await import('@/lib/documents/workspace')
     const files = await listWorkspaceFiles(job.scopeId)
-    const hit = matchWorkspaceFileExact(files, expected)
+    let hit = matchWorkspaceFileExact(files, expected)
+    if (!hit && isMuallimSeerahShortQuery(expected)) {
+      hit = pickMuallimSeerahFile(files, expected)
+    }
     if (hit) {
       return {
         vaultFileId: hit.id,
@@ -317,7 +325,7 @@ export async function resolveTelegramJobFile(
     /* ignore */
   }
 
-  // Drive exact name via brain search is best-effort; never fuzzy.
+  // Drive: exact name, or seerah short-name alias (never أحياء).
   try {
     const { searchDriveBrainExactName } = await import(
       '@/lib/telegram/drive-exact-recover'
@@ -325,6 +333,7 @@ export async function resolveTelegramJobFile(
     const driveHit = await searchDriveBrainExactName({
       scopeId: job.scopeId,
       exactName: expected,
+      allowMuallimSeerahAlias: isMuallimSeerahShortQuery(expected),
     })
     if (driveHit?.vaultFileId) {
       return {
@@ -353,7 +362,15 @@ export function filenamesStrictMatch(a: string, b: string): boolean {
   const nb = norm(b)
   if (na === nb) return true
   const base = (s: string) => s.replace(/\.[^.]+$/, '')
-  return base(na) === base(nb)
+  if (base(na) === base(nb)) return true
+  // Short «المعلم الاول» ↔ full seerah title (never أحياء)
+  if (
+    (isMuallimSeerahShortQuery(a) && matchMuallimSeerahFile(b)) ||
+    (isMuallimSeerahShortQuery(b) && matchMuallimSeerahFile(a))
+  ) {
+    return true
+  }
+  return false
 }
 
 /**

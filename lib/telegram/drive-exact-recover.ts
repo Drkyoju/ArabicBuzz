@@ -1,27 +1,18 @@
 /**
- * Exact-name recovery from Drive brain into room vault (no fuzzy match).
- * Used only for pending telegram_file_jobs expected_filename.
+ * Exact-name recovery from Drive brain into room vault (no fuzzy biology).
+ * Optional seerah short-name alias for «المعلم الاول».
  */
-
-function strictNameMatch(a: string, b: string): boolean {
-  const norm = (s: string) =>
-    s
-      .trim()
-      .toLowerCase()
-      .replace(/[\u0640]/g, '')
-      .replace(/[أإآ]/g, 'ا')
-      .replace(/ة/g, 'ه')
-      .replace(/ى/g, 'ي')
-  const na = norm(a)
-  const nb = norm(b)
-  if (na === nb) return true
-  const base = (s: string) => s.replace(/\.[^.]+$/, '')
-  return base(na) === base(nb)
-}
+import {
+  isMuallimSeerahShortQuery,
+  matchMuallimSeerahFile,
+  pickMuallimSeerahFile,
+} from '@/lib/files/muallim-seerah-match'
+import { filenamesStrictMatch } from '@/lib/telegram/file-jobs'
 
 export async function searchDriveBrainExactName(opts: {
   scopeId: string
   exactName: string
+  allowMuallimSeerahAlias?: boolean
 }): Promise<{ vaultFileId: string; fileName: string } | null> {
   const name = opts.exactName.trim()
   if (!name) return null
@@ -33,11 +24,32 @@ export async function searchDriveBrainExactName(opts: {
     const ownerId = await resolveChannelOwnerUserIdAsync()
     if (!ownerId) return null
 
-    const { findDriveBrainFile, downloadDriveFile } = await import(
-      '@/lib/google/drive'
-    )
-    const meta = await findDriveBrainFile(ownerId, name)
-    if (!meta || !strictNameMatch(meta.name, name)) return null
+    const { findDriveBrainFile, downloadDriveFile, listDriveFolderFiles } =
+      await import('@/lib/google/drive')
+
+    let meta = await findDriveBrainFile(ownerId, name)
+
+    if (
+      !meta &&
+      (opts.allowMuallimSeerahAlias || isMuallimSeerahShortQuery(name))
+    ) {
+      const files = await listDriveFolderFiles(ownerId, { recursive: true })
+      const mapped = files.map((f) => ({ id: f.id, originalName: f.name }))
+      const picked = pickMuallimSeerahFile(mapped, name)
+      if (picked) {
+        meta = files.find((f) => f.id === picked.id) || null
+      }
+    }
+
+    if (!meta) return null
+    if (
+      !filenamesStrictMatch(meta.name, name) &&
+      !matchMuallimSeerahFile(meta.name)
+    ) {
+      return null
+    }
+    // Hard ban biology even if somehow returned
+    if (/أحياء|احياء|biology/i.test(meta.name)) return null
 
     const dl = await downloadDriveFile(ownerId, meta)
     if (!dl?.buffer?.length) return null
