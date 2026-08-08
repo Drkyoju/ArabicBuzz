@@ -1,13 +1,14 @@
 # محركات تعديل وتحويل الملفات (Office / PDF)
 
-ترتيب الجودة العملية على Netlify (بدون خادم LibreOffice):
+ترتيب الجودة العملية على CranL:
 
 | المرتبة | المحرّك | التكلفة | الجودة | متى يُستخدم |
 |--------|---------|---------|--------|-------------|
 | **1** | **Google Drive** (استيراد → Docs/Sheets/Slides → تصدير) | **مجاني** مع حساب Google مربوط | ممتاز / فوق الممتاز للتخطيط والصور داخل عائلات Office | `convert_document` تلقائياً إن مربوط |
-| **2** | **CloudConvert** | اختياري مدفوع (`CLOUDCONVERT_API_KEY`) | ممتاز عبر العائلات والصيغ القديمة (doc/ppt/xls) | إن وُجد المفتاح وفشل/غير متاح Google |
-| **3** | **مسار مجاني محلي** (docx / exceljs / pdf-lib / pptxgenjs / JSZip) | مجاني دائماً | ممتاز للتعديل الموضعي؛ تحويل نصّي فقط لـ pdf↔docx | تعديل بدون تحويل؛ أو احتياطي تحويل |
-| — | LibreOffice headless عبر جسر الماك | مجاني محلياً | ممتاز إن وُجد على الماك | **غير مدمج** كمحرّك تحويل داخل Netlify (MarkItDown للقراءة فقط) |
+| **2** | **LibreOffice** `soffice` | **مجاني** (مثبت على صورة CranL افتراضياً) | ممتاز لـ Word↔PDF وصيغ Office | عند توفر soffice؛ يسبق أي API مدفوع |
+| **3** | **CloudConvert** | اختياري مدفوع (`CLOUDCONVERT_API_KEY`) — **لا يُشترى تلقائياً** | ممتاز عبر العائلات والصيغ القديمة (doc/ppt/xls) | فقط إن وُجد المفتاح بعد موافقة |
+| **4** | **مسار مجاني محلي** (docx / exceljs / pdf-lib / pptxgenjs / JSZip) | مجاني دائماً | ممتاز للتعديل الموضعي؛ تحويل نصّي فقط لـ pdf↔docx | تعديل بدون تحويل؛ أو احتياطي تحويل |
+| — | LibreOffice / Tesseract عبر جسر الماك | مجاني محلياً | ممتاز إن وُجد على الماك | OCR صفحات + تحويل مرئي |
 | — | ConvertAPI وغيره | مدفوع | مشابه لـ CloudConvert | غير مستخدم — CloudConvert كافٍ كاحتياطي مدفوع |
 
 ## ما يفعله المستخدم (بدون دفع)
@@ -62,11 +63,12 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
    - Excel/CSV ↔ Google Sheets ↔ `xlsx` / `pdf` / `csv`…
    - PowerPoint ↔ Google Slides ↔ `pptx` / `pdf`…
    - يُرفع ملف مؤقت → يُصدَّر → يُنقل لسلة المهملات (`drive.file`).
-2. **CloudConvert** — إن `CLOUDCONVERT_API_KEY` مضبوط.
-3. **إعادة بناء نصية** — `pdf` ↔ `docx` / `txt` / `md` فقط (بدون صور/تخطيط أصلي).
-4. **خطأ عربي واضح** — يوجّه لربط Google أو إضافة المفتاح المدفوع.
+2. **LibreOffice** — إن `soffice` متوفر (افتراضي على CranL).
+3. **CloudConvert** — إن `CLOUDCONVERT_API_KEY` مضبوط (اختياري مدفوع).
+4. **إعادة بناء نصية** — `pdf` ↔ `docx` / `txt` / `md` / جداول منظّمة…
+5. **خطأ عربي واضح** — يوجّه لربط Google أو إضافة المفتاح المدفوع.
 
-فرض المحرّك: `engine: "google" | "cloudconvert" | "free" | "auto"`.
+فرض المحرّك: `engine: "google" | "libreoffice" | "cloudconvert" | "free" | "auto"`.
 
 ### مخرجات الشات (إلزامي)
 

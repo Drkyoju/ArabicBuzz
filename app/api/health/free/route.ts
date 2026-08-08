@@ -86,6 +86,16 @@ export async function GET() {
   const sttPrimaryReady = willowConfigured || geminiKeyPresent
   const sttBackupReady = hfTokenPresent || groqKeyPresent
 
+  let libreOfficeOk = false
+  let libreOfficeStatusAr = 'غير مفحوص'
+  try {
+    const lo = await import('@/lib/documents/libreoffice-convert')
+    libreOfficeOk = await lo.libreOfficeAvailable()
+    libreOfficeStatusAr = await lo.libreOfficeStatusAr()
+  } catch {
+    libreOfficeStatusAr = 'تعذّر فحص LibreOffice'
+  }
+
   return Response.json({
     ok: freeReady && (prismaOk || supabaseOk),
     freeReady,
@@ -108,6 +118,13 @@ export async function GET() {
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
     webSearchFreePath: true,
     webCrawlFreePath: true,
+    officeConvertFreePath: true,
+    libreOfficeOk,
+    libreOfficeStatusAr,
+    libreOfficeImageFlag: process.env.AB_LIBREOFFICE_IMAGE || '0',
+    googleDriveConvertHintAr:
+      'مجاني مع حساب Google مربوط (drive.file) — الأفضل للعربية والتخطيط',
+    cloudConvertOptionalPaid: true,
     hitlDisabled: isHitlDisabled(),
     hitlPostureAr: isHitlDisabled()
       ? 'الموافقات معطّلة — عيّن HITL_DISABLED=0 (موافقة للحذف فقط تحت AUTO)'

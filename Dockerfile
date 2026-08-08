@@ -29,13 +29,16 @@ RUN npx prisma generate && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-# Optional LibreOffice for high-fidelity Word↔PDF (large image). Default OFF for CranL slim.
-ARG INSTALL_LIBREOFFICE=0
+# LibreOffice (free/OSS) for high-fidelity Word↔PDF on CranL.
+# Default ON. Pass --build-arg INSTALL_LIBREOFFICE=0 for a thin image if
+# CranL build times out or the image is too large.
+ARG INSTALL_LIBREOFFICE=1
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
        apt-get install -y --no-install-recommends \
          libreoffice-writer-nogui libreoffice-calc-nogui \
-         fonts-noto-core fonts-noto-ui-core fonts-dejavu-core; \
+         fonts-noto-core fonts-noto-ui-core fonts-dejavu-core \
+         fonts-liberation fonts-freefont-ttf; \
      fi \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
@@ -45,6 +48,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# Surfaced by /api/health/free — binary still verified at runtime via soffice.
+ENV AB_LIBREOFFICE_IMAGE=$INSTALL_LIBREOFFICE
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

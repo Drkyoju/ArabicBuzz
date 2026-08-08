@@ -2,8 +2,8 @@
  * Convert between Office/PDF formats.
  * Chain (engine=auto):
  *  1) Google Drive import/export — best free quality when Google is linked
- *  2) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
- *  3) LibreOffice soffice — when installed (Word↔PDF etc.; not on default CranL image)
+ *  2) LibreOffice soffice — free/OSS (default on CranL via INSTALL_LIBREOFFICE=1)
+ *  3) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
  *  4) Free Arabic text / structured rebuild (pdf/docx/xlsx/pptx/…)
  */
 import { extractDocumentText } from '@/lib/rag/extract'
@@ -126,11 +126,13 @@ export async function executeConvertDocument(
   const engine =
     engineRaw === 'google' || engineRaw === 'google-drive'
       ? 'google'
-      : engineRaw === 'cloudconvert'
-        ? 'cloudconvert'
-        : engineRaw === 'free'
-          ? 'free'
-          : 'auto'
+      : engineRaw === 'libreoffice' || engineRaw === 'soffice'
+        ? 'libreoffice'
+        : engineRaw === 'cloudconvert'
+          ? 'cloudconvert'
+          : engineRaw === 'free'
+            ? 'free'
+            : 'auto'
 
   const found = await findWorkspaceFile(scopeId, ref)
   if (!found) {
@@ -225,7 +227,65 @@ export async function executeConvertDocument(
     }
   }
 
-  // ── 2) Optional paid: CloudConvert ──
+  // ── 2) LibreOffice (free/OSS — default on CranL production image) ──
+  // Prefer for Word↔PDF layout fidelity before any paid API.
+  // Skip PDF→Office here (LO often preserves broken ToUnicode); Drive/visual first.
+  const loOk =
+    engine === 'auto' ||
+    engine === 'free' ||
+    engine === 'libreoffice'
+      ? await libreOfficeAvailable()
+      : false
+  if (engine === 'libreoffice' && !loOk) {
+    throw new Error(
+      'LibreOffice (soffice) غير متوفر في هذه البيئة. اربط Google للتحويل المجاني، أو أعد بناء الصورة بـ INSTALL_LIBREOFFICE=1.'
+    )
+  }
+  if (
+    loOk &&
+    canConvertViaLibreOffice(fromFormat, toFormat) &&
+    !(fromFormat === 'pdf' && (toFormat === 'docx' || toFormat === 'xlsx'))
+  ) {
+    try {
+      const converted = await convertViaLibreOffice({
+        buffer: hit.buffer,
+        filename: hit.meta.originalName,
+        inputFormat: fromFormat,
+        outputFormat: toFormat,
+      })
+      const filename = ensureFilename(
+        converted.filename || outputName,
+        toFormat as DocFormat
+      )
+      const saved = await saveWorkspaceFile({
+        scopeId,
+        buffer: converted.buffer,
+        originalName: filename,
+        mimeType: converted.mimeType,
+        markEdited: true,
+      })
+      return attachmentResult({
+        saved,
+        scopeId,
+        fromFormat,
+        toFormat,
+        engine: 'libreoffice',
+        sourceFileId: hit.meta.id,
+        sourceName: hit.meta.originalName,
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر LibreOffice (مجاني · soffice). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
+        noteAr:
+          'محرّك: LibreOffice محلي (مجاني/مفتوح المصدر). الأفضل مع Drive للعربية. النتيجة مرفق شات (معاينة+تنزيل).',
+      })
+    } catch (e) {
+      loFailAr = e instanceof Error ? e.message : 'فشل LibreOffice'
+      if (engine === 'libreoffice') {
+        throw e instanceof Error ? e : new Error(String(e))
+      }
+      // fall through
+    }
+  }
+
+  // ── 3) Optional paid: CloudConvert (only if key set — never required) ──
   const wantCloud =
     engine === 'cloudconvert' ||
     (engine === 'auto' &&
@@ -262,7 +322,7 @@ export async function executeConvertDocument(
         sourceName: hit.meta.originalName,
         messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر CloudConvert (اختياري مدفوع). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
         noteAr:
-          'محرّك: CloudConvert. الأفضل مجاناً: اربط Google. النتيجة مرفق شات (معاينة+تنزيل).',
+          'محرّك: CloudConvert (مدفوع). الأفضل مجاناً: Google Drive أو LibreOffice. النتيجة مرفق شات (معاينة+تنزيل).',
       })
     } catch (e) {
       cloudFailAr =
@@ -276,57 +336,8 @@ export async function executeConvertDocument(
 
   if (engine === 'cloudconvert' && !cloudConvertConfigured()) {
     throw new Error(
-      'CloudConvert غير مضبوط. الأفضل مجاناً: اربط Google من الإعدادات، أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع).'
+      'CloudConvert غير مضبوط. الأفضل مجاناً: اربط Google أو استخدم LibreOffice على CranL، أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع).'
     )
-  }
-
-  // ── 3) LibreOffice (when soffice is on the host / optional Docker image) ──
-  // Prefer for Word↔PDF layout fidelity. Skip PDF→Office when we already know
-  // ToUnicode is broken (handled after extract) — try healthy pairs here first.
-  const loOk =
-    engine === 'auto' || engine === 'free'
-      ? await libreOfficeAvailable()
-      : false
-  if (
-    loOk &&
-    canConvertViaLibreOffice(fromFormat, toFormat) &&
-    // PDF→docx via LO often preserves broken ToUnicode; prefer Drive/visual.
-    !(fromFormat === 'pdf' && (toFormat === 'docx' || toFormat === 'xlsx'))
-  ) {
-    try {
-      const converted = await convertViaLibreOffice({
-        buffer: hit.buffer,
-        filename: hit.meta.originalName,
-        inputFormat: fromFormat,
-        outputFormat: toFormat,
-      })
-      const filename = ensureFilename(
-        converted.filename || outputName,
-        toFormat as DocFormat
-      )
-      const saved = await saveWorkspaceFile({
-        scopeId,
-        buffer: converted.buffer,
-        originalName: filename,
-        mimeType: converted.mimeType,
-        markEdited: true,
-      })
-      return attachmentResult({
-        saved,
-        scopeId,
-        fromFormat,
-        toFormat,
-        engine: 'libreoffice',
-        sourceFileId: hit.meta.id,
-        sourceName: hit.meta.originalName,
-        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر LibreOffice (soffice). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
-        noteAr:
-          'محرّك: LibreOffice محلي. على CranL الافتراضي غير مثبت — فعّل INSTALL_LIBREOFFICE=1 عند البناء أو اربط Google.',
-      })
-    } catch (e) {
-      loFailAr = e instanceof Error ? e.message : 'فشل LibreOffice'
-      // fall through
-    }
   }
 
   // ── 4) Free text / structured rebuild ──

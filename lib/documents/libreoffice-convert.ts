@@ -1,7 +1,7 @@
 /**
  * High-fidelity Office conversion via LibreOffice `soffice` when available.
- * CranL slim image does NOT ship LibreOffice by default (size/memory).
- * Enable with INSTALL_LIBREOFFICE=1 build arg, or install on the host / Mac bridge.
+ * CranL production image installs LibreOffice by default (INSTALL_LIBREOFFICE=1).
+ * Pass INSTALL_LIBREOFFICE=0 for a thin image; host / Mac bridge still work.
  */
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
@@ -63,6 +63,17 @@ export async function resolveLibreOfficeBinary(): Promise<string | null> {
 
 export async function libreOfficeAvailable(): Promise<boolean> {
   return Boolean(await resolveLibreOfficeBinary())
+}
+
+/** Arabic status for integrations / health (no secrets). */
+export async function libreOfficeStatusAr(): Promise<string> {
+  if (await libreOfficeAvailable()) {
+    return 'مجاني · مفعّل (LibreOffice soffice على الخادم)'
+  }
+  if (process.env.AB_LIBREOFFICE_IMAGE === '1') {
+    return 'متوقع في الصورة لكن soffice غير موجود — راجع بناء Docker'
+  }
+  return 'غير مثبت — الصورة الرقيقة أو INSTALL_LIBREOFFICE=0 · اربط Google أو أعد البناء بـ INSTALL_LIBREOFFICE=1'
 }
 
 const LO_PAIRS = new Set([

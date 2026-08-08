@@ -16,3 +16,6 @@ branch = "main"
 # Prefer germany/us-east on Basic; MENA (riyadh/jeddah/egypt) needs Pro+
 region = "germany"
 port = 3000
+# Dockerfile defaults INSTALL_LIBREOFFICE=1 (free Word↔PDF). If a deploy fails
+# on image size/timeout, rebuild with --build-arg INSTALL_LIBREOFFICE=0 and rely
+# on Google Drive convert (free with linked OAuth).

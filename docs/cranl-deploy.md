@@ -104,9 +104,21 @@ Next.js inlines `NEXT_PUBLIC_*` at **build** time. CranL often only has env at *
 ## Local Docker build (optional)
 
 ```bash
+# Production-like (includes LibreOffice — larger image)
 docker build -t arabicbuzz .
+# Thin image without LibreOffice (rely on Google Drive convert):
+docker build --build-arg INSTALL_LIBREOFFICE=0 -t arabicbuzz:slim .
 docker run --rm -p 3000:3000 --env-file .env.local arabicbuzz
 ```
+
+### LibreOffice on CranL
+
+Dockerfile defaults `INSTALL_LIBREOFFICE=1` (free/OSS Writer+Calc headless + fonts).
+After deploy, `GET /api/health/free` should show `libreOfficeOk: true`.
+
+If a CranL build fails on size/timeout, rebuild with `INSTALL_LIBREOFFICE=0` and keep
+**Google Drive convert** (free with linked OAuth — `drive.file`). Do not buy CloudConvert
+unless you explicitly approve a paid key.
 
 ## QA (agents)
 

@@ -24,6 +24,10 @@ import {
   cloudConvertStatusAr,
 } from '@/lib/documents/cloudconvert'
 import { googleDriveConvertStatusAr } from '@/lib/documents/google-drive-convert'
+import {
+  libreOfficeAvailable,
+  libreOfficeStatusAr,
+} from '@/lib/documents/libreoffice-convert'
 import { getWorkspaceReadiness } from '@/lib/integrations/auto-wire'
 
 export const dynamic = 'force-dynamic'
@@ -141,6 +145,8 @@ export async function GET() {
     firecrawlConfigured: Boolean(process.env.FIRECRAWL_API_KEY?.trim()),
     cloudConvertConfigured: cloudConvertConfigured(),
     cloudConvertStatusAr: cloudConvertStatusAr(),
+    libreOfficeConfigured: await libreOfficeAvailable(),
+    libreOfficeStatusAr: await libreOfficeStatusAr(),
     /** Hint for UI — actual convert uses the signed-in user's Google token. */
     googleDriveConvertHintAr: googleDriveConvertStatusAr(false),
     googleDriveConvertBestFreeAr: readiness?.googleEmail

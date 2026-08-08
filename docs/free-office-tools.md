@@ -22,7 +22,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
 | PDF→DOCX تخطيط | Google Drive → مرئي ماك → pdf2docx | — | تجنّب rebuild نصّي إن ToUnicode معطوب |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
-| Office↔PDF محلي | **LibreOffice** `soffice --headless` | الماك / Docker اختياري | CranL الافتراضي بدون soffice — `INSTALL_LIBREOFFICE=1` |
+| Office↔PDF محلي | **LibreOffice** `soffice --headless` | CranL (افتراضي) / الماك | مجاني — `INSTALL_LIBREOFFICE=1` في Dockerfile |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
 | DOCX/PPTX/XLSX | python-docx · python-pptx · openpyxl + JS (docx/exceljs) | venv / Netlify | تعديل واستخراج |
 | قرارات طويلة → Markdown | **MarkItDown** | `POST /markitdown` + MCP | `pip install "markitdown[all]"` |
@@ -79,17 +79,29 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 | متغير | إلزامي؟ | الدور |
 |-------|---------|--------|
 | `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك |
-| `GEMINI_API_KEY` | عادة موجود | احتياطي OCR على Netlify بدون ماك |
+| `GEMINI_API_KEY` | عادة موجود | احتياطي OCR على Netlify/CranL بدون ماك |
 | `QARI_OCR_URL` | اختياري | Qari محلي |
-| `CLOUDCONVERT_API_KEY` | اختياري مدفوع | تحويل صيغ فقط |
+| Google OAuth (ربط المستخدم) | لمسار Drive | لا مفتاح تحويل إضافي — يستخدم `drive.file` بعد الربط |
+| `CLOUDCONVERT_API_KEY` | اختياري مدفوع | تحويل صيغ فقط — **لا يُشترى تلقائياً** |
 | `TESSERACT_CMD` | اختياري | مسار tesseract إن لم يكن في PATH |
 | `TESSERACT_OCR_LANG` | اختياري | افتراضي `ara+eng` |
+
+## خدمات مدفوعة (اختيارية — موافقة صريحة مطلوبة)
+
+| اسم الخدمة | ليش | تقريباً السعر / نموذج الدفع | رابط | هل نقدر نشتغل بدونها بعد تفعيل المجاني؟ |
+|------------|-----|------------------------------|------|------------------------------------------|
+| **CloudConvert** | تحويل عبر عائلات Office (مثل PDF→XLSX) وجودة عالية كاحتياطي | باقات حسب الدقائق/الملفات — غالباً اشتراك أو رصيد prepaid | https://cloudconvert.com/pricing | **نعم** — Drive + LibreOffice + rebuild منظّم يكفي لمعظم Word↔PDF |
+| **Marker / Surya OCR (سحابة مدفوعة)** | تخطيط OCR عربي أدق من Tesseract | حسب المزوّد (غالباً GPU/ساعة أو API) | روابط الجسور في `.env.example` | **نعم** — Tesseract عبر الماك + Gemini/Qari مجاني/موجود |
+| **ConvertAPI / Aspose / Adobe PDF Services** | غير مدمجة؛ بدائل مدفوعة | حسب المزود | — | **نعم** — غير مستخدمة |
+| **OCR سحابي مدفوع (غير Gemini)** | إن رغبت بمزوّد خارج المكدس الحالي | حسب المزود | — | **نعم** — المسار المجاني مفعّل |
+
+**لا نضيف مفاتيح مدفوعة دون موافقتك.** المسار المعتمد: LibreOffice على CranL + Google Drive بعد ربط الحساب.
 
 ## حدود صادقة
 
 - مسح ضبابي / مائل / دقة منخفضة → أخطاء OCR متوقعة.
 - PDF فيه نص معطوب (ToUnicode) يبدو صحيحاً بصرياً لكن النسخ يعطي طلاسم — نفضّل OCR أو Google Drive لا rebuild نصّي أعمى.
 - بدون جسر ماك ولا Gemini: OCR المحلي غير متاح على Netlify (لا Tesseract في الدالة).
-- LibreOffice غير مثبت على Netlify — التحويل المحلي عبر الجسر فقط.
+- LibreOffice غير مثبت على Netlify — على **CranL** يُثبَّت افتراضياً (`INSTALL_LIBREOFFICE=1`).
 
 انظر أيضاً: [file-edit-engines.md](./file-edit-engines.md) · مهارة `document_ocr_workflow`.

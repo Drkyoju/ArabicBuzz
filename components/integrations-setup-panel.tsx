@@ -23,6 +23,12 @@ export function IntegrationsSetupPanel() {
   const [cloudConvertStatusAr, setCloudConvertStatusAr] = useState<string | null>(
     null
   )
+  const [libreOfficeConfigured, setLibreOfficeConfigured] = useState<
+    boolean | null
+  >(null)
+  const [libreOfficeStatusAr, setLibreOfficeStatusAr] = useState<string | null>(
+    null
+  )
   const [googleConvertHintAr, setGoogleConvertHintAr] = useState<string | null>(
     null
   )
@@ -50,6 +56,12 @@ export function IntegrationsSetupPanel() {
           setCloudConvertStatusAr(
             typeof z.cloudConvertStatusAr === 'string'
               ? z.cloudConvertStatusAr
+              : null
+          )
+          setLibreOfficeConfigured(Boolean(z.libreOfficeConfigured))
+          setLibreOfficeStatusAr(
+            typeof z.libreOfficeStatusAr === 'string'
+              ? z.libreOfficeStatusAr
               : null
           )
           setGoogleConvertHintAr(
@@ -99,7 +111,7 @@ export function IntegrationsSetupPanel() {
         <p className="mb-1 font-semibold text-ab-ink">
           تحويل الملفات{' '}
           <span className="font-normal text-ab-muted-soft">
-            · الأفضل مجاناً عبر Google
+            · مجاني: Google Drive + LibreOffice
           </span>
         </p>
         <p className="mb-1 text-[11px]">
@@ -109,15 +121,18 @@ export function IntegrationsSetupPanel() {
         <ol className="mb-2 list-decimal space-y-1 pe-4 text-[11px]">
           <li>
             من الإعدادات → عقل الشركة: اضغط{' '}
-            <strong>«١) ربط Google (Drive)»</strong> مرة واحدة (مطلوب)
+            <strong>«١) ربط Google (Drive)»</strong> مرة واحدة (مطلوب لمسار Drive)
           </li>
           <li>
             بعدها تحويل PDF→Word في الشات يستخدم Drive مجاناً بجودة عالية
           </li>
           <li>
+            LibreOffice على الخادم (مجاني) يكمّل Word↔PDF دون مفتاح مدفوع
+          </li>
+          <li>
             التعديل الموضعي لـ Word/Excel/PPT يعمل دائماً مجاناً بدون تحويل
           </li>
-          <li>CloudConvert أدناه اختياري مدفوع كاحتياطي فقط</li>
+          <li>CloudConvert أدناه اختياري مدفوع كاحتياطي فقط — لا يُشترى تلقائياً</li>
         </ol>
         <p className="mb-1 text-[11px] text-stone-500">
           إن لم تضغط «ربط Google» فلن يعمل مسار Drive — هذا زر موافقة في حسابك
@@ -128,6 +143,23 @@ export function IntegrationsSetupPanel() {
           <span dir="ltr" className="font-mono">
             docs/file-edit-engines.md
           </span>
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3">
+        <p className="mb-1 font-semibold text-ab-ink">
+          LibreOffice{' '}
+          <span className="font-normal text-ab-muted-soft">
+            ·{' '}
+            {libreOfficeStatusAr ||
+              (libreOfficeConfigured
+                ? 'مجاني · مفعّل'
+                : 'يُثبَّت مع صورة CranL (INSTALL_LIBREOFFICE=1)')}
+          </span>
+        </p>
+        <p className="mb-1 text-[11px]">
+          محرّك مجاني/مفتوح المصدر على حاوية CranL لـ Word↔PDF وصيغ Office
+          الشائعة. لا يحتاج مفتاح API. الأفضل مع Drive للعربية والملفات الممسوحة.
         </p>
       </div>
 
