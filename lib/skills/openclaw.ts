@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
@@ -10,6 +9,12 @@ export interface OpenClawSkill {
   author?: string
   systemInstructions: string
   toolsRequired?: string[]
+}
+
+/** Lazy fs — avoids Turbopack DirAssetReference walks over process.cwd(). */
+function nodeFs() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('node:fs') as typeof import('node:fs')
 }
 
 function slugify(input: string): string {
@@ -28,6 +33,7 @@ function splitFrontmatter(content: string): { data: Record<string, unknown>; bod
 }
 
 export function parseSkillFile(filePathOrContent: string): OpenClawSkill {
+  const fs = nodeFs()
   let content = filePathOrContent
   let fileStem = 'skill'
   if (
@@ -81,12 +87,11 @@ export function serializeOpenClawSkill(skill: OpenClawSkill): string {
 }
 
 export function loadSkillsFromDirectory(dirPath: string): OpenClawSkill[] {
-  if (!fs.existsSync(/*turbopackIgnore: true*/ dirPath)) return []
+  const fs = nodeFs()
+  if (!fs.existsSync(dirPath)) return []
   const out: OpenClawSkill[] = []
   const walk = (dir: string) => {
-    for (const entry of fs.readdirSync(/*turbopackIgnore: true*/ dir, {
-      withFileTypes: true,
-    })) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) walk(full)
       else if (entry.name.endsWith('.md')) {
@@ -102,11 +107,18 @@ export function loadSkillsFromDirectory(dirPath: string): OpenClawSkill[] {
   return out
 }
 
+/** Opaque to Turbopack — avoids DirAssetReference on the whole project root. */
+function runtimeCwd(): string {
+  const p = process as NodeJS.Process
+  return Reflect.apply(p.cwd, p, [])
+}
+
 export function saveSkillToWorkspace(
   skill: OpenClawSkill,
   root = 'workspace/skills'
 ): string {
-  const dir = path.join(process.cwd(), root)
+  const fs = nodeFs()
+  const dir = path.join(/* turbopackIgnore: true */ runtimeCwd(), root)
   fs.mkdirSync(dir, { recursive: true })
   const filePath = path.join(dir, `${skill.id}.md`)
   fs.writeFileSync(filePath, serializeOpenClawSkill(skill), 'utf8')
@@ -116,8 +128,11 @@ export function saveSkillToWorkspace(
 export function loadAllOpenClawSkills(): OpenClawSkill[] {
   const roots = ['.openclaw/skills', 'workspace/skills', 'skills']
   const map = new Map<string, OpenClawSkill>()
+  const cwd = runtimeCwd()
   for (const root of roots) {
-    const skills = loadSkillsFromDirectory(path.join(process.cwd(), root))
+    const skills = loadSkillsFromDirectory(
+      path.join(/* turbopackIgnore: true */ cwd, root)
+    )
     for (const s of skills) map.set(s.id, s)
   }
   return [...map.values()]

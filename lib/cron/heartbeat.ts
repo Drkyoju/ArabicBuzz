@@ -44,9 +44,13 @@ export function parseHeartbeatMarkdown(content: string): HeartbeatTask[] {
 }
 
 export function loadHeartbeatFile(filePath?: string): HeartbeatTask[] {
-  const p = filePath || path.join(process.cwd(), 'HEARTBEAT.md')
-  if (!fs.existsSync(p)) return []
-  return parseHeartbeatMarkdown(fs.readFileSync(p, 'utf8'))
+  const p =
+    filePath ||
+    path.join(/* turbopackIgnore: true */ process.cwd(), 'HEARTBEAT.md')
+  if (!fs.existsSync(/* turbopackIgnore: true */ p)) return []
+  return parseHeartbeatMarkdown(
+    fs.readFileSync(/* turbopackIgnore: true */ p, 'utf8')
+  )
 }
 
 export function getDueHeartbeatTasks(

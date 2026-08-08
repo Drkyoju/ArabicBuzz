@@ -18,11 +18,11 @@ async function readFirstExisting(paths: string[]): Promise<Buffer | null> {
 /** Serve local Noto Naskh for client-side PDF text annotation burn-in. */
 export async function GET() {
   try {
-    const cwd = process.cwd()
+    const cwd = /* turbopackIgnore: true */ process.cwd()
     const buf = await readFirstExisting([
-      path.join(cwd, 'public/fonts/NotoNaskhArabic-Regular.ttf'),
-      path.join(cwd, 'assets/fonts/NotoNaskhArabic-Regular.ttf'),
-      path.join(cwd, 'fonts/NotoNaskhArabic-Regular.ttf'),
+      path.join(/* turbopackIgnore: true */ cwd, 'public/fonts/NotoNaskhArabic-Regular.ttf'),
+      path.join(/* turbopackIgnore: true */ cwd, 'assets/fonts/NotoNaskhArabic-Regular.ttf'),
+      path.join(/* turbopackIgnore: true */ cwd, 'fonts/NotoNaskhArabic-Regular.ttf'),
     ])
     if (!buf) {
       return Response.json(
@@ -30,7 +30,7 @@ export async function GET() {
         { status: 404 }
       )
     }
-    return new Response(buf, {
+    return new Response(new Uint8Array(buf), {
       status: 200,
       headers: {
         'Content-Type': 'font/ttf',

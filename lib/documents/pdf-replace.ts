@@ -45,17 +45,14 @@ function projectRoot(): string {
 function candidatePythons(): string[] {
   const root = projectRoot()
   const env = process.env.PDF_REPLACE_PYTHON?.trim()
-  return [
-    ...(env ? [env] : []),
-    join(root, 'scripts/pdf-tools-venv/bin/python'),
-    join(root, 'tmp/pdf-venv/bin/python'),
-    'python3',
-    'python',
-  ]
+  // Concatenate so Turbopack cannot treat these as DirAssetReference targets.
+  const venvA = `${root}/scripts/${'pdf-tools'}-venv/bin/python`
+  const venvB = `${root}/tmp/${'pdf'}-venv/bin/python`
+  return [...(env ? [env] : []), venvA, venvB, 'python3', 'python']
 }
 
 function scriptPath(): string {
-  return join(projectRoot(), 'scripts/pdf-arabic-replace.py')
+  return `${projectRoot()}/scripts/pdf-arabic-replace.py`
 }
 
 function runProcess(
