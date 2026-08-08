@@ -190,13 +190,18 @@ export async function executeRoomCalendarReconcile(
     autoAdjust: Boolean(params.autoAdjust),
     notify: params.notify !== false,
   })
+  const titleDupes = result.duplicates.filter(
+    (d) => d.kind === 'exact_copy' || d.kind === 'same_title_near_time'
+  )
   return {
     ok: true,
     scopeId,
     count: result.events.length,
     conflictCount: result.conflicts.length,
+    duplicateCount: result.duplicates.length,
     adjusted: result.adjusted,
     conflicts: result.conflicts,
+    duplicates: result.duplicates,
     events: result.events.map((e) => ({
       id: e.id,
       titleAr: e.titleAr,
@@ -205,10 +210,12 @@ export async function executeRoomCalendarReconcile(
       status: e.status,
     })),
     messageAr:
-      result.conflicts.length === 0
-        ? 'تقويم الغرفة بلا تعارضات ظاهرة.'
+      result.conflicts.length === 0 && titleDupes.length === 0
+        ? 'سبورة التقويم بلا تعارضات أو تكرار ظاهر.'
         : result.adjusted.length > 0
-          ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.`
-          : `وُجد ${result.conflicts.length} تعارضاً — مرّر autoAdjust=true لإزاحة المواعيد المتعارضة.`,
+          ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.${titleDupes.length ? ` و${titleDupes.length} تكرار للمراجعة.` : ''}`
+          : result.conflicts.length > 0
+            ? `وُجد ${result.conflicts.length} تعارضاً زمنياً${titleDupes.length ? ` و${titleDupes.length} تكرار` : ''} — مرّر autoAdjust=true لإزاحة المواعيد المتعارضة.`
+            : `وُجد ${titleDupes.length} مجموعة تكرار محتمل — ألغِ أو عدّل النسخ الزائدة على السبورة.`,
   }
 }

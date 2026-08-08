@@ -118,18 +118,25 @@ export async function POST(req: NextRequest) {
         autoAdjust: Boolean(body.autoAdjust),
         notify: body.notify !== false,
       })
+      const titleDupes = (result.duplicates || []).filter(
+        (d) => d.kind === 'exact_copy' || d.kind === 'same_title_near_time'
+      )
       const messageAr =
-        result.conflicts.length === 0
-          ? 'تقويم الغرفة بلا تعارضات ظاهرة.'
+        result.conflicts.length === 0 && titleDupes.length === 0
+          ? 'سبورة التقويم بلا تعارضات أو تكرار ظاهر.'
           : result.adjusted.length > 0
-            ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.`
-            : `وُجد ${result.conflicts.length} تعارضاً — مرّر autoAdjust=true لإزاحة المواعيد.`
+            ? `وُجد ${result.conflicts.length} تعارضاً — عُدّل ${result.adjusted.length} موعداً.${titleDupes.length ? ` و${titleDupes.length} تكرار يحتاج مراجعة.` : ''}`
+            : result.conflicts.length > 0
+              ? `وُجد ${result.conflicts.length} تعارضاً زمنياً${titleDupes.length ? ` و${titleDupes.length} تكرار` : ''} — مرّر autoAdjust=true لإزاحة التعارضات.`
+              : `وُجد ${titleDupes.length} مجموعة تكرار محتمل — راجع السبورة يدوياً.`
       return NextResponse.json({
         events: result.events,
         conflicts: result.conflicts,
+        duplicates: result.duplicates,
         adjusted: result.adjusted,
         count: result.events.length,
         conflictCount: result.conflicts.length,
+        duplicateCount: result.duplicates.length,
         messageAr,
       })
     }

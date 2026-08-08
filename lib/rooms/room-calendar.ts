@@ -101,10 +101,133 @@ export type ConflictInfo = {
   overlapMinutes: number
 }
 
+export type RoomDuplicateKind =
+  | 'exact_copy'
+  | 'same_title_near_time'
+  | 'time_overlap'
+
+export type RoomDuplicateGroup = {
+  kind: RoomDuplicateKind
+  labelAr: string
+  events: Array<{
+    eventId: string
+    titleAr: string
+    startsAt: string
+    endsAt: string
+    createdByAr: string | null
+    source: string
+  }>
+}
+
 function overlapMinutes(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
   const start = Math.max(aStart.getTime(), bStart.getTime())
   const end = Math.min(aEnd.getTime(), bEnd.getTime())
   return Math.max(0, Math.round((end - start) / 60_000))
+}
+
+function normalizeRoomTitle(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[\u064B-\u065F]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/**
+ * Detect duplicate / near-duplicate appointments on the shared room whiteboard.
+ * Complements time-overlap conflicts with title-based duplicate groups.
+ */
+export function findRoomDuplicateGroups(
+  events: RoomCalendarEvent[]
+): RoomDuplicateGroup[] {
+  const active = events.filter((e) => e.status !== 'cancelled')
+  const groups: RoomDuplicateGroup[] = []
+  const seenPair = new Set<string>()
+
+  const pushGroup = (
+    kind: RoomDuplicateKind,
+    labelAr: string,
+    a: RoomCalendarEvent,
+    b: RoomCalendarEvent
+  ) => {
+    const key = [kind, a.id, b.id].sort().join('|')
+    if (seenPair.has(key)) return
+    seenPair.add(key)
+    const existing = groups.find(
+      (g) =>
+        g.kind === kind &&
+        g.events.some((e) => e.eventId === a.id || e.eventId === b.id)
+    )
+    const row = (e: RoomCalendarEvent) => ({
+      eventId: e.id,
+      titleAr: e.titleAr,
+      startsAt: e.startsAt,
+      endsAt: e.endsAt,
+      createdByAr: e.createdByAr,
+      source: e.source,
+    })
+    if (existing) {
+      for (const e of [a, b]) {
+        if (!existing.events.some((x) => x.eventId === e.id)) {
+          existing.events.push(row(e))
+        }
+      }
+      return
+    }
+    groups.push({ kind, labelAr, events: [row(a), row(b)] })
+  }
+
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const a = active[i]
+      const b = active[j]
+      const ta = normalizeRoomTitle(a.titleAr)
+      const tb = normalizeRoomTitle(b.titleAr)
+      const sa = new Date(a.startsAt).getTime()
+      const sb = new Date(b.startsAt).getTime()
+      const ea = new Date(a.endsAt).getTime()
+      const eb = new Date(b.endsAt).getTime()
+
+      if (
+        ta &&
+        ta === tb &&
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Math.abs(sa - sb) < 60_000
+      ) {
+        pushGroup('exact_copy', 'نسخة مكررة بنفس العنوان والوقت', a, b)
+        continue
+      }
+
+      if (
+        ta &&
+        ta === tb &&
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Math.abs(sa - sb) <= 2 * 60 * 60 * 1000
+      ) {
+        pushGroup(
+          'same_title_near_time',
+          'نفس الموعد بعنوان متطابق ووقت قريب (± ساعتين)',
+          a,
+          b
+        )
+      }
+
+      if (
+        Number.isFinite(sa) &&
+        Number.isFinite(sb) &&
+        Number.isFinite(ea) &&
+        Number.isFinite(eb) &&
+        sa < eb &&
+        sb < ea
+      ) {
+        pushGroup('time_overlap', 'تعارض زمني (حجز مزدوج على السبورة)', a, b)
+      }
+    }
+  }
+
+  return groups
 }
 
 export function findRoomConflicts(
@@ -593,8 +716,8 @@ export type RoomCalendarConflictPair = {
 }
 
 /**
- * Sort board by date/time then who added; surface overlapping pairs;
- * optionally auto-shift later events; notify room on conflicts.
+ * Sort board by date/time then who added; surface overlapping pairs and
+ * title duplicates; optionally auto-shift later events; notify on conflicts.
  */
 export async function reconcileRoomCalendar(opts: {
   scopeId: string
@@ -603,6 +726,7 @@ export async function reconcileRoomCalendar(opts: {
 }): Promise<{
   events: RoomCalendarEvent[]
   conflicts: RoomCalendarConflictPair[]
+  duplicates: RoomDuplicateGroup[]
   adjusted: Array<{ id: string; titleAr: string; from: string; to: string }>
   messageAr: string
 }> {
@@ -616,6 +740,8 @@ export async function reconcileRoomCalendar(opts: {
       if (byWho) return byWho
       return a.createdAt.localeCompare(b.createdAt)
     })
+
+  const duplicates = findRoomDuplicateGroups(events)
 
   const conflicts: RoomCalendarConflictPair[] = []
   for (let i = 0; i < events.length; i++) {
@@ -726,12 +852,17 @@ export async function reconcileRoomCalendar(opts: {
     return (a.createdByAr || '').localeCompare(b.createdByAr || '', 'ar')
   })
 
+  const titleDupes = duplicates.filter(
+    (d) => d.kind === 'exact_copy' || d.kind === 'same_title_near_time'
+  )
   const messageAr =
-    conflicts.length === 0
-      ? `تقويم الغرفة مرتّب: ${sorted.length} موعداً بلا تعارض.`
+    conflicts.length === 0 && titleDupes.length === 0
+      ? `سبورة التقويم مرتّبة: ${sorted.length} موعداً بلا تعارض أو تكرار.`
       : opts.autoAdjust && adjusted.length
-        ? `وُجد ${conflicts.length} تعارض — عُدّل زمن ${adjusted.length} موعداً. راجع اللوحة.`
-        : `تنبيه: ${conflicts.length} تعارض في نفس الوقت. اطلب التسوية التلقائية أو عدّل يدوياً.`
+        ? `وُجد ${conflicts.length} تعارض زمني — عُدّل زمن ${adjusted.length} موعداً.${titleDupes.length ? ` و${titleDupes.length} مجموعة تكرار تحتاج مراجعة يدوية.` : ' راجع السبورة.'}`
+        : conflicts.length > 0
+          ? `تنبيه: ${conflicts.length} تعارض في نفس الوقت${titleDupes.length ? ` و${titleDupes.length} تكرار محتمل` : ''}. اطلب التسوية التلقائية أو عدّل يدوياً.`
+          : `تنبيه: ${titleDupes.length} مجموعة تكرار محتمل (نفس الموعد). راجع السبورة وألغِ أو عدّل النسخ الزائدة.`
 
-  return { events: sorted, conflicts, adjusted, messageAr }
+  return { events: sorted, conflicts, duplicates, adjusted, messageAr }
 }

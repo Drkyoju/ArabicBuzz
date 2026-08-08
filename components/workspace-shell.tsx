@@ -497,8 +497,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div className="min-w-0">
                 <h2 className="ab-title">تقويم الفريق</h2>
                 <p className="ab-subtitle">
-                  تقويم الغرفة المشترك — أي عضو مسجّل يضيف أو يعدّل، والمواعيد
-                  تظهر للجميع.
+                  سبورة مواعيد الفريق — أي عضو يضيف يدوياً أو ينشر من Google
+                  الشخصي، والكل يرى الجميع. الوكيل يكشف التعارض والتكرار.
                 </p>
               </div>
             </header>

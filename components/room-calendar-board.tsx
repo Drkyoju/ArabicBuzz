@@ -40,6 +40,17 @@ type ConflictInfo = {
   overlapMinutes: number
 }
 
+type DuplicateGroup = {
+  kind: string
+  labelAr: string
+  events: Array<{
+    eventId: string
+    titleAr: string
+    startsAt: string
+    createdByAr: string | null
+  }>
+}
+
 type AgendaDay = {
   offset: number
   ymd: string
@@ -146,6 +157,7 @@ export function RoomCalendarBoard({
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [conflicts, setConflicts] = useState<ConflictInfo[]>([])
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([])
   const [suggestionAr, setSuggestionAr] = useState('')
   const [busy, setBusy] = useState(false)
   const [titleAr, setTitleAr] = useState('')
@@ -506,8 +518,11 @@ export function RoomCalendarBoard({
         }
       }
     }
+    for (const g of duplicates) {
+      for (const e of g.events) ids.add(e.eventId)
+    }
     return ids
-  }, [upcoming])
+  }, [upcoming, duplicates])
 
   function resetForm() {
     setEditingId(null)
@@ -660,6 +675,7 @@ export function RoomCalendarBoard({
     setMsg('')
     setErr('')
     setConflicts([])
+    setDuplicates([])
     try {
       const res = await fetch('/api/rooms/calendar', {
         method: 'POST',
@@ -675,6 +691,7 @@ export function RoomCalendarBoard({
         error?: string
         messageAr?: string
         conflicts?: Array<{ a: ConflictInfo; b: ConflictInfo }>
+        duplicates?: DuplicateGroup[]
       }
       if (!res.ok) throw new Error(data.error || 'فشل الترتيب')
       setMsg(data.messageAr || 'تم الترتيب')
@@ -683,6 +700,7 @@ export function RoomCalendarBoard({
         if (p?.b) flat.push(p.b)
       }
       setConflicts(flat)
+      setDuplicates(Array.isArray(data.duplicates) ? data.duplicates : [])
       await load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'فشل')
@@ -827,11 +845,11 @@ export function RoomCalendarBoard({
       <div>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold text-ab-ink">
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-          تقويم الغرفة المشترك
+          سبورة تقويم الفريق
         </h2>
         <p className="ab-subtitle !mt-0">
-          أي عضو مسجّل يضيف موعداً هنا فيراه الجميع. Google الشخصي اختياري ولا يُنشر
-          إلا إذا فعّلته.
+          سبورة مشتركة: كل المواعيد التي يضيفها الأعضاء يدوياً أو ينشرونها من
+          Google الشخصي تظهر هنا للجميع. Google اختياري ولا يُنشر إلا إذا فعّلته.
         </p>
       </div>
 
@@ -1134,6 +1152,45 @@ export function RoomCalendarBoard({
         </div>
       )}
 
+      {duplicates.filter(
+        (d) => d.kind === 'exact_copy' || d.kind === 'same_title_near_time'
+      ).length > 0 && (
+        <div
+          role="status"
+          className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-xs text-violet-950"
+        >
+          <p className="flex items-center gap-1.5 font-semibold">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            تكرار محتمل — راجع النسخ على السبورة
+          </p>
+          <ul className="mt-2 space-y-2">
+            {duplicates
+              .filter(
+                (d) =>
+                  d.kind === 'exact_copy' || d.kind === 'same_title_near_time'
+              )
+              .slice(0, 4)
+              .map((g, i) => (
+                <li key={`${g.kind}-${i}`}>
+                  <span className="font-medium">{g.labelAr}</span>
+                  <ul className="mt-0.5 space-y-0.5 text-violet-900/80">
+                    {g.events.slice(0, 3).map((e) => (
+                      <li key={e.eventId}>
+                        «{e.titleAr}»
+                        {e.createdByAr ? ` · ${e.createdByAr}` : ''} ·{' '}
+                        {fmt(e.startsAt)}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-violet-900/70">
+            التسوية التلقائية لا تحذف التكرار — ألغِ أو عدّل النسخة الزائدة يدوياً.
+          </p>
+        </div>
+      )}
+
       {msg && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
           {msg}
@@ -1148,7 +1205,7 @@ export function RoomCalendarBoard({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-ab-ink">
-              تقويم الفريق · {upcoming.length} موعد
+              السبورة · {upcoming.length} موعد
           </h3>
           <div className="flex flex-wrap items-center gap-2">
             {signedIn === true && (
@@ -1157,10 +1214,10 @@ export function RoomCalendarBoard({
                 disabled={busy}
                 onClick={() => void reconcile(false)}
                 className="inline-flex items-center gap-1 text-[11px] text-stone-600 hover:text-ab-ink disabled:opacity-40"
-                title="ترتيب حسب التاريخ ومن أضاف + كشف التعارض"
+                title="ترتيب حسب التاريخ ومن أضاف + كشف التعارض والتكرار"
               >
                 <RefreshCw className="h-3 w-3" />
-                رتّب وكشّف التعارض
+                رتّب وكشّف التعارض والتكرار
               </button>
             )}
             {signedIn === true && canAccessOpsUi && hasTestCalendarNoise && (
