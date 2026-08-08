@@ -149,11 +149,8 @@ async function extractWithOfficeParser(
 }
 
 async function extractPdf(buffer: Buffer): Promise<string> {
-  const pdfMod = await import('pdf-parse')
-  const pdfParse =
-    (pdfMod as { default?: (b: Buffer) => Promise<{ text: string }> }).default ||
-    (pdfMod as unknown as (b: Buffer) => Promise<{ text: string }>)
-  const parsed = await pdfParse(buffer)
+  const { parsePdfBuffer } = await import('@/lib/documents/pdf-parse-safe')
+  const parsed = await parsePdfBuffer(buffer)
   const raw = parsed?.text
   const text = typeof raw === 'string' ? raw : raw == null ? '' : String(raw)
   const trimmed = text.trim()

@@ -97,15 +97,11 @@ async function extractPdfPages(buffer: Buffer): Promise<DocPageChunk[]> {
     }
     return pages
   } catch {
-    // Fallback: pdf-parse whole file as one unit
+    // Fallback: pdf-parse whole file as one unit (safe loader — avoid package root debug)
     try {
-      const pdfMod = await import('pdf-parse')
-      const pdfParse =
-        (pdfMod as { default?: (b: Buffer) => Promise<{ text: string }> })
-          .default ||
-        (pdfMod as unknown as (b: Buffer) => Promise<{ text: string }>)
-      const parsed = await pdfParse(buffer)
-      const raw = (parsed.text || '').trim()
+      const { parsePdfBuffer } = await import('@/lib/documents/pdf-parse-safe')
+      const parsed = await parsePdfBuffer(buffer)
+      const raw = (typeof parsed.text === 'string' ? parsed.text : '').trim()
       // Split on form feed if present
       const parts = raw.includes('\f')
         ? raw.split(/\f/)

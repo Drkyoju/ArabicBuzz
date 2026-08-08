@@ -655,7 +655,7 @@ export function getNativeAiTools(opts?: {
     }),
     pdf_annotate: tool({
       description:
-        'حرق تعليقات على PDF (بديل أداة الرسم في الموقع): sticky / text / textHighlight / rect بإحداثيات نسبية 0–1 من أعلى اليسار. ثم return_file. ليس واجهة قلم حرّة.',
+        'حرق تعليقات على PDF (بديل أداة الرسم في الموقع): sticky / text / textHighlight / highlight / pen / rect بإحداثيات نسبية 0–1 من أعلى اليسار. ثم return_file.',
       inputSchema: z.object({
         fileId: z.string(),
         text: z
@@ -663,7 +663,7 @@ export function getNativeAiTools(opts?: {
           .optional()
           .describe('اختصار: ملاحظة واحدة sticky إن لم تُمرَّر annotations'),
         kind: z
-          .enum(['sticky', 'text', 'textHighlight', 'rect'])
+          .enum(['sticky', 'text', 'textHighlight', 'highlight', 'pen', 'rect'])
           .optional(),
         pageIndex: z.number().optional(),
         x: z.number().optional(),
@@ -674,10 +674,17 @@ export function getNativeAiTools(opts?: {
         annotations: z
           .array(
             z.object({
-              kind: z.enum(['sticky', 'text', 'textHighlight', 'rect']),
+              kind: z.enum([
+                'sticky',
+                'text',
+                'textHighlight',
+                'highlight',
+                'pen',
+                'rect',
+              ]),
               pageIndex: z.number().optional(),
-              x: z.number(),
-              y: z.number(),
+              x: z.number().optional(),
+              y: z.number().optional(),
               w: z.number().optional(),
               h: z.number().optional(),
               text: z.string().optional(),
@@ -685,6 +692,10 @@ export function getNativeAiTools(opts?: {
               fontSize: z.number().optional(),
               fill: z.boolean().optional(),
               opacity: z.number().optional(),
+              width: z.number().optional(),
+              points: z
+                .array(z.object({ x: z.number(), y: z.number() }))
+                .optional(),
             })
           )
           .optional(),
