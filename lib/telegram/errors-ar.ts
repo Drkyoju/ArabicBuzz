@@ -15,18 +15,18 @@ export function formatTelegramErrorAr(
   const tag = opts?.botUsername ? `@${opts.botUsername}` : 'البوت'
 
   if (
-    /not linked|google|drive|googleapis|invalid_grant|token/i.test(lower) ||
-    /درايف|google غير مربوط|غير مربوط/.test(raw)
+    /google|drive|googleapis|invalid_grant|oauth|token/i.test(lower) ||
+    /درايف|google غير مربوط/.test(raw)
   ) {
     return [
-      '🔗 Google Drive غير مربوط لهذا المالك.',
-      'من الموقع: الإعدادات → ربط Google، ثم أعد الطلب.',
-      'يمكنني العمل على ملفات خزنة الغرفة المرفوعة هنا بدون Drive.',
+      '📎 يمكنني تنفيذ طلبك على مرفق تيليجرام / خزنة الغرفة بدون Drive.',
+      'إن احتجت أدوات Drive/Gmail لاحقاً: الإعدادات → ربط Google.',
+      'أعد إرسال الملف مع طلبك في التعليق (مثال: حوّل إلى Word / نسّق / لخّص).',
       'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
     ].join('\n')
   }
 
-  if (/link|binding|غير مربوط|اربط المجموعة|no.*binding/i.test(lower + raw)) {
+  if (/link|binding|غير مربوط|اربط المجموعة|no.*binding|not linked/i.test(lower + raw)) {
     return [
       '📎 هذه المجموعة غير مربوطة بغرفة Arabic Buzz.',
       `أرسل: /link${opts?.botUsername ? '@' + opts.botUsername : ''}`,

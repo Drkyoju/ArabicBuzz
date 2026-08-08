@@ -59,6 +59,14 @@ import {
 import { shouldDeliverSilentAttachment } from '@/lib/telegram/attachment-deliver'
 import { afterTelegramMediaSaved } from '@/lib/telegram/media-import'
 import {
+  assertCaptionWorkMustExecute,
+  decideTelegramMediaExecute,
+} from '@/lib/telegram/media-execute-policy'
+import {
+  formatRecentTelegramMediaHint,
+  rememberTelegramMedia,
+} from '@/lib/telegram/recent-media'
+import {
   formatUnknownShortAr,
   isCasualTelegramWork,
   looksLikeUnknownOrNotFound,
@@ -146,18 +154,19 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
 - أيقظ وكيل١ ثم وكيل٢ عند الانشغال. «يا وكيل١» / @وكيل٢ / «أبغا للجميع» يوجّهون المقاعد مثل الموقع.
-- نفّذ بكل الأدوات: ملفات، Drive/عقل الشركة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل.
+- نفّذ بكل الأدوات: ملفات تيليجرام/خزنة الغرفة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل. Drive اختياري.
 - بحث عام في «الموقع/الغرفة»: room_search أولاً ثم فصّل. إحاطة/ملخص اليوم: owner_morning_brief.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
 - موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
 - مهام: room_tasks_create / update فوراً.
-- ملفات: room_search / list_workspace_files / search_knowledge_base → brain_open_document (Drive) → read/edit/convert/annotate → return_file دائماً عند طلب الملف أو بعد التعديل (يُرسل كمرفق تيليجرام).
-- تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate ثم return_file — واحفظ لـ Drive بـ brain_save_document إن طُلب.
+- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل. اقرأ/عدّل/حوّل/OCR ثم return_file دائماً (يُرسل كمرفق تيليجرام). ممنوع القول إن الملف غير موجود لأنه ليس على Drive.
+- بدون مرفق صريح: list_workspace_files / room_search على خزنة الغرفة. Drive/brain_open_document فقط عند طلب صريح من الدرايف.
+- تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document ثم return_file. حفظ Drive بـ brain_save_document اختياري بعد النجاح إن طُلب.
 - حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
 - بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
 - بحث ويب: web_search / web_fetch عند طلب بحث أو معلومة خارجية.
-- «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة.
+- «أرسل لفلان» / تبليغ شخص: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة. تنسيق/تعديل ملف ≠ تبليغ شخص.
 - الحذف على ملفات الغرفة/Drive فقط بموافقة بشرية (أزرار). ممنوع نهائياً حذف أي شيء على تيليجرام — عدّل رسالة التقدّم أو اتركها + رد جديد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
 
@@ -1714,6 +1723,102 @@ export function getTelegramBot() {
       })
     }
 
+    // Reply-to user document/photo: ingest that attachment as working copy.
+    const replyMsg = ctx.message.reply_to_message
+    let replyIngestHint = ''
+    try {
+      if (replyMsg?.document) {
+        const doc = replyMsg.document
+        const ingested = await ingestTelegramDocumentToWorkspace({
+          ctx,
+          scopeId: scope.scope.id,
+          fileId: doc.file_id,
+          fileName: doc.file_name || `telegram-reply-doc-${Date.now()}`,
+          mimeType: doc.mime_type,
+        })
+        rememberTelegramMedia(chatId, {
+          fileId: ingested.fileId,
+          name: ingested.name,
+          mimeType: ingested.mimeType,
+          scopeId: scope.scope.id,
+          telegramFileId: doc.file_id,
+        })
+        void afterTelegramMediaSaved({
+          scopeId: scope.scope.id,
+          fileId: ingested.fileId,
+          name: ingested.name,
+          mimeType: ingested.mimeType,
+        })
+        replyIngestHint = [
+          `مرفق بالرد من تيليجرام: «${ingested.name}» (fileId=${ingested.fileId}, mime=${ingested.mimeType}).`,
+          formatDownloadMarker({
+            name: ingested.name,
+            fileId: ingested.fileId,
+            kind: 'file',
+          }),
+          'هذه نسخة العمل — نفّذ الطلب عليها ثم return_file. Drive اختياري ولا يُشترط.',
+        ].join('\n')
+      } else if (replyMsg?.photo?.length) {
+        const best = replyMsg.photo[replyMsg.photo.length - 1]
+        if (best) {
+          const ingested = await ingestTelegramPhotoToWorkspace({
+            ctx,
+            scopeId: scope.scope.id,
+            fileId: best.file_id,
+          })
+          rememberTelegramMedia(chatId, {
+            fileId: ingested.fileId,
+            name: ingested.name,
+            mimeType: ingested.mimeType,
+            scopeId: scope.scope.id,
+            telegramFileId: best.file_id,
+          })
+          void afterTelegramMediaSaved({
+            scopeId: scope.scope.id,
+            fileId: ingested.fileId,
+            name: ingested.name,
+            mimeType: ingested.mimeType,
+          })
+          replyIngestHint = [
+            `صورة بالرد من تيليجرام: «${ingested.name}» (fileId=${ingested.fileId}).`,
+            formatDownloadMarker({
+              name: ingested.name,
+              fileId: ingested.fileId,
+              kind: 'file',
+            }),
+            'هذه نسخة العمل — نفّذ ثم return_file. Drive اختياري.',
+          ].join('\n')
+        }
+      }
+    } catch (replyIngestErr) {
+      console.error('[telegram] reply media ingest', replyIngestErr)
+    }
+
+    const recentHint = formatRecentTelegramMediaHint(chatId)
+    const workKindForPrompt = classifyTelegramWorkIntent(promptSource).kind
+    const needsRecentFile =
+      Boolean(replyIngestHint) ||
+      workKindForPrompt === 'file' ||
+      workKindForPrompt === 'question' ||
+      /ملف|مستند|لائح|حوّل|حول|نسّق|نسق|عدّل|عدل|لخّص|لخص|pdf|word|ورد/i.test(
+        promptSource
+      )
+    if (replyIngestHint || (needsRecentFile && recentHint)) {
+      promptSource = [
+        promptSource,
+        '',
+        replyIngestHint || recentHint,
+      ]
+        .filter(Boolean)
+        .join('\n')
+      if (replyMode === 'silent_execute' && workKindForPrompt !== 'casual') {
+        replyMode = 'full'
+      }
+      if (replyIngestHint && replyMode === 'silent_execute') {
+        replyMode = 'full'
+      }
+    }
+
     try {
       void rememberTelegramPeer({
         scopeId: scope.scope.id,
@@ -1728,12 +1833,16 @@ export function getTelegramBot() {
         chatId,
         userId,
         scope,
+        forceHeavy:
+          Boolean(replyIngestHint) ||
+          workKindForPrompt === 'file' ||
+          workKindForPrompt === 'mail',
         replyMode,
       })
     } catch (e) {
       console.error('[telegram] text handler', e)
+      // Work requests must never fail silently (even without @mention).
       if (replyMode === 'silent_execute') {
-        // Casual watch — do not interrupt with error spam.
         return
       }
       try {
@@ -1818,15 +1927,13 @@ export function getTelegramBot() {
       const stt = await transcribeArabicSpeech(buffer, mime)
       const transcript = stt.text
       if (!transcript?.trim()) {
-        // Empty STT — only complain when user clearly expected a bot reply.
-        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
-          await ctx.reply(
-            formatTelegramErrorAr('تعذّر تفريغ الصوت', {
-              inGroup,
-              botUsername,
-            })
-          )
-        }
+        // Voice always expects a response when STT fails — never silent.
+        await ctx.reply(
+          formatTelegramErrorAr('تعذّر تفريغ الصوت', {
+            inGroup,
+            botUsername,
+          })
+        )
         return
       }
 
@@ -1904,6 +2011,7 @@ export function getTelegramBot() {
         })
       }
 
+      const recentHint = formatRecentTelegramMediaHint(chatId)
       const promptSource = [
         transcript,
         needsTranslate
@@ -1914,12 +2022,13 @@ export function getTelegramBot() {
           : voiceWork.kind === 'task'
             ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
             : voiceWork.kind === 'file'
-              ? '\n[صوت: ملف — ابحث/عدّل/حوّل وأعد المرفق]'
+              ? '\n[صوت: ملف — نفّذ على مرفق تيليجرام الأخير (fileId) مباشرة ثم return_file — Drive اختياري]'
               : voiceWork.kind === 'mail'
                 ? '\n[صوت: بريد — mail_*/gmail_* فوراً ولخّص]'
                 : voiceWork.kind === 'message'
                   ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
                   : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة]',
+        recentHint ? `\n${recentHint}` : '',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',
@@ -1943,12 +2052,11 @@ export function getTelegramBot() {
       })
     } catch (e) {
       console.error('[telegram] voice', e)
+      // Work voice must never fail silently in a linked group.
       try {
-        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
-          await ctx.reply(
-            formatTelegramErrorAr(e, { inGroup, botUsername })
-          )
-        }
+        await ctx.reply(
+          formatTelegramErrorAr(e, { inGroup, botUsername })
+        )
       } catch {
         /* no send permission in group */
       }
@@ -2007,9 +2115,11 @@ export function getTelegramBot() {
 
       await ctx.replyWithChatAction('typing')
       let ingested: { fileId: string; name: string; mimeType: string }
+      let telegramFileId = ''
 
       if (ctx.message.document) {
         const doc = ctx.message.document
+        telegramFileId = doc.file_id
         ingested = await ingestTelegramDocumentToWorkspace({
           ctx,
           scopeId: scope.scope.id,
@@ -2019,6 +2129,7 @@ export function getTelegramBot() {
         })
       } else if (ctx.message.video) {
         const vid = ctx.message.video
+        telegramFileId = vid.file_id
         ingested = await ingestTelegramVideoToWorkspace({
           ctx,
           scopeId: scope.scope.id,
@@ -2035,6 +2146,7 @@ export function getTelegramBot() {
           }
           return
         }
+        telegramFileId = best.file_id
         ingested = await ingestTelegramPhotoToWorkspace({
           ctx,
           scopeId: scope.scope.id,
@@ -2042,6 +2154,15 @@ export function getTelegramBot() {
         })
       }
 
+      rememberTelegramMedia(chatId, {
+        fileId: ingested.fileId,
+        name: ingested.name,
+        mimeType: ingested.mimeType,
+        scopeId: scope.scope.id,
+        telegramFileId: telegramFileId || undefined,
+      })
+
+      // Drive sync is optional best-effort — never blocks Telegram execute.
       void afterTelegramMediaSaved({
         scopeId: scope.scope.id,
         fileId: ingested.fileId,
@@ -2050,23 +2171,13 @@ export function getTelegramBot() {
       })
 
       const { text: captionStripped } = stripBotMention(caption, botUsername)
-      const captionWork = classifyTelegramWorkIntent(captionStripped)
-      // DM / @mention: always help. Group bare upload: import only unless caption is a request.
-      const workKind =
-        captionStripped.trim().length > 0
-          ? captionWork.kind === 'casual'
-            ? 'file'
-            : captionWork.kind
-          : !inGroup || addressed.mentioned || addressed.isReplyToBot
-            ? 'file'
-            : 'casual'
-      const replyMode = resolveGroupReplyMode({
+      const decision = decideTelegramMediaExecute({
+        captionOrText: captionStripped,
         inGroup,
         mentioned: addressed.mentioned,
         isReplyToBot: addressed.isReplyToBot,
-        workKind,
       })
-      const visible = replyMode === 'full'
+      assertCaptionWorkMustExecute(captionStripped, decision.shouldExecute)
 
       const isImage =
         ingested.mimeType.startsWith('image/') ||
@@ -2085,18 +2196,18 @@ export function getTelegramBot() {
         ) ||
         (isPdf && /ممسوح|مسح|صورة|scan/.test(captionLower))
 
-      // Group bare media: import only — do not interrupt chat.
-      if (!visible) {
+      // Group bare media (no caption): import + remember only — do not interrupt chat.
+      if (!decision.shouldExecute) {
         return
       }
 
       const userAsk =
         captionStripped ||
         (isVideo
-          ? 'استلمت فيديو. لخّص ما يمكن فهمه واقترح الخطوة التالية (محفوظ في أرشيف الغرفة).'
+          ? 'استلمت فيديو. لخّص ما يمكن فهمه واقترح الخطوة التالية.'
           : wantsOcr
             ? 'اقرأ النص الظاهر في الصورة/المستند الممسوح واستخرجه، ثم لخّص المطلوب.'
-            : 'اقرأ هذا المرفق. إن وُجد طلب في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار.')
+            : 'اقرأ هذا المرفق. إن وُجد طلب في التعليق نفّذه وأعد الملف المعدّل عبر return_file، وإلا لخّص المحتوى باختصار.')
 
       const ocrHint = wantsOcr
         ? [
@@ -2104,11 +2215,11 @@ export function getTelegramBot() {
               ? 'هذا مرفق صورة أو PDF — استخدم arabic_ocr مع fileId أعلاه (saveToMemory=true).'
               : 'إن بدا المستند ممسوحاً استخدم arabic_ocr مع fileId.',
             'إن طلب المستخدم البحث عن عبارة، مرّر searchQuery بنفس العبارة.',
-            'بعد الاستخراج أعد النص أو مواضع البحث للمستخدم. النص يُحفظ تلقائياً في ذاكرة الغرفة وملف .txt.',
+            'بعد الاستخراج أعد النص أو مواضع البحث للمستخدم.',
           ].join(' ')
         : isVideo
           ? 'الفيديو محفوظ في أرشيف الغرفة — صف المحتوى المتاح واقترح تحويل/تلخيص إن لزم.'
-          : 'استخدم read_document أو read_excel أو أدوات الصور حسب النوع، ثم عدّل عند الحاجة بـ edit_document/edit_excel وأعد الملف عبر return_file. للصور/PDF الممسوح فضّل arabic_ocr.'
+          : 'ملف تيليجرام = نسخة العمل. استخدم read_document أو read_excel أو convert_document/edit_document حسب الطلب، ثم return_file دائماً. ممنوع انتظار Drive أو القول إن الملف غير موجود لأنه ليس على الدرايف.'
 
       const promptSource = [
         userAsk,
@@ -2120,7 +2231,7 @@ export function getTelegramBot() {
           kind: ingested.mimeType.startsWith('audio/') ? 'voice' : 'file',
         }),
         ocrHint,
-        'الوسائط تُحفظ في أرشيف الغرفة دون نسخ نص المحادثة إلى شات الموقع.',
+        'نفّذ الطلب على هذا fileId مباشرة وأعد الناتج كمرفق تيليجرام. مزامنة Drive اختيارية فقط ولا تمنع التنفيذ.',
       ].join('\n')
 
       await runTelegramAgentTurn({
@@ -2130,13 +2241,20 @@ export function getTelegramBot() {
         userId,
         scope,
         forceHeavy: true,
-        workLabelAr: 'ملف',
+        workLabelAr: decision.workKind === 'casual' ? 'ملف' : decision.workKind,
         replyMode: 'full',
       })
     } catch (e) {
       console.error('[telegram] document/photo/video', e)
+      // Caption/work media must never fail silently.
+      const hadCaption = Boolean((ctx.message.caption || '').trim())
       try {
-        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+        if (
+          !inGroup ||
+          hadCaption ||
+          addressed.mentioned ||
+          addressed.isReplyToBot
+        ) {
           await ctx.reply(
             formatTelegramErrorAr(e, { inGroup, botUsername })
           )
