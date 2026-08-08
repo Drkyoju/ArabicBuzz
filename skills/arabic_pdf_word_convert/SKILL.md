@@ -36,6 +36,7 @@ toolsRequired:
 
 ## أدوات خارجية
 | أداة | دورها هنا | ملاحظة |
+|------|----------|--------|
 | Gemini | OCR/vision أول المسار (Flash ثم أقوى) | مفتاح موجود عادة |
 | PaddleOCR | أرخص من Mistral؛ الجودة ليست دائماً أقوى | اختياري عبر URL/ENABLE — لا في صورة CranL الرقيقة |
 | Mistral OCR | آخر API مدفوع اختياري بعد Paddle | فقط مع `MISTRAL_API_KEY` |
