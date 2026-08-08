@@ -4,11 +4,9 @@
  */
 import { randomUUID } from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { matchWorkspaceFileExact } from '@/lib/files/file-source-policy'
 import {
   isMuallimSeerahShortQuery,
   matchMuallimSeerahFile,
-  pickMuallimSeerahFile,
 } from '@/lib/files/muallim-seerah-match'
 import {
   getRecoverableTelegramAttachment,
@@ -286,15 +284,58 @@ export async function resolveTelegramJobFile(
         }
       }
     } catch {
-      /* try other paths */
+      /* try mesh */
     }
   }
 
+  const expected = job.expectedFilename.trim()
+  const aliasParams = Array.isArray(job.workParams?.aliases)
+    ? (job.workParams.aliases as unknown[]).map((a) => String(a))
+    : []
+  const queries = [
+    expected,
+    ...aliasParams,
+    ...(isMuallimSeerahShortQuery(expected) || matchMuallimSeerahFile(expected)
+      ? [
+          'المعلم الاول',
+          'المعلم الأول من معالم من السيرة النبوية',
+          'المعلم الاول من معالم من السيرة النبوية',
+        ]
+      : []),
+  ].filter((q, i, arr) => q && arr.indexOf(q) === i)
+
+  // Full mesh: TG mirror → room → Drive → Mac (aliases; never biology).
+  try {
+    const { findAcrossStorageMesh } = await import(
+      '@/lib/telegram/storage-mesh'
+    )
+    for (const q of queries.length ? queries : [expected || 'المعلم الاول']) {
+      const mesh = await findAcrossStorageMesh({
+        scopeId: job.scopeId,
+        chatId: job.chatId,
+        queryName: q,
+        hydrateBytes: true,
+      })
+      if (mesh?.vaultFileId) {
+        return {
+          vaultFileId: mesh.vaultFileId,
+          source: mesh.source,
+          fileName: mesh.fileName,
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[telegram] storage mesh resolve', e)
+  }
+
+  // Legacy attachment fallback (name-agnostic latest with bytes)
   const att = await getRecoverableTelegramAttachment(job.chatId)
   if (att?.hasBytes && att.vaultFileId) {
     if (
       !job.expectedFilename ||
-      filenamesStrictMatch(att.fileName, job.expectedFilename)
+      filenamesStrictMatch(att.fileName, job.expectedFilename) ||
+      (isMuallimSeerahShortQuery(job.expectedFilename) &&
+        matchMuallimSeerahFile(att.fileName))
     ) {
       return {
         vaultFileId: att.vaultFileId,
@@ -302,48 +343,6 @@ export async function resolveTelegramJobFile(
         fileName: att.fileName,
       }
     }
-  }
-
-  const expected = job.expectedFilename.trim()
-  if (!expected) return null
-
-  try {
-    const { listWorkspaceFiles } = await import('@/lib/documents/workspace')
-    const files = await listWorkspaceFiles(job.scopeId)
-    let hit = matchWorkspaceFileExact(files, expected)
-    if (!hit && isMuallimSeerahShortQuery(expected)) {
-      hit = pickMuallimSeerahFile(files, expected)
-    }
-    if (hit) {
-      return {
-        vaultFileId: hit.id,
-        source: 'room_exact',
-        fileName: hit.originalName,
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // Drive: exact name, or seerah short-name alias (never أحياء).
-  try {
-    const { searchDriveBrainExactName } = await import(
-      '@/lib/telegram/drive-exact-recover'
-    )
-    const driveHit = await searchDriveBrainExactName({
-      scopeId: job.scopeId,
-      exactName: expected,
-      allowMuallimSeerahAlias: isMuallimSeerahShortQuery(expected),
-    })
-    if (driveHit?.vaultFileId) {
-      return {
-        vaultFileId: driveHit.vaultFileId,
-        source: 'drive_exact',
-        fileName: driveHit.fileName,
-      }
-    }
-  } catch {
-    /* optional */
   }
 
   return null
@@ -374,8 +373,9 @@ export function filenamesStrictMatch(a: string, b: string): boolean {
 }
 
 /**
- * May we ask the user once for a room/Drive upload?
- * Only when zero recovery paths exist (no bytes, no live file_id, not on room/Drive).
+ * HARD RULE: never spam «أعد إرسال الملف».
+ * Keep job in waiting_file silently; cron/mesh/archive will resume when bytes appear.
+ * notify is always false — asking to resend is a product failure mode.
  */
 export async function shouldNotifyWaitingFileOnce(
   job: TelegramFileJob
@@ -384,12 +384,10 @@ export async function shouldNotifyWaitingFileOnce(
   if (job.vaultFileId) return { notify: false }
   const resolved = await resolveTelegramJobFile(job)
   if (resolved) return { notify: false }
-  // Still have telegram_file_id — try getFile later; don't nag with "never stored".
   if (job.telegramFileId) return { notify: false }
-  return {
-    notify: true,
-    messageAr: telegramFileNeverStoredAr(job.expectedFilename || undefined),
-  }
+  // Silent queue only — do not message the user to resend.
+  void telegramFileNeverStoredAr(job.expectedFilename || undefined)
+  return { notify: false }
 }
 
 export function buildResumePromptForJob(

@@ -243,6 +243,38 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let telegramGroupArchive: unknown = null
+  try {
+    const secret = process.env.CRON_SECRET || ''
+    if (secret && secret !== 'change-me') {
+      const base = appBaseUrl()
+      const archRes = await fetch(`${base}/api/telegram/archive-group`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chatId: '-1003855925966',
+          scopeId: 'shared-demo',
+          runPendingPdf: true,
+        }),
+        signal: AbortSignal.timeout(55_000),
+      })
+      telegramGroupArchive = await archRes.json().catch(() => ({
+        ok: false,
+        status: archRes.status,
+      }))
+    } else {
+      telegramGroupArchive = { skipped: true, reason: 'no_cron_secret' }
+    }
+  } catch (e) {
+    telegramGroupArchive = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'telegram archive error',
+    }
+  }
+
   let morningDigest: unknown = null
   try {
     const { sendMorningRoomDigests } = await import(
@@ -373,6 +405,7 @@ export async function POST(req: NextRequest) {
     appointmentReminders,
     directorDigest,
     driveBrainSync,
+    telegramGroupArchive,
     morningDigest,
     overdueNudge,
     googleRoomCalendarSync,

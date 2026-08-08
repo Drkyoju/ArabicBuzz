@@ -113,7 +113,7 @@ describe('telegram attachment persist + jobs', () => {
     expect(notify.notify).toBe(false)
   })
 
-  it('waiting_file notifies once with honest Arabic — never biology substitute', async () => {
+  it('waiting_file stays silent — never asks resend (hard failure mode)', async () => {
     const job = await enqueueTelegramFileJob({
       chatId: 'chat-4',
       scopeId: 'shared-demo',
@@ -122,9 +122,13 @@ describe('telegram attachment persist + jobs', () => {
       status: 'waiting_file',
     })
     const first = await shouldNotifyWaitingFileOnce(job)
-    expect(first.notify).toBe(true)
-    expect(first.messageAr).toMatch(/ما وصل للتخزين/)
-    expect(first.messageAr).not.toMatch(/أحياء/)
+    expect(first.notify).toBe(false)
+    expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
+      /معلّقة صامتة|بلا طلب إعادة إرسال/
+    )
+    expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
+      /ممنوع استبدال.*أحياء|بدون أحياء|دليل أحياء/
+    )
 
     await bindWaitingJobsToNewVaultFile({
       chatId: 'chat-4',
@@ -189,7 +193,7 @@ describe('telegram attachment persist + jobs', () => {
 
   it('one-shot never-stored copy', () => {
     expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
-      /ما وصل للتخزين/
+      /معلّقة صامتة|غير متوفر/
     )
   })
 })

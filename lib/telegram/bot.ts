@@ -2592,6 +2592,41 @@ export function getTelegramBot() {
           originalName: voiceName,
           mimeType: mime,
         })
+        const tgVoiceId =
+          ctx.message.voice?.file_id || ctx.message.audio?.file_id || ''
+        const persistedVoice = await persistTelegramAttachment({
+          chatId,
+          scopeId: scope.scope.id,
+          telegramFileId: tgVoiceId || undefined,
+          fileUniqueId:
+            ctx.message.voice?.file_unique_id ||
+            ctx.message.audio?.file_unique_id ||
+            undefined,
+          messageId: ctx.message.message_id,
+          fileName: saved.file.originalName,
+          mimeType: mime,
+          sizeBytes: buffer.length,
+          vaultFileId: saved.file.id,
+          hasBytes: true,
+        })
+        void persistedVoice
+        // Also store transcript sidecar for Drive archive search.
+        try {
+          const side = await saveWorkspaceFile({
+            scopeId: scope.scope.id,
+            buffer: Buffer.from(transcript, 'utf8'),
+            originalName: voiceName.replace(/\.ogg$/i, '') + '-تفريغ.txt',
+            mimeType: 'text/plain; charset=utf-8',
+          })
+          void afterTelegramMediaSaved({
+            scopeId: scope.scope.id,
+            fileId: side.file.id,
+            name: side.file.originalName,
+            mimeType: 'text/plain',
+          })
+        } catch {
+          /* non-fatal */
+        }
         voiceMarker = formatDownloadMarker({
           name: saved.file.originalName,
           fileId: saved.file.id,

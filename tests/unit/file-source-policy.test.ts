@@ -67,7 +67,7 @@ describe('file-source-policy', () => {
 
   it('missing attachment copy is Arabic and clear — no resend nag when recovery exists', () => {
     const msg = telegramAttachmentMissingAr('المعلم الاول.pdf')
-    expect(msg).toMatch(/لن أطلب إعادة الإرسال|خزنة الغرفة/)
-    expect(msg).toMatch(/لن أستخدم/)
+    expect(msg).toMatch(/لن أطلب إعادة الإرسال|معلّقة صامتة/)
+    expect(msg).toMatch(/Drive|غرفة|ماك|تيليجرام/)
   })
 })
