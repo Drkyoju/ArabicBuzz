@@ -224,10 +224,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   const calendarTabs = visibleCalendarTabs(signedIn, canAccessOpsUi)
 
   useEffect(() => {
+    // Wait for auth — guest tabs omit meetings; resetting early drops ?calTab=meetings.
+    if (signedIn === null) return
     if (!calendarTabs.some((t) => t.id === calendarTab)) {
       setCalendarTab('schedule')
     }
-  }, [calendarTabs, calendarTab])
+  }, [calendarTabs, calendarTab, signedIn])
 
   useEffect(() => {
     if (!roleReady) return
