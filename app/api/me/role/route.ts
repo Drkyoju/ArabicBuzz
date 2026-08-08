@@ -34,7 +34,7 @@ function defaultOrgId(req: NextRequest) {
 /**
  * Current user's org role — full admin UI only for the sole workspace owner
  * (OWNER_EMAIL or ryodan71@gmail.com). Anyone else → موظف (simple member UI).
- * Room-owner role never elevates UI.
+ * Room-owner role never elevates UI. Synthetic/local-owner never gets admin chrome.
  */
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req)
@@ -46,17 +46,20 @@ export async function GET(req: NextRequest) {
   const role = await syncOrgRoleFromEmail(userId, orgId, email, {
     allowSyntheticOwner,
   })
-  const persona: UiPersona = personaForEmail(email, {
-    userId,
-    allowSyntheticOwner,
-  })
-  const labelAr = labelArForEmail(email, { userId, allowSyntheticOwner })
-  // Strict: only the sole workspace owner email gets full admin chrome.
-  const ops =
-    isWorkspaceOwnerEmail(email) ||
-    (allowSyntheticOwner && canAccessOpsUi(role) && persona !== 'employee')
+  // Product chrome: real owner email only — never elevate guests / local-owner.
+  const ops = !allowSyntheticOwner && isWorkspaceOwnerEmail(email)
+  const persona: UiPersona = ops
+    ? 'director'
+    : allowSyntheticOwner
+      ? 'employee'
+      : personaForEmail(email, { userId })
+  const labelAr = ops
+    ? 'مجلس'
+    : allowSyntheticOwner
+      ? 'متطوع'
+      : labelArForEmail(email, { userId })
 
-  let displayNameAr = user ? displayNameFromUser(user) : null
+  let displayNameAr = user && !allowSyntheticOwner ? displayNameFromUser(user) : null
   if (user && !allowSyntheticOwner) {
     try {
       displayNameAr = await ensureDisplayNamePersisted(user)
@@ -73,15 +76,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     userId,
     orgId,
-    email,
-    role,
+    email: allowSyntheticOwner ? null : email,
+    role: ops ? 'OWNER' : role === 'OWNER' && !ops ? 'MEMBER' : role,
     persona,
     labelAr,
     displayNameAr,
     uiMode: ops ? 'admin' : 'employee',
     canAccessOpsUi: ops,
-    isDirector: isWorkspaceOwnerEmail(email),
-    isWorkspaceOwner: isWorkspaceOwnerEmail(email),
+    isDirector: ops,
+    isWorkspaceOwner: ops,
     messageAr: ops
       ? 'واجهة المالك — موافقات وسجل عمل وتكاملات عالية المستوى.'
       : 'واجهة العضو — غرف وملفات وتقويم ومهام أساسية.',
