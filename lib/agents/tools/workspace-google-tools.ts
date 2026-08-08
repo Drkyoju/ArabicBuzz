@@ -8,17 +8,12 @@ import {
   writeSpreadsheetRange,
 } from '@/lib/google/sheets'
 import { isImapConfigured } from '@/lib/email/imap-store'
-import {
-  executeMailRead,
-  executeMailSearch,
-  executeMailSend,
-} from '@/lib/agents/tools/mailbox-tools'
 
 function requireUser(params: Record<string, unknown>) {
   const userId = String(params.userId || params._userId || '').trim()
   if (!userId || userId === 'engine' || userId === 'local-owner') {
     throw new Error(
-      'يلزم تسجيل الدخول وربط Google من الإعدادات (تقويم / Gmail / Sheets) أولاً — أو اضبط بريد IMAP/SMTP من «بريد الجمعية».'
+      'يلزم تسجيل الدخول وربط Google من «نافذة البريد الشخصي» (أو تقويم الفريق) أولاً.'
     )
   }
   return userId
@@ -31,33 +26,60 @@ function accountEmailOf(params: Record<string, unknown>): string | undefined {
   return email.includes('@') ? email : undefined
 }
 
-/** Gmail tools fall back to IMAP/SMTP when Google is not linked. */
+/**
+ * Personal Gmail tools — always the signed-in user's Google mailbox.
+ * Do NOT fall back to org IMAP (بريد الجمعية); use mail_* for that.
+ * If Google is not linked, return a clear CTA — never leak org mail into gmail_*.
+ */
 export async function executeGmailSearch(
   _name: string,
   params: Record<string, unknown>
 ) {
-  if (await isImapConfigured()) {
-    return executeMailSearch(_name, params)
-  }
   const userId = requireUser(params)
   const query = String(params.query || params.q || '').trim()
+  if (!query) {
+    throw new Error('يلزم استعلام بحث (query) لـ Gmail الشخصي.')
+  }
   const accountEmail = accountEmailOf(params)
-  const messages = await searchGmailMessages(userId, {
-    query,
-    maxResults:
-      typeof params.maxResults === 'number' ? params.maxResults : undefined,
-    accountEmail,
-  })
-  return {
-    ok: true,
-    source: 'gmail',
-    count: messages.length,
-    accountEmail: accountEmail || null,
-    messages,
-    messageAr:
-      messages.length === 0
-        ? `لا نتائج لـ «${query}»${accountEmail ? ` على ${accountEmail}` : ''}.`
-        : `وُجد ${messages.length} رسالة مطابقة${accountEmail ? ` على ${accountEmail}` : ''}.`,
+  try {
+    const { messages, resultSizeEstimate } = await searchGmailMessages(
+      userId,
+      {
+        query,
+        maxResults:
+          typeof params.maxResults === 'number' ? params.maxResults : undefined,
+        accountEmail,
+      }
+    )
+    return {
+      ok: true,
+      source: 'gmail',
+      count: messages.length,
+      resultSizeEstimate,
+      accountEmail: accountEmail || null,
+      messages,
+      messageAr:
+        messages.length === 0
+          ? `لا نتائج لـ «${query}» في بريدك الشخصي${accountEmail ? ` (${accountEmail})` : ''}.`
+          : `وُجد ${messages.length} رسالة في بريدك الشخصي${accountEmail ? ` (${accountEmail})` : ''}.`,
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'تعذّر بحث Gmail'
+    // Last-resort: only if user has no Google and org IMAP exists — but label clearly.
+    if (
+      /اربط|ربط|token|صلاحية|scope/i.test(msg) &&
+      (await isImapConfigured())
+    ) {
+      return {
+        ok: false,
+        source: 'none',
+        count: 0,
+        messages: [],
+        messageAr: `${msg} — لبريد الجمعية استخدم mail_search لا gmail_search.`,
+        ctaAr: 'اربط بريدي في Google من «نافذة البريد الشخصي».',
+      }
+    }
+    throw e
   }
 }
 
@@ -65,9 +87,6 @@ export async function executeGmailRead(
   _name: string,
   params: Record<string, unknown>
 ) {
-  if (await isImapConfigured()) {
-    return executeMailRead(_name, params)
-  }
   const userId = requireUser(params)
   const messageId = String(params.messageId || params.id || '').trim()
   const accountEmail = accountEmailOf(params)
@@ -77,7 +96,7 @@ export async function executeGmailRead(
     source: 'gmail',
     accountEmail: accountEmail || null,
     message,
-    messageAr: `قُرئت الرسالة: ${message.subject || messageId}`,
+    messageAr: `قُرئت رسالة بريدك الشخصي: ${message.subject || messageId}`,
   }
 }
 
@@ -85,9 +104,6 @@ export async function executeGmailSend(
   _name: string,
   params: Record<string, unknown>
 ) {
-  if (await isImapConfigured()) {
-    return executeMailSend(_name, params)
-  }
   const userId = requireUser(params)
   const to = String(params.to || '').trim()
   const subject = String(params.subject || '').trim()
@@ -110,7 +126,7 @@ export async function executeGmailSend(
     to,
     subject,
     accountEmail: accountEmail || null,
-    messageAr: `أُرسل البريد إلى ${to} — الموضوع: ${subject}${
+    messageAr: `أُرسل من بريدك الشخصي إلى ${to} — الموضوع: ${subject}${
       accountEmail ? ` (من ${accountEmail})` : ''
     }`,
   }

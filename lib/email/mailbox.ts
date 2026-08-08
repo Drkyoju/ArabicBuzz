@@ -161,21 +161,21 @@ export async function searchMail(opts: {
     const query =
       (opts.query || '').trim() ||
       (opts.unreadOnly ? 'is:unread' : 'in:inbox newer_than:14d')
-    const messages = await searchGmailMessages(opts.userId, {
+    const { messages: found } = await searchGmailMessages(opts.userId, {
       query,
       maxResults: opts.maxResults,
       accountEmail: opts.accountEmail,
     })
     return {
       source: 'gmail',
-      messages: messages.map((m: GmailMessageSummary) => ({
+      messages: found.map((m: GmailMessageSummary) => ({
         ...m,
         source: 'gmail' as const,
       })),
       messageAr:
-        messages.length === 0
+        found.length === 0
           ? `لا نتائج Gmail لـ «${query}».`
-          : `وُجد ${messages.length} رسالة عبر Gmail.`,
+          : `وُجد ${found.length} رسالة عبر Gmail.`,
     }
   }
 

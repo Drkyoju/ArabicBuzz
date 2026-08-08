@@ -11,11 +11,33 @@ export type GmailMessageSummary = {
   date?: string
   snippet: string
   labelIds?: string[]
+  unread?: boolean
+  starred?: boolean
+  hasAttachment?: boolean
+}
+
+export type GmailAttachmentMeta = {
+  attachmentId: string
+  filename: string
+  mimeType: string
+  size: number
 }
 
 export type GmailMessageDetail = GmailMessageSummary & {
   bodyText: string
   bodyHtml?: string
+  cc?: string
+  messageIdHeader?: string
+  references?: string
+  attachments: GmailAttachmentMeta[]
+}
+
+export type GmailLabel = {
+  id: string
+  name: string
+  type?: string
+  messagesUnread?: number
+  messagesTotal?: number
 }
 
 async function gmailFetch(
@@ -58,7 +80,8 @@ function decodeBodyData(data?: string): string {
 
 type MimePart = {
   mimeType?: string
-  body?: { data?: string; size?: number }
+  filename?: string
+  body?: { data?: string; size?: number; attachmentId?: string }
   parts?: MimePart[]
   headers?: Array<{ name: string; value: string }>
 }
@@ -72,6 +95,24 @@ function collectBodies(part: MimePart | undefined, out: { text: string; html: st
   for (const child of part.parts || []) collectBodies(child, out)
 }
 
+function collectAttachments(
+  part: MimePart | undefined,
+  out: GmailAttachmentMeta[]
+) {
+  if (!part) return
+  const filename = part.filename?.trim()
+  const attachmentId = part.body?.attachmentId
+  if (filename && attachmentId) {
+    out.push({
+      attachmentId,
+      filename,
+      mimeType: part.mimeType || 'application/octet-stream',
+      size: Number(part.body?.size || 0),
+    })
+  }
+  for (const child of part.parts || []) collectAttachments(child, out)
+}
+
 function toSummary(msg: {
   id?: string
   threadId?: string
@@ -79,9 +120,20 @@ function toSummary(msg: {
   labelIds?: string[]
   payload?: {
     headers?: Array<{ name: string; value: string }>
+    parts?: MimePart[]
+    filename?: string
+    body?: { attachmentId?: string }
   }
 }): GmailMessageSummary {
   const headers = msg.payload?.headers
+  const labelIds = msg.labelIds || []
+  const hasAttachment = Boolean(
+    msg.payload?.filename ||
+      msg.payload?.body?.attachmentId ||
+      (msg.payload?.parts || []).some(
+        (p) => p.filename || p.body?.attachmentId
+      )
+  )
   return {
     id: String(msg.id || ''),
     threadId: msg.threadId,
@@ -90,31 +142,68 @@ function toSummary(msg: {
     to: headerOf(headers, 'To'),
     date: headerOf(headers, 'Date') || undefined,
     snippet: String(msg.snippet || ''),
-    labelIds: msg.labelIds,
+    labelIds,
+    unread: labelIds.includes('UNREAD'),
+    starred: labelIds.includes('STARRED'),
+    hasAttachment,
+  }
+}
+
+/** Folder → Gmail query fragment. */
+export function gmailQueryForFolder(
+  folder: 'INBOX' | 'SENT' | 'STARRED' | 'IMPORTANT' | 'ALL' | 'UNREAD' | string
+): string {
+  switch (folder) {
+    case 'INBOX':
+      return 'in:inbox'
+    case 'SENT':
+      return 'in:sent'
+    case 'STARRED':
+      return 'is:starred'
+    case 'IMPORTANT':
+      return 'is:important'
+    case 'UNREAD':
+      return 'is:unread'
+    case 'ALL':
+      return 'in:anywhere'
+    default:
+      return folder.trim() || 'in:inbox'
   }
 }
 
 /**
  * Search Gmail with a Gmail query string (e.g. `from:x newer_than:7d`).
- * Read-only — does not modify labels or send mail.
  */
 export async function searchGmailMessages(
   userId: string,
-  opts: { query: string; maxResults?: number; accountEmail?: string | null }
-): Promise<GmailMessageSummary[]> {
+  opts: {
+    query: string
+    maxResults?: number
+    pageToken?: string | null
+    accountEmail?: string | null
+  }
+): Promise<{
+  messages: GmailMessageSummary[]
+  nextPageToken?: string
+  resultSizeEstimate?: number
+}> {
   const q = opts.query.trim()
   if (!q) throw new Error('يلزم استعلام بحث (query) لـ Gmail.')
   const accountEmail = opts.accountEmail || null
 
   const listParams = new URLSearchParams({
     q,
-    maxResults: String(Math.min(Math.max(opts.maxResults || 10, 1), 25)),
+    maxResults: String(Math.min(Math.max(opts.maxResults || 25, 1), 50)),
   })
+  if (opts.pageToken) listParams.set('pageToken', opts.pageToken)
+
   const listRes = await gmailFetch(userId, `/users/me/messages?${listParams}`, {
     accountEmail,
   })
   const listData = (await listRes.json()) as {
     messages?: Array<{ id: string }>
+    nextPageToken?: string
+    resultSizeEstimate?: number
     error?: { message?: string }
   }
   if (!listRes.ok) {
@@ -132,13 +221,45 @@ export async function searchGmailMessages(
       { accountEmail }
     )
     if (!msgRes.ok) continue
-    const msg = (await msgRes.json()) as Parameters<typeof toSummary>[0]
+    const msg = (await msgRes.json()) as Parameters<typeof toSummary>[0] & {
+      labelIds?: string[]
+    }
     out.push(toSummary({ ...msg, id: msg.id || m.id }))
   }
-  return out
+  return {
+    messages: out,
+    nextPageToken: listData.nextPageToken,
+    resultSizeEstimate: listData.resultSizeEstimate,
+  }
 }
 
-/** Read one Gmail message body (plain text preferred). */
+/** List mailbox by folder or free-text / Gmail query. */
+export async function listGmailMailbox(
+  userId: string,
+  opts: {
+    folder?: string
+    query?: string
+    maxResults?: number
+    pageToken?: string | null
+    accountEmail?: string | null
+  }
+) {
+  const folderQ = gmailQueryForFolder(opts.folder || 'INBOX')
+  const extra = (opts.query || '').trim()
+  const q = extra
+    ? extra.includes(':') || /^(in:|is:|from:|to:|subject:|has:)/i.test(extra)
+      ? extra
+      : `${folderQ} ${extra}`
+    : folderQ
+  return searchGmailMessages(userId, {
+    query: q,
+    maxResults: opts.maxResults,
+    pageToken: opts.pageToken,
+    accountEmail: opts.accountEmail,
+  })
+}
+
+/** Read one Gmail message body (plain text preferred) + attachment metas. */
 export async function readGmailMessage(
   userId: string,
   messageId: string,
@@ -167,6 +288,8 @@ export async function readGmailMessage(
 
   const bodies = { text: '', html: '' }
   collectBodies(data.payload, bodies)
+  const attachments: GmailAttachmentMeta[] = []
+  collectAttachments(data.payload, attachments)
   const summary = toSummary(data)
   const bodyText =
     bodies.text.trim() ||
@@ -182,7 +305,137 @@ export async function readGmailMessage(
     ...summary,
     bodyText: bodyText.slice(0, 20_000),
     bodyHtml: bodies.html ? bodies.html.slice(0, 40_000) : undefined,
+    cc: headerOf(data.payload?.headers, 'Cc') || undefined,
+    messageIdHeader: headerOf(data.payload?.headers, 'Message-ID') || undefined,
+    references: headerOf(data.payload?.headers, 'References') || undefined,
+    attachments,
   }
+}
+
+/** Search messages that have attachments matching filename/keyword. */
+export async function searchGmailAttachments(
+  userId: string,
+  opts: { query: string; maxResults?: number; accountEmail?: string | null }
+): Promise<
+  Array<GmailMessageSummary & { attachments: GmailAttachmentMeta[] }>
+> {
+  const raw = opts.query.trim()
+  const q = raw
+    ? raw.includes('has:attachment')
+      ? raw
+      : `has:attachment ${raw}`
+    : 'has:attachment'
+  const { messages } = await searchGmailMessages(userId, {
+    query: q,
+    maxResults: opts.maxResults || 15,
+    accountEmail: opts.accountEmail,
+  })
+  const out: Array<GmailMessageSummary & { attachments: GmailAttachmentMeta[] }> =
+    []
+  for (const m of messages) {
+    try {
+      const full = await readGmailMessage(userId, m.id, {
+        accountEmail: opts.accountEmail,
+      })
+      if (!full.attachments.length) continue
+      out.push({ ...m, attachments: full.attachments })
+    } catch {
+      /* skip */
+    }
+  }
+  return out
+}
+
+/** List user labels (folders). */
+export async function listGmailLabels(
+  userId: string,
+  opts?: { accountEmail?: string | null }
+): Promise<GmailLabel[]> {
+  const res = await gmailFetch(userId, '/users/me/labels', {
+    accountEmail: opts?.accountEmail || null,
+  })
+  const data = (await res.json()) as {
+    labels?: Array<{
+      id: string
+      name: string
+      type?: string
+      messagesUnread?: number
+      messagesTotal?: number
+    }>
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message || `Gmail labels HTTP ${res.status}`
+    )
+  }
+  return (data.labels || []).map((l) => ({
+    id: l.id,
+    name: l.name,
+    type: l.type,
+    messagesUnread: l.messagesUnread,
+    messagesTotal: l.messagesTotal,
+  }))
+}
+
+/**
+ * Modify labels (read/unread/star). Requires gmail.modify scope.
+ */
+export async function modifyGmailLabels(
+  userId: string,
+  messageId: string,
+  opts: {
+    addLabelIds?: string[]
+    removeLabelIds?: string[]
+    accountEmail?: string | null
+  }
+): Promise<GmailMessageSummary> {
+  const id = messageId.trim()
+  if (!id) throw new Error('يلزم messageId.')
+  const res = await gmailFetch(userId, `/users/me/messages/${id}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({
+      addLabelIds: opts.addLabelIds || [],
+      removeLabelIds: opts.removeLabelIds || [],
+    }),
+    accountEmail: opts.accountEmail || null,
+  })
+  const data = (await res.json()) as Parameters<typeof toSummary>[0] & {
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message ||
+        `Gmail modify HTTP ${res.status} — أعد ربط Google بصلاحية gmail.modify`
+    )
+  }
+  return toSummary(data)
+}
+
+export async function markGmailRead(
+  userId: string,
+  messageId: string,
+  opts?: { unread?: boolean; accountEmail?: string | null }
+) {
+  const unread = opts?.unread === true
+  return modifyGmailLabels(userId, messageId, {
+    addLabelIds: unread ? ['UNREAD'] : [],
+    removeLabelIds: unread ? [] : ['UNREAD'],
+    accountEmail: opts?.accountEmail,
+  })
+}
+
+export async function starGmailMessage(
+  userId: string,
+  messageId: string,
+  opts?: { starred?: boolean; accountEmail?: string | null }
+) {
+  const starred = opts?.starred !== false
+  return modifyGmailLabels(userId, messageId, {
+    addLabelIds: starred ? ['STARRED'] : [],
+    removeLabelIds: starred ? [] : ['STARRED'],
+    accountEmail: opts?.accountEmail,
+  })
 }
 
 function toBase64Url(input: string): string {
@@ -205,6 +458,8 @@ function buildRawMime(opts: {
   bodyHtml?: string
   cc?: string
   bcc?: string
+  inReplyTo?: string
+  references?: string
 }): string {
   const lines: string[] = [
     `To: ${opts.to}`,
@@ -212,6 +467,8 @@ function buildRawMime(opts: {
   ]
   if (opts.cc) lines.push(`Cc: ${opts.cc}`)
   if (opts.bcc) lines.push(`Bcc: ${opts.bcc}`)
+  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`)
+  if (opts.references) lines.push(`References: ${opts.references}`)
   lines.push('MIME-Version: 1.0')
 
   const text = opts.bodyText || ''
@@ -225,7 +482,11 @@ function buildRawMime(opts: {
     lines.push('Content-Type: text/plain; charset="UTF-8"')
     lines.push('Content-Transfer-Encoding: base64')
     lines.push('')
-    lines.push(Buffer.from(text || html.replace(/<[^>]+>/g, ' '), 'utf8').toString('base64'))
+    lines.push(
+      Buffer.from(text || html.replace(/<[^>]+>/g, ' '), 'utf8').toString(
+        'base64'
+      )
+    )
     lines.push(`--${boundary}`)
     lines.push('Content-Type: text/html; charset="UTF-8"')
     lines.push('Content-Transfer-Encoding: base64')
@@ -255,6 +516,9 @@ export async function sendGmailMessage(
     bodyHtml?: string
     cc?: string
     bcc?: string
+    threadId?: string
+    inReplyTo?: string
+    references?: string
     /** Linked Workspace / Gmail account to send from (multi-account). */
     accountEmail?: string | null
   }
@@ -277,12 +541,17 @@ export async function sendGmailMessage(
       bodyHtml: bodyHtml || undefined,
       cc: opts.cc?.trim() || undefined,
       bcc: opts.bcc?.trim() || undefined,
+      inReplyTo: opts.inReplyTo?.trim() || undefined,
+      references: opts.references?.trim() || undefined,
     })
   )
 
+  const payload: { raw: string; threadId?: string } = { raw }
+  if (opts.threadId?.trim()) payload.threadId = opts.threadId.trim()
+
   const res = await gmailFetch(userId, '/users/me/messages/send', {
     method: 'POST',
-    body: JSON.stringify({ raw }),
+    body: JSON.stringify(payload),
     accountEmail: opts.accountEmail || null,
   })
   const data = (await res.json()) as {
@@ -303,5 +572,90 @@ export async function sendGmailMessage(
     id: data.id,
     threadId: data.threadId,
     labelIds: data.labelIds,
+  }
+}
+
+/** Reply in-thread to an existing message. */
+export async function replyGmailMessage(
+  userId: string,
+  opts: {
+    messageId: string
+    bodyText?: string
+    bodyHtml?: string
+    replyAll?: boolean
+    subject?: string
+    accountEmail?: string | null
+  }
+) {
+  const original = await readGmailMessage(userId, opts.messageId, {
+    accountEmail: opts.accountEmail,
+  })
+  const fromMatch = original.from.match(/<([^>]+)>/) || [null, original.from]
+  const replyTo = (fromMatch[1] || original.from).trim()
+  if (!replyTo) throw new Error('تعذّر استخراج عنوان المرسل للرد.')
+
+  let to = replyTo
+  let cc = original.cc
+  if (opts.replyAll) {
+    const others = original.to
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    // Keep To as original from; put other recipients on Cc when reply-all.
+    if (others.length) {
+      const ccSet = new Set(
+        [...(cc ? cc.split(',') : []), ...others]
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+      cc = [...ccSet].join(', ')
+    }
+  }
+
+  const subject =
+    opts.subject?.trim() ||
+    (original.subject?.match(/^re:/i)
+      ? original.subject
+      : `Re: ${original.subject || 'بدون موضوع'}`)
+
+  const refs = [original.references, original.messageIdHeader]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  return sendGmailMessage(userId, {
+    to,
+    cc: cc || undefined,
+    subject,
+    bodyText: opts.bodyText,
+    bodyHtml: opts.bodyHtml,
+    threadId: original.threadId,
+    inReplyTo: original.messageIdHeader,
+    references: refs || original.messageIdHeader,
+    accountEmail: opts.accountEmail,
+  })
+}
+
+/** Profile email for the linked Gmail account. */
+export async function getGmailProfile(
+  userId: string,
+  opts?: { accountEmail?: string | null }
+): Promise<{ emailAddress: string; messagesTotal?: number; threadsTotal?: number }> {
+  const res = await gmailFetch(userId, '/users/me/profile', {
+    accountEmail: opts?.accountEmail || null,
+  })
+  const data = (await res.json()) as {
+    emailAddress?: string
+    messagesTotal?: number
+    threadsTotal?: number
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(data.error?.message || `Gmail profile HTTP ${res.status}`)
+  }
+  return {
+    emailAddress: data.emailAddress || '',
+    messagesTotal: data.messagesTotal,
+    threadsTotal: data.threadsTotal,
   }
 }

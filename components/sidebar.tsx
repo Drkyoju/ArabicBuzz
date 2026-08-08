@@ -24,6 +24,7 @@ import {
   Home,
   Bot,
   Mail,
+  Inbox,
   Gauge,
   type LucideIcon,
 } from 'lucide-react'
@@ -91,6 +92,7 @@ export type SidebarSection =
   | 'memory'
   | 'calendar'
   | 'mail'
+  | 'personal-mail'
   | 'approvals'
   | 'audit'
   | 'skills'
@@ -106,6 +108,7 @@ const PRIMARY_NAV: Array<{
 }> = [
   { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
   { id: 'assistants', labelAr: 'مهام التشغيل', icon: Bot },
+  { id: 'personal-mail', labelAr: 'بريدي الشخصي', icon: Inbox },
   { id: 'mail', labelAr: 'بريد الجمعية', icon: Mail },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   // غرفة الفريق: single entry under «الغرفة» below (fuller room row) — no nav duplicate.
@@ -256,6 +259,7 @@ function SidebarBody({
       return (
         n.id === 'home' ||
         n.id === 'assistants' ||
+        n.id === 'personal-mail' ||
         n.id === 'mail' ||
         n.id === 'calendar' ||
         n.id === 'files' ||

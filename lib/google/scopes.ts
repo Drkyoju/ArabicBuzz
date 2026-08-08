@@ -25,6 +25,8 @@ export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send',
+  // modify: mark read/unread, star, labels (needed for full personal mail client)
+  'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/drive.file',
@@ -37,4 +39,4 @@ export const GOOGLE_WORKSPACE_SCOPES = GOOGLE_CALENDAR_SCOPES
 
 /** Short tags stored on google_oauth_tokens.scopes after calendar link. */
 export const GOOGLE_WORKSPACE_SCOPE_TAGS =
-  'calendar,gmail.readonly,gmail.send,spreadsheets,drive.readonly,drive.file'
+  'calendar,gmail.readonly,gmail.send,gmail.modify,spreadsheets,drive.readonly,drive.file'

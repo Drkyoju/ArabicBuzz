@@ -3,6 +3,7 @@ export const SECTION_TITLE_AR: Record<string, string> = {
   home: 'لوحة اليوم',
   assistants: 'مهام التشغيل',
   mail: 'بريد الجمعية',
+  'personal-mail': 'بريدي الشخصي',
   calendar: 'تقويم الفريق',
   chats: 'غرفة الفريق',
   files: 'ملفات الفريق',

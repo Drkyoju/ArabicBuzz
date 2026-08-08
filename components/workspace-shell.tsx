@@ -43,6 +43,7 @@ import {
 import { HomeDashboard } from '@/components/home-dashboard'
 import { AssistantsCorePanel } from '@/components/assistants-core-panel'
 import { OrgMailPanel } from '@/components/org-mail-panel'
+import { PersonalMailPanel } from '@/components/personal-mail-panel'
 import { MailBell } from '@/components/mail-bell'
 import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
@@ -291,6 +292,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         q === 'home' ||
         q === 'assistants' ||
         q === 'mail' ||
+        q === 'personal-mail' ||
         q === 'calendar' ||
         q === 'chats' ||
         q === 'settings' ||
@@ -418,6 +420,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       target === 'home' ||
       target === 'assistants' ||
       target === 'mail' ||
+      target === 'personal-mail' ||
       target === 'calendar' ||
       target === 'chats' ||
       target === 'settings' ||
@@ -490,6 +493,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {section === 'assistants' && (
           <AssistantsCorePanel onNavigate={goToSection} />
         )}
+
+        {section === 'personal-mail' && <PersonalMailPanel />}
 
         {section === 'mail' && (
           <OrgMailPanel isOwner={Boolean(canAccessOpsUi)} />

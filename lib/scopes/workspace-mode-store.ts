@@ -101,6 +101,7 @@ export const EMPLOYEE_SECTIONS = new Set([
   'home',
   'assistants',
   'mail',
+  'personal-mail',
   'chats',
   'files',
   'calendar',

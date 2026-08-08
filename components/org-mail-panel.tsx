@@ -10,6 +10,7 @@ import {
   Mail,
   MessageCircleQuestion,
   Paperclip,
+  PenSquare,
   RefreshCw,
   Search,
   Send,
@@ -160,6 +161,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [corpusHits, setCorpusHits] = useState<CorpusHit[]>([])
   const [corpusNote, setCorpusNote] = useState('')
   const [aiMode, setAiMode] = useState<'idle' | 'summary' | 'draft'>('idle')
+  const [composing, setComposing] = useState(false)
+  const [composeTo, setComposeTo] = useState('')
+  const [composeSubject, setComposeSubject] = useState('')
+  const [composeText, setComposeText] = useState('')
+  const [composeHtml, setComposeHtml] = useState('')
 
   const readingRef = useRef<HTMLDivElement>(null)
   const replyRef = useRef<HTMLDivElement>(null)
@@ -710,10 +716,52 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setSelected(null)
     setIntel(null)
     setDelivery(null)
+    setComposing(false)
+  }
+
+  async function sendCompose() {
+    const to = composeTo.trim()
+    const subject = composeSubject.trim()
+    const body = composeText.trim()
+    if (!to || !subject || !body) {
+      setError('أكمل: إلى، الموضوع، والنص.')
+      return
+    }
+    setBusy('send')
+    setError('')
+    setOkMsg('')
+    setDelivery(null)
+    try {
+      const headers = await authHeaders()
+      const res = await fetch('/api/mail/send', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject,
+          bodyText: body,
+          bodyHtml: composeHtml.trim() || plainTextToMailHtml(body),
+          forceSend: true,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل الإرسال')
+      setOkMsg(data.messageAr || 'أُرسلت الرسالة من بريد الجمعية.')
+      setComposing(false)
+      setComposeTo('')
+      setComposeSubject('')
+      setComposeText('')
+      setComposeHtml('')
+      await loadMessages()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل الإرسال')
+    } finally {
+      setBusy('')
+    }
   }
 
   const extract = intel?.extract
-  const showListOnMobile = !selected
+  const showListOnMobile = !selected && !composing
 
   return (
     <section className="ab-page" dir="rtl">
@@ -735,6 +783,20 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           </p>
         </div>
         <div className="ab-page-head-actions">
+          {configured && (
+            <button
+              type="button"
+              onClick={() => {
+                setComposing(true)
+                setSelected(null)
+                setIntel(null)
+              }}
+              className="ab-btn-secondary"
+            >
+              <PenSquare className="h-3.5 w-3.5" aria-hidden />
+              رسالة جديدة
+            </button>
+          )}
           {isOwner && (
             <button
               type="button"
@@ -1122,13 +1184,59 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           ref={readingRef}
           id="org-mail-reading"
           className={`min-h-[16rem] space-y-3 rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto ${
-            selected ? '' : 'hidden md:block'
+            selected || composing ? '' : 'hidden md:block'
           }`}
         >
-          {!selected ? (
+          {composing ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-ab-ink">
+                  رسالة جديدة — بريد الجمعية
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setComposing(false)}
+                  className="rounded p-1 text-stone-500 hover:bg-stone-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <input
+                dir="ltr"
+                className="w-full rounded-lg border border-ab-border px-2 py-1.5 font-mono text-xs"
+                placeholder="إلى"
+                value={composeTo}
+                onChange={(e) => setComposeTo(e.target.value)}
+              />
+              <input
+                className="w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
+                placeholder="الموضوع"
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+              />
+              <MailRichComposer
+                content={composeHtml || composeText}
+                placeholder="نص الرسالة من بريد الجمعية…"
+                disabled={busy === 'send'}
+                onChange={({ html, text }) => {
+                  setComposeHtml(html)
+                  setComposeText(text)
+                }}
+              />
+              <button
+                type="button"
+                disabled={busy === 'send'}
+                onClick={() => void sendCompose()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                أرسل عبر SMTP الجمعية
+              </button>
+            </div>
+          ) : !selected ? (
             <p className="text-sm text-ab-muted">
               اختر رسالة — ثم اختر «لخّص» أو «اكتب رد». المسودة تظهر في صندوق
-              الرد للمراجعة قبل الإرسال.
+              الرد للمراجعة قبل الإرسال. أو اضغط «رسالة جديدة».
             </p>
           ) : (
             <>

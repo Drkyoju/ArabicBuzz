@@ -242,6 +242,11 @@ export async function connectGoogleCalendar() {
   return data
 }
 
+/** Explicit Gmail connect — same OAuth scopes as calendar link (includes Gmail). */
+export async function connectGoogleGmail() {
+  return connectGoogleCalendar()
+}
+
 export async function signOutSupabase() {
   const supabase = createBrowserSupabaseClient()
   const { error } = await supabase.auth.signOut()

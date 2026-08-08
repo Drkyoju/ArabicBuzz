@@ -674,7 +674,7 @@ export function HomeDashboard({
               className="ab-btn-ghost"
             >
               <Inbox className="h-3.5 w-3.5" aria-hidden />
-              البريد
+              بريد الجمعية
               {mailUnread > 0 ? (
                 <span className="ab-badge-accent tabular-nums">
                   {mailUnread}
@@ -682,6 +682,13 @@ export function HomeDashboard({
               ) : null}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => onNavigate?.('personal-mail')}
+            className="ab-btn-ghost"
+          >
+            بريدي
+          </button>
           <button
             type="button"
             disabled={busy}

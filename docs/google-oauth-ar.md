@@ -75,6 +75,9 @@
 
 فعّل في APIs: Calendar، Gmail، Sheets، Drive.
 
+نطاقات Gmail في الكود الآن: `gmail.readonly` + `gmail.send` + `gmail.modify` (للمقروء/النجمة في «بريدي الشخصي»).
+من سبق ووافق قبل `modify` يعيد الربط من نافذة البريد الشخصي.
+
 ### 6) التحقق الرسمي (اختياري — فقط إن أردت إزالة تحذير ربط التقويم)
 
 1. Consent screen → Prepare for verification
