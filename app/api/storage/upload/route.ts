@@ -391,10 +391,26 @@ export async function POST(req: Request) {
           : `📎 ملف جاهز للتنزيل: ${meta!.originalName} (id:${meta!.id})\nتم حفظ ${kindAr}: «${meta!.originalName}» (${Math.round(Number(meta!.size) / 1024)} ك.ب)`,
     })
 
+    // Resume Telegram waiting_file jobs (exact filename) — e.g. معلم أول duplicate pages.
+    let telegramJobs: unknown = null
+    try {
+      const { afterVaultFileMaybeRunTelegramJobs } = await import(
+        '@/lib/telegram/execute-file-jobs'
+      )
+      telegramJobs = await afterVaultFileMaybeRunTelegramJobs({
+        scopeId,
+        vaultFileId: String(meta!.id),
+        fileName: String(meta!.originalName),
+      })
+    } catch (e) {
+      console.warn('[upload] telegram file jobs', e)
+    }
+
     return Response.json({
       ok: true,
       file: meta,
       messageAr,
+      telegramJobs,
       openUrl: `/api/storage/file?scopeId=${encodeURIComponent(scopeId)}&id=${encodeURIComponent(String(meta!.id))}`,
     })
   } catch (e) {

@@ -60,6 +60,7 @@ const MIGRATIONS = [
   'supabase/migrations/033_assistant_jobs_model_effort.sql',
   'supabase/migrations/034_token_usage.sql',
   'supabase/migrations/035_telegram_media_import_settings.sql',
+  'supabase/migrations/036_telegram_attachment_jobs.sql',
 ]
 
 function present(v?: string): boolean {

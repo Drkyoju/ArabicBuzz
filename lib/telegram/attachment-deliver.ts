@@ -96,11 +96,23 @@ export function telegramFileTooLargeAr(opts: {
   const limitMb = (limit / (1024 * 1024)).toFixed(0)
   const name = opts.fileName ? `«${opts.fileName}»` : 'المرفق'
   return [
-    `تعذّر تنزيل ${name} عبر بوت تيليجرام السحابي.`,
-    sizeMb
-      ? `حجم الملف ≈ ${sizeMb} م.ب — الحد ≈ ${limitMb} م.ب.`
-      : `حد التنزيل ≈ ${limitMb} م.ب.`,
-    'الحلول: (1) اضغط الملف وأعد إرساله هنا، أو (2) ارفعه من الموقع إلى ملفات الغرفة، أو (3) ارفعه إلى عقل الشركة (Drive) بنفس الاسم ثم اذكر الاسم هنا.',
-    'لن أستبدل ملفك بملف آخر من Drive بالتشابه في الاسم.',
+    `سجّلت ${name} — تنزيل بوت تيليجرام السحابي محدود (~${limitMb} م.ب)${
+      sizeMb ? ` والملف ≈ ${sizeMb} م.ب` : ''
+    }.`,
+    'سأكمل المهمة عبر ملفات غرفة الفريق أو عقل الشركة (Drive) عند توفر البايتات بنفس الاسم تماماً، ثم أرسل الناتج هنا.',
+    'لا حاجة لإعادة إرسال الملف عبر تيليجرام مراراً. لن أستبدل ملفك بملف آخر بالتشابه في الاسم.',
   ].join('\n')
+}
+
+/** True when error text is the TG download-size / missing-bytes class. */
+export function isTelegramDownloadLimitError(err: unknown): boolean {
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : ''
+  return /حد التنزيل|تنزيل بوت تيليجرام|TELEGRAM_MAX_DOWNLOAD|20 م\.ب|سجّلت .*تنزيل بوت/i.test(
+    raw
+  )
 }

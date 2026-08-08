@@ -11,6 +11,9 @@ export type RecentTelegramMedia = {
   scopeId: string
   /** Telegram Bot API file_id when known (reply re-ingest). */
   telegramFileId?: string
+  messageId?: string
+  fileUniqueId?: string
+  attachmentPersistId?: string
   at: number
 }
 
@@ -39,6 +42,9 @@ export function rememberTelegramMedia(
     mimeType: media.mimeType,
     scopeId: media.scopeId,
     telegramFileId: media.telegramFileId,
+    messageId: media.messageId,
+    fileUniqueId: media.fileUniqueId,
+    attachmentPersistId: media.attachmentPersistId,
     at: media.at ?? Date.now(),
   }
   const filtered = list.filter((m) => m.fileId !== next.fileId)
@@ -76,8 +82,10 @@ export function formatRecentTelegramMediaHint(chatId: string): string {
   })
   return [
     '[مرفقات تيليجرام الأخيرة في هذه المحادثة — هذه نسخة العمل]',
-    'نفّذ على fileId أعلاه مباشرة (read/edit/convert/ocr ثم return_file).',
-    'ممنوع استبدالها بملف Drive/خزنة بالتشابه في الاسم. إن فُقدت البايتات: اعتذر واطلب إعادة الإرسال.',
+    'نفّذ على fileId أعلاه مباشرة (read/edit/convert/ocr/pdf_duplicate_page ثم return_file).',
+    'ممنوع استبدالها بملف Drive/خزنة بالتشابه في الاسم.',
+    'ممنوع طلب «أعد إرسال الملف» ما دام fileId/البايتات موجودة هنا أو في خزنة الغرفة.',
+    'إن تعذّر sendDocument لكبر الحجم: اضغط/ارفع للناتج في الغرفة أو Drive ثم أرسل المضغوط — لا تعتبر رابط Drive إكمالاً زائفاً دون محاولة الإرسال.',
     'لا تنتظر Google Drive ولا brain_open_document إلا إن طلب المستخدم صراحة ملف من الدرايف.',
     ...lines,
   ].join('\n')

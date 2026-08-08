@@ -277,8 +277,12 @@ export async function sendAttachmentsToTelegramChat(opts: {
       const mime = file.meta.mimeType || a.mimeType
       if (file.buffer.byteLength > TELEGRAM_MAX_UPLOAD_BYTES) {
         const mb = (file.buffer.byteLength / (1024 * 1024)).toFixed(1)
+        // Honest: result is in the room vault — not a fake "done" via Drive link alone.
         await opts.ctx.reply(
-          `الملف «${name}» تجاوز حد الإرسال عبر تيليجرام (~${mb} م.ب). يمكنك فتحه من خزنة الغرفة على الموقع.`
+          [
+            `أنجزت الملف «${name}» وحفظته في خزنة الغرفة (~${mb} م.ب).`,
+            'تجاوز حد إرسال تيليجرام المباشر — افتحه من ملفات الغرفة على الموقع، أو اطلب نسخة مضغوطة لأرسلها هنا.',
+          ].join('\n')
         )
         continue
       }

@@ -353,6 +353,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let telegramFileJobs: unknown = null
+  try {
+    const { runReadyTelegramFileJobs } = await import(
+      '@/lib/telegram/execute-file-jobs'
+    )
+    telegramFileJobs = await runReadyTelegramFileJobs({ limit: 20 })
+  } catch (e) {
+    telegramFileJobs = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'telegram file jobs error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -368,5 +381,6 @@ export async function POST(req: NextRequest) {
     roomChatRetention,
     vaultBackup,
     mailEnergy,
+    telegramFileJobs,
   })
 }

@@ -56,7 +56,10 @@ import {
   sendAttachmentsToTelegramChat,
   type TelegramAttachmentRef,
 } from '@/lib/telegram/media'
-import { shouldDeliverSilentAttachment } from '@/lib/telegram/attachment-deliver'
+import {
+  shouldDeliverSilentAttachment,
+  isTelegramDownloadLimitError,
+} from '@/lib/telegram/attachment-deliver'
 import { afterTelegramMediaSaved } from '@/lib/telegram/media-import'
 import {
   assertCaptionWorkMustExecute,
@@ -65,7 +68,22 @@ import {
 import {
   formatRecentTelegramMediaHint,
   rememberTelegramMedia,
+  getLatestTelegramMedia,
 } from '@/lib/telegram/recent-media'
+import {
+  persistTelegramAttachment,
+  hydrateRecentMediaFromPersist,
+  telegramLargeFileWorkingPathAr,
+} from '@/lib/telegram/attachment-persist'
+import {
+  enqueueTelegramFileJob,
+  inferPdfDuplicateWorkParams,
+  updateTelegramFileJob,
+} from '@/lib/telegram/file-jobs'
+import {
+  prepareTelegramFileJobResumes,
+} from '@/lib/telegram/resume-file-jobs'
+import { afterVaultFileMaybeRunTelegramJobs } from '@/lib/telegram/execute-file-jobs'
 import {
   formatUnknownShortAr,
   isCasualTelegramWork,
@@ -181,7 +199,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
 - موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
 - مهام: room_tasks_create / update فوراً.
-- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل الوحيدة. اقرأ/عدّل/حوّل/OCR ثم return_file (مرفق تيليجرام). ممنوع brain_open/drive_search أو أي تطابق تقريبي بالاسم كبديل. إن فُقدت البايتات: اعتذر واطلب إعادة الإرسال — لا تختار ملفاً آخر.
+- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل الوحيدة. اقرأ/عدّل/حوّل/OCR/pdf_duplicate_page ثم return_file (مرفق تيليجرام). ممنوع brain_open/drive_search أو أي تطابق تقريبي بالاسم كبديل. ممنوع طلب إعادة الإرسال إن وُجدت بايتات/خزنة/مهمة معلّقة — استأنف. إن انعدمت كل المسارات: رسالة عربية واحدة تطلب الرفع للموقع/Drive بنفس الاسم.
+- ملف كبير: أكمل عبر غرفة الفريق أو Drive ثم أرسل الناتج هنا (sendDocument/ضغط). رابط Drive وحده ليس إكمالاً إن طلب المستخدم ملف تيليجرام.
 - بدون مرفق صريح: list_workspace_files بالاسم/المعرّف المطابق حرفياً فقط. Drive/brain_open_document فقط عند طلب صريح لاسم أو معرّف Drive كامل.
 - تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document ثم return_file. حفظ Drive بـ brain_save_document اختياري بعد النجاح إن طُلب.
 - حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
@@ -931,7 +950,6 @@ async function runTelegramTeamAgentTurn(opts: {
     attachments: attachments.map((a) => a),
   }
 }
-
 
 async function runTelegramAgentTurn(opts: {
   ctx: Context
@@ -2132,12 +2150,27 @@ export function getTelegramBot() {
           mimeType: doc.mime_type,
           fileSize: doc.file_size,
         })
+        const persisted = await persistTelegramAttachment({
+          chatId,
+          scopeId: scope.scope.id,
+          telegramFileId: doc.file_id,
+          fileUniqueId: doc.file_unique_id,
+          messageId: replyMsg.message_id,
+          fileName: ingested.name,
+          mimeType: ingested.mimeType,
+          sizeBytes: doc.file_size,
+          vaultFileId: ingested.fileId,
+          hasBytes: true,
+        })
         rememberTelegramMedia(chatId, {
           fileId: ingested.fileId,
           name: ingested.name,
           mimeType: ingested.mimeType,
           scopeId: scope.scope.id,
           telegramFileId: doc.file_id,
+          messageId: String(replyMsg.message_id),
+          fileUniqueId: doc.file_unique_id,
+          attachmentPersistId: persisted.id,
         })
         void afterTelegramMediaSaved({
           scopeId: scope.scope.id,
@@ -2152,7 +2185,7 @@ export function getTelegramBot() {
             fileId: ingested.fileId,
             kind: 'file',
           }),
-          'هذه نسخة العمل — نفّذ الطلب عليها ثم return_file. Drive اختياري ولا يُشترط.',
+          'هذه نسخة العمل — نفّذ الطلب عليها ثم return_file. Drive اختياري ولا يُشترط. ممنوع طلب إعادة الإرسال.',
         ].join('\n')
       } else if (replyMsg?.photo?.length) {
         const best = replyMsg.photo[replyMsg.photo.length - 1]
@@ -2162,12 +2195,27 @@ export function getTelegramBot() {
             scopeId: scope.scope.id,
             fileId: best.file_id,
           })
+          const persisted = await persistTelegramAttachment({
+            chatId,
+            scopeId: scope.scope.id,
+            telegramFileId: best.file_id,
+            fileUniqueId: best.file_unique_id,
+            messageId: replyMsg.message_id,
+            fileName: ingested.name,
+            mimeType: ingested.mimeType,
+            sizeBytes: best.file_size,
+            vaultFileId: ingested.fileId,
+            hasBytes: true,
+          })
           rememberTelegramMedia(chatId, {
             fileId: ingested.fileId,
             name: ingested.name,
             mimeType: ingested.mimeType,
             scopeId: scope.scope.id,
             telegramFileId: best.file_id,
+            messageId: String(replyMsg.message_id),
+            fileUniqueId: best.file_unique_id,
+            attachmentPersistId: persisted.id,
           })
           void afterTelegramMediaSaved({
             scopeId: scope.scope.id,
@@ -2182,7 +2230,7 @@ export function getTelegramBot() {
               fileId: ingested.fileId,
               kind: 'file',
             }),
-            'هذه نسخة العمل — نفّذ ثم return_file. Drive اختياري.',
+            'هذه نسخة العمل — نفّذ ثم return_file. Drive اختياري. ممنوع طلب إعادة الإرسال.',
           ].join('\n')
         }
       }
@@ -2190,20 +2238,93 @@ export function getTelegramBot() {
       console.error('[telegram] reply media ingest', replyIngestErr)
     }
 
-    const recentHint = formatRecentTelegramMediaHint(chatId)
     const workKindForPrompt = classifyTelegramWorkIntent(promptSource).kind
     const needsRecentFile =
       Boolean(replyIngestHint) ||
       workKindForPrompt === 'file' ||
       workKindForPrompt === 'question' ||
-      /ملف|مستند|لائح|حوّل|حول|نسّق|نسق|عدّل|عدل|لخّص|لخص|pdf|word|ورد/i.test(
+      /ملف|مستند|لائح|حو[ّ]?ل|نس[ّ]?ق|عد[ّ]?ل|لخ[ّ]?ص|pdf|word|ورد|صفحة|كرر|انسخ/i.test(
         promptSource
       )
-    if (replyIngestHint || (needsRecentFile && recentHint)) {
+
+    // Cold-start / new instance: reload last TG attachments from durable store.
+    if (needsRecentFile) {
+      await hydrateRecentMediaFromPersist(chatId)
+    }
+
+    // Auto-resume unfinished file jobs before treating this as a fresh ask.
+    if (needsRecentFile || workKindForPrompt === 'file') {
+      const resumes = await prepareTelegramFileJobResumes({
+        chatId,
+        scopeId: scope.scope.id,
+        limit: 3,
+      })
+      for (const note of resumes.notifiedWaiting.slice(0, 1)) {
+        try {
+          await ctx.reply(note)
+        } catch {
+          /* ignore */
+        }
+      }
+      if (resumes.ready.length && !replyIngestHint) {
+        const r = resumes.ready[0]!
+        const linkedRequest = [
+          promptSource,
+          '',
+          r.prompt,
+        ].join('\n')
+        await updateTelegramFileJob(r.job.id, { status: 'running' })
+        try {
+          await runTelegramAgentTurn({
+            ctx,
+            promptSource: linkedRequest,
+            chatId,
+            userId,
+            scope,
+            forceHeavy: true,
+            replyMode: replyMode === 'silent_execute' ? 'full' : replyMode,
+          })
+          await updateTelegramFileJob(r.job.id, { status: 'done' })
+        } catch (e) {
+          await updateTelegramFileJob(r.job.id, {
+            status: 'failed',
+            lastErrorAr: e instanceof Error ? e.message : String(e),
+          })
+          throw e
+        }
+        return
+      }
+    }
+
+    // Follow-up file work without reply-to: enqueue linked to last persisted media.
+    if (
+      !replyIngestHint &&
+      workKindForPrompt === 'file' &&
+      getLatestTelegramMedia(chatId)
+    ) {
+      const latest = getLatestTelegramMedia(chatId)!
+      const dup = inferPdfDuplicateWorkParams(promptSource)
+      void enqueueTelegramFileJob({
+        chatId,
+        scopeId: scope.scope.id,
+        userId,
+        requestText: promptSource,
+        expectedFilename: latest.name,
+        vaultFileId: latest.fileId,
+        telegramFileId: latest.telegramFileId,
+        attachmentId: latest.attachmentPersistId,
+        workKind: 'file',
+        workParams: dup || {},
+        status: 'running',
+      })
+    }
+
+    const recentHintFresh = formatRecentTelegramMediaHint(chatId)
+    if (replyIngestHint || (needsRecentFile && recentHintFresh)) {
       promptSource = [
         promptSource,
         '',
-        replyIngestHint || recentHint,
+        replyIngestHint || recentHintFresh,
       ]
         .filter(Boolean)
         .join('\n')
@@ -2408,6 +2529,62 @@ export function getTelegramBot() {
       }
 
       const recentHint = formatRecentTelegramMediaHint(chatId)
+      await hydrateRecentMediaFromPersist(chatId)
+      const recentHintFresh = formatRecentTelegramMediaHint(chatId) || recentHint
+      if (voiceWork.kind === 'file') {
+        const resumes = await prepareTelegramFileJobResumes({
+          chatId,
+          scopeId: scope.scope.id,
+          limit: 2,
+        })
+        for (const note of resumes.notifiedWaiting.slice(0, 1)) {
+          try {
+            await ctx.reply(note)
+          } catch {
+            /* ignore */
+          }
+        }
+        if (resumes.ready.length) {
+          const r = resumes.ready[0]!
+          await updateTelegramFileJob(r.job.id, { status: 'running' })
+          try {
+            await runTelegramAgentTurn({
+              ctx,
+              promptSource: [transcript, '', r.prompt].join('\n'),
+              chatId,
+              userId,
+              scope,
+              forceHeavy: true,
+              workLabelAr: voiceWork.labelAr,
+              replyMode: 'full',
+            })
+            await updateTelegramFileJob(r.job.id, { status: 'done' })
+          } catch (e) {
+            await updateTelegramFileJob(r.job.id, {
+              status: 'failed',
+              lastErrorAr: e instanceof Error ? e.message : String(e),
+            })
+            throw e
+          }
+          return
+        }
+        const latest = getLatestTelegramMedia(chatId)
+        if (latest) {
+          const dup = inferPdfDuplicateWorkParams(transcript)
+          void enqueueTelegramFileJob({
+            chatId,
+            scopeId: scope.scope.id,
+            userId,
+            requestText: transcript,
+            expectedFilename: latest.name,
+            vaultFileId: latest.fileId,
+            telegramFileId: latest.telegramFileId,
+            workKind: 'file',
+            workParams: dup || {},
+            status: 'running',
+          })
+        }
+      }
       const promptSource = [
         transcript,
         needsTranslate
@@ -2418,13 +2595,13 @@ export function getTelegramBot() {
           : voiceWork.kind === 'task'
             ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
             : voiceWork.kind === 'file'
-              ? '\n[صوت: ملف — نفّذ على مرفق تيليجرام الأخير (fileId) مباشرة ثم return_file — Drive اختياري]'
+              ? '\n[صوت: ملف — نفّذ على مرفق تيليجرام الأخير (fileId) مباشرة ثم return_file — ممنوع طلب إعادة الإرسال إن وُجدت بايتات]'
               : voiceWork.kind === 'mail'
                 ? '\n[صوت: بريد — mail_*/gmail_* فوراً ولخّص]'
                 : voiceWork.kind === 'message'
                   ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
                   : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة]',
-        recentHint ? `\n${recentHint}` : '',
+        recentHintFresh ? `\n${recentHintFresh}` : '',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',
@@ -2510,29 +2687,114 @@ export function getTelegramBot() {
       })
 
       await ctx.replyWithChatAction('typing')
-      let ingested: { fileId: string; name: string; mimeType: string }
+      let ingested: { fileId: string; name: string; mimeType: string } | null =
+        null
       let telegramFileId = ''
+      let fileUniqueId = ''
+      let declaredName = ''
+      let declaredMime = 'application/octet-stream'
+      let declaredSize: number | undefined
+      const messageId = ctx.message.message_id
 
       if (ctx.message.document) {
         const doc = ctx.message.document
         telegramFileId = doc.file_id
-        ingested = await ingestTelegramDocumentToWorkspace({
-          ctx,
-          scopeId: scope.scope.id,
-          fileId: doc.file_id,
-          fileName: doc.file_name || `telegram-doc-${Date.now()}`,
-          mimeType: doc.mime_type,
-          fileSize: doc.file_size,
-        })
+        fileUniqueId = doc.file_unique_id || ''
+        declaredName = doc.file_name || `telegram-doc-${Date.now()}`
+        declaredMime = doc.mime_type || declaredMime
+        declaredSize = doc.file_size
+        try {
+          ingested = await ingestTelegramDocumentToWorkspace({
+            ctx,
+            scopeId: scope.scope.id,
+            fileId: doc.file_id,
+            fileName: declaredName,
+            mimeType: doc.mime_type,
+            fileSize: doc.file_size,
+          })
+        } catch (dlErr) {
+          const persisted = await persistTelegramAttachment({
+            chatId,
+            scopeId: scope.scope.id,
+            telegramFileId,
+            fileUniqueId: fileUniqueId || undefined,
+            messageId,
+            fileName: declaredName,
+            mimeType: declaredMime,
+            sizeBytes: declaredSize,
+            hasBytes: false,
+            downloadErrorAr:
+              dlErr instanceof Error ? dlErr.message : String(dlErr),
+          })
+          const dup = inferPdfDuplicateWorkParams(caption)
+          const job = await enqueueTelegramFileJob({
+            chatId,
+            scopeId: scope.scope.id,
+            userId,
+            requestText: caption || 'أكمل العمل على الملف المرفق',
+            expectedFilename: declaredName,
+            attachmentId: persisted.id,
+            telegramFileId,
+            workKind: 'file',
+            workParams: dup || {},
+            status: 'waiting_file',
+          })
+          const msg = isTelegramDownloadLimitError(dlErr)
+            ? telegramLargeFileWorkingPathAr({
+                fileName: declaredName,
+                sizeBytes: declaredSize,
+              })
+            : formatTelegramErrorAr(dlErr, { inGroup, botUsername })
+          await ctx.reply(msg)
+          // Try room/Drive recovery immediately for this filename.
+          const resumes = await prepareTelegramFileJobResumes({
+            chatId,
+            scopeId: scope.scope.id,
+            limit: 4,
+          })
+          for (const note of resumes.notifiedWaiting) {
+            /* already notified via large-file message above */
+            void note
+          }
+          for (const r of resumes.ready) {
+            if (r.job.id !== job.id && r.job.expectedFilename !== declaredName) {
+              continue
+            }
+            await updateTelegramFileJob(r.job.id, { status: 'running' })
+            try {
+              await runTelegramAgentTurn({
+                ctx,
+                promptSource: r.prompt,
+                chatId,
+                userId,
+                scope,
+                forceHeavy: true,
+                workLabelAr: 'ملف',
+                replyMode: 'full',
+              })
+              await updateTelegramFileJob(r.job.id, { status: 'done' })
+            } catch (e) {
+              await updateTelegramFileJob(r.job.id, {
+                status: 'failed',
+                lastErrorAr: e instanceof Error ? e.message : String(e),
+              })
+            }
+          }
+          return
+        }
       } else if (ctx.message.video) {
         const vid = ctx.message.video
         telegramFileId = vid.file_id
+        fileUniqueId = vid.file_unique_id || ''
+        declaredName = vid.file_name || `telegram-video-${Date.now()}.mp4`
+        declaredMime = vid.mime_type || 'video/mp4'
+        declaredSize = vid.file_size
         ingested = await ingestTelegramVideoToWorkspace({
           ctx,
           scopeId: scope.scope.id,
           fileId: vid.file_id,
-          fileName: vid.file_name || `telegram-video-${Date.now()}.mp4`,
-          mimeType: vid.mime_type || 'video/mp4',
+          fileName: declaredName,
+          mimeType: declaredMime,
         })
       } else {
         const photos = ctx.message.photo || []
@@ -2544,6 +2806,10 @@ export function getTelegramBot() {
           return
         }
         telegramFileId = best.file_id
+        fileUniqueId = best.file_unique_id || ''
+        declaredName = `telegram-photo-${Date.now()}.jpg`
+        declaredMime = 'image/jpeg'
+        declaredSize = best.file_size
         ingested = await ingestTelegramPhotoToWorkspace({
           ctx,
           scopeId: scope.scope.id,
@@ -2551,12 +2817,30 @@ export function getTelegramBot() {
         })
       }
 
+      if (!ingested) return
+
+      const persisted = await persistTelegramAttachment({
+        chatId,
+        scopeId: scope.scope.id,
+        telegramFileId: telegramFileId || undefined,
+        fileUniqueId: fileUniqueId || undefined,
+        messageId,
+        fileName: ingested.name,
+        mimeType: ingested.mimeType,
+        sizeBytes: declaredSize,
+        vaultFileId: ingested.fileId,
+        hasBytes: true,
+      })
+
       rememberTelegramMedia(chatId, {
         fileId: ingested.fileId,
         name: ingested.name,
         mimeType: ingested.mimeType,
         scopeId: scope.scope.id,
         telegramFileId: telegramFileId || undefined,
+        messageId: String(messageId),
+        fileUniqueId: fileUniqueId || undefined,
+        attachmentPersistId: persisted.id,
       })
 
       // Drive sync is optional best-effort — never blocks Telegram execute.
@@ -2565,6 +2849,13 @@ export function getTelegramBot() {
         fileId: ingested.fileId,
         name: ingested.name,
         mimeType: ingested.mimeType,
+      })
+
+      void afterVaultFileMaybeRunTelegramJobs({
+        chatId,
+        scopeId: scope.scope.id,
+        vaultFileId: ingested.fileId,
+        fileName: ingested.name,
       })
 
       const { text: captionStripped } = stripBotMention(caption, botUsername)
@@ -2598,6 +2889,21 @@ export function getTelegramBot() {
         return
       }
 
+      const dup = inferPdfDuplicateWorkParams(captionStripped)
+      const job = await enqueueTelegramFileJob({
+        chatId,
+        scopeId: scope.scope.id,
+        userId,
+        requestText: captionStripped || 'اقرأ المرفق ونفّذ المطلوب',
+        expectedFilename: ingested.name,
+        attachmentId: persisted.id,
+        vaultFileId: ingested.fileId,
+        telegramFileId,
+        workKind: 'file',
+        workParams: dup || {},
+        status: 'running',
+      })
+
       const userAsk =
         captionStripped ||
         (isVideo
@@ -2628,19 +2934,33 @@ export function getTelegramBot() {
           kind: ingested.mimeType.startsWith('audio/') ? 'voice' : 'file',
         }),
         ocrHint,
-        'نفّذ الطلب على هذا fileId مباشرة وأعد الناتج كمرفق تيليجرام. مزامنة Drive اختيارية فقط ولا تمنع التنفيذ.',
-      ].join('\n')
+        dup
+          ? `استدعِ pdf_duplicate_page: copyPage=${dup.copyPage} afterPage=${dup.afterPage} ثم return_file.`
+          : '',
+        'نفّذ الطلب على هذا fileId مباشرة وأعد الناتج كمرفق تيليجرام. مزامنة Drive اختيارية فقط ولا تمنع التنفيذ. ممنوع طلب إعادة الإرسال.',
+      ]
+        .filter(Boolean)
+        .join('\n')
 
-      await runTelegramAgentTurn({
-        ctx,
-        promptSource,
-        chatId,
-        userId,
-        scope,
-        forceHeavy: true,
-        workLabelAr: decision.workKind === 'casual' ? 'ملف' : decision.workKind,
-        replyMode: 'full',
-      })
+      try {
+        await runTelegramAgentTurn({
+          ctx,
+          promptSource,
+          chatId,
+          userId,
+          scope,
+          forceHeavy: true,
+          workLabelAr: decision.workKind === 'casual' ? 'ملف' : decision.workKind,
+          replyMode: 'full',
+        })
+        await updateTelegramFileJob(job.id, { status: 'done' })
+      } catch (e) {
+        await updateTelegramFileJob(job.id, {
+          status: 'failed',
+          lastErrorAr: e instanceof Error ? e.message : String(e),
+        })
+        throw e
+      }
     } catch (e) {
       console.error('[telegram] document/photo/video', e)
       // Never silent-fail media ingest in a linked group (size cap / download errors).
