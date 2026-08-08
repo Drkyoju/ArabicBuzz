@@ -222,15 +222,15 @@ export async function findWorkspaceFile(
   fileIdOrName: string
 ): Promise<WorkspaceFileRef | null> {
   const files = await listWorkspaceFiles(scopeId)
-  const q = fileIdOrName.trim()
-  const byId = files.find((f) => f.id === q)
-  if (byId) return byId
-  const lower = q.toLowerCase()
-  return (
-    files.find((f) => f.originalName.toLowerCase() === lower) ||
-    files.find((f) => f.originalName.toLowerCase().includes(lower)) ||
-    null
-  )
+  const {
+    matchWorkspaceFileExact,
+    assertResolvedFileAllowed,
+  } = await import('@/lib/files/file-source-policy')
+  // Exact id / exact name / unique basename only — never partial «معلم»→biology guide.
+  const found = matchWorkspaceFileExact(files, fileIdOrName)
+  if (!found) return null
+  assertResolvedFileAllowed(found, fileIdOrName)
+  return found
 }
 
 export async function saveWorkspaceFile(opts: {
@@ -341,5 +341,7 @@ export async function saveWorkspaceFile(opts: {
 
   const cloud = await saveCloudFile(saveOpts)
   if (!cloud.ok) throw new Error(cloud.error)
+  const { allowDerivedFileId } = await import('@/lib/files/file-source-policy')
+  allowDerivedFileId(cloud.file.id)
   return { file: cloud.file, source: 'cloud' }
 }

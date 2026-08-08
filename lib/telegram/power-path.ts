@@ -361,9 +361,10 @@ function workKindNudge(kind: TelegramWorkKind): string {
     case 'file':
       return [
         '[قصد تيليجرام: ملف — تيليجرام أولاً]',
-        'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل — اقرأها/عدّلها/حوّلها مباشرة. ممنوع انتظار Drive أو القول إن الملف غير موجود لأنّه ليس على الدرايف.',
-        'عدّل/حوّل (edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document / arabic_ocr) ثم return_file دائماً — الناتج يُرسل كمرفق تيليجرام فوراً.',
-        'ابحث في خزنة الغرفة (list_workspace_files / room_search) إن لم يُمرَّر fileId. Drive/brain_open_document اختياري فقط عند طلب صريح من الدرايف.',
+        'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل الوحيدة — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
+        'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف آخر) / أي بديل من Drive أو الويب.',
+        'إن تعذّر قراءة بايتات المرفق: اعتذر بالعربية واطلب إعادة الإرسال — لا تختار ملفاً آخر.',
+        'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
         'مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'OCR للصور/PDF الممسوح: arabic_ocr. تعليق PDF: pdf_annotate أو pdf_stamp ثم return_file.',

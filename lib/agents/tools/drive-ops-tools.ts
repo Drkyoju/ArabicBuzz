@@ -69,14 +69,21 @@ export async function executeDriveSearchFiles(
   if (!query) throw new Error('مرّر queryAr للبحث في مجلد ملفات الجمعية.')
 
   try {
+    const { getFileSourceLock } = await import('@/lib/files/file-source-policy')
+    if (getFileSourceLock()?.lockedTelegramFileIds.length) {
+      throw new Error(
+        'يوجد مرفق تيليجرام في هذا الطلب — ممنوع البحث في Drive كبديل. نفّذ على fileId المرفق فقط.'
+      )
+    }
     const files = await listDriveFolderFiles(userId, { recursive: true })
     const lower = query.toLowerCase()
+    // List matches for discovery only — opening still requires exact id/name (no fuzzy open).
     const hits = files
-      .filter(
-        (f) =>
-          f.name.toLowerCase().includes(lower) ||
-          lower.includes(f.name.toLowerCase().replace(/\.[^.]+$/, ''))
-      )
+      .filter((f) => {
+        const n = f.name.toLowerCase()
+        const base = n.replace(/\.[^.]+$/, '')
+        return n === lower || base === lower.replace(/\.[^.]+$/, '')
+      })
       .slice(0, 25)
     return {
       ok: true,

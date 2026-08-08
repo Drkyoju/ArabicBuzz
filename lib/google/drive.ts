@@ -363,13 +363,14 @@ export async function findDriveBrainFile(
   }
   const files = await listDriveFolderFiles(userId, { recursive: true })
   const lower = q.toLowerCase()
-  const exact = files.find((f) => f.name.toLowerCase() === lower)
-  if (exact) return exact
-  const partial = files.find(
-    (f) =>
-      f.name.toLowerCase().includes(lower) ||
-      lower.includes(f.name.toLowerCase().replace(/\.[^.]+$/, ''))
+  const exact = files.filter((f) => f.name.toLowerCase() === lower)
+  if (exact.length === 1) return exact[0]!
+  const base = lower.replace(/\.[^.]+$/, '')
+  const byBase = files.filter(
+    (f) => f.name.toLowerCase().replace(/\.[^.]+$/, '') === base
   )
-  return partial || null
+  if (byBase.length === 1) return byBase[0]!
+  // No partial/fuzzy includes — never substitute nearest similar name.
+  return null
 }
 

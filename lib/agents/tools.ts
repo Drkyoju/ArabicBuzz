@@ -530,10 +530,16 @@ export const toolRegistry: Record<string, ToolExecutor> = {
 }
 
 export function getToolExecutor(toolName: string): ToolExecutor {
-  return (
+  const base =
     toolRegistry[toolName] ||
     (async () => {
       throw new Error(`Unknown tool: ${toolName}`)
     })
-  )
+  return async (name, params) => {
+    const { assertFileSourceToolAllowed } = await import(
+      '@/lib/files/file-source-policy'
+    )
+    assertFileSourceToolAllowed(toolName)
+    return base(name, params)
+  }
 }

@@ -77,6 +77,7 @@ export function formatRecentTelegramMediaHint(chatId: string): string {
   return [
     '[مرفقات تيليجرام الأخيرة في هذه المحادثة — هذه نسخة العمل]',
     'نفّذ على fileId أعلاه مباشرة (read/edit/convert/ocr ثم return_file).',
+    'ممنوع استبدالها بملف Drive/خزنة بالتشابه في الاسم. إن فُقدت البايتات: اعتذر واطلب إعادة الإرسال.',
     'لا تنتظر Google Drive ولا brain_open_document إلا إن طلب المستخدم صراحة ملف من الدرايف.',
     ...lines,
   ].join('\n')

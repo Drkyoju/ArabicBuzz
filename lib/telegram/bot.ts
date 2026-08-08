@@ -159,8 +159,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
 - موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
 - مهام: room_tasks_create / update فوراً.
-- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل. اقرأ/عدّل/حوّل/OCR ثم return_file دائماً (يُرسل كمرفق تيليجرام). ممنوع القول إن الملف غير موجود لأنه ليس على Drive.
-- بدون مرفق صريح: list_workspace_files / room_search على خزنة الغرفة. Drive/brain_open_document فقط عند طلب صريح من الدرايف.
+- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل الوحيدة. اقرأ/عدّل/حوّل/OCR ثم return_file (مرفق تيليجرام). ممنوع brain_open/drive_search أو أي تطابق تقريبي بالاسم كبديل. إن فُقدت البايتات: اعتذر واطلب إعادة الإرسال — لا تختار ملفاً آخر.
+- بدون مرفق صريح: list_workspace_files بالاسم/المعرّف المطابق حرفياً فقط. Drive/brain_open_document فقط عند طلب صريح لاسم أو معرّف Drive كامل.
 - تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document ثم return_file. حفظ Drive بـ brain_save_document اختياري بعد النجاح إن طُلب.
 - حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
@@ -1096,15 +1096,42 @@ async function runTelegramAgentTurn(opts: {
   const prepMs = Date.now() - tPrep
   const tStream = Date.now()
 
+  const {
+    parseTelegramAttachmentFileIds,
+    runWithFileSourceLock,
+    formatFileSourceLockHint,
+  } = await import('@/lib/files/file-source-policy')
+  const lockParsed = parseTelegramAttachmentFileIds(
+    `${opts.promptSource}\n${normalized.normalizedPromptAr}`
+  )
+  const lockHint = formatFileSourceLockHint({
+    lockedTelegramFileIds: lockParsed.fileIds,
+    lockedNames: lockParsed.names,
+  })
+  const lockedSystem = lockHint ? `${system}\n\n${lockHint}` : system
+
+  const runLocked = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    if (!lockParsed.fileIds.length) return fn()
+    return runWithFileSourceLock(
+      {
+        lockedTelegramFileIds: lockParsed.fileIds,
+        lockedNames: lockParsed.names,
+      },
+      fn
+    )
+  }
+
   if (silent) {
-    const silentOut = await runSilentTelegramTools({
-      prompt: normalized.normalizedPromptAr,
-      system,
-      modelSlug,
-      scopeId,
-      maxSteps,
-      tools,
-    })
+    const silentOut = await runLocked(() =>
+      runSilentTelegramTools({
+        prompt: normalized.normalizedPromptAr,
+        system: lockedSystem,
+        modelSlug,
+        scopeId,
+        maxSteps,
+        tools,
+      })
+    )
     const attachmentsSent = await deliverSilentTelegramResults({
       ctx: opts.ctx,
       attachments: silentOut.attachments,
@@ -1155,18 +1182,19 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
-  const out = await streamTelegramReply({
-    ctx: opts.ctx,
-    prompt: normalized.normalizedPromptAr,
-    system,
-    modelSlug,
-    requesterId,
-    scopeId,
-    maxSteps,
-    tools,
-    placeholderMessageId: ack?.message_id,
-  })
-
+  const out = await runLocked(() =>
+    streamTelegramReply({
+      ctx: opts.ctx,
+      prompt: normalized.normalizedPromptAr,
+      system: lockedSystem,
+      modelSlug,
+      requesterId,
+      scopeId,
+      maxSteps,
+      tools,
+      placeholderMessageId: ack?.message_id,
+    })
+  )
   console.info('[telegram] timing', {
     path: 'agent',
     heavy,
