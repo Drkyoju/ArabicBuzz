@@ -11,13 +11,16 @@ import {
 import {
   isDirectorEmail,
   isWorkspaceOwnerEmail,
+  isAllowlistedEmployeeEmail,
   labelArForEmail,
   orgRoleForEmail,
   personaForEmail,
   roomRoleForEmail,
   getWorkspaceOwnerEmail,
   getDirectorEmails,
+  getEmployeeEmails,
   DEFAULT_DIRECTOR_EMAIL,
+  DEFAULT_EMPLOYEE_EMAILS,
 } from '@/lib/auth/roles'
 
 export type { Role, UiPersona }
@@ -30,13 +33,16 @@ export {
   roomRoleLabelAr,
   isDirectorEmail,
   isWorkspaceOwnerEmail,
+  isAllowlistedEmployeeEmail,
   labelArForEmail,
   orgRoleForEmail,
   personaForEmail,
   roomRoleForEmail,
   getWorkspaceOwnerEmail,
   getDirectorEmails,
+  getEmployeeEmails,
   DEFAULT_DIRECTOR_EMAIL,
+  DEFAULT_EMPLOYEE_EMAILS,
 }
 
 export const ARABIC_AUTHZ_ERROR =

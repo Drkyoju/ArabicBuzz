@@ -710,6 +710,7 @@ export async function updateRoomMember(opts: {
   memberId: string
   displayNameAr?: string
   email?: string | null
+  userId?: string | null
   phone?: string | null
   committee?: string | null
   notesAr?: string | null
@@ -720,6 +721,7 @@ export async function updateRoomMember(opts: {
   const patch: Record<string, unknown> = {}
   if (opts.displayNameAr != null) patch.display_name_ar = opts.displayNameAr.trim()
   if (opts.email !== undefined) patch.email = opts.email?.trim().toLowerCase() || null
+  if (opts.userId !== undefined) patch.user_id = opts.userId?.trim() || null
   if (opts.phone !== undefined) patch.phone = opts.phone?.trim() || null
   if (opts.committee !== undefined) patch.committee = opts.committee?.trim() || null
   if (opts.notesAr !== undefined) patch.notes_ar = opts.notesAr?.trim() || null
@@ -734,6 +736,7 @@ export async function updateRoomMember(opts: {
     if (!m) return { ok: false, error: 'العضو غير موجود' }
     if (opts.displayNameAr != null) m.displayNameAr = opts.displayNameAr.trim()
     if (opts.email !== undefined) m.email = opts.email?.trim().toLowerCase() || null
+    if (opts.userId !== undefined) m.userId = opts.userId?.trim() || null
     if (opts.phone !== undefined) m.phone = opts.phone?.trim() || null
     if (opts.committee !== undefined) m.committee = opts.committee?.trim() || null
     if (opts.notesAr !== undefined) m.notesAr = opts.notesAr?.trim() || null

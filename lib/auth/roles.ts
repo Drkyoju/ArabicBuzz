@@ -6,6 +6,15 @@ import type { Role, UiPersona } from '@/lib/auth/rbac-types'
  */
 export const DEFAULT_DIRECTOR_EMAIL = 'ryodan71@gmail.com'
 
+/**
+ * Built-in employee allowlist (case-insensitive).
+ * Merged with `EMPLOYEE_EMAILS` env (comma-separated). Never elevates to owner.
+ */
+export const DEFAULT_EMPLOYEE_EMAILS = [
+  'hd.hk1444920@gmail.com',
+  'hd.hk2023429@gmail.com',
+] as const
+
 export function normalizeEmail(email: string | null | undefined): string {
   return String(email || '').trim().toLowerCase()
 }
@@ -46,6 +55,33 @@ export function getDirectorEmails(): string[] {
 /** Alias: elevated director / admin powers follow the sole workspace owner. */
 export function isDirectorEmail(email: string | null | undefined): boolean {
   return isWorkspaceOwnerEmail(email)
+}
+
+/**
+ * Recognized workspace employees (MEMBER / employee UI).
+ * Defaults + `EMPLOYEE_EMAILS` env; owner email is never listed here.
+ */
+export function getEmployeeEmails(): string[] {
+  const fromEnv = (process.env.EMPLOYEE_EMAILS || '')
+    .split(',')
+    .map((e) => normalizeEmail(e))
+    .filter(Boolean)
+  const owner = getWorkspaceOwnerEmail()
+  const set = new Set<string>()
+  for (const e of [...DEFAULT_EMPLOYEE_EMAILS, ...fromEnv]) {
+    const n = normalizeEmail(e)
+    if (n && n !== owner) set.add(n)
+  }
+  return [...set]
+}
+
+/** True when email is on the employee allowlist (not the owner). */
+export function isAllowlistedEmployeeEmail(
+  email: string | null | undefined
+): boolean {
+  const n = normalizeEmail(email)
+  if (!n || n === getWorkspaceOwnerEmail()) return false
+  return getEmployeeEmails().includes(n)
 }
 
 /**

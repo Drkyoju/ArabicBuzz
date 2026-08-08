@@ -19,6 +19,7 @@ import {
 } from '@/lib/auth/rbac'
 import { displayNameFromUser } from '@/lib/auth/display-name'
 import { ensureDisplayNamePersisted } from '@/lib/auth/persist-display-name'
+import { ensureSignedInEmployeeProvisioned } from '@/lib/auth/ensure-employee'
 import { backfillMemberDisplayNamesForUser } from '@/lib/rooms/persist'
 
 export const dynamic = 'force-dynamic'
@@ -63,11 +64,26 @@ export async function GET(req: NextRequest) {
   if (user && !allowSyntheticOwner) {
     try {
       displayNameAr = await ensureDisplayNamePersisted(user)
+      await ensureSignedInEmployeeProvisioned({
+        userId: user.id,
+        email: user.email,
+        displayNameAr,
+      })
       await backfillMemberDisplayNamesForUser({
         userId: user.id,
         email: user.email,
         displayNameAr,
       })
+    } catch {
+      /* non-fatal */
+    }
+  } else {
+    // Soft-auth / synthetic: still seed allowlisted employees into غرفة الفريق.
+    try {
+      const { ensureAllowlistedEmployeesSeeded } = await import(
+        '@/lib/auth/ensure-employee'
+      )
+      await ensureAllowlistedEmployeesSeeded()
     } catch {
       /* non-fatal */
     }

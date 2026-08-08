@@ -52,6 +52,11 @@
 
 1. OAuth consent screen → **Test users** → Add users
 2. أضف بريد كل زميل يحتاج دخول Google قبل النشر
+3. الموظفون المعتمدون في Arabic Buzz (دور موظف / MEMBER فقط — ليس مجلساً):
+   - `hd.hk1444920@gmail.com`
+   - `hd.hk2023429@gmail.com`
+4. المالك فقط (`ryodan71@gmail.com` / `OWNER_EMAIL`) يرى واجهة الإدارة. أي حساب آخر بعد Google = موظف بواجهة بسيطة.
+5. قائمة `EMPLOYEE_EMAILS` في CranL Environment اختيارية (نفس البريدين مدمجان في الكود). أضف بريداً جديداً هناك عند توسيع الفريق.
 
 ### 4) معرّف OAuth (Credentials) — Origins بعد النقل لـ CranL
 

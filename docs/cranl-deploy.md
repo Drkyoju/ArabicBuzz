@@ -38,6 +38,11 @@ cranl apps env set <app-id> KEY=VALUE   # may also 405; prefer dashboard/API PUT
 ```bash
 # Always set public URL to the CranL hostname after first deploy:
 # NEXT_PUBLIC_APP_URL / APP_URL = https://arabicbuzz-fooc9h.cranl.net
+#
+# Staff roles (no secrets):
+# OWNER_EMAIL=ryodan71@gmail.com   # sole admin UI — optional if default
+# EMPLOYEE_EMAILS=hd.hk1444920@gmail.com,hd.hk2023429@gmail.com
+#   (optional — same addresses are built into the app; set when adding more staff)
 ```
 
 Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
