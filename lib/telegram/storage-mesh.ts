@@ -401,6 +401,21 @@ export async function persistBytesToRoomAndDrive(opts: {
     fileName: saved.file.originalName,
   })
 
+  // Auto-resume waiting jobs (e.g. معلم اول p48→p45) when bytes appear anywhere.
+  try {
+    const { afterVaultFileMaybeRunTelegramJobs } = await import(
+      '@/lib/telegram/execute-file-jobs'
+    )
+    void afterVaultFileMaybeRunTelegramJobs({
+      chatId: opts.chatId,
+      scopeId: opts.scopeId,
+      vaultFileId: saved.file.id,
+      fileName: saved.file.originalName,
+    })
+  } catch {
+    /* non-fatal */
+  }
+
   return {
     vaultFileId: saved.file.id,
     fileName: saved.file.originalName,

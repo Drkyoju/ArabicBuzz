@@ -1145,6 +1145,153 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // GET /telegram/history-status — MTProto / local Bot API readiness (no chat spam)
+  if (req.method === 'GET' && url.pathname === '/telegram/history-status') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { homedir } = await import('node:os')
+    const apiId = Boolean(process.env.TELEGRAM_API_ID?.trim())
+    const apiHash = Boolean(process.env.TELEGRAM_API_HASH?.trim())
+    const session = Boolean(
+      (
+        process.env.TELEGRAM_SESSION_STRING ||
+        process.env.TELEGRAM_SESSION ||
+        ''
+      ).trim()
+    )
+    const sessionFile = existsSync(
+      join(homedir(), '.arabicbuzz-telegram.session.txt')
+    )
+    const localBot = Boolean(
+      (
+        process.env.TELEGRAM_BOT_API_URL ||
+        process.env.TELEGRAM_BOT_API_ROOT ||
+        ''
+      ).trim()
+    )
+    json(res, 200, {
+      ok: true,
+      localBotApiConfigured: localBot,
+      mtprotoEnvPresent: apiId && apiHash && (session || sessionFile),
+      credentialsReady: apiId && apiHash && (session || sessionFile),
+      setupAr:
+        'مرة واحدة: TELEGRAM_API_ID/HASH من my.telegram.org ثم npm run telegram:mtproto-login — بلا رسالة للمجموعة.',
+      limitationAr:
+        'البوت لا يقرأ التاريخ القديم؛ مسح المجموعة يحتاج جلسة مستخدم Telethon.',
+    })
+    return
+  }
+
+  // POST /telegram/scan-history — Telethon user client deep scan (free)
+  if (req.method === 'POST' && url.pathname === '/telegram/scan-history') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        chatId?: string
+        limit?: number
+        offsetId?: number
+        download?: boolean
+        muallimOnly?: boolean
+        nameFilter?: string
+      }
+      const { spawn } = await import('node:child_process')
+      const { existsSync, readFileSync } = await import('node:fs')
+      const { join } = await import('node:path')
+      const { homedir } = await import('node:os')
+      const { fileURLToPath } = await import('node:url')
+      const here = fileURLToPath(new URL('.', import.meta.url))
+      const root = join(here, '..')
+      const script = join(root, 'scripts/telegram-mtproto-history.py')
+      const pyCandidates = [
+        join(root, 'scripts/pdf-tools-venv/bin/python'),
+        '/tmp/tg-telethon-venv/bin/python',
+        'python3',
+      ]
+      const env = {
+        ...process.env,
+        TELEGRAM_SCAN_CHAT_ID: String(body.chatId || '-1003855925966'),
+        TELEGRAM_SCAN_LIMIT: String(body.limit ?? 200),
+        TELEGRAM_SCAN_OFFSET_ID: String(body.offsetId || 0),
+        TELEGRAM_SCAN_DOWNLOAD: body.download === false ? '0' : '1',
+        TELEGRAM_SCAN_MUALLIM_ONLY: body.muallimOnly === false ? '0' : '1',
+        TELEGRAM_SCAN_NAME_FILTER: body.nameFilter || '',
+        TELEGRAM_SCAN_OUT: join(homedir(), 'ArabicBuzz/recovered/tg-history'),
+      }
+      let lastErr = 'no python'
+      for (const py of pyCandidates) {
+        if (py !== 'python3' && !existsSync(py)) continue
+        try {
+          const out: Buffer[] = []
+          const err: Buffer[] = []
+          const code: number = await new Promise((resolve) => {
+            const child = spawn(py, [script], {
+              env,
+              timeout: 110_000,
+            })
+            child.stdout.on('data', (c) => out.push(c))
+            child.stderr.on('data', (c) => err.push(c))
+            child.on('close', (c) => resolve(c ?? 1))
+            child.on('error', () => resolve(1))
+          })
+          const text = Buffer.concat(out).toString('utf8').trim()
+          const line = text.split('\n').filter(Boolean).pop() || '{}'
+          const parsed = JSON.parse(line) as Record<string, unknown>
+          if (
+            parsed &&
+            (parsed.ok === true || parsed.credentialsReady === false)
+          ) {
+            const hits = Array.isArray(parsed.muallimHits)
+              ? (parsed.muallimHits as Array<Record<string, unknown>>)
+              : []
+            const payloads: Array<Record<string, unknown>> = []
+            for (const h of hits.slice(0, 3)) {
+              const p = h.path ? String(h.path) : ''
+              if (!p || !existsSync(p)) continue
+              const buf = readFileSync(p)
+              if (buf.byteLength > 80 * 1024 * 1024) continue
+              payloads.push({
+                fileName: h.fileName || h.name,
+                mimeType: h.mimeType || 'application/pdf',
+                messageId: h.messageId,
+                contentBase64: buf.toString('base64'),
+                sizeBytes: buf.byteLength,
+              })
+            }
+            parsed.payloads = payloads
+            json(res, 200, parsed)
+            return
+          }
+          lastErr =
+            String(parsed?.errorAr || Buffer.concat(err).toString().slice(0, 200)) +
+            ` (exit ${code})`
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : String(e)
+        }
+      }
+      json(res, 503, {
+        ok: false,
+        credentialsReady: false,
+        errorAr: lastErr,
+        setupAr:
+          'ثبّت telethon على الماك ونفّذ npm run telegram:mtproto-login مرة واحدة.',
+      })
+    } catch (e) {
+      json(res, 500, {
+        ok: false,
+        error: e instanceof Error ? e.message : 'scan-history failed',
+      })
+    }
+    return
+  }
+
   // POST /telegram/fetch-file — large TG download via local Bot API (free path)
   if (req.method === 'POST' && url.pathname === '/telegram/fetch-file') {
     if (!checkAuth(req)) {
@@ -1232,6 +1379,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  POST /telegram/fetch-file (large TG via local Bot API)`)
+  console.log(`  GET  /telegram/history-status`)
+  console.log(`  POST /telegram/scan-history (MTProto user deep archive)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)
   console.log(`  tunnel tip: npx ngrok http ${PORT}`)

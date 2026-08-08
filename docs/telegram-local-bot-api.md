@@ -43,9 +43,28 @@ MAC_SYNC_URL=https://your-mac-tunnel.example
 MAC_SYNC_SECRET=…
 ```
 
-## MTProto / userbot
+## MTProto / userbot (أرشفة تاريخ المجموعة القديمة)
 
-القوالب موجودة (`TELEGRAM_API_ID` / `TELEGRAM_API_HASH` / `TELEGRAM_SESSION_STRING`) لـ MCP محلي على الماك. التنزيل اليومي للمهام يمر عبر **Local Bot API** (نفس `file_id` للبوت) — لا حاجة لجلسة مستخدم إلا لأرشفة قنوات خاصة خارج البوت.
+بوت API **لا يستطيع** قراءة رسائل المجموعة التي لم يستلمها عبر الويب هوك — حتى Local Bot API. هذا حد تيليجرام وليس خللاً في ArabicBuzz.
+
+المسار المجاني للمسح العميق (ملفات + صوت قديمة):
+
+1. من https://my.telegram.org خذ `TELEGRAM_API_ID` و `TELEGRAM_API_HASH`
+2. على الماك (حساب **عضو** في «عمل الجمعية»، ليس البوت):
+
+```bash
+export TELEGRAM_API_ID=…
+export TELEGRAM_API_HASH=…
+npm run telegram:mtproto-login   # يطبع TELEGRAM_SESSION_STRING — بلا رسالة للمجموعة
+# أضف السطر إلى .env.local على الماك
+npm run storage:sync             # يعرّض POST /telegram/scan-history
+```
+
+3. على CranL: `MAC_SYNC_URL` + `MAC_SYNC_SECRET` (كما لملفات الكبيرة)
+
+الكرون يستدعي `/api/telegram/archive-group` → يمسح عبر الماك صامتاً، يحقن البايتات في الغرفة/Drive، ويكمل مهمة المعلم الأول (نسخ ص48 بعد ص45 + sendDocument) تلقائياً عند ظهور الملف — **بدون طلب إعادة إرسال** وبدون دليل الأحياء.
+
+القوالب أيضاً لـ MCP محلي: `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` / `TELEGRAM_SESSION_STRING`.
 
 ## حد الرفع
 

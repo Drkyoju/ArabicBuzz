@@ -3,6 +3,7 @@
  *
  * Bot API cannot fetch ancient chat history the bot never received.
  * This backfills ALL recoverable sources:
+ *  - MTProto user scan via Mac hop (when TELEGRAM_SESSION_STRING present)
  *  - telegram_attachments rows (re-download live file_id when possible)
  *  - room vault files (push missing ones to Drive)
  *  - Mac sync vault (pull + Drive)
@@ -14,6 +15,10 @@ import {
   pushVaultToDriveBestEffort,
 } from '@/lib/telegram/storage-mesh'
 import { isBiologyTeacherGuideName } from '@/lib/files/muallim-seerah-match'
+import {
+  getDeepHistoryStatus,
+  scanTelegramGroupDeepHistory,
+} from '@/lib/telegram/history-scan'
 
 export type ArchiveGroupResult = {
   chatId: string
@@ -23,6 +28,8 @@ export type ArchiveGroupResult = {
   pushedToDrive: number
   roomSynced: number
   macSynced: number
+  deepHistory?: Awaited<ReturnType<typeof scanTelegramGroupDeepHistory>>
+  deepHistoryStatus: ReturnType<typeof getDeepHistoryStatus>
   failed: Array<{ name: string; error: string }>
   limitationAr: string
   messageAr: string
@@ -74,10 +81,37 @@ export async function archiveTelegramGroupToDrive(opts?: {
   let pushedToDrive = 0
   let roomSynced = 0
   let macSynced = 0
+  const deepHistoryStatus = getDeepHistoryStatus()
+
+  let deepHistory: Awaited<ReturnType<typeof scanTelegramGroupDeepHistory>> | undefined
+  try {
+    deepHistory = await scanTelegramGroupDeepHistory({
+      chatId,
+      scopeId,
+      muallimOnly: true,
+      limit: 250,
+    })
+    if (deepHistory.downloaded) downloaded += deepHistory.downloaded
+    if (deepHistory.ingested) {
+      roomSynced += deepHistory.ingested
+      pushedToDrive += deepHistory.ingested
+    }
+    if (!deepHistory.ok && deepHistory.errorAr) {
+      failed.push({
+        name: 'deep-history',
+        error: deepHistory.errorAr.slice(0, 240),
+      })
+    }
+  } catch (e) {
+    failed.push({
+      name: 'deep-history',
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
 
   const atts = await listPersistedTelegramAttachments(
     chatId,
-    opts?.attachmentLimit ?? 100
+    opts?.attachmentLimit ?? 500
   )
 
   for (const a of atts) {
@@ -209,10 +243,15 @@ export async function archiveTelegramGroupToDrive(opts?: {
   }
 
   const limitationAr = [
-    'بوت تيليجرام لا يستطيع قراءة رسائل المجموعة القديمة التي لم يستلمها عبر الويب هوك.',
-    'الأرشفة تغطي: كل المرفقات المسجّلة + تنزيل file_id الحي + خزنة الغرفة + جسر الماك → Drive.',
+    deepHistoryStatus.limitationAr,
+    'الأرشفة تغطي: مسح MTProto (إن وُجدت الجلسة) + المرفقات المسجّلة + file_id الحي + خزنة الغرفة + جسر الماك → Drive.',
     'كل ملف/صوت جديد من المجموعة يُحفظ فوراً في الغرفة وDrive.',
-  ].join(' ')
+    deepHistory?.credentialsReady === false
+      ? deepHistoryStatus.setupAr
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return {
     chatId,
@@ -222,12 +261,19 @@ export async function archiveTelegramGroupToDrive(opts?: {
     pushedToDrive,
     roomSynced,
     macSynced,
+    deepHistory,
+    deepHistoryStatus,
     failed: failed.slice(0, 40),
     limitationAr,
     messageAr: [
       `أرشفة مجموعة تيليجرام → Drive: مرفقات=${atts.length}، تنزيل=${downloaded}، رفع Drive=${pushedToDrive}، غرفة=${roomSynced}، ماك=${macSynced}.`,
+      deepHistory?.muallimFound
+        ? `وُجد «${deepHistory.muallimFileName}» عبر المسح العميق.`
+        : '',
       failed.length ? `إخفاقات: ${failed.length}` : 'بدون إخفاقات مسجّلة.',
-    ].join(' '),
+    ]
+      .filter(Boolean)
+      .join(' '),
   }
 }
 

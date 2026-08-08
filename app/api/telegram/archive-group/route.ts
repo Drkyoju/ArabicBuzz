@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     archive,
     pendingPdf,
+    deepHistoryStatus: archive.deepHistoryStatus,
     messageAr: [
       archive.messageAr,
       pendingPdf &&
@@ -75,6 +76,9 @@ export async function POST(req: NextRequest) {
       (pendingPdf as { ok: boolean }).ok
         ? 'أُكملت مهمة نسخ صفحة 48 وأُرسل الملف للمجموعة.'
         : 'مهمة المعلم الأول ما زالت معلّقة صامتة إن لم تُوجد البايتات بعد.',
+      archive.deepHistory?.credentialsReady === false
+        ? archive.deepHistoryStatus.setupAr
+        : '',
     ]
       .filter(Boolean)
       .join(' '),
