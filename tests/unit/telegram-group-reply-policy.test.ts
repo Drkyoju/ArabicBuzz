@@ -137,13 +137,13 @@ describe('formatUnknownShortAr', () => {
 })
 
 describe('formatBlockedTaskReplyAr', () => {
-  it('uses the product MSA template', () => {
+  it('uses the product MSA paid-gate template', () => {
     const msg = formatBlockedTaskReplyAr({
       suggestions: [],
       researched: true,
     })
     expect(msg).toMatch(/^تعذّر تنفيذ المهمة بالأدوات الحالية\./)
-    expect(msg).toContain('بحثت عن حلول')
+    expect(msg).toContain('بحثت أولاً عن حلول مجانية')
     expect(msg).toContain('أقترح (من الأرخص)')
     expect(msg).toContain('إن وفّرت مفتاح/تثبيت أحدها أقدر أكمّل.')
   })

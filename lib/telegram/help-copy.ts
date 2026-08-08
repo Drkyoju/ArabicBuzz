@@ -132,7 +132,7 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
         '• «ابحث في الغرفة عن …» → room_search (بريد · ملفات · تقويم)',
         '• «إحاطة الصباح» / «ملخص اليوم» → owner_morning_brief',
         '• «ابحث في جوجل عن …» → web_search',
-        '• إن تعذّر التنفيذ: research_task_tools (اقتراح مهارات/MCP مجانية)',
+        '• عجز: research_task_tools → تنفيذ مجاني تلقائي (pdf-lib…) ثم تيليجرام؛ مدفوع فقط بعد الاستنفاد',
         '• عقل الشركة: search_knowledge_base بعد drive_sync_brain',
       ].join('\n')
     case 'drive':

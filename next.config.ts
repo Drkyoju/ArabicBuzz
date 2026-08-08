@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '*': [
       './scripts/pdf-tools-venv/**',
       './tmp/pdf-venv/**',
+      './tmp/pdf-tool-bench/**',
       './.openclaw/**',
     ],
   },

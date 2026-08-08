@@ -71,7 +71,7 @@ export function getNativeAiTools(opts?: {
     }),
     research_task_tools: tool({
       description:
-        'عندما لا تكفي الأدوات الحالية: ابحث في الويب وGitHub عن مهارات/MCP/أدوات مجانية أو رخيصة، رتّبها من الأرخص، وأرجع ردّاً عربياً جاهزاً للاعتذار مع الاقتراحات. ممنوع ادّعاء النجاح أو الصمت.',
+        'عجز القدرة: ابحث مجاناً (ويب+GitHub) واربط بقدرات مدمجة (pdf-lib/convert/OCR…). إن canExecuteFree=true نفّذ executeNext فوراً وreturn_file — لا تقترح فقط. فقط إن blocked انشر messageAr (بوابة دفع بعد استنفاد المجاني). ممنوع تشغيل كود MCP بعيد غير موثوق. ممنوع ادّعاء النجاح أو الصمت أو «هل تريد؟».',
       inputSchema: z.object({
         task: z
           .string()

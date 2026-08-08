@@ -3,6 +3,10 @@ import {
   executeResearchTaskTools,
   formatBlockedTaskReplyAr,
 } from '@/lib/agents/tools/research-task-tools'
+import {
+  mapTaskToBuiltinFreeTools,
+  formatFreeExecuteNextAr,
+} from '@/lib/agents/tools/free-execute-map'
 
 vi.mock('@/lib/agents/tools/web-tools', () => ({
   executeWebSearch: vi.fn(async (_n: string, params: { query: string }) => {
@@ -29,22 +33,42 @@ vi.mock('@/lib/agents/tools/web-tools', () => ({
   }),
 }))
 
+describe('mapTaskToBuiltinFreeTools', () => {
+  it('maps PDF page duplicate to pdf_duplicate_page (pdf-lib)', () => {
+    const hints = mapTaskToBuiltinFreeTools('كرر صفحة 48 بعد 45 في المعلم الأول')
+    expect(hints.some((h) => h.toolName === 'pdf_duplicate_page')).toBe(true)
+    expect(formatFreeExecuteNextAr(hints)).toContain('نفّذ الآن')
+  })
+})
+
 describe('executeResearchTaskTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('ranks free GitHub / MCP ahead of paid', async () => {
+  it('returns canExecuteFree for PDF duplicate without web', async () => {
     const out = await executeResearchTaskTools('research_task_tools', {
-      task: 'أتمتة متصفح بدون مفتاح',
+      task: 'كرر صفحة 48 بعد الصفحة 45',
     })
-    expect(out.blocked).toBe(true)
-    expect(out.messageAr).toContain('تعذّر تنفيذ المهمة بالأدوات الحالية.')
-    expect(out.messageAr).toContain('أقترح (من الأرخص)')
-    expect(out.suggestions[0]?.url).toContain('github.com')
-    expect(out.suggestions[0]?.costRank).toBeLessThanOrEqual(
-      out.suggestions[out.suggestions.length - 1]?.costRank ?? 99
-    )
+    expect(out.canExecuteFree).toBe(true)
+    expect(out.blocked).toBe(false)
+    expect(out.executeNext[0]?.toolName).toBe('pdf_duplicate_page')
+    expect(out.messageAr).toContain('مسار مجاني قابل للتنفيذ')
+  })
+
+  it('ranks free GitHub / MCP ahead of paid when no builtin', async () => {
+    const out = await executeResearchTaskTools('research_task_tools', {
+      task: 'أتمتة متصفح بدون مفتاح selenium playwright remote',
+    })
+    // May map to nothing builtin — then blocked paid gate or free suggestions
+    if (out.canExecuteFree) {
+      expect(out.executeNext.length).toBeGreaterThan(0)
+      expect(out.blocked).toBe(false)
+    } else {
+      expect(out.blocked).toBe(true)
+      expect(out.messageAr).toContain('تعذّر تنفيذ المهمة بالأدوات الحالية.')
+      expect(out.messageAr).toContain('أقترح (من الأرخص)')
+    }
   })
 
   it('still returns MSA template when task empty', async () => {

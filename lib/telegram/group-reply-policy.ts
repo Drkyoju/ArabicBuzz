@@ -42,7 +42,16 @@ export function shouldReplyWithTelegramResult(opts: {
 export function looksLikeBlockedTaskReply(text: string): boolean {
   const t = String(text || '').trim()
   if (!t) return false
-  return /تعذ[ّر]ر?\s*تنفيذ\s*المهمة|أقترح\s*\(من\s*الأرخص\)|إن\s*وفّرت\s*مفتاح/i.test(
+  return /تعذ[ّر]ر?\s*تنفيذ\s*المهمة|أقترح\s*\(من\s*الأرخص\)|إن\s*وفّرت\s*مفتاح|بوابة\s*الدفع/i.test(
+    t
+  )
+}
+
+/** Free-execute instruction returned without attachments — still need auto-run. */
+export function looksLikeFreeExecuteInstruction(text: string): boolean {
+  const t = String(text || '').trim()
+  if (!t) return false
+  return /وُجد مسار مجاني قابل للتنفيذ|canExecuteFree|نفّذ الآن بدون سؤال/i.test(
     t
   )
 }
@@ -53,6 +62,7 @@ export function looksLikeUnknownOrNotFound(text: string): boolean {
   // Empty success (tools ran, no chatty reply) must stay silent — not «ما عرفت».
   if (!t) return false
   if (looksLikeBlockedTaskReply(t)) return true
+  if (looksLikeFreeExecuteInstruction(t)) return true
   return (
     /ما\s*عرف(?:ت|نا)?|ما\s*عرفت|لم\s*أعر[ف]|لا\s*أعرف|ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|تعذ[ّر]ر?\s*العثور|تعذ[ّر]ر?\s*التنفيذ|لا\s*أستطيع|غير\s*مدعوم|أدواتي\s*الحالية|لم\s*يُعثر|ما\s*لقيت|not\s*found|couldn'?t\s*find|i\s*don'?t\s*know|cannot\s*(complete|do)|unable\s*to|no\s*tool/i.test(
       t

@@ -24,6 +24,10 @@ import {
   shouldTelegramTeamFanOut,
 } from '@/lib/telegram/agent-pool'
 import type { AgentCollabMode } from '@/lib/rooms/agents'
+import {
+  capabilityCascadePromptNudgeAr,
+  shouldEscalateCapabilityCascade,
+} from '@/lib/telegram/capability-cascade'
 
 export type TelegramWorkKind =
   | 'appointment'
@@ -367,18 +371,17 @@ function workKindNudge(kind: TelegramWorkKind): string {
       ].join(' ')
     case 'file':
       return [
-        '[قصد تيليجرام: ملف — تيليجرام أولاً]',
+        '[قصد تيليجرام: ملف — تيليجرام أولاً — تلقائي بلا سؤال]',
         'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل الوحيدة — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
-        'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف آخر) / أي بديل من Drive أو الويب.',
-        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في الخزنة أو مهمة معلّقة أو نسخة Drive بنفس الاسم حرفياً — استأنف منها.',
-        'إن انعدمت كل المسارات: رسالة عربية واحدة فقط تطلب الرفع لغرفة الفريق/Drive بنفس الاسم — ثم انتظر المهمة المعلّقة.',
+        'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف أحياء) / أي بديل من Drive أو الويب.',
+        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في الخزنة أو مهمة معلّقة أو نسخة Drive بنفس الاسم حرفياً — استأنف تلقائياً ونفّذ.',
+        'ممنوع «هل تريد؟» — نفّذ فوراً. إن انعدمت كل المسارات: طابور waiting_file + رسالة عربية واحدة تطلب الرفع بنفس الاسم فقط (لا تقاطع لأجل تأكيد العمل).',
         'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
-        'ملف كبير (>حد تنزيل البوت): أكمل عبر خزنة الغرفة/Drive ثم أرسل الناتج بـ return_file/sendDocument (اضغط إن لزم) — لا تعتبر رابط Drive إكمالاً زائفاً دون محاولة الإرسال.',
+        'ملف كبير (>حد تنزيل البوت): خزّن → غرفة/Drive → عدّل → أعد بـ return_file/sendDocument تلقائياً.',
         'مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
-        'OCR للصور/PDF الممسوح: arabic_ocr. تعليق PDF: pdf_annotate أو pdf_stamp ثم return_file.',
-        'إدراج/نسخ صفحات PDF: pdf_duplicate_page (نسخ محتوى صفحة 48 بعد 45) — ليس صفحة بيضاء إلا إذا طُلبت صراحة mode=blank. ثم return_file.',
-        'PDF عربي: فضّل pdf_replace_text (HarfBuzz/PyMuPDF). إعادة بناء PDF بـ edit_document قد تضعف اتصال الحروف — كن صادقاً إن فشل الاستبدال.',
+        'OCR: arabic_ocr. تعليق: pdf_annotate/pdf_stamp. نسخ صفحة: pdf_duplicate_page (pdf-lib مجاني) ثم return_file.',
+        'PDF عربي: pdf_replace_text (HarfBuzz/PyMuPDF). عجز → research_task_tools ثم نفّذ المجاني المدمج؛ مدفوع فقط بعد الاستنفاد.',
       ].join(' ')
     case 'mail':
       return [
@@ -452,16 +455,24 @@ export function buildTelegramPowerPrompt(opts: {
         : []
 
   const teamCap = getTelegramAgentMaxParallel()
-  const fanOut = shouldTelegramTeamFanOut({
+  const capabilityEscalate = shouldEscalateCapabilityCascade({
     raw: opts.raw,
     workKind: opts.work.kind,
     preferFullAgent: opts.work.preferFullAgent,
     forceHeavy: opts.work.forceHeavy,
-    collabMode: opts.collabMode || 'solo',
-    mentionedCount: directed.length,
-    wantsAllToken,
-    broadcastIntent: roomIntent.kind === 'broadcast',
   })
+  const fanOut =
+    capabilityEscalate ||
+    shouldTelegramTeamFanOut({
+      raw: opts.raw,
+      workKind: opts.work.kind,
+      preferFullAgent: opts.work.preferFullAgent,
+      forceHeavy: opts.work.forceHeavy,
+      collabMode: opts.collabMode || 'solo',
+      mentionedCount: directed.length,
+      wantsAllToken,
+      broadcastIntent: roomIntent.kind === 'broadcast',
+    })
 
   const pick = pickAgentSeatsForMessage({
     seated: catalog,
@@ -508,6 +519,9 @@ export function buildTelegramPowerPrompt(opts: {
     roomIntent.cleanPrompt || opts.raw,
     roomIntentPromptNudge(roomIntent),
     workKindNudge(opts.work.kind),
+    opts.work.preferFullAgent
+      ? capabilityCascadePromptNudgeAr(opts.raw)
+      : '',
     seatLine,
     adapt.noticesAr.length
       ? `[تكييف: ${adapt.noticesAr.join(' · ')}]`
@@ -555,18 +569,21 @@ export async function telegramGoogleLinkedHintAr(
   )
 }
 
-export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة:
+export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة + تشغيل تلقائي:
 - أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات تيليجرام/خزنة، تحويل، OCR، تقويم الغرفة، مهام، بريد، خطابات، محاضر، تبليغ، بحث موحّد room_search، إحاطة الصباح، تعليق PDF). Drive اختياري.
-- المقاعد: وكيل١…وكيل٨ (أو المخصصون في الغرفة). انشغال وكيل١ → إيقاظ التالي. طلب ثقيل / «أبغا للجميع» / وضع فريق → تشغيل متوازٍ للمقاعد المتفرّغة. «يا وكيل١» يوجّه مقعداً بعينه.
-- مرفق تيليجرام (fileId في الرسالة) = نسخة العمل. نفّذ عليه فوراً وأعد الناتج بـ return_file كمرفق تيليجرام. ممنوع رفض الطلب لأن الملف «ليس على Drive».
+- تشغيل تلقائي مطلق: ممنوع «هل تريد؟» للعمل الروتيني. نفّذ ثم سلّم الناتج على تيليجرام. المقاطعة الوحيدة للمستخدم = بوابة دفع بعد استنفاد المجاني.
+- المقاعد: وكيل١…وكيل٨ (أو المخصصون في الغرفة). انشغال وكيل١ → إيقاظ التالي. طلب ثقيل / عجز / «أبغا للجميع» / وضع فريق → تشغيل متوازٍ + بحث مجاني ثم تنفيذ. «يا وكيل١» يوجّه مقعداً بعينه.
+- مرفق تيليجرام (fileId في الرسالة) = نسخة العمل. نفّذ عليه فوراً وأعد الناتج بـ return_file كمرفق تيليجرام. ممنوع رفض الطلب لأن الملف «ليس على Drive». ممنوع طلب إعادة الإرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم — استأنف تلقائياً.
+- ملف كبير: خزّن → غرفة/Drive → عدّل → أعد لتيليجرام تلقائياً.
+- عجز القدرة: research_task_tools → إن canExecuteFree نفّذ executeNext (pdf-lib/convert/OCR…) فوراً. لا تشغّل MCP بعيداً غير موثوق. فقط إن blocked: messageAr ببدائل مدفوعة الأرخص وانتظر المفتاح.
 - عقل الشركة (Drive): اختياري بعد النجاح إن رُبط Google؛ بدون ربط أكمل من خزنة الغرفة/تيليجرام فقط.
 - مشاركة ACL على Drive غير متاحة — أعِد webViewLink فقط عند توفره.
 - بريد الجمعية (mail_*): متاح لأعضاء الجلسة المسجّلين — لا تقصر الاستخدام على المالك.
 - Gmail الشخصي: ربط Google + ربط حساب تيليجرام الشخصي إن وُجد (/link account).
 - الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start؛ وإلا منشور في المجموعة المربوطة. لا تختلق وصول خاص.
-- الحذف فقط يحتاج موافقة بشرية (أزرار) على ملفات الغرفة/Drive — ممنوع حذف رسائل تيليجرام نهائياً (عدّل أو اترك + رد جديد).
+- HITL فقط لحذف ملفات الغرفة/Drive (RBAC) أو بوابة الدفع — ممنوع HITL لتعديل/تحويل روتيني. ممنوع حذف رسائل تيليجرام.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh) مع تنبيه التعارض. لا تختلق مواعيد.
 - خطابات: list_letter_templates / letter_fill_template. محاضر: minutes_from_thread.
 - في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
 - لست نسخة بصرية من الموقع: لا لوحة TipTap ولا سبورة tldraw ولا أداة رسم PDF بالقلم — نفّذ المكافئ عبر الأدوات (pdf_annotate / edit_document / draft HTML في البريد).
-- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ لا تعتمد على إعادة بناء pdf-lib لنص عربي متصل.`
+- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ نسخ صفحة عبر pdf_duplicate_page (pdf-lib مجاني).`
