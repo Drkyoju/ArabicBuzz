@@ -75,6 +75,17 @@ import {
   executeRoomSearch,
   executeOwnerMorningBrief,
 } from '@/lib/agents/tools/room-pocket-tools'
+import {
+  executeListLetterTemplates,
+  executeLetterFillTemplate,
+  executeMinutesFromThread,
+} from '@/lib/agents/tools/letter-minutes-tools'
+import {
+  executeDriveListFiles,
+  executeDriveSearchFiles,
+  executeDriveUploadFile,
+  executeDriveGetLink,
+} from '@/lib/agents/tools/drive-ops-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 import {
   emitNotification,
@@ -260,6 +271,13 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   pdf_replace_text: executePdfReplaceText,
   room_search: executeRoomSearch,
   owner_morning_brief: executeOwnerMorningBrief,
+  list_letter_templates: executeListLetterTemplates,
+  letter_fill_template: executeLetterFillTemplate,
+  minutes_from_thread: executeMinutesFromThread,
+  drive_list_files: executeDriveListFiles,
+  drive_search_files: executeDriveSearchFiles,
+  drive_upload_file: executeDriveUploadFile,
+  drive_get_link: executeDriveGetLink,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,

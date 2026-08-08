@@ -5,7 +5,11 @@ import {
   resolveChannelScope,
   upsertChannelBinding,
 } from '@/lib/channels/bindings'
-import { resolveChannelOwnerUserIdAsync } from '@/lib/channels/owner-context'
+import { resolveTelegramRequesterUserId } from '@/lib/telegram/user-link'
+import {
+  linkTelegramUserToWorkspace,
+  lookupTelegramWorkspaceUserId,
+} from '@/lib/telegram/user-link'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
 import { getNativeAiTools } from '@/lib/agents/engine'
 import { getHarnessModel } from '@/lib/ai/router'
@@ -95,8 +99,13 @@ import {
 import { formatTelegramErrorAr } from '@/lib/telegram/errors-ar'
 import {
   buildTelegramHelpAr,
+  buildTelegramHelpMenuKeyboard,
+  buildTelegramHelpDomainAr,
   buildTelegramStatusLinesAr,
+  buildTelegramGoogleConnectHintAr,
+  parseHelpMenuCallback,
   TELEGRAM_PING_OK_AR,
+  TELEGRAM_GOOGLE_CONNECT_URL,
 } from '@/lib/telegram/help-copy'
 import {
   installTelegramNeverDeleteGuard,
@@ -170,10 +179,10 @@ async function ensureBotCommands(instance: Bot) {
   if (commandsRegistered) return
   try {
     await instance.api.setMyCommands([
-      { command: 'link', description: 'ربط المجموعة/اللجنة بغرفة الموقع' },
-      { command: 'start', description: 'بدء الربط أو إظهار المعرّف' },
-      { command: 'help', description: 'شرح الاستخدام بدون أوامر' },
-      { command: 'status', description: 'حالة الربط والوكيل' },
+      { command: 'link', description: 'ربط المجموعة أو حساب الموقع' },
+      { command: 'start', description: 'قائمة التشغيل أو الربط' },
+      { command: 'help', description: 'قائمة الأدوات التفاعلية' },
+      { command: 'status', description: 'حالة الربط وGoogle (قراءة)' },
       { command: 'rooms', description: 'المساحة المربوطة' },
       { command: 'approve', description: 'الموافقات المعلّقة' },
       { command: 'ping', description: 'فحص سريع أن البوت يستجيب' },
@@ -917,7 +926,8 @@ async function runTelegramAgentTurn(opts: {
     routed.assistantId !== 'file-search'
   ) {
     try {
-      const requesterId = await resolveChannelOwnerUserIdAsync(opts.userId)
+      const requesterId = (await resolveTelegramRequesterUserId(opts.userId))
+        .userId
       const run = await runAssistant({
         assistantId: routed.assistantId,
         message: opts.promptSource,
@@ -1050,19 +1060,20 @@ async function runTelegramAgentTurn(opts: {
   const effortHint = effortToRunParams(powered.adapt.effort).systemHintAr
 
   const tPrep = Date.now()
-  const [normalized, requesterId, systemBase] = await Promise.all([
+  const [normalized, requesterResolved, systemBase] = await Promise.all([
     normalizeArabicPrompt(powered.prompt, {
       skip: !needDialect,
       modelSlug: needDialect
         ? process.env.TELEGRAM_DIALECT_MODEL?.trim() || 'gemini-2.5-flash'
         : undefined,
     }),
-    resolveChannelOwnerUserIdAsync(opts.userId),
+    resolveTelegramRequesterUserId(opts.userId),
     buildScopedSystemPrompt(
       `${TELEGRAM_AGENT_SYSTEM}\n\n${effortHint}`,
       opts.scope
     ),
   ])
+  const requesterId = requesterResolved.userId
   const driveHint = await telegramGoogleLinkedHintAr(requesterId)
   const system = driveHint
     ? `${systemBase}\n\n${driveHint}`
@@ -1359,7 +1370,8 @@ export function getTelegramBot() {
       await ctx.reply(
         [buildTelegramHelpAr({ botUsername }), privacy]
           .filter(Boolean)
-          .join('\n\n')
+          .join('\n\n'),
+        { reply_markup: buildTelegramHelpMenuKeyboard() }
       )
       return
     }
@@ -1404,6 +1416,64 @@ export function getTelegramBot() {
 
     if (bindCmd) {
       const payload = bindCmd.args.split(/\s+/)[0] || ''
+      const payloadRest = bindCmd.args.trim()
+
+      // Personal workspace link: /link account <uuid> or /start account_<uuid>
+      const accountMatch =
+        payloadRest.match(/^(?:account|me|user)\s+([0-9a-f-]{36})$/i) ||
+        payload.match(/^account[_-]([0-9a-f-]{36})$/i)
+      if (accountMatch) {
+        const linked = await linkTelegramUserToWorkspace({
+          tgUserId: userId,
+          workspaceUserId: accountMatch[1],
+          scopeId: scope.scope.id,
+        })
+        if (!linked.ok) {
+          await ctx.reply(linked.errorAr)
+          return
+        }
+        await ctx.reply(
+          [
+            '✅ تم ربط حساب تيليجرام بحساب الموقع.',
+            'الآن Gmail/Drive الشخصي يستخدمان توكناتك إن ربطت Google من الإعدادات.',
+            buildTelegramGoogleConnectHintAr(),
+            'جرّب /status أو /help',
+          ].join('\n'),
+          {
+            reply_markup: new InlineKeyboard().url(
+              '🔗 اربط Google',
+              TELEGRAM_GOOGLE_CONNECT_URL
+            ),
+          }
+        )
+        return
+      }
+
+      // Bare /start in DM — show ops menu (still binds chat)
+      if (
+        !payload &&
+        !inGroup &&
+        (bindCmd.cmd === 'start' || bindCmd.cmd === 'help')
+      ) {
+        await upsertChannelBinding({
+          channel: 'telegram',
+          externalId: chatId,
+          scopeId: scope.scope.id,
+          userId,
+        })
+        await ctx.reply(
+          [
+            'مرحباً — بوت Arabic Buzz جاهز كعميل تشغيل كامل.',
+            `المساحة: ${scope.scope.nameAr}`,
+            'اختر مجالاً أو اكتب طلبك بالعربية مباشرة.',
+            '',
+            buildTelegramGoogleConnectHintAr(),
+          ].join('\n'),
+          { reply_markup: buildTelegramHelpMenuKeyboard() }
+        )
+        return
+      }
+
       let boundScopeId = scope.scope.id
       let boundName = scope.scope.nameAr
       const {
@@ -1534,9 +1604,18 @@ export function getTelegramBot() {
 
     if (statusCmd) {
       const pending = await listPendingApprovals().catch(() => [])
-      const googleHint = await telegramGoogleLinkedHintAr(userId).catch(
+      const requester = await resolveTelegramRequesterUserId(userId)
+      const googleHint = await telegramGoogleLinkedHintAr(requester.userId).catch(
         () => null
       )
+      const personalId = await lookupTelegramWorkspaceUserId(userId).catch(
+        () => null
+      )
+      const personalLinkAr = personalId
+        ? `ربط شخصي: نعم (${personalId.slice(0, 8)}…) — Gmail/Drive بهويتك`
+        : inGroup
+          ? 'ربط شخصي: لا — أدوات Google بهوية مالك القناة. للربط: راسل البوت خاصاً /link account <UUID>'
+          : `ربط شخصي: لا — أرسل /link account <UUID-حساب-الموقع> (من الإعدادات). معرّف تيليجرامك: ${userId}`
       const lines = buildTelegramStatusLinesAr({
         chatId,
         inGroup,
@@ -1544,12 +1623,22 @@ export function getTelegramBot() {
         scopeId: scope.scope.id,
         pendingCount: pending.length,
         googleHintAr: googleHint,
+        personalLinkAr,
+        integrationsAr: [
+          `هوية الأدوات: ${requester.source === 'personal' || requester.source === 'env_map' ? 'شخصية' : 'مالك القناة'}`,
+          'الإعدادات من تيليجرام: قراءة فقط (/status) — التعديل من الموقع',
+        ],
       })
       if (inGroup) {
         const privacy = privacyHintAr(botUsername)
         if (privacy) lines.push(privacy)
       }
-      await ctx.reply(lines.join('\n'))
+      await ctx.reply(lines.join('\n'), {
+        reply_markup: new InlineKeyboard()
+          .url('🔗 اربط Google', TELEGRAM_GOOGLE_CONNECT_URL)
+          .row()
+          .text('📋 قائمة الأدوات', 'hm:settings'),
+      })
       return
     }
 
@@ -2060,6 +2149,52 @@ export function getTelegramBot() {
 
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data || ''
+
+    const helpMenu = parseHelpMenuCallback(data)
+    if (helpMenu) {
+      try {
+        await ctx.answerCallbackQuery()
+      } catch {
+        /* ignore */
+      }
+      if (helpMenu.kind === 'domain') {
+        await ctx.reply(buildTelegramHelpDomainAr(helpMenu.domain), {
+          reply_markup: buildTelegramHelpMenuKeyboard(),
+        })
+        return
+      }
+      if (helpMenu.kind === 'quick' && helpMenu.action === 'brief') {
+        const chatId = String(
+          ctx.chat?.id || ctx.callbackQuery.message?.chat.id || ''
+        )
+        const userId = String(ctx.from?.id || 'user-1')
+        try {
+          const scope = await resolveTelegramScope({
+            chatId,
+            userId,
+            autoBind: true,
+          })
+          if (!scope) {
+            await ctx.reply('تعذّر ربط المحادثة بالغرفة.')
+            return
+          }
+          await runTelegramAgentTurn({
+            ctx,
+            promptSource: 'إحاطة الصباح — ملخص اليوم كامل',
+            chatId,
+            userId,
+            scope,
+            forceHeavy: true,
+            workLabelAr: 'إحاطة',
+            replyMode: 'full',
+          })
+        } catch (e) {
+          console.error('[telegram] help-brief', e)
+          await ctx.reply(formatTelegramErrorAr(e))
+        }
+        return
+      }
+    }
 
     // Voice quick buttons: أضِف موعد / مهمة / ابحث عن الملف
     const voiceAction = parseVoiceQuickCallback(data)

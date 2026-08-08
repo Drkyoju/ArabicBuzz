@@ -7,8 +7,12 @@ import { classifyTelegramWorkIntent } from '@/lib/telegram/power-path'
 import { formatTelegramErrorAr } from '@/lib/telegram/errors-ar'
 import {
   buildTelegramHelpAr,
+  buildTelegramHelpMenuKeyboard,
+  buildTelegramHelpDomainAr,
+  parseHelpMenuCallback,
   TELEGRAM_PING_OK_AR,
   TELEGRAM_SITE_URL,
+  TELEGRAM_GOOGLE_CONNECT_URL,
 } from '@/lib/telegram/help-copy'
 import {
   __resetTelegramUpdateDedupeForTests,
@@ -120,15 +124,32 @@ describe('formatTelegramErrorAr', () => {
 })
 
 describe('help copy', () => {
-  it('covers wake, mail, site URL, and ping constant', () => {
+  it('covers domains, google deep link, site URL, and ping', () => {
     const help = buildTelegramHelpAr({ botUsername: 'alhuda14bot' })
     expect(help).toContain(TELEGRAM_SITE_URL)
     expect(help).toContain('/link@alhuda14bot')
-    expect(help).toMatch(/وكيل١/)
+    expect(help).toMatch(/Drive/)
     expect(help).toMatch(/بريد/)
-    expect(help).toMatch(/لا يحذف/)
+    expect(help).toMatch(/خطابات|محاضر/)
+    expect(help).toMatch(/نستغني/)
     expect(help).toContain('/ping')
+    expect(help).toContain('section=settings')
     expect(TELEGRAM_PING_OK_AR).toMatch(/يعمل/)
+  })
+
+  it('builds interactive menu and domain copy', () => {
+    expect(parseHelpMenuCallback('hm:drive')).toEqual({
+      kind: 'domain',
+      domain: 'drive',
+    })
+    expect(parseHelpMenuCallback('hq:brief')).toEqual({
+      kind: 'quick',
+      action: 'brief',
+    })
+    expect(buildTelegramHelpDomainAr('drive')).toMatch(/drive_list_files/)
+    expect(buildTelegramHelpDomainAr('docs')).toMatch(/letter_fill_template/)
+    expect(TELEGRAM_GOOGLE_CONNECT_URL).toContain('section=settings')
+    expect(buildTelegramHelpMenuKeyboard()).toBeTruthy()
   })
 })
 

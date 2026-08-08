@@ -120,6 +120,9 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'room_memory_list',
   'room_memory_add',
   'owner_morning_brief',
+  'list_letter_templates',
+  'letter_fill_template',
+  'minutes_from_thread',
   'send_message',
   'notify_room_member',
   'send_file',
@@ -151,6 +154,10 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'fill_policy_audit',
   'read_decision_document',
   'drive_sync_brain',
+  'drive_list_files',
+  'drive_search_files',
+  'drive_upload_file',
+  'drive_get_link',
   'gmail_send',
   'mail_send',
   'sheets_read',
@@ -485,21 +492,23 @@ export async function telegramGoogleLinkedHintAr(
     /* treat as unlinked */
   }
   return (
-    'ملاحظة: Google Drive غير مربوط لهذا المالك — البحث/الفتح من عقل الشركة قد يفشل. ' +
-    'اربط Google من الموقع (الإعدادات) أو اعمل على ملفات خزنة الغرفة المرفوعة. ' +
-    'بريد الجمعية (IMAP) يعمل للأعضاء المسجّلين دون Google إن رُبط الصندوق من الإعدادات.'
+    'ملاحظة: Google غير مربوط لهذه الهوية — Drive/Gmail/Sheets قد تفشل. ' +
+    'اربط مرة واحدة من المتصفح: https://arabicbuzz-fooc9h.cranl.net/?section=settings ' +
+    'ثم اعمل من تيليجرام. بريد الجمعية (IMAP) يعمل دون Google إن رُبط الصندوق.'
   )
 }
 
 export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة:
-- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات، Drive، تقويم الغرفة، مهام، بريد، تبليغ، بحث موحّد room_search، إحاطة الصباح، تحويل، OCR، تعليق PDF).
+- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات، Drive list/search/upload/link، تقويم الغرفة مع تعارض، مهام، بريد، خطابات، محاضر، تبليغ، بحث موحّد room_search، إحاطة الصباح، تحويل، OCR، تعليق PDF).
 - أيقظ وكيل١ ثم وكيل٢ عند الانشغال؛ «يا وكيل١» / «أبغا للجميع» يوجّهان المقاعد.
-- عقل الشركة (Drive): يحتاج ربط Google من الموقع؛ بدون ربط استخدم خزنة الغرفة فقط وأخبر المستخدم.
+- عقل الشركة (Drive): يحتاج ربط Google من الموقع مرة واحدة؛ بدون ربط استخدم خزنة الغرفة فقط وأخبر المستخدم مع رابط الإعدادات.
+- مشاركة ACL على Drive غير متاحة — أعِد webViewLink فقط.
 - بريد الجمعية (mail_*): متاح لأعضاء الجلسة المسجّلين — لا تقصر الاستخدام على المالك.
-- Gmail الشخصي: يحتاج ربط Google لنفس هوية القناة.
+- Gmail الشخصي: ربط Google + ربط حساب تيليجرام الشخصي إن وُجد (/link account).
 - الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start؛ وإلا منشور في المجموعة المربوطة. لا تختلق وصول خاص.
 - الحذف فقط يحتاج موافقة بشرية (أزرار) على ملفات الغرفة/Drive — ممنوع حذف رسائل تيليجرام نهائياً (عدّل أو اترك + رد جديد).
-- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). لا تختلق مواعيد.
+- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh) مع تنبيه التعارض. لا تختلق مواعيد.
+- خطابات: list_letter_templates / letter_fill_template. محاضر: minutes_from_thread.
 - في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
 - لست نسخة بصرية من الموقع: لا لوحة TipTap ولا سبورة tldraw ولا أداة رسم PDF بالقلم — نفّذ المكافئ عبر الأدوات (pdf_annotate / edit_document / draft HTML في البريد).
 - PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ لا تعتمد على إعادة بناء pdf-lib لنص عربي متصل.`

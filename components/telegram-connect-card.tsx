@@ -16,6 +16,7 @@ export function TelegramConnectCard() {
   const [ready, setReady] = useState<boolean | null>(null)
   const [ownerOk, setOwnerOk] = useState(false)
   const [outboundOk, setOutboundOk] = useState(false)
+  const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null)
   const botBase =
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL ||
     'https://t.me/alhuda14bot'
@@ -40,12 +41,29 @@ export function TelegramConnectCard() {
       .catch(() => {
         if (!cancelled) setReady(false)
       })
+    void (async () => {
+      try {
+        const headers = await authHeaders()
+        const res = await fetch('/api/me/role', { headers })
+        const d = (await res.json()) as { userId?: string }
+        if (!cancelled && d.userId && !d.userId.startsWith('local')) {
+          setWorkspaceUserId(d.userId)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
     return () => {
       cancelled = true
     }
   }, [])
 
   const ok = ready === true
+  const accountDeepLink = workspaceUserId
+    ? `${botBase.replace(/\/$/, '')}?start=account_${encodeURIComponent(workspaceUserId)}`
+    : null
+  const googleSettingsUrl =
+    'https://arabicbuzz-fooc9h.cranl.net/?section=settings'
 
   return (
     <div className="rounded-xl border border-ab-border bg-ab-surface p-4" dir="rtl">
@@ -116,6 +134,22 @@ export function TelegramConnectCard() {
             className="inline-flex rounded-md bg-ab-accent px-3 py-1.5 text-xs font-semibold text-white"
           >
             ربط هذه المساحة
+          </a>
+          {accountDeepLink ? (
+            <a
+              href={accountDeepLink}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+            >
+              ربط حسابي للـ Gmail/Drive
+            </a>
+          ) : null}
+          <a
+            href={googleSettingsUrl}
+            className="inline-flex rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+          >
+            اربط Google
           </a>
           <a
             href={botBase}

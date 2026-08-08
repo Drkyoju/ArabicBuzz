@@ -230,7 +230,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_document: tool({
       description:
-        'تحويل صيغ المستندات وإرفاق الناتج في فقاعة الشات (معاينة+تنزيل · تم التعديل). الأفضل للعربية/التخطيط: Google Drive إن مربوط (pdf↔docx…). ثم CloudConvert إن وُجد المفتاح. أخيراً إعادة بناء نصية — تجنّبها لـ PDF عربي بطبقة نص معطوبة (تُنتج طلاسم). لا تستخدم pdf-lib/stamp لنص عربي. بعد التحويل لا تكتفِ بملفات الفريق — المرفق يظهر في الشات.',
+        'تحويل صيغ وإرفاق الناتج في الشات (معاينة+تنزيل). قاعدة مطلقة: لا طلاسم عربية أبداً. PDF→Word: يستخرج نصاً نظيفاً (pdf-parse-safe) ويعيد بناء DOCX بـ RTL؛ Drive يُستخدم فقط إن اجتاز بوابة الجودة وإلا يُرفض. ممنوع: تصدير Drive المعطوب، pdf-lib لجسم عربي، pdf2docx للعربية، forceBroken. إن تعذّر نص نظيف → خطأ عربي صريح بدل ملف فاسد. تخطيط الصفحة الأصلي 100٪ غير مضمون مجاناً.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -242,7 +242,7 @@ export function getNativeAiTools(opts?: {
           .enum(['auto', 'google', 'free', 'cloudconvert'])
           .optional()
           .describe(
-            'auto: Google إن مربوط ثم CloudConvert ثم نصّي؛ google يفرض Drive؛ لا تستخدم free لـ PDF عربي معقّد إن توفّر Google/CloudConvert'
+            'auto مفضّل. google=Drive مع بوابة جودة (يرفض الطلاسم). free=إعادة بناء نظيفة فقط. cloudconvert اختياري مدفوع إن وُجد المفتاح.'
           ),
       }),
       execute: async (params) =>
@@ -261,7 +261,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_file: tool({
       description:
-        'Alias لـ convert_document — تحويل وإرفاق الناتج في الشات (معاينة+تنزيل). الأفضل: Google Drive ثم CloudConvert؛ تجنّب المسار النصّي لـ PDF عربي معقّد.',
+        'Alias لـ convert_document — تحويل بلا طلاسم. PDF→Word من نص نظيف محلي/OCR؛ Drive فقط بعد بوابة الجودة.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -612,6 +612,65 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('owner_morning_brief'),
+        }),
+    }),
+    list_letter_templates: tool({
+      description:
+        'عرض قوالب الخطابات العربية (رسمي · تعميم · شكر · دعوة اجتماع · إشعار تبرع).',
+      inputSchema: z.object({}),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'list_letter_templates',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('list_letter_templates'),
+        }),
+    }),
+    letter_fill_template: tool({
+      description:
+        'تعبئة قالب خطاب MSA وحفظه Word/PDF في ملفات الغرفة ثم return_file. مرّر templateId + values.',
+      inputSchema: z.object({
+        templateId: z
+          .string()
+          .describe(
+            'official_letter | circular | thank_you | meeting_invite | donation_receipt'
+          ),
+        values: z.record(z.string(), z.string()).optional(),
+        format: z.enum(['docx', 'pdf']).optional(),
+        saveToRoom: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'letter_fill_template',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('letter_fill_template'),
+        }),
+    }),
+    minutes_from_thread: tool({
+      description:
+        'توليد محضر رسمي بالفصحى من نقاش غرفة الفريق وحفظه Word. استخدم عند «محضر من الغرفة» / «محضر الاجتماع».',
+      inputSchema: z.object({
+        titleAr: z.string().optional(),
+        limit: z.number().optional(),
+        saveDocx: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'minutes_from_thread',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+            userId: requesterId,
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('minutes_from_thread'),
         }),
     }),
     pdf_create: tool({
@@ -1306,6 +1365,79 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('drive_sync_brain'),
+        }),
+    }),
+    drive_list_files: tool({
+      description:
+        'قائمة ملفات مجلد الجمعية على Google Drive (عرض + روابط). يحتاج ربط Google.',
+      inputSchema: z.object({
+        folderId: z.string().optional(),
+        limit: z.number().optional(),
+        recursive: z.boolean().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'drive_list_files',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('drive_list_files'),
+        }),
+    }),
+    drive_search_files: tool({
+      description:
+        'بحث بالاسم داخل مجلد ملفات الجمعية على Drive. افتح النتيجة بـ brain_open_document.',
+      inputSchema: z.object({
+        queryAr: z.string().describe('اسم أو جزء من اسم الملف'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'drive_search_files',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('drive_search_files'),
+        }),
+    }),
+    drive_upload_file: tool({
+      description:
+        'رفع ملف من خزنة الغرفة إلى مجلد ملفات الجمعية على Drive (صلاحية drive.file).',
+      inputSchema: z.object({
+        fileId: z.string().describe('معرّف ملف الخزنة'),
+        folderId: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'drive_upload_file',
+          params: {
+            ...params,
+            userId: requesterId,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('drive_upload_file'),
+        }),
+    }),
+    drive_get_link: tool({
+      description:
+        'جلب رابط عرض Drive لملف في مجلد الجمعية. لا ينشئ مشاركات ACL جديدة.',
+      inputSchema: z.object({
+        queryAr: z.string().optional(),
+        driveFileId: z.string().optional(),
+        name: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'drive_get_link',
+          params: { ...params, userId: requesterId },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('drive_get_link'),
         }),
     }),
     room_calendar_list: tool({
