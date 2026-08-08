@@ -109,20 +109,20 @@ export function AssistantsOpsSeatsStrip({
   return (
     <div
       className={cn(
-        'rounded-xl border border-ab-border bg-ab-surface/80 px-3 py-3 shadow-sm',
+        'rounded-lg border border-ab-border bg-ab-surface/80 px-2.5 py-2 shadow-sm',
         className
       )}
       dir="rtl"
       aria-label="حالة مقاعد التشغيل"
     >
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 text-[12px] font-bold text-ab-ink">
             <Bot className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
             عمال التشغيل
           </span>
           <span
-            className="inline-flex items-center rounded-md border border-ab-accent/30 bg-ab-accent/10 px-2 py-0.5 text-[11px] font-bold text-ab-accent"
+            className="inline-flex items-center rounded-md border border-ab-accent/30 bg-ab-accent/10 px-1.5 py-px text-[10px] font-bold text-ab-accent"
             title="الحد الأقصى للمهام المتوازية في المساحة"
           >
             حدّ متوازٍ: {maxParallel}
@@ -130,12 +130,12 @@ export function AssistantsOpsSeatsStrip({
               ? ` · لكل موظف ${maxPerUser}`
               : ''}
           </span>
-          <span className="text-[11px] text-stone-500">
+          <span className="text-[10px] text-stone-500">
             يعمل الآن: {working.length}/{drainCap}
             {waiting > 0 ? ` · انتظار ${waiting}` : ''}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500">
+        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-stone-500">
           <span className="inline-flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-ab-accent" /> يعمل
           </span>
@@ -148,7 +148,7 @@ export function AssistantsOpsSeatsStrip({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="grid grid-cols-4 gap-1 sm:grid-cols-8">
         {seats.map((seat) => (
           <div
             key={seat.index}
@@ -158,7 +158,7 @@ export function AssistantsOpsSeatsStrip({
                 : `${seat.nameAr}: ${seat.statusAr}`
             }
             className={cn(
-              'min-w-[7.5rem] max-w-[12rem] flex-1 rounded-lg border px-2 py-1.5 text-start',
+              'min-w-0 rounded-md border px-1.5 py-1 text-start',
               seat.status === 'working' &&
                 'border-ab-accent/40 bg-ab-accent/10 ring-1 ring-ab-accent/20',
               seat.status === 'ready' &&
@@ -166,13 +166,13 @@ export function AssistantsOpsSeatsStrip({
               seat.status === 'off' && 'border-stone-200 bg-stone-50 opacity-70'
             )}
           >
-            <div className="flex items-center justify-between gap-1">
-              <span className="truncate text-[11px] font-semibold text-ab-ink">
+            <div className="flex items-center justify-between gap-0.5">
+              <span className="truncate text-[10px] font-semibold text-ab-ink">
                 {seat.nameAr}
               </span>
               <span
                 className={cn(
-                  'shrink-0 text-[9px] font-bold',
+                  'shrink-0 text-[8px] font-bold',
                   seat.status === 'working' && 'text-ab-accent',
                   seat.status === 'ready' && 'text-emerald-700',
                   seat.status === 'off' && 'text-ab-muted-soft'
@@ -183,16 +183,16 @@ export function AssistantsOpsSeatsStrip({
             </div>
             {seat.status === 'working' ? (
               <>
-                <p className="mt-0.5 truncate text-[10px] text-stone-600">
+                <p className="mt-0.5 truncate text-[9px] text-stone-600">
                   {seat.jobTitleAr}
                 </p>
-                <p className="mt-0.5 flex items-center gap-0.5 text-[9px] text-ab-accent">
-                  <Clock className="h-2.5 w-2.5" aria-hidden />
+                <p className="mt-0.5 flex items-center gap-0.5 text-[8px] text-ab-accent">
+                  <Clock className="h-2 w-2" aria-hidden />
                   {seat.etaAr || 'يعمل…'}
                 </p>
                 {seat.progressPct != null ? (
                   <div
-                    className="mt-1 h-1 overflow-hidden rounded-full bg-ab-accent/15"
+                    className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-ab-accent/15"
                     aria-hidden
                   >
                     <div
@@ -203,8 +203,8 @@ export function AssistantsOpsSeatsStrip({
                 ) : null}
               </>
             ) : (
-              <p className="mt-0.5 text-[10px] text-ab-muted-soft">
-                {seat.status === 'ready' ? 'مقعد فارغ' : 'غير متصل'}
+              <p className="mt-0.5 truncate text-[9px] text-ab-muted-soft">
+                {seat.status === 'ready' ? 'فارغ' : 'غير متصل'}
               </p>
             )}
           </div>

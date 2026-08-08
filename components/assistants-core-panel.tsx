@@ -722,15 +722,15 @@ export function AssistantsCorePanel({
 
   return (
     <section
-      className="relative mx-auto w-full max-w-6xl space-y-5 px-4 py-5 pb-36 md:px-6"
+      className="relative mx-auto w-full max-w-6xl space-y-3 px-4 py-3 pb-36 md:px-6"
       dir="rtl"
     >
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-5">
-      <header className="ab-page-head">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1 space-y-3">
+      <header className="ab-page-head !pb-2">
         <div className="min-w-0">
           <h2 className="ab-title">{catalog?.titleAr || 'مهام التشغيل'}</h2>
-          <p className="ab-subtitle">
+          <p className="ab-subtitle !mt-0.5 !text-[13px] !leading-snug">
             {catalog?.subtitleAr ||
               'مهام تشغيل للمساحة على البريد والتقويم. للنقاش الحي مع الوكلاء استخدم غرفة الفريق.'}
           </p>
@@ -758,17 +758,17 @@ export function AssistantsCorePanel({
       >
         {micNote ? (
           <p
-            className="mb-2 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] leading-snug text-stone-700"
+            className="mb-1.5 rounded-md border border-ab-border bg-white px-2 py-1 text-[11px] leading-snug text-stone-700"
             role="status"
           >
             {micNote}
           </p>
         ) : null}
         <label className="block">
-          <span className="mb-2 block text-sm font-bold text-ab-ink">
+          <span className="mb-1 block text-[13px] font-bold text-ab-ink">
             ماذا تريد تنفيذه؟
           </span>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-1.5">
             <ComposerMicButton
               disabled={enqueueBusy || signedIn !== true}
               composerValue={message}
@@ -788,10 +788,10 @@ export function AssistantsCorePanel({
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={4}
+              rows={2}
               dir="rtl"
               placeholder="مثال: فرّز بريدي اليوم… أو تكلم بالميكروفون — النص يظهر هنا ثم أرسل يدوياً"
-              className="ab-input min-w-0 flex-1 resize-y !py-3"
+              className="ab-input min-h-[2.75rem] max-h-28 min-w-0 flex-1 resize-y !py-2 text-[13px] leading-snug"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault()
@@ -803,11 +803,11 @@ export function AssistantsCorePanel({
         </label>
 
         {pendingFiles.length > 0 ? (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
+          <ul className="mt-1.5 flex flex-wrap gap-1">
             {pendingFiles.map((f) => (
               <li
                 key={f.fileId}
-                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2 py-1 text-[11px] font-semibold text-ab-accent"
+                className="inline-flex max-w-full items-center gap-1 rounded-md border border-ab-accent/25 bg-ab-accent/10 px-1.5 py-0.5 text-[11px] font-semibold text-ab-accent"
               >
                 <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{f.name}</span>
@@ -828,37 +828,37 @@ export function AssistantsCorePanel({
           </ul>
         ) : null}
 
-        <div className="ab-toolbar mt-3 flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
+        <div className="ab-toolbar mt-2 flex-wrap items-end justify-between gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <ModelPicker compact scopeId={scopeId} />
             <EffortPicker compact scopeId={scopeId} />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               disabled={enqueueBusy || signedIn !== true}
               onClick={() => void enqueue()}
-              className="ab-btn-primary px-5 py-2.5 text-sm"
+              className="ab-btn-primary px-3.5 py-1.5 text-xs"
             >
               {enqueueBusy ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                   جاري الإضافة…
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4" aria-hidden />
+                  <Send className="h-3.5 w-3.5" aria-hidden />
                   إرسال
                 </>
               )}
             </button>
-            <span className="text-[11px] text-ab-muted">
+            <span className="text-[10px] text-ab-muted">
               ⌘/Ctrl + Enter
             </span>
           </div>
         </div>
         {error ? (
-          <p className="mt-3 text-sm text-red-700" role="alert">
+          <p className="mt-1.5 text-[13px] text-red-700" role="alert">
             {error}
           </p>
         ) : null}
@@ -873,9 +873,9 @@ export function AssistantsCorePanel({
           poolOnline={signedIn === true}
         />
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ab-accent/25 bg-ab-accent/10 px-2.5 py-1 text-[12px] font-bold text-ab-accent"
+            className="inline-flex items-center gap-1 rounded-md border border-ab-accent/25 bg-ab-accent/10 px-2 py-0.5 text-[11px] font-bold text-ab-accent"
             title={catalog?.parallelNoteAr || hintAr}
           >
             حدّ لكل موظف: {maxPerUser} متوازية
@@ -895,12 +895,12 @@ export function AssistantsCorePanel({
             {tgMobileOpen ? 'إخفاء تيليجرام' : 'تيليجرام مباشر'}
           </button>
         </div>
-        <p className="mt-2 text-[11px] leading-snug text-ab-muted">
+        <p className="mt-1 text-[10px] leading-snug text-ab-muted">
           اسحب صوتاً/ملفاً من تيليجرام إلى خانة الطلب أو اضغط «للمساعدين». اسحب
           ملفاً معدَّلاً من بطاقة المهمة إلى لوحة تيليجرام لإرساله للمجموعة فوراً.
         </p>
         {canAccessOpsUi && cuaStatusAr !== null ? (
-          <p className="mt-2 text-[12px] text-ab-muted">
+          <p className="mt-1 text-[11px] text-ab-muted">
             جسر Cua:{' '}
             <span
               className={
@@ -998,7 +998,7 @@ export function AssistantsCorePanel({
           </div>
         </div>
       ) : (
-        <p className="ab-empty text-[13px] !text-ab-muted">
+        <p className="ab-empty !px-3 !py-4 text-[12px] !text-ab-muted">
           لا مهام بعد — اكتب طلبك أعلاه ثم اضغط إرسال. كل مهمة تظهر كورقة صغيرة
           هنا.
         </p>

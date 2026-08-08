@@ -251,7 +251,7 @@ time,
     color: var(--ab-muted);
   }
   .ab-composer {
-    @apply rounded-2xl border-2 bg-white p-4 sm:p-5;
+    @apply rounded-xl border bg-white p-3;
     border-color: rgba(14, 90, 70, 0.35);
     box-shadow: var(--ab-shadow-sm);
   }
