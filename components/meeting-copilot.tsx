@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, Loader2, Send, HardDrive } from 'lucide-react'
+import { FileText, Loader2, Send, HardDrive, MessagesSquare } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useCanvasStore } from '@/lib/canvas/store'
@@ -10,7 +10,7 @@ import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 /**
  * MVP Saudi Meeting Co-Pilot:
  * paste dialect-aware transcript → minutes → HITL before Drive/Telegram.
- * (No Zoom join bot yet — transcript is pasted or uploaded.)
+ * Also: generate minutes from recent room thread.
  */
 export function MeetingCopilotPanel() {
   const scopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -22,6 +22,48 @@ export function MeetingCopilotPanel() {
   const [status, setStatus] = useState('')
   const [err, setErr] = useState('')
   const [hitlPending, setHitlPending] = useState(false)
+
+  async function generateFromRoom() {
+    if (busy) return
+    setBusy(true)
+    setErr('')
+    setStatus('جاري توليد محضر من نقاش الغرفة…')
+    setMinutes('')
+    setHitlPending(false)
+    try {
+      const res = await fetch('/api/rooms/minutes-from-thread', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ scopeId, saveDocx: true }),
+      })
+      const data = (await res.json()) as {
+        error?: string
+        messageAr?: string
+        minutes?: string
+        titleAr?: string
+      }
+      if (!res.ok) throw new Error(data.error || 'فشل توليد المحضر من الغرفة')
+      const final = data.minutes || ''
+      if (!final) throw new Error('لم يُرجع محضراً')
+      setMinutes(final)
+      setHitlPending(true)
+      setStatus(data.messageAr || 'راجع المحضر ثم اعتمد قبل الإرسال')
+      upsertArtifact({
+        id: `minutes-room-${Date.now()}`,
+        type: 'markdown',
+        titleAr: data.titleAr || 'محضر من الغرفة (مسودة)',
+        content: final,
+        isEditing: false,
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'meeting-copilot',
+      })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل التوليد')
+      setStatus('')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function generate() {
     const text = transcript.trim()
@@ -79,8 +121,16 @@ export function MeetingCopilotPanel() {
               throw new Error(ev.message || 'خطأ من الوكيل')
             }
           } catch (e) {
-            if (e instanceof Error && e.message !== 'Unexpected end of JSON input') {
-              if (e.message.includes('خطأ') || e.message.includes('تعذّر')) throw e
+            if (
+              e instanceof Error &&
+              e.message !== 'Unexpected end of JSON input'
+            ) {
+              if (
+                e.message.includes('خطأ') ||
+                e.message.includes('تعذّر')
+              ) {
+                throw e
+              }
             }
           }
         }
@@ -136,7 +186,9 @@ export function MeetingCopilotPanel() {
           }),
         })
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string
+          }
           if (target === 'telegram') {
             throw new Error(data.error || 'تعذّر الإرسال لتيليجرام')
           }
@@ -152,18 +204,35 @@ export function MeetingCopilotPanel() {
   }
 
   return (
-    <section className="rounded-xl border border-ab-border bg-ab-surface p-4" dir="rtl">
+    <section
+      className="rounded-xl border border-ab-border bg-ab-surface p-4"
+      dir="rtl"
+    >
       <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <FileText className="h-4 w-4 text-ab-accent" aria-hidden />
         مساعد الاجتماعات السعودي
       </h3>
       <p className="mb-3 text-[11px] text-stone-500">
-        الصق نص الاجتماع (أو تفريغ Zoom) → محضر فصحى → اعتماد قبل Drive
-        وتيليجرام. حالة Zoom المباشر تظهر في لوحة اليوم والتقويم.
+        من نقاش الغرفة أو لصق نص → محضر فصحى → اعتماد قبل Drive وتيليجرام.
       </p>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void generateFromRoom()}
+          className="inline-flex items-center gap-1.5 rounded-md border border-ab-accent/40 bg-ab-accent/10 px-3 py-1.5 text-xs font-semibold text-ab-accent disabled:opacity-40"
+        >
+          {busy && !minutes ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <MessagesSquare className="h-3.5 w-3.5" />
+          )}
+          محضر من نقاش الغرفة
+        </button>
+      </div>
       <textarea
         className="mb-2 min-h-[9rem] w-full rounded-lg border border-ab-border bg-white p-3 text-sm leading-relaxed"
-        placeholder="الصق نص الاجتماع أو الملاحظات هنا…"
+        placeholder="أو الصق نص الاجتماع / الملاحظات هنا…"
         value={transcript}
         onChange={(e) => setTranscript(e.target.value)}
         disabled={busy}
@@ -180,7 +249,7 @@ export function MeetingCopilotPanel() {
           ) : (
             <FileText className="h-3.5 w-3.5" />
           )}
-          توليد المحضر
+          توليد المحضر من النص
         </button>
       </div>
       {minutes && (
@@ -203,36 +272,34 @@ export function MeetingCopilotPanel() {
                 type="button"
                 disabled={busy}
                 onClick={() => void approveAndSave('drive')}
-                className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-md bg-ab-ink px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40"
               >
                 <HardDrive className="h-3.5 w-3.5" />
-                اعتماد وحفظ Drive
+                اعتماد → Drive
               </button>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void approveAndSave('telegram')}
-                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-40"
               >
                 <Send className="h-3.5 w-3.5" />
-                اعتماد وإرسال تيليجرام
+                اعتماد → تيليجرام
               </button>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void approveAndSave('both')}
-                className="inline-flex items-center gap-1 rounded-md bg-stone-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-md border border-ab-border bg-white px-2.5 py-1.5 text-[11px] font-semibold disabled:opacity-40"
               >
-                اعتماد · Drive + تيليجرام
+                الاثنان
               </button>
             </div>
           )}
         </div>
       )}
-      {status && (
-        <p className="text-xs text-emerald-800">{status}</p>
-      )}
-      {err && <p className="text-xs text-ab-warn">{err}</p>}
+      {status ? <p className="text-[11px] text-emerald-800">{status}</p> : null}
+      {err ? <p className="text-[11px] text-rose-700">{err}</p> : null}
     </section>
   )
 }

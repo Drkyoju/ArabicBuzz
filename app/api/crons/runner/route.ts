@@ -256,6 +256,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let overdueNudge: unknown = null
+  try {
+    const { sendOverdueNudges } = await import('@/lib/digest/overdue-nudge')
+    overdueNudge = await sendOverdueNudges({ now })
+  } catch (e) {
+    overdueNudge = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'overdue nudge error',
+    }
+  }
+
   let googleRoomCalendarSync: unknown = null
   try {
     const { syncAllOptedInGoogleToRooms } = await import(
@@ -350,6 +361,7 @@ export async function POST(req: NextRequest) {
     directorDigest,
     driveBrainSync,
     morningDigest,
+    overdueNudge,
     googleRoomCalendarSync,
     imapMailSync,
     autoWire,

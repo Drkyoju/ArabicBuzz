@@ -26,6 +26,7 @@ import {
   Mail,
   Inbox,
   Gauge,
+  Search,
   type LucideIcon,
 } from 'lucide-react'
 import { AirGapBadge } from '@/components/airgap-badge'
@@ -839,11 +840,24 @@ export function Sidebar({
           </span>
           <div className="flex items-center gap-1">
             {signedIn === true && (
-              <MailBell
-                compact
-                onOpenMail={() => onSectionChange?.('mail')}
-                onOpenPersonalMail={() => onSectionChange?.('personal-mail')}
-              />
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(new Event('ab-open-search'))
+                  }
+                  className="rounded-md p-2 text-ab-ink"
+                  aria-label="بحث موحّد"
+                  title="بحث (⌘K)"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+                <MailBell
+                  compact
+                  onOpenMail={() => onSectionChange?.('mail')}
+                  onOpenPersonalMail={() => onSectionChange?.('personal-mail')}
+                />
+              </>
             )}
             {signedIn === false ? (
               <Link

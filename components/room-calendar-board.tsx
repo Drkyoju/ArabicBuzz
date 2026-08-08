@@ -263,11 +263,57 @@ export function RoomCalendarBoard({
   }, [scopeId, signedIn, load])
 
   const suggestFreeSlots = useCallback(async () => {
-    if (signedIn !== true || !googleConnected) return
+    if (signedIn !== true) return
     setSlotBusy(true)
     setSlotMsg('')
     setFreeSlots([])
     try {
+      // Prefer room whiteboard slots (always available); Google FreeBusy when linked.
+      const roomRes = await fetch('/api/rooms/calendar', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'suggest_slots',
+          scopeId,
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+          eventId: editingId || undefined,
+        }),
+      })
+      const roomData = (await roomRes.json()) as {
+        slots?: Array<{
+          startIso?: string
+          endIso?: string
+          start?: string
+          end?: string
+          labelAr?: string
+        }>
+        error?: string
+        messageAr?: string
+      }
+      if (roomRes.ok && (roomData.slots || []).length > 0) {
+        const slots = (roomData.slots || []).map((s) => {
+          const start = s.startIso || s.start || ''
+          const end = s.endIso || s.end || ''
+          return {
+            start,
+            end,
+            labelAr: s.labelAr || (start && end ? `${fmt(start)} → ${fmtTimeOnly(end)}` : start),
+          }
+        })
+        setFreeSlots(slots)
+        setSlotMsg(roomData.messageAr || `وُجد ${slots.length} وقتاً من سبورة الغرفة.`)
+        return
+      }
+
+      if (!googleConnected) {
+        setSlotMsg(
+          roomData.messageAr ||
+            'لا فراغات ظاهرة على سبورة الغرفة. اربط Google لاقتراح FreeBusy.'
+        )
+        return
+      }
+
       const res = await fetch(
         '/api/google/calendar?action=freebusy&duration=60&max=6',
         { headers: await authHeaders() }
@@ -305,7 +351,7 @@ export function RoomCalendarBoard({
     } finally {
       setSlotBusy(false)
     }
-  }, [signedIn, googleConnected])
+  }, [signedIn, googleConnected, scopeId, startsAt, endsAt, editingId])
 
   const loadDeadlinesPreview = useCallback(async () => {
     if (signedIn !== true) {
@@ -918,14 +964,14 @@ export function RoomCalendarBoard({
         </p>
       )}
 
-      {signedIn === true && googleConnected && (
+      {signedIn === true && (
         <div className="rounded-xl border border-ab-border bg-white px-4 py-3">
           <p className="text-sm font-semibold text-ab-ink">
-            اقتراح أوقات اجتماع (FreeBusy)
+            اقتراح أوقات اجتماع
           </p>
           <p className="mt-1 text-[11px] text-stone-500">
-            يبحث في فراغ حسابات Google المربوطة ويقترح فترات مناسبة لتعبئة موعد
-            الفريق — مجاني عبر Google OAuth.
+            من سبورة تقويم الغرفة عند التعارض أو لإيجاد فراغ — وFreeBusy من
+            Google إن كان مربوطاً.
           </p>
           <button
             type="button"
@@ -1143,14 +1189,24 @@ export function RoomCalendarBoard({
             <p className="mt-2 text-amber-900">{suggestionAr}</p>
           )}
           {signedIn === true && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void reconcile(true)}
-              className="mt-2 rounded-md bg-amber-800 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
-            >
-              سوِّ التعارضات تلقائياً ونبّه الغرفة
-            </button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void reconcile(true)}
+                className="rounded-md bg-amber-800 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+              >
+                سوِّ التعارضات تلقائياً ونبّه الغرفة
+              </button>
+              <button
+                type="button"
+                disabled={slotBusy}
+                onClick={() => void suggestFreeSlots()}
+                className="rounded-md border border-amber-700/40 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-950 disabled:opacity-40"
+              >
+                اقترح أوقاتاً بديلة
+              </button>
+            </div>
           )}
         </div>
       )}

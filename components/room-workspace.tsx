@@ -10,6 +10,7 @@ import {
   X,
   Trash2,
   MoreHorizontal,
+  Focus,
 } from 'lucide-react'
 import {
   isPostInRiyadhToday,
@@ -235,6 +236,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const [showRoomTools, setShowRoomTools] = useState(false)
   /** Overflow menu for secondary header actions (declutter). */
   const [showHeaderMore, setShowHeaderMore] = useState(false)
+  /** Focus: chat + composer only — hide seats/team/telegram/canvas chrome. */
+  const [focusMode, setFocusMode] = useState(false)
   const [micNote, setMicNote] = useState('')
   const [sendBlockedAr, setSendBlockedAr] = useState('')
   const [presenceSurface, setPresenceSurface] = useState('feed')
@@ -307,9 +310,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const notifyFileReady = useFilePreviewStore((s) => s.notifyFileReady)
   const closePreview = useFilePreviewStore((s) => s.closePreview)
   const [sideTab, setSideTab] = useState<'file' | 'canvas'>('file')
-  const canvasOpen = isCanvasFullscreen || (showCanvas && hasArtifacts)
+  const canvasOpen =
+    !focusMode && (isCanvasFullscreen || (showCanvas && hasArtifacts))
   const sidePanelOpen =
-    previewOpen || canvasOpen || (showCanvas && hasArtifacts)
+    !focusMode && (previewOpen || canvasOpen || (showCanvas && hasArtifacts))
 
   const agentsForScopeFn = useAgentRosterStore((s) => s.agentsForScope)
   const allAgentsFn = useAgentRosterStore((s) => s.allAgents)
@@ -1557,7 +1561,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           onFocusCapture={() => setPresenceSurface('feed')}
         >
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {showOnboarding && (
+          {showOnboarding && !focusMode && (
             <div className="space-y-3 border-b border-ab-accent/20 bg-ab-accent/5 px-3 py-2.5">
               <FirstRunChecklist
                 scopeId={activeScopeId}
@@ -1599,7 +1603,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                       ? 'غرفة الفريق · اكتب @ لاستدعاء وكيل'
                       : PERSONAL_DESK_COPY.taglineAr}
                 </p>
-                <div className="mt-1 hidden flex-wrap items-center gap-2 md:flex">
+                <div className={cn('mt-1 hidden flex-wrap items-center gap-2 md:flex', focusMode && '!hidden')}>
                   <RoomPresenceBar
                     scopeId={activeScopeId}
                     typing={typing}
@@ -1618,6 +1622,39 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </div>
               </div>
               <div className="ab-toolbar relative shrink-0 flex-nowrap justify-end gap-1 !flex-nowrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusMode((v) => {
+                      const next = !v
+                      if (next) {
+                        setShowMore(false)
+                        setShowTelegram(false)
+                        setShowCanvas(false)
+                        setShowHeaderMore(false)
+                        setShowRoomTools(false)
+                      }
+                      return next
+                    })
+                  }}
+                  className={cn(
+                    'ab-btn-ghost !px-2',
+                    focusMode && 'ab-btn-accent-soft'
+                  )}
+                  title={
+                    focusMode
+                      ? 'إلغاء وضع التركيز'
+                      : 'وضع التركيز — المحادثة والكتابة فقط'
+                  }
+                  aria-pressed={focusMode}
+                >
+                  <Focus className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">
+                    {focusMode ? 'إلغاء التركيز' : 'تركيز'}
+                  </span>
+                </button>
+                {!focusMode && (
+                <>
                 <div className="hidden md:contents">
                   <AgentsWorkingToggle scopeId={activeScopeId} compact />
                   {shared && (
@@ -1848,9 +1885,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     ) : null}
                   </div>
                 ) : null}
+                </>
+                )}
               </div>
             </div>
             {/* Font zoom always visible; model/effort stay under «المزيد». */}
+            {!focusMode ? (
             <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ab-border/50 pt-2">
               <FontScalePicker compact />
               {showRoomTools ? (
@@ -1863,6 +1903,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
               </span>
             </div>
+            ) : (
+              <p className="mt-1.5 text-[10px] text-ab-muted-soft">
+                وضع التركيز — المحادثة والكتابة فقط
+              </p>
+            )}
           </header>
 
           {deleteTodayNote ? (
@@ -2028,6 +2073,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </>
           )}
 
+          {!focusMode && (
           <div className="relative z-[1] shrink-0 border-b border-ab-border/70 px-3 py-1.5">
             {!agentsWorking ? (
               <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2092,8 +2138,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
               </div>
             )}
           </div>
+          )}
 
-          {agentsWorking && !seatsCollapsed && (
+          {agentsWorking && !seatsCollapsed && !focusMode && (
             <div
               role="separator"
               aria-orientation="horizontal"

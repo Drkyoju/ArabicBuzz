@@ -85,6 +85,49 @@ export async function POST(req: NextRequest) {
   const createdByAr = displayNameFromUser(user, 'عضو')
 
   try {
+    if (action === 'suggest_slots') {
+      const { listRoomCalendarEvents } = await import(
+        '@/lib/rooms/room-calendar'
+      )
+      const { proposeMeetingSlots } = await import(
+        '@/lib/rooms/meeting-slots'
+      )
+      const fromIso =
+        String(body.startsAt || '').trim() || new Date().toISOString()
+      const endIso = String(body.endsAt || '').trim()
+      const durationMs = endIso
+        ? Math.max(
+            new Date(endIso).getTime() - new Date(fromIso).getTime(),
+            30 * 60_000
+          )
+        : 60 * 60_000
+      const events = await listRoomCalendarEvents({
+        scopeId,
+        from: new Date(Date.now() - 1 * 86400_000).toISOString(),
+        to: new Date(Date.now() + 14 * 86400_000).toISOString(),
+      })
+      const slots = proposeMeetingSlots({
+        events,
+        fromIso,
+        durationMs,
+        count: 5,
+        excludeId: body.eventId || undefined,
+      })
+      return NextResponse.json({
+        ok: true,
+        slots: slots.map((s) => ({
+          start: s.startsAt,
+          end: s.endsAt,
+          startIso: s.startsAt,
+          endIso: s.endsAt,
+          labelAr: s.labelAr,
+        })),
+        messageAr: slots.length
+          ? `اقتراحات من سبورة الغرفة (${slots.length}) — بدون بريد شخصي.`
+          : 'لا فراغ ظاهر خلال أيام العمل القادمة — عدّل المدة أو سوِّ التعارضات.',
+      })
+    }
+
     if (action === 'list') {
       // Same SoT as GET / home / Telegram — a second reader here would
       // re-expose QA test titles that getRoomAgenda filters out.

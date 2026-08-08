@@ -467,6 +467,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       {/* Offset must be on the inline-start side and match --ab-sidebar-width
           (set from components/sidebar.tsx), otherwise the fixed sidebar covers content. */}
       <div className="min-h-dvh pt-11 md:ms-[var(--ab-sidebar-width)] md:pt-0">
+        <UnifiedSearchPalette onNavigate={goToSection} />
         {/* Desktop bar: names the current surface so the page body does not
             have to carry the only orientation cue. */}
         {section !== 'chats' && (
@@ -474,11 +475,29 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <p className="truncate text-[13px] font-semibold tracking-tight text-ab-ink">
               {sectionTitleAr(section)}
             </p>
-            <MailBell
-              onOpenMail={() => setSection('mail')}
-              onOpenPersonalMail={() => setSection('personal-mail')}
-            />
-            <UnifiedSearchPalette onNavigate={goToSection} />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new Event('ab-open-search'))
+                }
+                className="ab-btn-ghost inline-flex items-center gap-1.5 text-[11px]"
+                title="بحث موحّد (⌘K)"
+                aria-label="بحث موحّد"
+              >
+                بحث
+                <kbd
+                  dir="ltr"
+                  className="rounded border border-ab-border px-1 text-[10px] text-ab-muted"
+                >
+                  ⌘K
+                </kbd>
+              </button>
+              <MailBell
+                onOpenMail={() => setSection('mail')}
+                onOpenPersonalMail={() => setSection('personal-mail')}
+              />
+            </div>
           </div>
         )}
         {pendingCount > 0 &&

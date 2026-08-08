@@ -58,8 +58,13 @@ export function UnifiedSearchPalette({
       }
       if (e.key === 'Escape') setOpen(false)
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('ab-open-search', onOpen)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('ab-open-search', onOpen)
+    }
   }, [])
 
   useEffect(() => {
@@ -142,23 +147,7 @@ export function UnifiedSearchPalette({
     return FileText
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="ab-btn-ghost hidden items-center gap-1.5 text-[11px] md:inline-flex"
-        title="بحث موحّد (⌘K)"
-        aria-label="بحث موحّد"
-      >
-        <Search className="h-3.5 w-3.5" aria-hidden />
-        بحث
-        <kbd dir="ltr" className="rounded border border-ab-border px-1 text-[10px] text-ab-muted">
-          ⌘K
-        </kbd>
-      </button>
-    )
-  }
+  if (!open) return null
 
   return (
     <div
