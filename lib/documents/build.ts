@@ -22,6 +22,8 @@ export type BuildDocumentInput = {
   /** Word / text body — paragraphs or markdown-ish lines. */
   body?: string
   paragraphs?: string[]
+  /** Optional Word tables (from Excel sheets). */
+  tables?: Array<{ title?: string; rows: string[][] }>
   sheets?: SheetSpec[]
   slides?: SlideSpec[]
 }
@@ -57,10 +59,22 @@ function splitBody(body?: string, paragraphs?: string[]): string[] {
 }
 
 async function buildDocx(input: BuildDocumentInput): Promise<Buffer> {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } =
-    await import('docx')
+  const {
+    Document,
+    Packer,
+    Paragraph,
+    TextRun,
+    HeadingLevel,
+    AlignmentType,
+    Table,
+    TableRow,
+    TableCell,
+    WidthType,
+    BorderStyle,
+  } = await import('docx')
   const paras = splitBody(input.body, input.paragraphs)
-  const children = [
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const children: any[] = [
     ...(input.title
       ? [
           new Paragraph({
@@ -83,11 +97,85 @@ async function buildDocx(input: BuildDocumentInput): Promise<Buffer> {
           alignment: /[\u0600-\u06FF]/.test(text)
             ? AlignmentType.RIGHT
             : AlignmentType.LEFT,
+          bidirectional: /[\u0600-\u06FF]/.test(text),
         })
     ),
   ]
+
+  for (const table of input.tables || []) {
+    if (table.title) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: table.title,
+              bold: true,
+              font: 'Arial',
+              rightToLeft: /[\u0600-\u06FF]/.test(table.title),
+            }),
+          ],
+          alignment: AlignmentType.RIGHT,
+          spacing: { before: 240, after: 120 },
+        })
+      )
+    }
+    const rows = table.rows || []
+    if (!rows.length) continue
+    const colCount = Math.max(...rows.map((r) => r.length), 1)
+    const thin = {
+      style: BorderStyle.SINGLE,
+      size: 4,
+      color: 'CBD5E1',
+    }
+    children.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: rows.map(
+          (row, ri) =>
+            new TableRow({
+              children: Array.from({ length: colCount }, (_, ci) => {
+                const cellText = String(row[ci] ?? '')
+                const rtl = /[\u0600-\u06FF]/.test(cellText)
+                return new TableCell({
+                  borders: { top: thin, bottom: thin, left: thin, right: thin },
+                  width: {
+                    size: Math.floor(100 / colCount),
+                    type: WidthType.PERCENTAGE,
+                  },
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: cellText || ' ',
+                          font: 'Arial',
+                          bold: ri === 0,
+                          rightToLeft: rtl,
+                        }),
+                      ],
+                      alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                      bidirectional: rtl,
+                    }),
+                  ],
+                })
+              }),
+            })
+        ),
+      })
+    )
+  }
+
   const doc = new Document({
-    sections: [{ properties: {}, children }],
+    sections: [
+      {
+        properties: {
+          page: {
+            // RTL page feel for Arabic-heavy docs
+            size: {},
+          },
+        },
+        children,
+      },
+    ],
   })
   const ab = await Packer.toBuffer(doc)
   return Buffer.from(ab)
@@ -98,7 +186,14 @@ async function buildXlsx(input: BuildDocumentInput): Promise<Buffer> {
     Workbook?: new () => {
       creator: string
       addWorksheet: (name: string) => {
-        addRow: (row: unknown[]) => void
+        addRow: (row: unknown[]) => {
+          eachCell: (
+            cb: (cell: {
+              value: unknown
+              alignment?: Record<string, unknown>
+            }) => void
+          ) => void
+        }
         views: unknown
       }
       xlsx: { writeBuffer: () => Promise<ArrayBuffer> }
@@ -107,7 +202,14 @@ async function buildXlsx(input: BuildDocumentInput): Promise<Buffer> {
       Workbook: new () => {
         creator: string
         addWorksheet: (name: string) => {
-          addRow: (row: unknown[]) => void
+          addRow: (row: unknown[]) => {
+            eachCell: (
+              cb: (cell: {
+                value: unknown
+                alignment?: Record<string, unknown>
+              }) => void
+            ) => void
+          }
           views: unknown
         }
         xlsx: { writeBuffer: () => Promise<ArrayBuffer> }
@@ -134,9 +236,16 @@ async function buildXlsx(input: BuildDocumentInput): Promise<Buffer> {
       (spec.name || `Sheet${i + 1}`).slice(0, 31) || `Sheet${i + 1}`
     )
     for (const row of spec.rows || []) {
-      ws.addRow(
-        (row || []).map((c) => (c === null || c === undefined ? '' : c))
+      const values = (row || []).map((c) =>
+        c === null || c === undefined ? '' : c
       )
+      const excelRow = ws.addRow(values)
+      excelRow.eachCell((cell) => {
+        const v = String(cell.value ?? '')
+        if (/[\u0600-\u06FF]/.test(v)) {
+          cell.alignment = { horizontal: 'right', readingOrder: 'rtl' }
+        }
+      })
     }
     ws.views = [{ rightToLeft: true }]
   }

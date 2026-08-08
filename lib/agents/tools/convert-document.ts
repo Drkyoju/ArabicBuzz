@@ -3,13 +3,16 @@
  * Chain (engine=auto):
  *  1) Google Drive import/export — best free quality when Google is linked
  *  2) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
- *  3) Free Arabic text rebuild (pdf/docx/txt/md only)
+ *  3) LibreOffice soffice — when installed (Word↔PDF etc.; not on default CranL image)
+ *  4) Free Arabic text / structured rebuild (pdf/docx/xlsx/pptx/…)
  */
 import { extractDocumentText } from '@/lib/rag/extract'
 import { readDocumentPages } from '@/lib/documents/read-pages'
 import {
   assessArabicTextQuality,
   brokenToUnicodeErrorAr,
+  sheetsToDocxBlocks,
+  textPagesToSheetRows,
 } from '@/lib/documents/arabic-text-quality'
 import {
   buildDocumentBuffer,
@@ -33,6 +36,11 @@ import {
   convertViaGoogleDrive,
   googleDriveConvertAvailable,
 } from '@/lib/documents/google-drive-convert'
+import {
+  canConvertViaLibreOffice,
+  convertViaLibreOffice,
+  libreOfficeAvailable,
+} from '@/lib/documents/libreoffice-convert'
 import {
   macConvertPdfDocx,
   macSyncConfigured,
@@ -162,6 +170,7 @@ export async function executeConvertDocument(
   let googleFailAr: string | null = null
   let cloudFailAr: string | null = null
   let macFailAr: string | null = null
+  let loFailAr: string | null = null
 
   // ── 1) Best free: Google Drive import/export ──
   if (wantGoogle) {
@@ -173,7 +182,7 @@ export async function executeConvertDocument(
     if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
       if (engine === 'google') {
         throw new Error(
-          `تحويل Google لا يدعم ${fromFormat} → ${toFormat}. جرّب CloudConvert (اختياري مدفوع) أو صيغة ضمن نفس العائلة (مثل pdf↔docx أو xlsx↔pdf).`
+          `تحويل Google لا يدعم ${fromFormat} → ${toFormat}. جرّب CloudConvert (اختياري مدفوع) أو صيغة ضمن نفس العائلة (مثل pdf↔docx أو xlsx↔pdf). للمسارات عبر العائلات (مثل pdf→xlsx أو xlsx→docx) يُستخدم المسار المنظّم المجاني أو CloudConvert.`
         )
       }
     } else {
@@ -261,7 +270,7 @@ export async function executeConvertDocument(
       if (engine === 'cloudconvert') {
         throw e instanceof Error ? e : new Error(String(e))
       }
-      // fall through to free rebuild
+      // fall through
     }
   }
 
@@ -271,21 +280,73 @@ export async function executeConvertDocument(
     )
   }
 
-  // ── 3) Free text / structured rebuild ──
+  // ── 3) LibreOffice (when soffice is on the host / optional Docker image) ──
+  // Prefer for Word↔PDF layout fidelity. Skip PDF→Office when we already know
+  // ToUnicode is broken (handled after extract) — try healthy pairs here first.
+  const loOk =
+    engine === 'auto' || engine === 'free'
+      ? await libreOfficeAvailable()
+      : false
+  if (
+    loOk &&
+    canConvertViaLibreOffice(fromFormat, toFormat) &&
+    // PDF→docx via LO often preserves broken ToUnicode; prefer Drive/visual.
+    !(fromFormat === 'pdf' && (toFormat === 'docx' || toFormat === 'xlsx'))
+  ) {
+    try {
+      const converted = await convertViaLibreOffice({
+        buffer: hit.buffer,
+        filename: hit.meta.originalName,
+        inputFormat: fromFormat,
+        outputFormat: toFormat,
+      })
+      const filename = ensureFilename(
+        converted.filename || outputName,
+        toFormat as DocFormat
+      )
+      const saved = await saveWorkspaceFile({
+        scopeId,
+        buffer: converted.buffer,
+        originalName: filename,
+        mimeType: converted.mimeType,
+        markEdited: true,
+      })
+      return attachmentResult({
+        saved,
+        scopeId,
+        fromFormat,
+        toFormat,
+        engine: 'libreoffice',
+        sourceFileId: hit.meta.id,
+        sourceName: hit.meta.originalName,
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر LibreOffice (soffice). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
+        noteAr:
+          'محرّك: LibreOffice محلي. على CranL الافتراضي غير مثبت — فعّل INSTALL_LIBREOFFICE=1 عند البناء أو اربط Google.',
+      })
+    } catch (e) {
+      loFailAr = e instanceof Error ? e.message : 'فشل LibreOffice'
+      // fall through
+    }
+  }
+
+  // ── 4) Free text / structured rebuild ──
   if (!FREE_ALLOWED.includes(toFormat)) {
     const tips: string[] = []
     if (!googleLinked) {
       tips.push('اربط Google من الإعدادات (مجاني · الأفضل لجودة التحويل)')
     } else if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
       tips.push(
-        `زوج ${fromFormat}→${toFormat} خارج عائلات Google (Docs/Sheets/Slides)`
+        `زوج ${fromFormat}→${toFormat} خارج عائلات Google (Docs/Sheets/Slides) — المسار المنظّم أو CloudConvert`
       )
     }
     if (!cloudConvertConfigured()) {
       tips.push('أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع) لـ xlsx/pptx/doc')
     }
+    if (!loOk) {
+      tips.push('LibreOffice غير متوفر في هذه البيئة')
+    }
     throw new Error(
-      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf/docx/pptx/xlsx ↔ بعضها (نص فقط). ${tips.join(' · ')}`
+      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf/docx/pptx/xlsx ↔ بعضها (نص منظّم). ${tips.join(' · ')}`
     )
   }
 
@@ -387,15 +448,18 @@ export async function executeConvertDocument(
     const tried: string[] = []
     if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
     if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
+    if (loFailAr) tried.push(`LibreOffice: ${loFailAr}`)
     if (macFailAr) tried.push(`مرئي/ماك: ${macFailAr}`)
     if (!googleLinked) tried.push('Google غير مربوط')
     if (!cloudConvertConfigured()) tried.push('CloudConvert غير مضبوط')
+    if (!loOk) tried.push('LibreOffice غير متوفر')
     if (!macSyncConfigured()) tried.push('جسر الماك غير مضبوط')
     throw new Error(
       [
         brokenToUnicodeErrorAr({
           hasMac: macSyncConfigured(),
           hasGoogleHint: !googleLinked,
+          hasLibreOffice: loOk,
         }),
         tried.length ? `محاولات: ${tried.join(' · ')}` : '',
       ]
@@ -404,7 +468,35 @@ export async function executeConvertDocument(
     )
   }
 
-  const paragraphs = text
+  // Weak pdf-lib Arabic body: refuse silent DOCX→PDF free rebuild when Arabic-heavy
+  // unless forced — prefer Drive / LibreOffice / CloudConvert.
+  const arabicHeavy = (text.match(/[\u0600-\u06FF]/g) || []).length >= 40
+  if (
+    toFormat === 'pdf' &&
+    fromFormat !== 'pdf' &&
+    arabicHeavy &&
+    !forceBroken &&
+    engine === 'auto'
+  ) {
+    const tried: string[] = []
+    if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
+    if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
+    if (loFailAr) tried.push(`LibreOffice: ${loFailAr}`)
+    if (!googleLinked) tried.push('اربط Google (الأفضل لـ Word→PDF عربي)')
+    if (!loOk) tried.push('LibreOffice غير متوفر')
+    throw new Error(
+      [
+        'إنشاء PDF عربي عبر المسار النصّي المحلي ضعيف التشكيل (قد تظهر حروف منفصلة).',
+        'الأفضل: Google Drive أو LibreOffice أو CloudConvert.',
+        tried.length ? `محاولات: ${tried.join(' · ')}` : '',
+        'للفرض رغم ذلك: forceBrokenRebuild=true',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    )
+  }
+
+  let paragraphs = text
     .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
     .map((p) => p.trim())
@@ -415,25 +507,43 @@ export async function executeConvertDocument(
     | Array<{ name?: string; rows: Array<Array<string>> }>
     | undefined
   let slides: Array<{ title: string; bullets?: string[] }> | undefined
+  let tables: Array<{ title?: string; rows: string[][] }> | undefined
 
   if (toFormat === 'xlsx') {
-    sheets = paged.pages.map((p) => {
-      const lines = p.text.split('\n').filter((l) => l.trim())
-      const rows = lines.map((line) =>
-        line.includes('\t') ? line.split('\t') : [line]
-      )
-      return {
-        name: (p.labelAr || `Sheet${p.index}`).slice(0, 31),
-        rows: rows.length ? rows : [['']],
-      }
-    })
-    if (!sheets.length) {
-      sheets = [
-        {
-          name: 'مستخرج',
-          rows: paragraphs.map((p) => [p]),
-        },
-      ]
+    const structured = textPagesToSheetRows(
+      paged.pages.map((p) => ({
+        text: p.text,
+        labelAr: p.labelAr,
+        index: p.index,
+      }))
+    )
+    sheets =
+      structured.length > 0
+        ? structured
+        : [
+            {
+              name: 'مستخرج',
+              rows: paragraphs.map((p) => [p]),
+            },
+          ]
+  }
+
+  // Excel → Word: real tables when multi-column sheets exist
+  if (
+    (fromFormat === 'xlsx' || fromFormat === 'csv') &&
+    (toFormat === 'docx' || toFormat === 'pdf' || toFormat === 'txt' || toFormat === 'md')
+  ) {
+    const fromSheets = textPagesToSheetRows(
+      paged.pages.map((p) => ({
+        text: p.text,
+        labelAr: p.labelAr,
+        index: p.index,
+      }))
+    )
+    if (fromSheets.length) {
+      const blocks = sheetsToDocxBlocks(fromSheets)
+      if (blocks.tables.length) tables = blocks.tables
+      if (blocks.paragraphs.length) paragraphs = blocks.paragraphs
     }
   }
 
@@ -463,6 +573,7 @@ export async function executeConvertDocument(
         : undefined,
     body: paragraphs.join('\n\n'),
     sheets,
+    tables: toFormat === 'docx' ? tables : undefined,
     slides,
   })
 
@@ -474,6 +585,13 @@ export async function executeConvertDocument(
     markEdited: true,
   })
 
+  const structuredNote =
+    toFormat === 'xlsx'
+      ? 'صفوف Excel من النص المستخرج (فواصل جدولة/أنابيب/مسافات مزدوجة).'
+      : tables?.length
+        ? `جداول Word من ${tables.length} ورقة Excel.`
+        : 'إعادة بناء نصية عربية (بدون صور/تخطيط أصلي).'
+
   return attachmentResult({
     saved,
     scopeId,
@@ -482,20 +600,22 @@ export async function executeConvertDocument(
     engine: 'free-rebuild',
     sourceFileId: hit.meta.id,
     sourceName: hit.meta.originalName,
-    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} بإعادة بناء نصية عربية (بدون صور/تخطيط أصلي). نزّل أو عاين من فقاعة الشات — تم التعديل.`,
+    messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} — ${structuredNote} نزّل أو عاين من فقاعة الشات — تم التعديل.`,
     noteAr: forceBroken && quality.broken
       ? 'تحذير: فُرضت إعادة بناء نصية رغم ToUnicode معطوب — راجع النص يدوياً (قد تظهر طلاسم). الأفضل لاحقاً: Google Drive أو CloudConvert أو Word مرئي عبر الماك.'
       : googleLinked
-        ? 'محرّك: إعادة بناء نصية (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
-        : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert. إعادة البناء النصية احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
+        ? 'محرّك: إعادة بناء منظّمة (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
+        : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert أو LibreOffice. إعادة البناء المنظّمة احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
     extra: {
       charCount: text.length,
       paragraphCount: paragraphs.length,
+      tableCount: tables?.length || 0,
+      sheetCount: sheets?.length || 0,
       extractMethod,
       ocrUsed,
       qualityPercent: {
-        layout: 0,
-        editableText: quality.broken ? 15 : 70,
+        layout: tables?.length ? 40 : 0,
+        editableText: quality.broken ? 15 : 75,
       },
       warningAr: quality.broken
         ? 'تحذير: إشارات ToUnicode معطوبة — راجع النص يدوياً.'
@@ -503,6 +623,7 @@ export async function executeConvertDocument(
       priorEngineFailures: {
         google: googleFailAr,
         cloudconvert: cloudFailAr,
+        libreoffice: loFailAr,
         macVisual: macFailAr,
       },
     },

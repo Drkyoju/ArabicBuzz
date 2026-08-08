@@ -29,7 +29,14 @@ RUN npx prisma generate && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+# Optional LibreOffice for high-fidelity Word↔PDF (large image). Default OFF for CranL slim.
+ARG INSTALL_LIBREOFFICE=0
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
+       apt-get install -y --no-install-recommends \
+         libreoffice-writer-nogui libreoffice-calc-nogui \
+         fonts-noto-core fonts-noto-ui-core fonts-dejavu-core; \
+     fi \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs

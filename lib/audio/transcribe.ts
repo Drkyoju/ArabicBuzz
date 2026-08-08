@@ -19,14 +19,24 @@ export function cleanTranscript(text: string): string {
   return text.replace(NOISE_RE, ' ').replace(/\s+/g, ' ').trim()
 }
 
+/** Franco-Arab / chat latin that is not usable as MSA agent input. */
+const FRANCO_HEAVY_RE =
+  /(?:\b(?:ana|enti|entey|lesh|wein|wain|msh|mesh|7abeeb|habibi|yalla|bas|khalas)\b)|(?:[2379]{2,}[a-z]{2,})/i
+
 /**
- * Reject Latin/Franco / random-script “طلاسم” that some models return when
- * language is wrong or audio is misdecoded. Short numeric replies are OK.
+ * Reject Latin/Franco / random-script “طلاسم” and Arabic-script hallucinations
+ * that some models return when language is wrong or audio is misdecoded.
+ * Short numeric replies are OK.
  */
 export function isPlausibleArabicTranscript(text: string): boolean {
   const t = cleanTranscript(text)
   if (!t) return false
   if (t.length < 2) return false
+  if (t.includes('\uFFFD')) return false
+  if (FRANCO_HEAVY_RE.test(t) && (t.match(/[\u0600-\u06FF]/g) || []).length < 8) {
+    return false
+  }
+
   const arabic = (t.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || [])
     .length
   const letters = (t.match(/\p{L}/gu) || []).length
@@ -34,10 +44,64 @@ export function isPlausibleArabicTranscript(text: string): boolean {
     // digits / punctuation only — allow short confirmations
     return t.length <= 24
   }
-  // Prefer Arabic script; allow short mixed if any Arabic letters exist
-  if (arabic >= 2 && arabic / letters >= 0.35) return true
-  if (arabic >= 4) return true
+  if (!(arabic >= 2 && arabic / letters >= 0.35) && !(arabic >= 4)) {
+    return false
+  }
+  // Arabic-script gibberish / Whisper loops
+  if (looksLikeArabicGibberish(t)) return false
+  return true
+}
+
+/**
+ * Detect repeated-syllable / low-entropy Arabic-script nonsense (طلاسم).
+ * Does not replace script-ratio checks — call after those pass.
+ */
+export function looksLikeArabicGibberish(text: string): boolean {
+  const t = cleanTranscript(text)
+  if (!t || t.length < 8) return false
+
+  const words = t.split(/\s+/).filter(Boolean)
+  if (words.length >= 6) {
+    const counts = new Map<string, number>()
+    for (const w of words) counts.set(w, (counts.get(w) || 0) + 1)
+    let max = 0
+    for (const n of counts.values()) if (n > max) max = n
+    if (max / words.length >= 0.45) return true
+  }
+
+  // Same 2–4 Arabic chars looping: «بابابابا» / «لالالالا»
+  if (/([\u0600-\u06FF]{2,4})\1{3,}/.test(t.replace(/\s+/g, ''))) return true
+
+  // Very short average token length with many tokens → noise
+  if (words.length >= 10) {
+    const avg =
+      words.reduce((s, w) => s + w.length, 0) / Math.max(1, words.length)
+    if (avg < 2.2) return true
+  }
+
+  // Low unique-character diversity for long Arabic strings
+  const arOnly = (t.match(/[\u0600-\u06FF]/g) || []).join('')
+  if (arOnly.length >= 40) {
+    const unique = new Set(arOnly).size
+    if (unique / arOnly.length < 0.12) return true
+  }
+
   return false
+}
+
+/** Higher is better — used to pick among race winners in a short quality window. */
+export function scoreArabicTranscript(text: string): number {
+  const t = cleanTranscript(text)
+  if (!t || !isPlausibleArabicTranscript(t)) return -1
+  const arabic = (t.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || [])
+    .length
+  const letters = (t.match(/\p{L}/gu) || []).length || 1
+  const words = t.split(/\s+/).filter(Boolean)
+  const uniqueWords = new Set(words.map((w) => w.toLowerCase())).size
+  const diversity =
+    words.length > 0 ? uniqueWords / words.length : 0
+  const lenBonus = Math.min(40, t.length / 8)
+  return (arabic / letters) * 40 + diversity * 35 + lenBonus
 }
 
 function acceptArabicOrNull(text: string | null | undefined): string | null {
@@ -418,32 +482,75 @@ type SttAttempt = {
   run: () => Promise<string | null>
 }
 
-/** First plausible Arabic transcript wins — used to cut sequential STT waterfalls. */
+/**
+ * Race STT providers: collect plausible Arabic results for a short quality
+ * window after the first hit, then pick the highest score (tie → earliest).
+ * Rejects gibberish finals instead of locking the first finisher blindly.
+ */
 export async function raceArabicSttAttempts(
-  attempts: SttAttempt[]
+  attempts: SttAttempt[],
+  opts?: { qualityWindowMs?: number }
 ): Promise<ArabicSttResult | null> {
   if (!attempts.length) return null
+  const rawWindow =
+    opts?.qualityWindowMs ??
+    (process.env.ASR_QUALITY_WINDOW_MS != null &&
+    process.env.ASR_QUALITY_WINDOW_MS !== ''
+      ? Number(process.env.ASR_QUALITY_WINDOW_MS)
+      : 450)
+  const qualityWindowMs = Math.min(
+    2_500,
+    Math.max(0, Number.isFinite(rawWindow) ? rawWindow : 450)
+  )
   return new Promise((resolve) => {
     let pending = attempts.length
     let settled = false
+    let windowTimer: ReturnType<typeof setTimeout> | undefined
+    const hits: Array<ArabicSttResult & { score: number; order: number }> = []
+    let order = 0
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      if (windowTimer) clearTimeout(windowTimer)
+      if (!hits.length) {
+        resolve(null)
+        return
+      }
+      hits.sort((a, b) => b.score - a.score || a.order - b.order)
+      const best = hits[0]
+      resolve({
+        text: best.text,
+        provider: best.provider,
+        providerLabelAr: best.providerLabelAr,
+      })
+    }
+
     for (const attempt of attempts) {
       void (async () => {
         try {
           const text = await attempt.run()
           if (!settled && text) {
-            settled = true
-            resolve({
-              text,
-              provider: attempt.provider,
-              providerLabelAr: attempt.providerLabelAr,
-            })
-            return
+            const score = scoreArabicTranscript(text)
+            if (score >= 0) {
+              hits.push({
+                text,
+                provider: attempt.provider,
+                providerLabelAr: attempt.providerLabelAr,
+                score,
+                order: order++,
+              })
+              if (hits.length === 1) {
+                if (qualityWindowMs <= 0) finish()
+                else windowTimer = setTimeout(finish, qualityWindowMs)
+              }
+            }
           }
         } catch {
           /* try peers */
         }
         pending -= 1
-        if (!settled && pending <= 0) resolve(null)
+        if (!settled && pending <= 0) finish()
       })()
     }
   })

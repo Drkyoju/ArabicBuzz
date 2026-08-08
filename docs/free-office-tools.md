@@ -21,7 +21,8 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | قراءة وكيل صفحة بصفحة | `read_document` → `readDocumentPages` | Netlify + ماك | حتى 8 صفحات OCR لكل استدعاء ثم `nextPageStart` |
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
 | PDF→DOCX تخطيط | Google Drive → مرئي ماك → pdf2docx | — | تجنّب rebuild نصّي إن ToUnicode معطوب |
-| Office↔PDF محلي | **LibreOffice** `soffice --headless` | الماك | إن ثُبّت |
+| PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
+| Office↔PDF محلي | **LibreOffice** `soffice --headless` | الماك / Docker اختياري | CranL الافتراضي بدون soffice — `INSTALL_LIBREOFFICE=1` |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
 | DOCX/PPTX/XLSX | python-docx · python-pptx · openpyxl + JS (docx/exceljs) | venv / Netlify | تعديل واستخراج |
 | قرارات طويلة → Markdown | **MarkItDown** | `POST /markitdown` + MCP | `pip install "markitdown[all]"` |
