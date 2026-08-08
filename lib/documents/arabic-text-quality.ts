@@ -59,6 +59,169 @@ export function assessArabicTextQuality(text: string): ArabicTextQuality {
   }
 }
 
+function arabicCharCount(text: string): number {
+  return (String(text || '').match(/[\u0600-\u06FF]/g) || []).length
+}
+
+/** Absolute: any طلاسم / U+FFFD / classic bylaws corruption. */
+export function hasArabicMojibake(text: string): boolean {
+  const t = String(text || '')
+  if (!t.trim()) return false
+  const q = assessArabicTextQuality(t)
+  if (q.broken || q.mojibakeHits > 0) return true
+  if (/الالئحة|األساسية|واألهداف|املادة|االسم/.test(t)) return true
+  if (/\uFFFD/.test(t)) return true
+  return false
+}
+
+export type ArabicTextCandidate = {
+  text: string
+  source: string
+}
+
+/**
+ * Pick the longest clean Arabic candidate. Never returns mojibake when a
+ * clean alternative exists; returns null if every candidate is garbage.
+ * For non-Arabic (or light Arabic) text, returns the longest non-mojibake sample.
+ */
+export function pickBestCleanArabicText(
+  candidates: ArabicTextCandidate[]
+): { text: string; source: string; quality: ArabicTextQuality } | null {
+  const scored = candidates
+    .map((c) => {
+      const text = String(c.text || '').trim()
+      const quality = assessArabicTextQuality(text)
+      const ar = arabicCharCount(text)
+      const mojibake = hasArabicMojibake(text)
+      const arabicHeavy = ar >= 40
+      const clean = text.length >= 40 && !mojibake && (!arabicHeavy || ar >= 20)
+      return { ...c, text, quality, ar, clean, arabicHeavy, mojibake }
+    })
+    .filter((c) => c.text.length >= 40)
+
+  const cleanOnes = scored.filter((c) => c.clean)
+  if (!cleanOnes.length) return null
+
+  cleanOnes.sort((a, b) => {
+    if (b.ar !== a.ar) return b.ar - a.ar
+    if (b.text.length !== a.text.length) return b.text.length - a.text.length
+    return a.quality.badLig - b.quality.badLig
+  })
+  const best = cleanOnes[0]!
+  return { text: best.text, source: best.source, quality: best.quality }
+}
+
+/**
+ * After Drive PDF→Office export: discard Drive entirely when Arabic gate fails.
+ * Absolute rule — never ship Drive طلاسم even if local is imperfect (OCR next).
+ */
+export function preferLocalArabicOverDrive(opts: {
+  driveText: string
+  localText: string
+}): {
+  preferLocal: boolean
+  discardDrive: boolean
+  reasonAr?: string
+  driveQ: ArabicTextQuality
+  localQ: ArabicTextQuality
+} {
+  const driveText = String(opts.driveText || '')
+  const localText = String(opts.localText || '')
+  const driveQ = assessArabicTextQuality(driveText)
+  const localQ = assessArabicTextQuality(localText)
+  const localAr = arabicCharCount(localText)
+  const driveAr = arabicCharCount(driveText)
+  const arabicHeavy = localAr >= 40 || driveAr >= 40
+
+  if (!arabicHeavy) {
+    return { preferLocal: false, discardDrive: false, driveQ, localQ }
+  }
+
+  const driveBad =
+    hasArabicMojibake(driveText) ||
+    driveQ.broken ||
+    driveQ.brokenHits >= 1 ||
+    /الالئحة|األساسية|واألهداف/.test(driveText)
+
+  if (driveBad) {
+    return {
+      preferLocal: true,
+      discardDrive: true,
+      reasonAr:
+        'تصدير Google Drive أنتج طلاسم عربية (مثل الالئحة/األساسية) — نرفضه بالكامل ونُعيد البناء من أفضل استخراج محلي/OCR.',
+      driveQ,
+      localQ,
+    }
+  }
+
+  // Drive looks clean but local is clearly better (more Arabic, no corruption)
+  if (
+    !localQ.broken &&
+    localText.trim().length >= 80 &&
+    localAr > driveAr * 1.15 &&
+    localQ.goodLig >= driveQ.goodLig
+  ) {
+    return {
+      preferLocal: true,
+      discardDrive: false,
+      reasonAr:
+        'الاستخراج المحلي أوضح وأغنى من تصدير Drive — نفضّل إعادة البناء المحلية.',
+      driveQ,
+      localQ,
+    }
+  }
+
+  return { preferLocal: false, discardDrive: false, driveQ, localQ }
+}
+
+const HEADING_RE =
+  /^(الباب|الفصل|الفرع|المادة|الملحق|اللائحة|تعريف|التعريفات)\b/u
+
+/**
+ * Structure extracted MSA into clean RTL paragraphs + heading flags.
+ * Collapses mojibake-adjacent whitespace; does not invent content.
+ */
+export function structureArabicParagraphs(text: string): Array<{
+  text: string
+  heading?: 1 | 2
+}> {
+  const raw = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\uFFFD/g, '')
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  if (!raw) return []
+
+  const blocks = raw
+    .split(/\n{2,}/)
+    .flatMap((block) => {
+      const lines = block
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+      // Single-line article headings often sit alone
+      if (lines.length === 1) return lines
+      // Keep multi-line blocks together unless they are article stacks
+      const allHeadings = lines.every((l) => HEADING_RE.test(l))
+      if (allHeadings) return lines
+      return [lines.join('\n')]
+    })
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+  return blocks.map((p) => {
+    const first = p.split('\n')[0] || p
+    if (/^(اللائحة\s+الأساسية|الباب\s+)/u.test(first)) {
+      return { text: p, heading: 1 as const }
+    }
+    if (HEADING_RE.test(first) || /^المادة\s*[\d٠-٩]+/u.test(first)) {
+      return { text: p, heading: 2 as const }
+    }
+    return { text: p }
+  })
+}
+
 /** Arabic error when free rebuild would produce garbage. */
 export function brokenToUnicodeErrorAr(opts?: {
   hasMac?: boolean
@@ -66,19 +229,24 @@ export function brokenToUnicodeErrorAr(opts?: {
   hasLibreOffice?: boolean
 }): string {
   const parts = [
-    'طبقة النص في PDF العربي تبدو معطوبة (ToUnicode) — إعادة البناء النصية ستُنتج طلاسم.',
-    'الأفضل: اربط Google من الإعدادات (Drive) لتحويل/OCR نظيف، أو أضف CLOUDCONVERT_API_KEY.',
+    'تعذّر إنتاج نص عربي نظيف للتحويل — لن نُسلّم طلاسم (مثل الالئحة/األساسية/U+FFFD).',
+    'جرّبنا الاستخراج المحلي وOCR عند الحاجة. إن بقي النص معطوباً نرفض التحويل بدل تسليم ملف فاسد.',
   ]
-  if (opts?.hasLibreOffice) {
-    parts.push('أو LibreOffice (soffice) محلياً إن وُجد في بيئة التشغيل.')
-  }
   if (opts?.hasMac) {
     parts.push(
-      'أو شغّل جسر الماك (MAC_SYNC_URL + npm run storage:sync) لنسخة Word مرئية (تخطيط 100%).'
+      'اختياري: جسر الماك (MAC_SYNC_URL) لنسخة Word مرئية (صور صفحات · تخطيط بصري بلا تحرير نصي).'
+    )
+  }
+  if (opts?.hasLibreOffice) {
+    parts.push('LibreOffice متوفر لـ Word↔PDF عندما يكون النص نظيفاً.')
+  }
+  if (opts?.hasGoogleHint) {
+    parts.push(
+      'Drive يُستخدم فقط إن اجتاز بوابة الجودة العربية؛ التصدير المعطوب يُرفض تلقائياً.'
     )
   }
   parts.push(
-    'لن نُنتج Word بنص معطوب صامتاً. لفرض المسار النصّي رغم العطب مرّر forceBrokenRebuild=true (جودة منخفضة).'
+    'تخطيط الصفحة الأصلي 100٪ + كل التشكيل غير مضمون مجاناً؛ النص يجب أن يكون عربياً مهنياً بلا طلاسم.'
   )
   return parts.join(' ')
 }

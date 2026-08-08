@@ -463,7 +463,7 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
         id: 'word_docx_assistant',
         name: 'مساعد Word',
         description: 'تحرير مستندات Word',
-        body: 'اقرأ صفحة بصفحة ثم عدّل بـ edit_document (replacements). التحويل: Google Drive أولاً — ارفض طلاسم ToUnicode.',
+        body: 'اقرأ صفحة بصفحة ثم عدّل بـ edit_document. التحويل: convert_document بلا طلاسم (نص نظيف أو ارفض؛ Drive بعد بوابة الجودة فقط).',
       })
     ),
   },
@@ -582,7 +582,7 @@ export const KSA_SKILL_CATALOG: KSASkillItem[] = [
         id: 'pdf_document_ops',
         name: 'عمليات PDF',
         description: 'إنشاء ودمج وختم PDF',
-        body: 'اقرأ PDF كاملاً صفحة بصفحة. استخدم pdf_* و convert_document (Drive أولاً). ممنوع طلاسم ToUnicode صامتة.',
+        body: 'اقرأ PDF كاملاً صفحة بصفحة. استخدم pdf_* و convert_document (نظيف أو ارفض — ممنوع طلاسم).',
       })
     ),
   },

@@ -33,14 +33,13 @@ toolsRequired:
 | استبدال نص عربي في الطبقة | `pdf_replace_text` (خط مضمّن / HarfBuzz — ليس stamp) |
 | تحويل صيغ | `convert_document` |
 
-## مصفوفة التحويل (جودة)
-| الزوج | الأفضل | احتياطي | ممنوع |
-| pdf↔docx | Google Drive | CloudConvert / Word مرئي (ماك) | rebuild نصّي عند ToUnicode معطوب |
-| pdf↔pptx / pdf↔xlsx | Google أو CloudConvert | استخراج نص→إعادة بناء (جداول/شرائح فقط) | ادّعاء مطابقة تخطيط 100% |
-| docx↔pdf | Google Drive | CloudConvert / مسار نصّي بسيط | pdf-lib لنسخ جسم عربي |
-| xlsx→docx / docx→xlsx | Google أو استخراج منظم | free-rebuild من الصفحات/الأوراق | صمت عند فشل الاستخراج |
+## مصفوفة التحويل (جودة — نظيف أو ارفض)
+| الزوج | المسموح | معطّل |
+| pdf→docx | `convert_document` auto: نص نظيف (pdf-parse-safe/OCR) → DOCX RTL؛ Drive فقط بعد بوابة الجودة | Drive طلاسم، pdf2docx عربي، rebuild معطوب |
+| docx→pdf | Drive بجودة نظيفة أو LibreOffice أو CloudConvert (مدفوع اختياري) | pdf-lib جسم عربي |
+| pdf↔xlsx/pptx | نفس مصدر النص النظيف فقط | أي مسار يمرّر طلاسم |
 
-عند فشل الجودة: **خطأ عربي صريح** + اقتراح ربط Drive — لا طلاسم صامتة.
+عند فشل الجودة: **خطأ عربي صريح** — لا مرفق فاسد. التفاصيل: `skills/arabic_pdf_word_convert/SKILL.md`.
 
 ## قواعد
 - اعرض خطة قصيرة قبل دمج/استبدال واسع.

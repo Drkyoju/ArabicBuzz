@@ -1,17 +1,25 @@
 /**
- * Convert between Office/PDF formats.
+ * Convert between Office/PDF formats — clean Arabic or refuse (never ship طلاسم).
+ *
  * Chain (engine=auto):
- *  1) Google Drive import/export — best free quality when Google is linked
- *  2) LibreOffice soffice — free/OSS when INSTALL_LIBREOFFICE=1 / host has soffice
- *  3) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
- *  4) Free Arabic text / structured rebuild (pdf/docx/xlsx/pptx/…)
+ *  1) Google Drive — ONLY if Arabic quality gate passes; else discard entirely
+ *  2) LibreOffice soffice — Word↔PDF when available (NOT PDF→Office Arabic)
+ *  3) CloudConvert — optional paid (CLOUDCONVERT_API_KEY); never required
+ *  4) Clean free rebuild from best of: pdf-parse-safe / page extract / OCR
+ *
+ * Hard-disabled: Drive mojibake export, pdf2docx for Arabic, pdf-lib Arabic body,
+ * forceBrokenRebuild shipping طلاسم.
  */
 import { extractDocumentText } from '@/lib/rag/extract'
+import { runArabicOcr } from '@/lib/rag/ocr'
 import { readDocumentPages } from '@/lib/documents/read-pages'
 import {
-  assessArabicTextQuality,
   brokenToUnicodeErrorAr,
+  hasArabicMojibake,
+  pickBestCleanArabicText,
+  preferLocalArabicOverDrive,
   sheetsToDocxBlocks,
+  structureArabicParagraphs,
   textPagesToSheetRows,
 } from '@/lib/documents/arabic-text-quality'
 import {
@@ -197,25 +205,85 @@ export async function executeConvertDocument(
           inputFormat: fromFormat,
           outputFormat: toFormat,
         })
-        const saved = await saveWorkspaceFile({
-          scopeId,
-          buffer: converted.buffer,
-          originalName: converted.filename || filename,
-          mimeType: converted.mimeType,
-          markEdited: true,
-        })
-        return attachmentResult({
-          saved,
-          scopeId,
-          fromFormat,
-          toFormat,
-          engine: 'google-drive',
-          sourceFileId: hit.meta.id,
-          sourceName: hit.meta.originalName,
-          messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). نزّل أو عاين الملف من فقاعة الشات — تم التعديل.`,
-          noteAr:
-            'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل للعربية والتخطيط. النتيجة مرفق شات (معاينة+تنزيل) وليست فقط ملفات الفريق.',
-        })
+
+        // PDF→Office: quality-gate Drive export. Drive often re-encodes broken
+        // ToUnicode as editable طلاسم (الالئحة/األساسية) while local pdf-parse is clearer.
+        const officeFromPdf =
+          fromFormat === 'pdf' &&
+          (toFormat === 'docx' || toFormat === 'xlsx' || toFormat === 'pptx')
+        if (officeFromPdf) {
+          const [driveExtracted, localExtracted] = await Promise.all([
+            extractDocumentText({
+              buffer: Buffer.from(converted.buffer),
+              filename: converted.filename || filename,
+              mimeType: converted.mimeType,
+              enableOcr: false,
+            }),
+            extractDocumentText({
+              buffer: hit.buffer,
+              filename: hit.meta.originalName,
+              mimeType: hit.meta.mimeType,
+              enableOcr: false,
+            }),
+          ])
+          const gate = preferLocalArabicOverDrive({
+            driveText: driveExtracted.text || '',
+            localText: localExtracted.text || '',
+          })
+          if (gate.preferLocal || gate.discardDrive) {
+            // Hard-disable: never save Drive طلاسم — fall through to clean rebuild / refuse.
+            googleFailAr =
+              gate.reasonAr ||
+              'تصدير Drive عربي معطوب — رُفض بالكامل'
+          } else {
+            const saved = await saveWorkspaceFile({
+              scopeId,
+              buffer: converted.buffer,
+              originalName: converted.filename || filename,
+              mimeType: converted.mimeType,
+              markEdited: true,
+            })
+            return attachmentResult({
+              saved,
+              scopeId,
+              fromFormat,
+              toFormat,
+              engine: 'google-drive',
+              sourceFileId: hit.meta.id,
+              sourceName: hit.meta.originalName,
+              messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). نزّل أو عاين الملف من فقاعة الشات — تم التعديل.`,
+              noteAr:
+                'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل للعربية والتخطيط. النتيجة مرفق شات (معاينة+تنزيل) وليست فقط ملفات الفريق.',
+              extra: {
+                arabicQualityGate: {
+                  passed: true,
+                  driveBroken: gate.driveQ.broken,
+                  localBroken: gate.localQ.broken,
+                },
+              },
+            })
+          }
+        } else {
+          const saved = await saveWorkspaceFile({
+            scopeId,
+            buffer: converted.buffer,
+            originalName: converted.filename || filename,
+            mimeType: converted.mimeType,
+            markEdited: true,
+          })
+          return attachmentResult({
+            saved,
+            scopeId,
+            fromFormat,
+            toFormat,
+            engine: 'google-drive',
+            sourceFileId: hit.meta.id,
+            sourceName: hit.meta.originalName,
+            messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر Google Drive (مجاني · جودة عالية). نزّل أو عاين الملف من فقاعة الشات — تم التعديل.`,
+            noteAr:
+              'محرّك: Google Drive (استيراد/تصدير مؤقت ثم حذف). الأفضل للعربية والتخطيط. النتيجة مرفق شات (معاينة+تنزيل) وليست فقط ملفات الفريق.',
+          })
+        }
       } catch (e) {
         googleFailAr =
           e instanceof Error ? e.message : 'فشل تحويل Google Drive'
@@ -340,69 +408,103 @@ export async function executeConvertDocument(
     )
   }
 
-  // ── 4) Free text / structured rebuild ──
+  // ── 4) Clean free rebuild (pdf-parse-safe / OCR) — never ship طلاسم ──
   if (!FREE_ALLOWED.includes(toFormat)) {
     const tips: string[] = []
-    if (!googleLinked) {
-      tips.push('اربط Google من الإعدادات (مجاني · الأفضل لجودة التحويل)')
-    } else if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
-      tips.push(
-        `زوج ${fromFormat}→${toFormat} خارج عائلات Google (Docs/Sheets/Slides) — المسار المنظّم أو CloudConvert`
-      )
-    }
-    if (!cloudConvertConfigured()) {
-      tips.push('أو أضف CLOUDCONVERT_API_KEY (اختياري مدفوع) لـ xlsx/pptx/doc')
-    }
-    if (!loOk) {
-      tips.push('LibreOffice غير متوفر في هذه البيئة')
-    }
+    if (googleFailAr) tips.push(googleFailAr)
+    if (!loOk) tips.push('LibreOffice غير متوفر')
     throw new Error(
-      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النصّي المجاني: pdf/docx/pptx/xlsx ↔ بعضها (نص منظّم). ${tips.join(' · ')}`
+      `تعذّر التحويل إلى ${toRaw || '—'}. المسار النظيف المجاني: pdf/docx/pptx/xlsx عبر إعادة بناء من نص عربي سليم فقط. ${tips.join(' · ')}`
     )
   }
 
-  // Prefer page-aware extract so we don't drop sheets/slides
+  const officeFromPdf =
+    fromFormat === 'pdf' &&
+    (toFormat === 'docx' || toFormat === 'xlsx' || toFormat === 'pptx')
+
+  // Hard-disable: pdf-lib Arabic Word→PDF (disconnected glyphs). Refuse always.
+  if (toFormat === 'pdf' && fromFormat !== 'pdf') {
+    const probe = await extractDocumentText({
+      buffer: hit.buffer,
+      filename: hit.meta.originalName,
+      mimeType: hit.meta.mimeType,
+      enableOcr: false,
+    })
+    const arHeavy =
+      ((probe.text || '').match(/[\u0600-\u06FF]/g) || []).length >= 40
+    if (arHeavy) {
+      const tried: string[] = []
+      if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
+      if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
+      if (loFailAr) tried.push(`LibreOffice: ${loFailAr}`)
+      throw new Error(
+        [
+          'مسار Word→PDF النصّي المحلي (pdf-lib) معطّل للعربية — يُنتج حروفاً منفصلة/رديئة.',
+          'المسارات المسموحة: Google Drive إن اجتاز بوابة الجودة، أو LibreOffice، أو CloudConvert (مدفوع اختياري).',
+          tried.length ? `محاولات: ${tried.join(' · ')}` : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
+    }
+  }
+
+  // Collect extract candidates — prefer pdf-parse-safe over pdfjs when cleaner
   const paged = await readDocumentPages({
     buffer: hit.buffer,
     filename: hit.meta.originalName,
     mimeType: hit.meta.mimeType,
     pageStart: 1,
     maxChars: 200_000,
-    enableOcr: true,
+    enableOcr: false,
   })
-  let text = (paged.text || '').trim()
-  let extractMethod = paged.extractMethod
-  let ocrUsed = paged.ocrUsed
+  const pdfParseExtract = await extractDocumentText({
+    buffer: hit.buffer,
+    filename: hit.meta.originalName,
+    mimeType: hit.meta.mimeType,
+    enableOcr: false,
+  })
 
-  if (!text || text.length < 40) {
-    const extracted = await extractDocumentText({
-      buffer: hit.buffer,
-      filename: hit.meta.originalName,
-      mimeType: hit.meta.mimeType,
-      enableOcr: true,
-    })
-    text = (extracted.text || '').trim()
-    extractMethod = extracted.method
-    ocrUsed = extracted.ocrUsed
+  let best = pickBestCleanArabicText([
+    { text: pdfParseExtract.text || '', source: 'pdf-parse-safe' },
+    { text: paged.text || '', source: 'read-pages' },
+  ])
+
+  let ocrUsed = false
+  let extractMethod = best?.source || pdfParseExtract.method || paged.extractMethod
+  let ocrFailAr: string | null = null
+
+  // If no clean text yet and PDF→Office: try OCR cascade (Gemini/Qari/Mac) — still no gibberish
+  if (!best && officeFromPdf) {
+    try {
+      const ocr = await runArabicOcr({
+        buffer: hit.buffer,
+        filename: hit.meta.originalName,
+        mimeType: hit.meta.mimeType,
+      })
+      if (ocr.text?.trim()) {
+        const ocrBest = pickBestCleanArabicText([
+          { text: ocr.text, source: `ocr-${ocr.provider}` },
+        ])
+        if (ocrBest) {
+          best = ocrBest
+          ocrUsed = true
+          extractMethod = ocrBest.source
+        } else {
+          ocrFailAr = `OCR (${ocr.provider}) أنتج نصاً غير نظيف أو فارغاً`
+        }
+      } else {
+        ocrFailAr = ocr.error || 'OCR لم يُرجع نصاً'
+      }
+    } catch (e) {
+      ocrFailAr = e instanceof Error ? e.message : 'فشل OCR'
+    }
   }
 
-  if (!text) {
-    throw new Error(
-      'تعذّر استخراج نص عربي/لاتيني صالح للتحويل. جرّب arabic_ocr أولاً للملفات الممسوحة، أو اربط Google لتحويل Drive.'
-    )
-  }
-
-  const quality = assessArabicTextQuality(text)
-  const arabicBroken =
-    fromFormat === 'pdf' &&
-    (toFormat === 'docx' || toFormat === 'xlsx' || toFormat === 'pptx') &&
-    quality.broken
-
-  // Broken ToUnicode: prefer Mac visual page-image DOCX (layout 100%) over gibberish text rebuild
+  // Still broken: Mac visual DOCX (images — no editable طلاسم text)
   if (
-    arabicBroken &&
-    engine === 'auto' &&
-    fromFormat === 'pdf' &&
+    !best &&
+    officeFromPdf &&
     toFormat === 'docx' &&
     macSyncConfigured()
   ) {
@@ -433,43 +535,32 @@ export async function executeConvertDocument(
         engine: 'mac-visual',
         sourceFileId: hit.meta.id,
         sourceName: hit.meta.originalName,
-        messageAr: `حُوّل «${hit.meta.originalName}» إلى Word مرئي (صورة لكل صفحة · تخطيط مطابق 100%) عبر جسر الماك — بلا طلاسم. نزّل أو عاين من فقاعة الشات — تم التعديل.`,
+        messageAr: `حُوّل «${hit.meta.originalName}» إلى Word مرئي (صورة لكل صفحة) — بلا طلاسم نصية. نزّل أو عاين من فقاعة الشات — تم التعديل.`,
         noteAr:
-          'محرّك: مرئي عبر جسر الماك. الطبقة النصية في PDF معطوبة (ToUnicode) — للتحرير النصي اربط Google Drive (OCR/تصدير). النتيجة مرفق شات (معاينة+تنزيل).',
+          'محرّك مرئي عبر جسر الماك. النص غير قابل للتحرير. للتحرير النصي يلزم استخراج/OCR نظيف.',
         extra: {
           visualLayoutMatch: true,
           textEditable: false,
           qualityPercent: { layout: 100, editableText: 0 },
-          macLog: converted.log.slice(0, 400),
         },
       })
     } catch (e) {
       macFailAr = e instanceof Error ? e.message : 'فشل التحويل المرئي عبر الماك'
-      // fall through to honest error / free rebuild if forced
     }
   }
 
-  const forceBroken =
-    params.forceBrokenRebuild === true ||
-    params.acceptBrokenText === true ||
-    String(params.forceBrokenRebuild || '').toLowerCase() === 'true'
-
-  // Never emit silent طلاسم — refuse broken ToUnicode unless explicitly forced.
-  if (arabicBroken && !forceBroken) {
+  if (!best || hasArabicMojibake(best.text)) {
     const tried: string[] = []
     if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
     if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
     if (loFailAr) tried.push(`LibreOffice: ${loFailAr}`)
+    if (ocrFailAr) tried.push(`OCR: ${ocrFailAr}`)
     if (macFailAr) tried.push(`مرئي/ماك: ${macFailAr}`)
-    if (!googleLinked) tried.push('Google غير مربوط')
-    if (!cloudConvertConfigured()) tried.push('CloudConvert غير مضبوط')
-    if (!loOk) tried.push('LibreOffice غير متوفر')
-    if (!macSyncConfigured()) tried.push('جسر الماك غير مضبوط')
     throw new Error(
       [
         brokenToUnicodeErrorAr({
           hasMac: macSyncConfigured(),
-          hasGoogleHint: !googleLinked,
+          hasGoogleHint: true,
           hasLibreOffice: loOk,
         }),
         tried.length ? `محاولات: ${tried.join(' · ')}` : '',
@@ -479,41 +570,41 @@ export async function executeConvertDocument(
     )
   }
 
-  // Weak pdf-lib Arabic body: refuse silent DOCX→PDF free rebuild when Arabic-heavy
-  // unless forced — prefer Drive / LibreOffice / CloudConvert.
-  const arabicHeavy = (text.match(/[\u0600-\u06FF]/g) || []).length >= 40
-  if (
-    toFormat === 'pdf' &&
-    fromFormat !== 'pdf' &&
-    arabicHeavy &&
-    !forceBroken &&
-    engine === 'auto'
-  ) {
-    const tried: string[] = []
-    if (googleFailAr) tried.push(`Google: ${googleFailAr}`)
-    if (cloudFailAr) tried.push(`CloudConvert: ${cloudFailAr}`)
-    if (loFailAr) tried.push(`LibreOffice: ${loFailAr}`)
-    if (!googleLinked) tried.push('اربط Google (الأفضل لـ Word→PDF عربي)')
-    if (!loOk) tried.push('LibreOffice غير متوفر')
-    throw new Error(
-      [
-        'إنشاء PDF عربي عبر المسار النصّي المحلي ضعيف التشكيل (قد تظهر حروف منفصلة).',
-        'الأفضل: Google Drive أو LibreOffice أو CloudConvert.',
-        tried.length ? `محاولات: ${tried.join(' · ')}` : '',
-        'للفرض رغم ذلك: forceBrokenRebuild=true',
-      ]
-        .filter(Boolean)
-        .join(' ')
-    )
-  }
+  const text = best.text
+  const quality = best.quality
 
-  let paragraphs = text
-    .replace(/\r\n/g, '\n')
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
+  // Structured MSA paragraphs for Word
+  const structuredParas = structureArabicParagraphs(text)
+  let paragraphs: Array<{ text: string; heading?: 1 | 2 }> | string[] =
+    structuredParas.length
+      ? structuredParas
+      : text
+          .replace(/\r\n/g, '\n')
+          .split(/\n{2,}/)
+          .map((p) => p.trim())
+          .filter(Boolean)
 
-  // Structured targets from page units
+  const paragraphStrings = paragraphs.map((p) =>
+    typeof p === 'string' ? p : p.text
+  )
+
+  // Re-check page texts for xlsx/pptx — only use clean page text
+  const cleanPages = paged.pages
+    .map((p) => ({
+      ...p,
+      text: hasArabicMojibake(p.text) ? '' : p.text,
+    }))
+    .filter((p) => p.text.trim().length > 0)
+  // Prefer whole-document clean text split for sheets/slides when pages were garbage
+  const pageSource =
+    cleanPages.length > 0
+      ? cleanPages
+      : paragraphStrings.map((t, i) => ({
+          text: t,
+          labelAr: `مقطع ${i + 1}`,
+          index: i + 1,
+        }))
+
   let sheets:
     | Array<{ name?: string; rows: Array<Array<string>> }>
     | undefined
@@ -522,10 +613,10 @@ export async function executeConvertDocument(
 
   if (toFormat === 'xlsx') {
     const structured = textPagesToSheetRows(
-      paged.pages.map((p) => ({
+      pageSource.map((p) => ({
         text: p.text,
-        labelAr: p.labelAr,
-        index: p.index,
+        labelAr: 'labelAr' in p ? p.labelAr : undefined,
+        index: 'index' in p ? p.index : undefined,
       }))
     )
     sheets =
@@ -534,15 +625,14 @@ export async function executeConvertDocument(
         : [
             {
               name: 'مستخرج',
-              rows: paragraphs.map((p) => [p]),
+              rows: paragraphStrings.map((p) => [p]),
             },
           ]
   }
 
-  // Excel → Word: real tables when multi-column sheets exist
   if (
     (fromFormat === 'xlsx' || fromFormat === 'csv') &&
-    (toFormat === 'docx' || toFormat === 'pdf' || toFormat === 'txt' || toFormat === 'md')
+    (toFormat === 'docx' || toFormat === 'txt' || toFormat === 'md')
   ) {
     const fromSheets = textPagesToSheetRows(
       paged.pages.map((p) => ({
@@ -554,20 +644,24 @@ export async function executeConvertDocument(
     if (fromSheets.length) {
       const blocks = sheetsToDocxBlocks(fromSheets)
       if (blocks.tables.length) tables = blocks.tables
-      if (blocks.paragraphs.length) paragraphs = blocks.paragraphs
+      if (blocks.paragraphs.length) {
+        paragraphs = blocks.paragraphs
+      }
     }
   }
 
   if (toFormat === 'pptx') {
-    slides = paged.pages.slice(0, 40).map((p) => {
+    slides = pageSource.slice(0, 40).map((p, i) => {
       const lines = p.text.split('\n').map((l) => l.trim()).filter(Boolean)
+      const label =
+        'labelAr' in p && p.labelAr ? p.labelAr : `شريحة ${i + 1}`
       return {
-        title: lines[0]?.slice(0, 120) || p.labelAr || `شريحة ${p.index}`,
+        title: lines[0]?.slice(0, 120) || label,
         bullets: lines.slice(1, 12),
       }
     })
     if (!slides.length) {
-      slides = paragraphs.slice(0, 20).map((p, i) => ({
+      slides = paragraphStrings.slice(0, 20).map((p, i) => ({
         title: `شريحة ${i + 1}`,
         bullets: [p.slice(0, 200)],
       }))
@@ -579,14 +673,29 @@ export async function executeConvertDocument(
     format: toFormat,
     title: params.title != null ? String(params.title) : baseName,
     paragraphs:
-      toFormat === 'docx' || toFormat === 'pdf' || toFormat === 'txt' || toFormat === 'md'
+      toFormat === 'docx' || toFormat === 'txt' || toFormat === 'md'
         ? paragraphs
         : undefined,
-    body: paragraphs.join('\n\n'),
+    body: paragraphStrings.join('\n\n'),
     sheets,
     tables: toFormat === 'docx' ? tables : undefined,
     slides,
   })
+
+  // Final absolute gate on rebuilt Office text
+  if (toFormat === 'docx' || toFormat === 'xlsx' || toFormat === 'pptx') {
+    const outCheck = await extractDocumentText({
+      buffer: built.buffer,
+      filename,
+      mimeType: built.mimeType,
+      enableOcr: false,
+    })
+    if (hasArabicMojibake(outCheck.text || '')) {
+      throw new Error(
+        'رُفض تسليم الملف: الناتج بعد إعادة البناء ما زال يحتوي طلاسم عربية. لن نُرجع DOCX/Excel/PPTX فاسداً.'
+      )
+    }
+  }
 
   const saved = await saveWorkspaceFile({
     scopeId,
@@ -596,46 +705,51 @@ export async function executeConvertDocument(
     markEdited: true,
   })
 
+  const fromDriveReject = Boolean(googleFailAr && /طلاسم|معطوب|Drive/.test(googleFailAr))
   const structuredNote =
     toFormat === 'xlsx'
-      ? 'صفوف Excel من النص المستخرج (فواصل جدولة/أنابيب/مسافات مزدوجة).'
+      ? 'صفوف Excel من نص عربي نظيف فقط.'
       : tables?.length
-        ? `جداول Word من ${tables.length} ورقة Excel.`
-        : 'إعادة بناء نصية عربية (بدون صور/تخطيط أصلي).'
+        ? `جداول Word من ${tables.length} ورقة.`
+        : fromDriveReject
+          ? 'إعادة بناء Word مهنية من pdf-parse-safe بعد رفض طلاسم Drive.'
+          : 'إعادة بناء نصية عربية نظيفة (RTL · عناوين) — بلا طلاسم.'
 
   return attachmentResult({
     saved,
     scopeId,
     fromFormat,
     toFormat,
-    engine: 'free-rebuild',
+    engine: ocrUsed ? 'ocr-rebuild' : 'free-rebuild',
     sourceFileId: hit.meta.id,
     sourceName: hit.meta.originalName,
     messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} — ${structuredNote} نزّل أو عاين من فقاعة الشات — تم التعديل.`,
-    noteAr: forceBroken && quality.broken
-      ? 'تحذير: فُرضت إعادة بناء نصية رغم ToUnicode معطوب — راجع النص يدوياً (قد تظهر طلاسم). الأفضل لاحقاً: Google Drive أو CloudConvert أو Word مرئي عبر الماك.'
-      : googleLinked
-        ? 'محرّك: إعادة بناء منظّمة (احتياطي). لـ PDF عربي بطبقة نص معطوبة (ToUnicode) فضّل Google Drive أو CloudConvert — المسار النصّي قد يُظهر طلاسم.'
-        : 'الأفضل للعربية: اربط Google (Drive) أو CloudConvert أو LibreOffice. إعادة البناء المنظّمة احتياطي وقد تفشل مع PDF بطبقة نص معطوبة.',
+    noteAr:
+      'محرّك نظيف فقط. Drive المعطوب وpdf-lib العربي وpdf2docx للعربية معطّلة. التخطيط الأصلي 100٪ غير مضمون مجاناً؛ النص بلا طلاسم.',
     extra: {
       charCount: text.length,
-      paragraphCount: paragraphs.length,
+      paragraphCount: paragraphStrings.length,
       tableCount: tables?.length || 0,
       sheetCount: sheets?.length || 0,
       extractMethod,
       ocrUsed,
+      textSource: best.source,
       qualityPercent: {
-        layout: tables?.length ? 40 : 0,
-        editableText: quality.broken ? 15 : 75,
+        layout: tables?.length ? 35 : 15,
+        editableText: 90,
+        mojibake: 0,
       },
-      warningAr: quality.broken
-        ? 'تحذير: إشارات ToUnicode معطوبة — راجع النص يدوياً.'
-        : undefined,
       priorEngineFailures: {
         google: googleFailAr,
         cloudconvert: cloudFailAr,
         libreoffice: loFailAr,
         macVisual: macFailAr,
+        ocr: ocrFailAr,
+      },
+      arabicQuality: {
+        broken: quality.broken,
+        brokenHits: quality.brokenHits,
+        mojibakeHits: quality.mojibakeHits,
       },
     },
   })

@@ -226,18 +226,30 @@ def main() -> int:
             )
 
         if mode == "auto":
+            # pdf2docx is LTR-only and ships Arabic طلاسم — hard-disabled for Arabic PDFs.
+            ar_chars = len(re.findall(r"[\u0600-\u06FF]", sample))
             if find_soffice() and not broken:
                 mode = "soffice"
-            elif broken:
+            elif broken or ar_chars >= 40:
                 mode = "visual"
+                if ar_chars >= 40 and not broken:
+                    warnings.append(
+                        "pdf2docx معطّل للعربية (LTR فقط) — مسار مرئي أو Google Drive بجودة نظيفة."
+                    )
             else:
                 mode = "pdf2docx"
+
+        if mode == "pdf2docx" and (
+            broken or len(re.findall(r"[\u0600-\u06FF]", sample)) >= 40
+        ):
+            warnings.append("رفض pdf2docx للعربية — التحويل إلى visual")
+            mode = "visual"
 
         try:
             if mode == "soffice":
                 tmp = convert_soffice(src, dest.parent, "docx")
                 if tmp != dest:
-                    shutil.move(str(tmp), str(dest))
+                    shutil.move(str(tmp), dest)
             elif mode == "pdf2docx":
                 convert_pdf2docx(src, dest)
             else:

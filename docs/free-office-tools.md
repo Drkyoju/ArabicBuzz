@@ -20,7 +20,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | كشف PDF ممسوح | `lib/documents/scanned-detect.ts` | Netlify | صفحات فارغة/قصيرة أو ToUnicode معطوب |
 | قراءة وكيل صفحة بصفحة | `read_document` → `readDocumentPages` | Netlify + ماك | حتى 8 صفحات OCR لكل استدعاء ثم `nextPageStart` |
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
-| PDF→DOCX تخطيط | Google Drive → مرئي ماك → pdf2docx | — | تجنّب rebuild نصّي إن ToUnicode معطوب |
+| PDF→DOCX عربي | `convert_document` clean-or-refuse: pdf-parse-safe/OCR → DOCX RTL؛ Drive فقط بعد بوابة الجودة | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
 | Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |

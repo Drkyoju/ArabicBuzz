@@ -16,12 +16,17 @@ export type SlideSpec = {
   notes?: string
 }
 
+export type BuildParagraph = {
+  text: string
+  heading?: 1 | 2
+}
+
 export type BuildDocumentInput = {
   format: DocFormat
   title?: string
   /** Word / text body — paragraphs or markdown-ish lines. */
   body?: string
-  paragraphs?: string[]
+  paragraphs?: string[] | BuildParagraph[]
   /** Optional Word tables (from Excel sheets). */
   tables?: Array<{ title?: string; rows: string[][] }>
   sheets?: SheetSpec[]
@@ -46,16 +51,25 @@ export function extensionForFormat(format: DocFormat): string {
   return `.${format}`
 }
 
-function splitBody(body?: string, paragraphs?: string[]): string[] {
+function normalizeParagraphs(
+  body?: string,
+  paragraphs?: string[] | BuildParagraph[]
+): BuildParagraph[] {
   if (paragraphs?.length) {
-    return paragraphs.map((p) => String(p || '').trim()).filter(Boolean)
+    return paragraphs
+      .map((p) =>
+        typeof p === 'string'
+          ? { text: String(p || '').trim() }
+          : { text: String(p.text || '').trim(), heading: p.heading }
+      )
+      .filter((p) => p.text)
   }
   const raw = String(body || '').replace(/\r\n/g, '\n').trim()
-  if (!raw) return ['']
+  if (!raw) return [{ text: '' }]
   return raw
     .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
+    .map((p) => ({ text: p.trim() }))
+    .filter((p) => p.text)
 }
 
 async function buildDocx(input: BuildDocumentInput): Promise<Buffer> {
@@ -72,34 +86,57 @@ async function buildDocx(input: BuildDocumentInput): Promise<Buffer> {
     WidthType,
     BorderStyle,
   } = await import('docx')
-  const paras = splitBody(input.body, input.paragraphs)
+  const paras = normalizeParagraphs(input.body, input.paragraphs)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const children: any[] = [
     ...(input.title
       ? [
           new Paragraph({
-            text: input.title,
+            children: [
+              new TextRun({
+                text: input.title,
+                bold: true,
+                font: 'Arial',
+                size: 32,
+                rightToLeft: /[\u0600-\u06FF]/.test(input.title),
+              }),
+            ],
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.RIGHT,
+            bidirectional: true,
+            spacing: { after: 280 },
           }),
         ]
       : []),
-    ...paras.map(
-      (text) =>
-        new Paragraph({
-          children: [
-            new TextRun({
-              text,
-              font: 'Arial',
-              rightToLeft: /[\u0600-\u06FF]/.test(text),
-            }),
-          ],
-          alignment: /[\u0600-\u06FF]/.test(text)
-            ? AlignmentType.RIGHT
-            : AlignmentType.LEFT,
-          bidirectional: /[\u0600-\u06FF]/.test(text),
-        })
-    ),
+    ...paras.map((item) => {
+      const text = item.text
+      const rtl = /[\u0600-\u06FF]/.test(text)
+      const isH1 = item.heading === 1
+      const isH2 = item.heading === 2
+      return new Paragraph({
+        children: [
+          new TextRun({
+            text,
+            font: 'Arial',
+            bold: isH1 || isH2,
+            size: isH1 ? 28 : isH2 ? 24 : 22,
+            rightToLeft: rtl,
+          }),
+        ],
+        heading: isH1
+          ? HeadingLevel.HEADING_1
+          : isH2
+            ? HeadingLevel.HEADING_2
+            : undefined,
+        alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+        bidirectional: rtl,
+        spacing: {
+          before: isH1 || isH2 ? 240 : 80,
+          after: isH1 || isH2 ? 160 : 120,
+          line: 276,
+        },
+      })
+    }),
   ]
 
   for (const table of input.tables || []) {

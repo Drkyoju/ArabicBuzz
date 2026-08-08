@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ArabicBuzz optional document-convert MCP stubs (free paths)",
+  "description": "Not enabled by default. Wire locally if you install the packages. Production convert_document already enforces clean-or-refuse Arabic without these.",
+  "mcpServers": {
+    "markitdown": {
+      "command": "uvx",
+      "args": ["markitdown-mcp"],
+      "notesAr": "مجاني: PDF/Office → Markdown للقراءة فقط. لا يُستخدم لتسليم DOCX للمستخدم.",
+      "useInArabicBuzz": "optional-read-only"
+    },
+    "parse-mcp": {
+      "command": "uvx",
+      "args": ["parse-mcp"],
+      "notesAr": "markitdown افتراضي + Docling اختياري للجداول. يحتاج تثبيتاً محلياً؛ ليس مسار CranL الافتراضي.",
+      "useInArabicBuzz": "optional-local-dev"
+    }
+  },
+  "hardDisabled": [
+    "pdf2docx-for-arabic",
+    "drive-docs-export-when-mojibake",
+    "pdf-lib-arabic-body-word-to-pdf",
+    "forceBrokenRebuild-shipping-talasim"
+  ],
+  "canonicalTool": "convert_document"
+}

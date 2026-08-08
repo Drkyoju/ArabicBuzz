@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   assessArabicTextQuality,
+  hasArabicMojibake,
+  pickBestCleanArabicText,
+  preferLocalArabicOverDrive,
   sheetsToDocxBlocks,
   splitLineToCells,
+  structureArabicParagraphs,
   textPagesToSheetRows,
 } from '@/lib/documents/arabic-text-quality'
 import { buildDocumentBuffer } from '@/lib/documents/build'
@@ -23,6 +27,35 @@ describe('arabic-text-quality helpers', () => {
       'المادة الأولى من النظام الأساسي للجمعية وأهداف المجلس'
     )
     expect(q.broken).toBe(false)
+  })
+
+  it('flags Drive-style bylaws mojibake and prefers local clean extract', () => {
+    const drive =
+      'الالئحة األساسية واألهداف االنتساب االجتمع املادة االسم ' +
+      'نص إضافي طويل بما يكفي لاعتبار المستند عربياً ثقيلاً مع المزيد من الكلمات العربية هنا وهناك مراراً'
+    const local =
+      'اللائحة الأساسية والأهداف والانتساب والمجتمع المادة الاسم ' +
+      'نص إضافي طويل بما يكفي لاعتبار المستند عربياً ثقيلاً مع المزيد من الكلمات العربية هنا وهناك مراراً'
+    expect(hasArabicMojibake(drive)).toBe(true)
+    expect(hasArabicMojibake(local)).toBe(false)
+    const gate = preferLocalArabicOverDrive({ driveText: drive, localText: local })
+    expect(gate.discardDrive).toBe(true)
+    expect(gate.preferLocal).toBe(true)
+    const best = pickBestCleanArabicText([
+      { text: drive, source: 'drive' },
+      { text: local, source: 'pdf-parse-safe' },
+    ])
+    expect(best?.source).toBe('pdf-parse-safe')
+    expect(best?.text).toContain('اللائحة')
+    expect(best?.text).not.toContain('الالئحة')
+  })
+
+  it('structures MSA headings for Word rebuild', () => {
+    const paras = structureArabicParagraphs(
+      'اللائحة الأساسية\n\nالمادة 1\nتعريف الجمعية.\n\nنص عادي هنا.'
+    )
+    expect(paras[0]?.heading).toBe(1)
+    expect(paras.some((p) => p.heading === 2)).toBe(true)
   })
 
   it('splits lines into cells without breaking Arabic words', () => {
