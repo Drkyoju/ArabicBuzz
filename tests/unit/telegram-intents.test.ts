@@ -71,6 +71,11 @@ describe('classifyTelegramWorkIntent', () => {
     expect(classifyTelegramWorkIntent('لخّص قرارات اللجنة الأخيرة').kind).toBe(
       'question'
     )
+    expect(classifyTelegramWorkIntent('إحاطة الصباح').kind).toBe('question')
+    expect(classifyTelegramWorkIntent('ملخص اليوم').kind).toBe('question')
+    expect(classifyTelegramWorkIntent('ابحث في الغرفة عن الفاتورة').kind).toBe(
+      'question'
+    )
     expect(classifyTelegramWorkIntent('السلام عليكم').kind).toBe('casual')
     expect(classifyTelegramWorkIntent('كيفك').kind).toBe('casual')
     expect(classifyTelegramWorkIntent('يا أحمد وش رايك').kind).toBe('casual')

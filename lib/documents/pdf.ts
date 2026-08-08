@@ -15,7 +15,8 @@ export type PdfFormField = {
 
 let arabicFontCache: Uint8Array | null = null
 
-async function loadArabicFontBytes(): Promise<Uint8Array | null> {
+/** Load Noto Naskh Arabic bytes for pdf-lib burn-in / stamps. */
+export async function loadArabicFontBytes(): Promise<Uint8Array | null> {
   if (arabicFontCache) return arabicFontCache
 
   // Prefer baked-in TTF (CranL / Docker public/fonts) over CDN.

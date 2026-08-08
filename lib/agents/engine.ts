@@ -592,6 +592,28 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('send_director_digest'),
         }),
     }),
+    owner_morning_brief: tool({
+      description:
+        'إحاطة الصباح (لوحة اليوم): بريد الجمعية غير المقروء + تعارضات تقويم اليوم + مهام متأخرة + مواعيد اليوم + أبرز تيليجرام + موافقات معلّقة. استخدمه عند «إحاطة الصباح» / «ملخص اليوم» / «وش عندنا اليوم».',
+      inputSchema: z.object({
+        sendTelegram: z
+          .boolean()
+          .optional()
+          .describe('إن true يُرسل النص أيضاً لتيليجرام المالك (يتخطى الفارغ)'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'owner_morning_brief',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('owner_morning_brief'),
+        }),
+    }),
     pdf_create: tool({
       description: 'إنشاء PDF جديد من نص عربي/إنجليزي في ملفات الغرفة.',
       inputSchema: z.object({
@@ -629,6 +651,53 @@ export function getNativeAiTools(opts?: {
           requesterId,
           scopeId,
           execute: getToolExecutor('pdf_stamp'),
+        }),
+    }),
+    pdf_annotate: tool({
+      description:
+        'حرق تعليقات على PDF (بديل أداة الرسم في الموقع): sticky / text / textHighlight / rect بإحداثيات نسبية 0–1 من أعلى اليسار. ثم return_file. ليس واجهة قلم حرّة.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        text: z
+          .string()
+          .optional()
+          .describe('اختصار: ملاحظة واحدة sticky إن لم تُمرَّر annotations'),
+        kind: z
+          .enum(['sticky', 'text', 'textHighlight', 'rect'])
+          .optional(),
+        pageIndex: z.number().optional(),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        w: z.number().optional(),
+        h: z.number().optional(),
+        color: z.string().optional(),
+        annotations: z
+          .array(
+            z.object({
+              kind: z.enum(['sticky', 'text', 'textHighlight', 'rect']),
+              pageIndex: z.number().optional(),
+              x: z.number(),
+              y: z.number(),
+              w: z.number().optional(),
+              h: z.number().optional(),
+              text: z.string().optional(),
+              color: z.string().optional(),
+              fontSize: z.number().optional(),
+              fill: z.boolean().optional(),
+              opacity: z.number().optional(),
+            })
+          )
+          .optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_annotate',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_annotate'),
         }),
     }),
     pdf_merge: tool({
@@ -821,6 +890,23 @@ export function getNativeAiTools(opts?: {
               scopeId: String(p.scopeId || scopeId || 'shared-demo'),
               source: 'drive',
             }),
+        }),
+    }),
+    room_search: tool({
+      description:
+        'بحث موحّد عبر غرفة الموقع: بريد الجمعية (وارد/مرسل/مرفقات) + ملفات الغرفة/المعرفة + تقويم الغرفة. لا يبحث في Gmail الشخصي للأعضاء. استخدمه عند «ابحث في الموقع/الغرفة» أو سؤال عام عن ملف/بريد/موعد.',
+      inputSchema: z.object({
+        query: z.string().min(1).describe('كلمة أو عبارة البحث'),
+        limit: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'room_search',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('room_search'),
         }),
     }),
     calendar_list_events: tool({

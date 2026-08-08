@@ -54,6 +54,14 @@ const MAIL_RE =
 const QUESTION_RE =
   /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف|لخ[ّ]?ص|ابحث|دور|وين\s+(?:ال)?(?:ملف|لائح|مستند|موعد|مهم))/u
 
+/** Morning brief / daily digest asks. */
+const DIGEST_RE =
+  /(?:إحاطة|احاطة|ملخص\s*(?:ال)?(?:صباح|يوم|اليوم)|صباح(?:ي|ك)?\s*(?:ال)?(?:إحاطة|ملخص|تقرير)|morning\s*brief|وش\s*(?:عندنا|عندك)\s*(?:اليوم|الصباح)|أبرز\s*(?:اليوم|الصباح)|ماذا\s*(?:اليوم|الصباح)|تقرير\s*(?:ال)?صباح)/iu
+
+/** Unified site/room search phrasing. */
+const ROOM_SEARCH_RE =
+  /(?:ابحث\s*(?:في|عبر)?\s*(?:ال)?(?:موقع|غرفة|كل\s*شيء|الجمعية)|دور\s*(?:في\s*)?(?:ال)?(?:موقع|غرفة)|بحث\s*موحّ?د|search\s*(?:the\s*)?(?:site|room))/iu
+
 /** Explicit ask-the-bot / do-work cues (Gulf + MSA). */
 const ACTION_RE =
   /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|عطني|نز[ّ]?ل|حم[ّ]?ل|افتح|ور[ّ]?ي?ني|وريني|احذف|حذف|امسح|عد[ّ]?ل|حو[ّ]?ل|لخ[ّ]?ص|اشرح|وض[ّ]?ح|ابحث|دور|جه[ّ]?ز|حض[ّ]?ر|اكتب|أنشئ|انشئ)/iu
@@ -86,6 +94,7 @@ const SHORT_SOCIAL_QUESTION_RE =
  */
 export const TELEGRAM_SITE_CHAT_TOOLS = [
   'search_knowledge_base',
+  'room_search',
   'memory_search',
   'list_workspace_files',
   'list_files',
@@ -110,6 +119,7 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'room_tasks_reconcile',
   'room_memory_list',
   'room_memory_add',
+  'owner_morning_brief',
   'send_message',
   'notify_room_member',
   'send_file',
@@ -129,6 +139,7 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   ...TELEGRAM_SITE_CHAT_TOOLS,
   'pdf_create',
   'pdf_stamp',
+  'pdf_annotate',
   'pdf_merge',
   'pdf_list_fields',
   'pdf_fill_form',
@@ -148,6 +159,7 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'ingest_url_to_brain',
   'trigger_workflow',
   'report_room_attendance',
+  'send_director_digest',
 ] as const
 
 const busyByScope = new Map<string, { ids: Set<string>; until: number }>()
@@ -268,6 +280,22 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
+  if (DIGEST_RE.test(t)) {
+    return {
+      kind: 'question',
+      labelAr: 'إحاطة صباح',
+      forceHeavy: false,
+      preferFullAgent: true,
+    }
+  }
+  if (ROOM_SEARCH_RE.test(t)) {
+    return {
+      kind: 'question',
+      labelAr: 'بحث غرفة',
+      forceHeavy: true,
+      preferFullAgent: true,
+    }
+  }
   if (ACTION_RE.test(t) || QUESTION_RE.test(t)) {
     // Short social questions to people (وش رايك / كيف الجو…) — not for the bot.
     // QUESTION_RE alone on short lines needs a stronger non-social signal.
@@ -324,12 +352,12 @@ function workKindNudge(kind: TelegramWorkKind): string {
     case 'file':
       return [
         '[قصد تيليجرام: ملف]',
-        'ابحث: search_knowledge_base و/أو list_workspace_files ثم brain_open_document إن لزم من Drive.',
-        'إن طُلب الملف نفسه أو تعديله: عدّل/حوّل (edit_document / edit_excel / pdf_replace_text / convert_document) ثم return_file دائماً — الناتج يُرسل كمرفق تيليجرام فوراً.',
+        'ابحث: room_search و/أو search_knowledge_base و/أو list_workspace_files ثم brain_open_document إن لزم من Drive.',
+        'إن طُلب الملف نفسه أو تعديله: عدّل/حوّل (edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document) ثم return_file دائماً — الناتج يُرسل كمرفق تيليجرام فوراً.',
         'بعد التعديل على Drive: brain_save_document لإعادة الملف إلى عقل الشركة ثم return_file للمستخدم هنا.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'إن لم يُربط Google: قل ذلك صراحة واعرض خزنة الغرفة فقط — لا تختلق ملفات Drive.',
-        'OCR للصور/PDF الممسوح: arabic_ocr.',
+        'OCR للصور/PDF الممسوح: arabic_ocr. تعليق PDF: pdf_annotate أو pdf_stamp ثم return_file.',
         'PDF عربي: فضّل pdf_replace_text (HarfBuzz/PyMuPDF). إعادة بناء PDF بـ edit_document قد تضعف اتصال الحروف — كن صادقاً إن فشل الاستبدال.',
       ].join(' ')
     case 'mail':
@@ -337,6 +365,7 @@ function workKindNudge(kind: TelegramWorkKind): string {
         '[قصد تيليجرام: بريد]',
         'صندوق الجمعية (IMAP): mail_search / mail_read / mail_send / mail_sync — متاح لأعضاء الجلسة المسجّلين.',
         'Gmail الشخصي المربوط: gmail_search / gmail_read / gmail_send.',
+        'بحث شامل (بريد+ملفات+تقويم): room_search — لا يشمل Gmail الشخصي للأعضاء.',
         'نفّذ فوراً ثم لخّص النتائج بالعربية (المرسل · الموضوع · مقتطف). لا تختلق رسائل.',
         'قبل الإرسال: أكّد المستلم والموضوع بإيجاز بعد التنفيذ.',
       ].join(' ')
@@ -351,9 +380,11 @@ function workKindNudge(kind: TelegramWorkKind): string {
       ].join(' ')
     case 'question':
       return [
-        '[قصد تيليجرام: سؤال / إيقاظ وكيل / طلب عمل]',
+        '[قصد تيليجرام: سؤال / إيقاظ وكيل / طلب عمل / إحاطة]',
         'أنت مقعد غرفة الموقع — نفّذ فوراً دون انتظار أوامر إضافية.',
-        'استخدم كل أدوات الغرفة المتاحة (تقويم/مهام/ملفات/Drive/بريد/تبليغ/بحث) ثم لخّص ما نُفّذ.',
+        'إحاطة/ملخص اليوم: owner_morning_brief فوراً وأعد textAr كما هو.',
+        'بحث عام في الغرفة/الموقع: room_search أولاً (بريد جمعية · ملفات · تقويم) ثم فصّل بأدوات متخصصة إن لزم.',
+        'استخدم كل أدوات الغرفة المتاحة (تقويم/مهام/ملفات/Drive/بريد/تبليغ/بحث/تحويل) ثم لخّص ما نُفّذ.',
         'إن ذُكر وكيل٢ أو انشغل وكيل١ اتبع سياسة الإيقاظ في الغرفة.',
       ].join(' ')
     default:
@@ -459,7 +490,7 @@ export async function telegramGoogleLinkedHintAr(
 }
 
 export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة:
-- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات، Drive، تقويم الغرفة، مهام، بريد، تبليغ، بحث، تحويل، OCR).
+- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات، Drive، تقويم الغرفة، مهام، بريد، تبليغ، بحث موحّد room_search، إحاطة الصباح، تحويل، OCR، تعليق PDF).
 - أيقظ وكيل١ ثم وكيل٢ عند الانشغال؛ «يا وكيل١» / «أبغا للجميع» يوجّهان المقاعد.
 - عقل الشركة (Drive): يحتاج ربط Google من الموقع؛ بدون ربط استخدم خزنة الغرفة فقط وأخبر المستخدم.
 - بريد الجمعية (mail_*): متاح لأعضاء الجلسة المسجّلين — لا تقصر الاستخدام على المالك.
@@ -468,4 +499,5 @@ export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كا�
 - الحذف فقط يحتاج موافقة بشرية (أزرار) على ملفات الغرفة/Drive — ممنوع حذف رسائل تيليجرام نهائياً (عدّل أو اترك + رد جديد).
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). لا تختلق مواعيد.
 - في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
-- PDF: استبدال عربي عبر pdf_replace_text أدق؛ لا تعتمد على إعادة بناء pdf-lib لنص عربي متصل.`
+- لست نسخة بصرية من الموقع: لا لوحة TipTap ولا سبورة tldraw ولا أداة رسم PDF بالقلم — نفّذ المكافئ عبر الأدوات (pdf_annotate / edit_document / draft HTML في البريد).
+- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ لا تعتمد على إعادة بناء pdf-lib لنص عربي متصل.`

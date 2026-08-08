@@ -23,6 +23,7 @@ import { AssociationRecipes } from '@/components/association-recipes'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { DateDual } from '@/components/date-dual'
 import { TelegramHomePanel } from '@/components/telegram-home-panel'
+import { MorningBriefCard } from '@/components/morning-brief-card'
 import {
   ActivityHistoryDialog,
   type ActivityFeedItem,
@@ -708,6 +709,8 @@ export function HomeDashboard({
           </button>
         </div>
       </header>
+
+      {!authPending && <MorningBriefCard onNavigate={onNavigate} />}
 
       {!authPending && <TelegramHomePanel />}
 

@@ -48,6 +48,7 @@ import { MailBell } from '@/components/mail-bell'
 import { HijriPreferenceToggle } from '@/components/hijri-preference'
 import { McpServersPanel } from '@/components/mcp-servers-panel'
 import { RoleBadge } from '@/components/role-badge'
+import { UnifiedSearchPalette } from '@/components/unified-search'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { Fingerprint } from 'lucide-react'
@@ -477,6 +478,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               onOpenMail={() => setSection('mail')}
               onOpenPersonalMail={() => setSection('personal-mail')}
             />
+            <UnifiedSearchPalette onNavigate={goToSection} />
           </div>
         )}
         {pendingCount > 0 &&

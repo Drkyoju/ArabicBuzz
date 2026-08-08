@@ -51,12 +51,15 @@ export async function searchOrgMailCorpus(opts: {
   limit?: number
   folder?: MailFolderFilter
   includeFiles?: boolean
+  /** Room scope for knowledge / file hits — defaults to primary team. */
+  scopeId?: string
 }): Promise<{ hits: CorpusHit[]; messageAr: string }> {
   const q = opts.query.trim()
   if (!q) {
     return { hits: [], messageAr: 'اكتب كلمة للبحث في البريد والملفات.' }
   }
   const limit = Math.min(Math.max(opts.limit || 30, 1), 60)
+  const fileScopeId = opts.scopeId || PRIMARY_TEAM_SCOPE_ID
   const hits: CorpusHit[] = []
 
   const rows = await searchMailMessages({
@@ -119,6 +122,7 @@ export async function searchOrgMailCorpus(opts: {
       const { data: files } = await sb
         .from('workspace_files')
         .select('id, scope_id, original_name, mime_type, created_at')
+        .eq('scope_id', fileScopeId)
         .ilike('original_name', like)
         .order('created_at', { ascending: false })
         .limit(12)
@@ -141,7 +145,7 @@ export async function searchOrgMailCorpus(opts: {
       )
       const kb = await searchKnowledgeBase({
         queryAr: q,
-        scopeId: PRIMARY_TEAM_SCOPE_ID,
+        scopeId: fileScopeId,
         limit: 8,
         source: 'all',
       })
@@ -159,7 +163,7 @@ export async function searchOrgMailCorpus(opts: {
             ? `/?section=files&fileId=${encodeURIComponent(fileId)}`
             : `/?section=files`,
           fileId: fileId || undefined,
-          scopeId: PRIMARY_TEAM_SCOPE_ID,
+          scopeId: fileScopeId,
         })
       }
     } catch {

@@ -69,7 +69,12 @@ import {
   executePdfMerge,
   executePdfReplaceText,
   executePdfStamp,
+  executePdfAnnotate,
 } from '@/lib/agents/tools/pdf-tools'
+import {
+  executeRoomSearch,
+  executeOwnerMorningBrief,
+} from '@/lib/agents/tools/room-pocket-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 import {
   emitNotification,
@@ -248,10 +253,13 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   },
   pdf_create: executePdfCreate,
   pdf_stamp: executePdfStamp,
+  pdf_annotate: executePdfAnnotate,
   pdf_merge: executePdfMerge,
   pdf_list_fields: executePdfListFields,
   pdf_fill_form: executePdfFillForm,
   pdf_replace_text: executePdfReplaceText,
+  room_search: executeRoomSearch,
+  owner_morning_brief: executeOwnerMorningBrief,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,

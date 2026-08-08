@@ -61,6 +61,8 @@ const LOW_RISK_TOOLS = new Set([
   'room_calendar_list',
   'room_tasks_list',
   'room_memory_list',
+  'room_search',
+  'owner_morning_brief',
   'pdf_list_fields',
   'read_excel',
   'return_file',
@@ -110,6 +112,7 @@ const HIGH_RISK_TOOLS = new Set([
   'room_memory_add',
   'pdf_create',
   'pdf_stamp',
+  'pdf_annotate',
   'pdf_merge',
   'pdf_fill_form',
 ])

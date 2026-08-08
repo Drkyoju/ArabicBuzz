@@ -270,3 +270,131 @@ export async function executePdfReplaceText(
     details: result.details,
   }
 }
+
+/**
+ * Burn structured annotations into a PDF (Telegram/agent equivalent of PDF Expert canvas).
+ * Supports text, sticky, textHighlight, rect — not freehand pen UI.
+ */
+export async function executePdfAnnotate(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = scopeOf(params)
+  const ref = String(params.fileId || params.path || '').trim()
+  if (!ref) throw new Error('مرّر fileId لملف PDF')
+
+  const raw: unknown[] = Array.isArray(params.annotations)
+    ? [...params.annotations]
+    : []
+  if (!raw.length) {
+    const text = String(params.text || params.noteAr || '').trim()
+    if (!text) {
+      throw new Error(
+        'مرّر annotations[] أو text لتعليق PDF (نص / sticky / تمييز).'
+      )
+    }
+    raw.push({
+      kind: String(params.kind || 'sticky'),
+      pageIndex: typeof params.pageIndex === 'number' ? params.pageIndex : 0,
+      x: typeof params.x === 'number' ? params.x : 0.08,
+      y: typeof params.y === 'number' ? params.y : 0.12,
+      w: typeof params.w === 'number' ? params.w : 0.35,
+      h: typeof params.h === 'number' ? params.h : 0.12,
+      text,
+      color: String(params.color || '#f5c542'),
+      fontSize:
+        typeof params.fontSize === 'number' ? params.fontSize : 0.022,
+    })
+  }
+
+  const { burnPdfAnnotations } = await import('@/lib/documents/pdf-annotate')
+  const { loadArabicFontBytes } = await import('@/lib/documents/pdf')
+
+  const annotations: import('@/lib/documents/pdf-annotate').PdfAnnotation[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const a = item as Record<string, unknown>
+    const kind = String(a.kind || 'text')
+    const pageIndex =
+      typeof a.pageIndex === 'number' ? Math.max(0, a.pageIndex) : 0
+    const id = String(a.id || `anno-${annotations.length + 1}`)
+    const color = String(a.color || '#1a1a1a')
+    const x = typeof a.x === 'number' ? a.x : 0.1
+    const y = typeof a.y === 'number' ? a.y : 0.1
+
+    if (kind === 'sticky') {
+      annotations.push({
+        id,
+        kind: 'sticky',
+        pageIndex,
+        x,
+        y,
+        w: typeof a.w === 'number' ? a.w : 0.32,
+        h: typeof a.h === 'number' ? a.h : 0.14,
+        text: String(a.text || ''),
+        color: String(a.color || '#f5c542'),
+        fontSize: typeof a.fontSize === 'number' ? a.fontSize : 0.02,
+      })
+    } else if (kind === 'textHighlight') {
+      annotations.push({
+        id,
+        kind: 'textHighlight',
+        pageIndex,
+        x,
+        y,
+        w: typeof a.w === 'number' ? a.w : 0.4,
+        h: typeof a.h === 'number' ? a.h : 0.04,
+        color: String(a.color || '#f5c542'),
+        opacity: typeof a.opacity === 'number' ? a.opacity : 0.35,
+      })
+    } else if (kind === 'rect') {
+      annotations.push({
+        id,
+        kind: 'rect',
+        pageIndex,
+        x,
+        y,
+        w: typeof a.w === 'number' ? a.w : 0.3,
+        h: typeof a.h === 'number' ? a.h : 0.1,
+        color,
+        fill: a.fill === true,
+        opacity: typeof a.opacity === 'number' ? a.opacity : undefined,
+      })
+    } else {
+      annotations.push({
+        id,
+        kind: 'text',
+        pageIndex,
+        x,
+        y,
+        text: String(a.text || ''),
+        fontSize: typeof a.fontSize === 'number' ? a.fontSize : 0.025,
+        color,
+      })
+    }
+  }
+
+  if (!annotations.length) {
+    throw new Error('لا تعليقات صالحة للحرق على PDF.')
+  }
+
+  const { hit } = await loadPdfBuffer(scopeId, ref)
+  const fontBytes = await loadArabicFontBytes()
+  const burned = await burnPdfAnnotations(hit.buffer, annotations, {
+    arabicFontBytes: fontBytes,
+  })
+  const base = hit.meta.originalName.replace(/\.pdf$/i, '')
+  const saved = await saveWorkspaceFile({
+    scopeId,
+    buffer: Buffer.from(burned),
+    originalName: String(params.outputName || `${base}-معلّق.pdf`),
+    mimeType: 'application/pdf',
+    markEdited: true,
+  })
+  return downloadMeta(
+    scopeId,
+    saved.file,
+    `حُرقت ${annotations.length} تعليقات على «${saved.file.originalName}» — أعده بـ return_file.`
+  )
+}
+

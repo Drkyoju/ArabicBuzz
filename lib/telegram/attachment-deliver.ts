@@ -13,6 +13,7 @@ export const TELEGRAM_DELIVER_ATTACHMENT_TOOLS = new Set([
   'write_file',
   'pdf_create',
   'pdf_stamp',
+  'pdf_annotate',
   'pdf_merge',
   'pdf_fill_form',
   'pdf_replace_text',
