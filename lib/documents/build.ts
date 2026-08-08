@@ -72,6 +72,14 @@ function normalizeParagraphs(
     .filter((p) => p.text)
 }
 
+/** Plain string lines for xlsx/pptx/txt fallbacks. */
+function splitBody(
+  body?: string,
+  paragraphs?: string[] | BuildParagraph[]
+): string[] {
+  return normalizeParagraphs(body, paragraphs).map((p) => p.text)
+}
+
 async function buildDocx(input: BuildDocumentInput): Promise<Buffer> {
   const {
     Document,
@@ -388,7 +396,7 @@ export async function buildDocumentBuffer(
       buffer = await buildPdfFromText({
         title: input.title,
         body: input.body,
-        paragraphs: input.paragraphs,
+        paragraphs: splitBody(input.body, input.paragraphs),
       })
       break
     }
