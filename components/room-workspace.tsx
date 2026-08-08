@@ -606,28 +606,32 @@ export function RoomWorkspace({ className }: { className?: string }) {
     let cancelled = false
     async function hydrate() {
       const headers = await authHeaders()
-      const res = await fetch(
-        `/api/rooms/posts?scopeId=${encodeURIComponent(activeScopeId)}`,
-        { headers }
-      )
-      if (!res.ok || cancelled) return
-      const data = (await res.json()) as { posts?: RoomPost[] }
-      if (Array.isArray(data.posts)) {
-        const cleaned = data.posts.filter(
-          (p) =>
-            !isNoiseRoomPost(p.content || '') &&
-            shouldShowInRoomChat({
-              channel: p.channel,
-              content: p.content,
-            })
-        )
-        setPostsForScope(activeScopeId, cleaned)
+      const [res, canvasRes] = await Promise.all([
+        fetch(
+          `/api/rooms/posts?scopeId=${encodeURIComponent(activeScopeId)}`,
+          { headers }
+        ),
+        fetch(
+          `/api/rooms/canvas?scopeId=${encodeURIComponent(activeScopeId)}`,
+          { headers }
+        ),
+      ])
+      if (cancelled) return
+      if (res.ok) {
+        const data = (await res.json()) as { posts?: RoomPost[] }
+        if (Array.isArray(data.posts)) {
+          const cleaned = data.posts.filter(
+            (p) =>
+              !isNoiseRoomPost(p.content || '') &&
+              shouldShowInRoomChat({
+                channel: p.channel,
+                content: p.content,
+              })
+          )
+          setPostsForScope(activeScopeId, cleaned)
+        }
       }
 
-      const canvasRes = await fetch(
-        `/api/rooms/canvas?scopeId=${encodeURIComponent(activeScopeId)}`,
-        { headers }
-      )
       if (canvasRes.ok) {
         const c = (await canvasRes.json()) as {
           artifacts?: Array<{
@@ -1207,18 +1211,21 @@ export function RoomWorkspace({ className }: { className?: string }) {
     })
 
     if (assembled || attachments.length) {
-      await fetch('/api/rooms/posts', {
-        method: 'POST',
-        headers: await authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          scopeId: activeScopeId,
-          content: finalContent,
-          authorKind: 'agent',
-          authorId: runAgent.id,
-          authorNameAr: runAgent.nameAr,
-          mentionAgentId: runAgent.id,
-        }),
-      })
+      // Persist in background so the seat can sleep / cascade without waiting.
+      void authHeaders({ 'Content-Type': 'application/json' }).then((h) =>
+        fetch('/api/rooms/posts', {
+          method: 'POST',
+          headers: h,
+          body: JSON.stringify({
+            scopeId: activeScopeId,
+            content: finalContent,
+            authorKind: 'agent',
+            authorId: runAgent.id,
+            authorNameAr: runAgent.nameAr,
+            mentionAgentId: runAgent.id,
+          }),
+        }).catch(() => undefined)
+      )
     }
     return finalContent
     } finally {

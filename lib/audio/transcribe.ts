@@ -156,11 +156,12 @@ async function transcribeViaHuggingFace(
       Accept: 'application/json',
     },
     body: new Uint8Array(buffer),
+    signal: AbortSignal.timeout(25_000),
   })
 
   if (res.status === 503) {
-    // model loading — brief wait then one retry
-    await new Promise((r) => setTimeout(r, 2500))
+    // model loading — short wait then one retry (avoid multi-second stalls)
+    await new Promise((r) => setTimeout(r, 800))
     const retry = await fetch(url, {
       method: 'POST',
       headers: {
@@ -169,6 +170,7 @@ async function transcribeViaHuggingFace(
         Accept: 'application/json',
       },
       body: new Uint8Array(buffer),
+      signal: AbortSignal.timeout(25_000),
     })
     if (!retry.ok) return null
     return acceptArabicOrNull(extractHfText(await retry.json()))
@@ -209,6 +211,7 @@ async function transcribeViaGroq(
       method: 'POST',
       headers: { Authorization: `Bearer ${key}` },
       body: form,
+      signal: AbortSignal.timeout(25_000),
     }
   )
   if (!res.ok) return null
@@ -409,9 +412,66 @@ export async function transcribeArabicAudioBuffer(
   }
 }
 
+type SttAttempt = {
+  provider: ArabicSttProvider
+  providerLabelAr: string
+  run: () => Promise<string | null>
+}
+
+/** First plausible Arabic transcript wins — used to cut sequential STT waterfalls. */
+export async function raceArabicSttAttempts(
+  attempts: SttAttempt[]
+): Promise<ArabicSttResult | null> {
+  if (!attempts.length) return null
+  return new Promise((resolve) => {
+    let pending = attempts.length
+    let settled = false
+    for (const attempt of attempts) {
+      void (async () => {
+        try {
+          const text = await attempt.run()
+          if (!settled && text) {
+            settled = true
+            resolve({
+              text,
+              provider: attempt.provider,
+              providerLabelAr: attempt.providerLabelAr,
+            })
+            return
+          }
+        } catch {
+          /* try peers */
+        }
+        pending -= 1
+        if (!settled && pending <= 0) resolve(null)
+      })()
+    }
+  })
+}
+
+async function withSttBudget<T>(
+  run: () => Promise<T | null>,
+  ms: number
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ms)
+      }),
+    ])
+  } catch {
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /**
- * Free-first Arabic/Saudi STT cascade for the composer mic.
- * Willow (self-host Whisper) → Gemini → HF Arabic → Groq Whisper → Deepgram.
+ * Fast Arabic/Saudi STT for the composer mic.
+ * Races Groq / Gemini / Willow / Deepgram (first good Arabic wins), then HF,
+ * then OpenAI. ASR_PREFERRED still tries that provider first.
  */
 export async function transcribeArabicSpeech(
   buffer: Buffer,
@@ -429,35 +489,112 @@ export async function transcribeArabicSpeech(
     preferred === 'sada' ||
     (process.env.ASR_DIALECT || '').toLowerCase().includes('saudi')
 
-  if (!preferred || preferred === 'willow' || preferred === 'wis') {
-    try {
-      const text = await transcribeViaWillow(buffer, mimeType)
-      if (text) {
-        return {
-          text,
-          provider: 'willow',
-          providerLabelAr: 'Willow Whisper (ذاتي/مجاني)',
-        }
+  const raceBudgetMs = Math.min(
+    45_000,
+    Math.max(8_000, Number(process.env.ASR_RACE_MS) || 18_000)
+  )
+
+  const preferredAttempt = (): SttAttempt | null => {
+    if (preferred === 'willow' || preferred === 'wis') {
+      return {
+        provider: 'willow',
+        providerLabelAr: 'Willow Whisper (ذاتي/مجاني)',
+        run: () => withSttBudget(() => transcribeViaWillow(buffer, mimeType), raceBudgetMs),
       }
-    } catch {
-      /* try next */
     }
+    if (preferred === 'gemini' || preferred === 'google') {
+      return {
+        provider: 'gemini',
+        providerLabelAr: 'Gemini صوت → نص (مجاني)',
+        run: () => withSttBudget(() => transcribeViaGemini(buffer, mimeType), raceBudgetMs),
+      }
+    }
+    if (preferred === 'groq') {
+      return {
+        provider: 'groq',
+        providerLabelAr: 'Groq Whisper (مجاني)',
+        run: () => withSttBudget(() => transcribeViaGroq(buffer, mimeType), raceBudgetMs),
+      }
+    }
+    if (preferred === 'deepgram') {
+      return {
+        provider: 'deepgram',
+        providerLabelAr: 'Deepgram',
+        run: () => withSttBudget(() => transcribeViaDeepgram(buffer, mimeType), raceBudgetMs),
+      }
+    }
+    if (preferred === 'sada') {
+      return {
+        provider: 'sada-hf',
+        providerLabelAr: 'SADA سعودي (مجاني)',
+        run: () =>
+          withSttBudget(
+            () => transcribeViaHuggingFace(buffer, mimeType, HF_SADA),
+            raceBudgetMs
+          ),
+      }
+    }
+    if (preferred === 'cohere') {
+      return {
+        provider: 'cohere-hf',
+        providerLabelAr: 'Cohere Arabic (مجاني)',
+        run: () =>
+          withSttBudget(
+            () => transcribeViaHuggingFace(buffer, mimeType, HF_COHERE),
+            raceBudgetMs
+          ),
+      }
+    }
+    if (preferred === 'openai') {
+      return {
+        provider: 'openai',
+        providerLabelAr: 'OpenAI Whisper',
+        run: async () => {
+          try {
+            return await withSttBudget(
+              () => transcribeArabicAudioBuffer(buffer, mimeType),
+              raceBudgetMs
+            )
+          } catch {
+            return null
+          }
+        },
+      }
+    }
+    return null
   }
 
-  if (!preferred || preferred === 'gemini' || preferred === 'google') {
-    try {
-      const text = await transcribeViaGemini(buffer, mimeType)
-      if (text) {
-        return {
-          text,
-          provider: 'gemini',
-          providerLabelAr: 'Gemini صوت → نص (مجاني)',
-        }
-      }
-    } catch {
-      /* try next */
-    }
+  const pref = preferredAttempt()
+  if (pref) {
+    const hit = await raceArabicSttAttempts([pref])
+    if (hit) return hit
   }
+
+  // Wave 1: race the fastest cloud / self-host Whisper-class providers.
+  const fastWave: SttAttempt[] = [
+    {
+      provider: 'groq',
+      providerLabelAr: 'Groq Whisper (مجاني)',
+      run: () => withSttBudget(() => transcribeViaGroq(buffer, mimeType), raceBudgetMs),
+    },
+    {
+      provider: 'gemini',
+      providerLabelAr: 'Gemini صوت → نص (مجاني)',
+      run: () => withSttBudget(() => transcribeViaGemini(buffer, mimeType), raceBudgetMs),
+    },
+    {
+      provider: 'willow',
+      providerLabelAr: 'Willow Whisper (ذاتي/مجاني)',
+      run: () => withSttBudget(() => transcribeViaWillow(buffer, mimeType), raceBudgetMs),
+    },
+    {
+      provider: 'deepgram',
+      providerLabelAr: 'Deepgram',
+      run: () => withSttBudget(() => transcribeViaDeepgram(buffer, mimeType), raceBudgetMs),
+    },
+  ]
+  const fastHit = await raceArabicSttAttempts(fastWave)
+  if (fastHit) return fastHit
 
   const hfOrder = preferSaudi
     ? ([
@@ -469,61 +606,18 @@ export async function transcribeArabicSpeech(
         { model: HF_SADA, provider: 'sada-hf' as const, label: 'SADA سعودي (مجاني)' },
       ] as const)
 
-  for (const step of hfOrder) {
-    if (
-      preferred === 'groq' ||
-      preferred === 'openai' ||
-      preferred === 'deepgram' ||
-      preferred === 'gemini' ||
-      preferred === 'willow'
-    ) {
-      break
-    }
-    if (preferred === 'sada' && step.provider !== 'sada-hf') continue
-    if (preferred === 'cohere' && step.provider !== 'cohere-hf') continue
-    try {
-      const text = await transcribeViaHuggingFace(buffer, mimeType, step.model)
-      if (text) {
-        return {
-          text,
-          provider: step.provider,
-          providerLabelAr: step.label,
-        }
-      }
-    } catch {
-      /* try next */
-    }
-  }
-
-  if (preferred !== 'openai' && preferred !== 'deepgram' && preferred !== 'gemini') {
-    try {
-      const text = await transcribeViaGroq(buffer, mimeType)
-      if (text) {
-        return {
-          text,
-          provider: 'groq',
-          providerLabelAr: 'Groq Whisper (مجاني)',
-        }
-      }
-    } catch {
-      /* try next */
-    }
-  }
-
-  if (preferred === 'deepgram' || (preferred !== 'openai' && preferred !== 'groq' && preferred !== 'gemini')) {
-    try {
-      const text = await transcribeViaDeepgram(buffer, mimeType)
-      if (text) {
-        return {
-          text,
-          provider: 'deepgram',
-          providerLabelAr: 'Deepgram',
-        }
-      }
-    } catch {
-      /* try next */
-    }
-  }
+  const hfHit = await raceArabicSttAttempts(
+    hfOrder.map((step) => ({
+      provider: step.provider,
+      providerLabelAr: step.label,
+      run: () =>
+        withSttBudget(
+          () => transcribeViaHuggingFace(buffer, mimeType, step.model),
+          raceBudgetMs
+        ),
+    }))
+  )
+  if (hfHit) return hfHit
 
   if (resolveProviderKeySync('OPENAI_API_KEY')) {
     const text = await transcribeArabicAudioBuffer(buffer, mimeType)

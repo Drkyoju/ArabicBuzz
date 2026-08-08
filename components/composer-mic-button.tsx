@@ -10,6 +10,7 @@ import {
 import { transcribeVoiceBlob } from '@/lib/audio/client-transcribe'
 import { startLiveCaptions, type LiveCaptionHandle } from '@/lib/audio/live-captions'
 import { VOICE_MIC_HINT_AR } from '@/lib/rooms/voice-intent'
+import { authHeaders } from '@/lib/supabase/browser'
 import { cn } from '@/lib/utils'
 
 type MicState = 'idle' | 'recording' | 'transcribing'
@@ -59,6 +60,10 @@ export function ComposerMicButton({
       /* ignore */
     }
     liveRef.current = null
+  }
+
+  function warmAuth() {
+    void authHeaders()
   }
 
   useEffect(() => {
@@ -125,6 +130,7 @@ export function ComposerMicButton({
     }
 
     try {
+      warmAuth()
       setHint('يُطلب إذن الميكروفون…')
       prefixRef.current = composerValue.trim()
       liveDraftRef.current = prefixRef.current
@@ -164,6 +170,8 @@ export function ComposerMicButton({
         type="button"
         disabled={disabled || state === 'transcribing'}
         onClick={() => void toggle()}
+        onPointerEnter={warmAuth}
+        onFocus={warmAuth}
         aria-label={state === 'recording' ? 'إيقاف الإملاء' : 'إملاء نص بالصوت'}
         title={
           state === 'recording'

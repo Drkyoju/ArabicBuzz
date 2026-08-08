@@ -8,19 +8,27 @@ export const maxDuration = 60
  * Browser mic → free Arabic/Saudi STT cascade → transcript text.
  */
 export async function POST(req: Request) {
-  const auth = await requireRealUser(req)
+  // Auth + key warm + body parse start together (avoid STT cold-path waterfall).
+  const warmPromise = import('@/lib/ai/provider-key-store').then((m) =>
+    m.warmProviderKeyCache()
+  )
+  const authPromise = requireRealUser(req)
+  const contentType = req.headers.get('content-type') || ''
+  const bodyPromise = contentType.includes('multipart/form-data')
+    ? req.formData()
+    : req.json()
+
+  const auth = await authPromise
   if (!auth.ok) return auth.response
 
   try {
-    const { warmProviderKeyCache } = await import('@/lib/ai/provider-key-store')
-    await warmProviderKeyCache()
+    const [payload] = await Promise.all([bodyPromise, warmPromise])
 
-    const contentType = req.headers.get('content-type') || ''
     let buffer: Buffer
     let mimeType = 'audio/webm'
 
     if (contentType.includes('multipart/form-data')) {
-      const form = await req.formData()
+      const form = payload as FormData
       const file = form.get('file') ?? form.get('audio')
       if (!(file instanceof File)) {
         return Response.json(
@@ -31,7 +39,7 @@ export async function POST(req: Request) {
       buffer = Buffer.from(await file.arrayBuffer())
       mimeType = file.type || mimeType
     } else {
-      const body = (await req.json()) as {
+      const body = payload as {
         contentBase64?: string
         mimeType?: string
       }

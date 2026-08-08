@@ -31,7 +31,7 @@ import type {
   TelegramLinkStatus,
 } from '@/lib/rooms/telegram-feed'
 
-const POLL_MS = 8_000
+const POLL_MS = 5_000
 
 const SOURCE_TONE: Record<TelegramFeedItem['source'], string> = {
   site: 'bg-sky-50 text-sky-900 border-sky-200',

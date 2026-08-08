@@ -144,14 +144,17 @@ function startWebSpeechCaptions(opts: {
 function startChunkPollCaptions(opts: {
   getPartialBlob: () => { blob: Blob; mimeType: string } | null
   onPartial: (spoken: string) => void
+  /** When Web Speech is already filling the box, poll less often to cut STT lag. */
+  intervalMs?: number
 }): () => void {
   let active = true
   let inflight = false
+  const intervalMs = Math.max(900, opts.intervalMs ?? 1400)
 
   const tick = async () => {
     if (!active || inflight) return
     const snap = opts.getPartialBlob()
-    if (!snap || snap.blob.size < 1800) return
+    if (!snap || snap.blob.size < 1400) return
     inflight = true
     try {
       const result = await transcribeVoiceBlob(snap.blob, snap.mimeType)
@@ -166,12 +169,14 @@ function startChunkPollCaptions(opts: {
     }
   }
 
-  const id = window.setInterval(() => void tick(), 2200)
-  void tick()
+  const id = window.setInterval(() => void tick(), intervalMs)
+  // First snapshot after a short settle so MediaRecorder has chunks.
+  const bootId = window.setTimeout(() => void tick(), 450)
 
   return () => {
     active = false
     window.clearInterval(id)
+    window.clearTimeout(bootId)
   }
 }
 
@@ -219,6 +224,8 @@ export function startLiveCaptions(opts: {
       startChunkPollCaptions({
         getPartialBlob: opts.getPartialBlob,
         onPartial: emit,
+        // Hybrid: Web Speech is fast; STT poll is backup only.
+        intervalMs: stopWeb ? 2800 : 1200,
       })
     )
   }

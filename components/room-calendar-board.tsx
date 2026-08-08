@@ -404,16 +404,19 @@ export function RoomCalendarBoard({
     }
     let cancelled = false
     void (async () => {
-      try {
-        const res = await fetch('/api/google/calendar?action=status', {
-          headers: await authHeaders(),
+      const headers = await authHeaders()
+      const statusPromise = fetch('/api/google/calendar?action=status', {
+        headers,
+      })
+        .then(async (res) => {
+          const data = (await res.json()) as { connected?: boolean }
+          return Boolean(data.connected)
         })
-        const data = (await res.json()) as { connected?: boolean }
-        if (!cancelled) setGoogleConnected(Boolean(data.connected))
-      } catch {
-        if (!cancelled) setGoogleConnected(false)
-      }
-      if (!cancelled) await loadSyncPref()
+        .catch(() => false)
+      const syncPromise = loadSyncPref()
+      const connected = await statusPromise
+      if (!cancelled) setGoogleConnected(connected)
+      await syncPromise
     })()
     return () => {
       cancelled = true

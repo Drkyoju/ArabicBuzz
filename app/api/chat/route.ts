@@ -200,14 +200,21 @@ ${lines.join('\n')}
 
 export async function POST(req: Request) {
   try {
-    const { warmProviderKeyCache } = await import('@/lib/ai/provider-key-store')
-    await warmProviderKeyCache()
+    // Start independent cold-path work immediately (keys / auth / body).
+    const warmPromise = import('@/lib/ai/provider-key-store').then((m) =>
+      m.warmProviderKeyCache()
+    )
+    const authPromise = requireRealUser(req)
+    const bodyPromise = req.json() as Promise<ChatBody>
 
-    const auth = await requireRealUser(req)
+    const [auth, body] = await Promise.all([authPromise, bodyPromise])
     if (!auth.ok) return auth.response
 
-    const body = (await req.json()) as ChatBody
     const profile = body.agentProfile
+    const enableToolsEarly = body.enableTools !== false
+    const mcpToolsPromise = enableToolsEarly
+      ? loadMcpTools()
+      : Promise.resolve({} as ToolSet)
     // Client sends seat preferredModel as modelId when set; profile is fallback.
     let modelId =
       body.modelId ||
@@ -252,17 +259,17 @@ export async function POST(req: Request) {
       }
     }
 
-    const model = getModel(modelId)
     const scopeId = body.scopeId || 'shared-demo'
-    const { assertRoomCanPost } = await import('@/lib/rooms/persist')
-    const roomGate = await assertRoomCanPost(
-      scopeId,
-      auth.user.id,
-      auth.user.email
+    const roomGatePromise = import('@/lib/rooms/persist').then((m) =>
+      m.assertRoomCanPost(scopeId, auth.user.id, auth.user.email)
     )
+
+    const [, roomGate] = await Promise.all([warmPromise, roomGatePromise])
     if (!roomGate.ok) {
       return Response.json({ error: roomGate.error }, { status: 403 })
     }
+
+    const model = getModel(modelId)
     const rawPrompt = String(body.prompt || body.message || '').trim()
     const hasMessages = Array.isArray(body.messages) && body.messages.length > 0
 
@@ -412,7 +419,7 @@ export async function POST(req: Request) {
             scopeId,
             scopeMemory: body.scopeMemory,
           }),
-          ...(await loadMcpTools()),
+          ...(await mcpToolsPromise),
         }
       : undefined
 
