@@ -401,6 +401,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     if (target === 'calendar:tasks') {
       setCalendarTab('tasks')
       setSection('calendar')
+      // After paint, scroll tabs under sticky chrome so «المهام» isn't covered.
+      requestAnimationFrame(() => {
+        document
+          .getElementById('calendar-tabs')
+          ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      })
       return
     }
     if (target === 'calendar:full' || target === 'calendar-full') {
@@ -455,7 +461,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
         {/* Desktop bar: names the current surface so the page body does not
             have to carry the only orientation cue. */}
         {section !== 'chats' && (
-          <div className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-ab-border/70 bg-ab-bg/85 px-4 py-2 backdrop-blur md:flex">
+          <div className="sticky top-0 z-20 hidden h-[var(--ab-sticky-chrome-h)] items-center justify-between gap-3 border-b border-ab-border/70 bg-ab-bg/85 px-4 backdrop-blur md:flex">
             <p className="truncate text-[13px] font-semibold tracking-tight text-ab-ink">
               {sectionTitleAr(section)}
             </p>
@@ -469,7 +475,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <button
             type="button"
             onClick={() => setSection('approvals')}
-            className="sticky top-0 z-20 w-full border-b border-ab-warn/30 bg-ab-warn/10 px-4 py-2 text-right text-xs font-medium text-ab-warn md:top-0"
+            className="sticky top-0 z-20 w-full border-b border-ab-warn/30 bg-ab-warn/10 px-4 py-2 text-right text-xs font-medium text-ab-warn md:top-[var(--ab-sticky-chrome-h)]"
           >
             {pendingCount} طلب حذف بانتظار موافقتك — اضغط للمراجعة
           </button>
@@ -510,9 +516,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             </header>
 
             <div
+              id="calendar-tabs"
               role="tablist"
               aria-label="أقسام المواعيد"
-              className="ab-seg flex-wrap gap-0.5 !p-1"
+              className="ab-seg sticky top-0 z-10 flex-wrap gap-0.5 !p-1 scroll-mt-11 bg-ab-bg/95 py-1 backdrop-blur md:top-[var(--ab-sticky-chrome-h)] md:scroll-mt-[var(--ab-sticky-chrome-h)]"
             >
               {calendarTabs.map((t) => (
                 <button

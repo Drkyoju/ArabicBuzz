@@ -587,8 +587,8 @@ export function FilesPanel() {
         onChange={(e) => void onReplaceSelected(e.target.files)}
       />
 
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,min(22rem,36%))] lg:items-start">
+        <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-start-1">
           <header className="ab-page-head">
             <div className="min-w-0">
               <h2 className="ab-title">ملفات الفريق</h2>
@@ -649,9 +649,13 @@ export function FilesPanel() {
             />
             <p className="mt-2 text-[11px] text-ab-muted">{uploadHint}</p>
           </div>
+        </div>
 
-          <div className="lg:hidden">{telegramPane}</div>
+        <aside className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          {telegramPane}
+        </aside>
 
+        <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-start-2">
           {error && (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               {error}
@@ -854,10 +858,6 @@ export function FilesPanel() {
             </ul>
           )}
         </div>
-
-        <aside className="hidden w-full shrink-0 lg:block lg:w-[min(22rem,36%)]">
-          {telegramPane}
-        </aside>
       </div>
     </section>
   )

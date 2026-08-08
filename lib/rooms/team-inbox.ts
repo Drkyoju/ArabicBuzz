@@ -4,7 +4,10 @@
 import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
 import { listRoomInvites, listRoomMembers } from '@/lib/rooms/persist'
-import { listRoomTasks } from '@/lib/rooms/room-tasks'
+import {
+  filterMyOpenRoomTasks,
+  listRoomTasks,
+} from '@/lib/rooms/room-tasks'
 import { upcomingSystemDeadlines } from '@/lib/rooms/system-deadlines'
 import { isHitlDisabled } from '@/lib/security/posture'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
@@ -89,20 +92,11 @@ export async function buildTeamInbox(opts: {
 
   const items: TeamInboxItem[] = []
 
-  // My open tasks (assignee match by email, userId, or display name)
-  const myOpen = tasks.filter((t) => {
-    if (t.status !== 'open' && t.status !== 'in_progress') return false
-    if (t.assigneeEmail && email && t.assigneeEmail.toLowerCase() === email)
-      return true
-    if (
-      nameAr &&
-      t.assigneeAr &&
-      (t.assigneeAr === nameAr ||
-        t.assigneeAr.replace(/\s+/g, '') === nameAr.replace(/\s+/g, ''))
-    )
-      return true
-    // Also surface unassigned? No — only mine
-    return false
+  // My open tasks — same matcher as calendar «المهام» / room board
+  const myOpen = filterMyOpenRoomTasks(tasks, {
+    userId: opts.userId,
+    email,
+    nameAr,
   })
   for (const t of myOpen.slice(0, 8)) {
     items.push({

@@ -11,6 +11,10 @@ import {
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { displayNameFromUser, looksLikeEmailLabel } from '@/lib/auth/display-name'
+import {
+  isOpenRoomTask,
+  isRoomTaskAssignedToMe,
+} from '@/lib/rooms/room-tasks'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 
@@ -73,6 +77,8 @@ export function RoomTasksBoard() {
   const [openComments, setOpenComments] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, Comment[]>>({})
   const [commentDraft, setCommentDraft] = useState('')
+  /** الكل = لوحة الغرفة؛ مهامي = نفس مصدر وارد الفريق */
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>('all')
   const [me, setMe] = useState<{
     nameAr: string
     email: string | null
@@ -346,7 +352,26 @@ export function RoomTasksBoard() {
     }
   }
 
-  const open = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+  const openAll = tasks.filter(isOpenRoomTask)
+  const open =
+    scopeFilter === 'mine' && me
+      ? openAll.filter((t) =>
+          isRoomTaskAssignedToMe(t, {
+            userId: me.userId,
+            email: me.email,
+            nameAr: me.nameAr,
+          })
+        )
+      : openAll
+  const myOpenCount = me
+    ? openAll.filter((t) =>
+        isRoomTaskAssignedToMe(t, {
+          userId: me.userId,
+          email: me.email,
+          nameAr: me.nameAr,
+        })
+      ).length
+    : 0
 
   return (
     <section className="space-y-3" dir="rtl">
@@ -357,7 +382,39 @@ export function RoomTasksBoard() {
         </h2>
         <p className="text-xs text-stone-500">
           مشتركة للغرفة كلها — عيّن مسؤولاً، علّق باختصار، والوكيل يرتّب الأولوية.
+          «مهامي» يطابق وارد الفريق على لوحة اليوم.
         </p>
+        <div
+          role="group"
+          aria-label="تصفية المهام"
+          className="ab-seg mt-2 !inline-flex w-auto gap-0.5 !p-0.5"
+        >
+          <button
+            type="button"
+            className={
+              scopeFilter === 'all'
+                ? 'ab-seg-item !rounded-md !bg-ab-ink !px-2.5 !py-1 !text-[11px] !text-white'
+                : 'ab-seg-item !rounded-md !px-2.5 !py-1 !text-[11px]'
+            }
+            aria-pressed={scopeFilter === 'all'}
+            onClick={() => setScopeFilter('all')}
+          >
+            الكل ({openAll.length})
+          </button>
+          <button
+            type="button"
+            className={
+              scopeFilter === 'mine'
+                ? 'ab-seg-item !rounded-md !bg-ab-ink !px-2.5 !py-1 !text-[11px] !text-white'
+                : 'ab-seg-item !rounded-md !px-2.5 !py-1 !text-[11px]'
+            }
+            aria-pressed={scopeFilter === 'mine'}
+            onClick={() => setScopeFilter('mine')}
+            disabled={!me}
+          >
+            مهامي ({myOpenCount})
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-ab-border bg-ab-surface p-3">
@@ -399,13 +456,13 @@ export function RoomTasksBoard() {
         </button>
         <button
           type="button"
-          disabled={busy || open.length === 0}
+          disabled={busy || openAll.length === 0}
           title={
-            open.length === 0
+            openAll.length === 0
               ? 'لا مهام مفتوحة لترتيبها — أضف مهمة أولاً'
               : undefined
           }
-          aria-disabled={busy || open.length === 0}
+          aria-disabled={busy || openAll.length === 0}
           onClick={() => void reconcile()}
           className="inline-flex items-center gap-1 rounded-md bg-stone-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
@@ -430,7 +487,9 @@ export function RoomTasksBoard() {
           </li>
         ) : open.length === 0 ? (
           <li className="p-6 text-center text-sm text-ab-muted-soft">
-            لا مهام — أضف يدوياً أو اطلب من الوكيل: «أضف طلباً… إلى لوحة الغرفة».
+            {scopeFilter === 'mine'
+              ? 'لا مهام معيّنة لك — عيّن مسؤولاً من «الكل» أو من وارد الفريق.'
+              : 'لا مهام — أضف يدوياً أو اطلب من الوكيل: «أضف طلباً… إلى لوحة الغرفة».'}
           </li>
         ) : (
           open.map((t, i) => (

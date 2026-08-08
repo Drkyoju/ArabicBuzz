@@ -50,6 +50,46 @@ function rowToTask(r: DbRow): RoomTask {
   }
 }
 
+/** Open / in-progress — shared by inbox, home digest, and calendar «المهام». */
+export function isOpenRoomTask(t: Pick<RoomTask, 'status'>): boolean {
+  return t.status === 'open' || t.status === 'in_progress'
+}
+
+/**
+ * Whether a room task is assigned to this user.
+ * Match by userId, email, or display name (normalized) so وارد الفريق
+ * and لوحة المهام stay aligned.
+ */
+export function isRoomTaskAssignedToMe(
+  t: Pick<RoomTask, 'assigneeUserId' | 'assigneeEmail' | 'assigneeAr'>,
+  me: { userId?: string | null; email?: string | null; nameAr?: string | null }
+): boolean {
+  const userId = me.userId?.trim() || ''
+  if (userId && t.assigneeUserId && t.assigneeUserId === userId) return true
+  const email = me.email?.trim().toLowerCase() || ''
+  if (email && t.assigneeEmail && t.assigneeEmail.toLowerCase() === email)
+    return true
+  const nameAr = me.nameAr?.trim() || ''
+  if (
+    nameAr &&
+    t.assigneeAr &&
+    (t.assigneeAr === nameAr ||
+      t.assigneeAr.replace(/\s+/g, '') === nameAr.replace(/\s+/g, ''))
+  ) {
+    return true
+  }
+  return false
+}
+
+export function filterMyOpenRoomTasks(
+  tasks: RoomTask[],
+  me: { userId?: string | null; email?: string | null; nameAr?: string | null }
+): RoomTask[] {
+  return tasks.filter(
+    (t) => isOpenRoomTask(t) && isRoomTaskAssignedToMe(t, me)
+  )
+}
+
 export async function listRoomTasks(
   scopeId: string,
   opts?: { includeDone?: boolean }
@@ -216,9 +256,7 @@ export async function reconcileRoomTasks(opts: {
   scopeId: string
   shiftOverdueDays?: number
 }): Promise<{ tasks: RoomTask[]; messageAr: string; adjusted: number }> {
-  const open = (await listRoomTasks(opts.scopeId)).filter(
-    (t) => t.status === 'open' || t.status === 'in_progress'
-  )
+  const open = (await listRoomTasks(opts.scopeId)).filter(isOpenRoomTask)
   const now = Date.now()
   let adjusted = 0
   const shiftDays = opts.shiftOverdueDays ?? 1

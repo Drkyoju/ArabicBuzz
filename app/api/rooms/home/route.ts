@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isSyntheticIdentity } from '@/lib/auth/synthetic'
 import { getRoomAgenda } from '@/lib/rooms/room-calendar'
-import { listRoomTasks } from '@/lib/rooms/room-tasks'
+import { isOpenRoomTask, listRoomTasks } from '@/lib/rooms/room-tasks'
 import {
   lastZoomLiveAt,
   listRoomActivity,
@@ -289,9 +289,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const openTasks = tasks.filter(
-    (t) => t.status === 'open' || t.status === 'in_progress'
-  )
+  const openTasks = tasks.filter(isOpenRoomTask)
 
   const weekEvents = events.filter((e) =>
     inRange(e.startsAt, weekStart.start, weekEnd.end)
