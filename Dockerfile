@@ -29,10 +29,11 @@ RUN npx prisma generate && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-# LibreOffice (free/OSS) for high-fidelity Word↔PDF on CranL.
-# Default ON. Pass --build-arg INSTALL_LIBREOFFICE=0 for a thin image if
-# CranL build times out or the image is too large.
-ARG INSTALL_LIBREOFFICE=1
+# LibreOffice (free/OSS) for high-fidelity Word↔PDF.
+# Default OFF on CranL (thin image) after LO-enabled builds failed on the host.
+# Opt in: docker build --build-arg INSTALL_LIBREOFFICE=1
+# Free convert without LO: Google Drive OAuth (drive.file).
+ARG INSTALL_LIBREOFFICE=0
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
        apt-get install -y --no-install-recommends \

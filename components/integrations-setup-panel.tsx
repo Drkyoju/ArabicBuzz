@@ -154,7 +154,7 @@ export function IntegrationsSetupPanel() {
             {libreOfficeStatusAr ||
               (libreOfficeConfigured
                 ? 'مجاني · مفعّل'
-                : 'يُثبَّت مع صورة CranL (INSTALL_LIBREOFFICE=1)')}
+                : 'اختياري — INSTALL_LIBREOFFICE=1 عند البناء · أو اربط Google')}
           </span>
         </p>
         <p className="mb-1 text-[11px]">

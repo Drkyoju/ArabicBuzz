@@ -113,12 +113,19 @@ docker run --rm -p 3000:3000 --env-file .env.local arabicbuzz
 
 ### LibreOffice on CranL
 
-Dockerfile defaults `INSTALL_LIBREOFFICE=1` (free/OSS Writer+Calc headless + fonts).
-After deploy, `GET /api/health/free` should show `libreOfficeOk: true`.
+Dockerfile defaults `INSTALL_LIBREOFFICE=0` (thin image). CranL builds with
+LibreOffice enabled failed on recent deploys (~1 min error — host/platform;
+not confirmed as package-size alone). Free convert without LO: **Google Drive**
+after linking OAuth (`drive.file`).
 
-If a CranL build fails on size/timeout, rebuild with `INSTALL_LIBREOFFICE=0` and keep
-**Google Drive convert** (free with linked OAuth — `drive.file`). Do not buy CloudConvert
-unless you explicitly approve a paid key.
+To try LO again when the host allows a larger image:
+
+```bash
+docker build --build-arg INSTALL_LIBREOFFICE=1 -t arabicbuzz .
+```
+
+After a successful LO image, `GET /api/health/free` should show `libreOfficeOk: true`.
+Do not buy CloudConvert unless you explicitly approve a paid key.
 
 ## QA (agents)
 

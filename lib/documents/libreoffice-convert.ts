@@ -1,7 +1,7 @@
 /**
  * High-fidelity Office conversion via LibreOffice `soffice` when available.
- * CranL production image installs LibreOffice by default (INSTALL_LIBREOFFICE=1).
- * Pass INSTALL_LIBREOFFICE=0 for a thin image; host / Mac bridge still work.
+ * CranL ships a thin image by default (INSTALL_LIBREOFFICE=0) after LO builds
+ * failed on the host; opt in with INSTALL_LIBREOFFICE=1. Prefer Google Drive.
  */
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'

@@ -2,7 +2,7 @@
  * Convert between Office/PDF formats.
  * Chain (engine=auto):
  *  1) Google Drive import/export — best free quality when Google is linked
- *  2) LibreOffice soffice — free/OSS (default on CranL via INSTALL_LIBREOFFICE=1)
+ *  2) LibreOffice soffice — free/OSS when INSTALL_LIBREOFFICE=1 / host has soffice
  *  3) CloudConvert — optional paid when CLOUDCONVERT_API_KEY is set
  *  4) Free Arabic text / structured rebuild (pdf/docx/xlsx/pptx/…)
  */
@@ -227,7 +227,7 @@ export async function executeConvertDocument(
     }
   }
 
-  // ── 2) LibreOffice (free/OSS — default on CranL production image) ──
+  // ── 2) LibreOffice (free/OSS when soffice is installed on the image/host) ──
   // Prefer for Word↔PDF layout fidelity before any paid API.
   // Skip PDF→Office here (LO often preserves broken ToUnicode); Drive/visual first.
   const loOk =

@@ -22,7 +22,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
 | PDF→DOCX تخطيط | Google Drive → مرئي ماك → pdf2docx | — | تجنّب rebuild نصّي إن ToUnicode معطوب |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
-| Office↔PDF محلي | **LibreOffice** `soffice --headless` | CranL (افتراضي) / الماك | مجاني — `INSTALL_LIBREOFFICE=1` في Dockerfile |
+| Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
 | DOCX/PPTX/XLSX | python-docx · python-pptx · openpyxl + JS (docx/exceljs) | venv / Netlify | تعديل واستخراج |
 | قرارات طويلة → Markdown | **MarkItDown** | `POST /markitdown` + MCP | `pip install "markitdown[all]"` |
@@ -102,6 +102,6 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 - مسح ضبابي / مائل / دقة منخفضة → أخطاء OCR متوقعة.
 - PDF فيه نص معطوب (ToUnicode) يبدو صحيحاً بصرياً لكن النسخ يعطي طلاسم — نفضّل OCR أو Google Drive لا rebuild نصّي أعمى.
 - بدون جسر ماك ولا Gemini: OCR المحلي غير متاح على Netlify (لا Tesseract في الدالة).
-- LibreOffice غير مثبت على Netlify — على **CranL** يُثبَّت افتراضياً (`INSTALL_LIBREOFFICE=1`).
+- LibreOffice غير مثبت على Netlify. على CranL الصورة رقيقة حالياً (بناء LO فشل/غير مستقر على المضيف) — المسار المجاني القوي = **Google Drive** بعد الربط. لتفعيل LO: `INSTALL_LIBREOFFICE=1` عند البناء إن سمح الحجم.
 
 انظر أيضاً: [file-edit-engines.md](./file-edit-engines.md) · مهارة `document_ocr_workflow`.

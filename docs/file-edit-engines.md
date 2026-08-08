@@ -5,7 +5,7 @@
 | المرتبة | المحرّك | التكلفة | الجودة | متى يُستخدم |
 |--------|---------|---------|--------|-------------|
 | **1** | **Google Drive** (استيراد → Docs/Sheets/Slides → تصدير) | **مجاني** مع حساب Google مربوط | ممتاز / فوق الممتاز للتخطيط والصور داخل عائلات Office | `convert_document` تلقائياً إن مربوط |
-| **2** | **LibreOffice** `soffice` | **مجاني** (مثبت على صورة CranL افتراضياً) | ممتاز لـ Word↔PDF وصيغ Office | عند توفر soffice؛ يسبق أي API مدفوع |
+| **2** | **LibreOffice** `soffice` | **مجاني** عند تثبيته (`INSTALL_LIBREOFFICE=1`) | ممتاز لـ Word↔PDF وصيغ Office | عند توفر soffice؛ يسبق أي API مدفوع |
 | **3** | **CloudConvert** | اختياري مدفوع (`CLOUDCONVERT_API_KEY`) — **لا يُشترى تلقائياً** | ممتاز عبر العائلات والصيغ القديمة (doc/ppt/xls) | فقط إن وُجد المفتاح بعد موافقة |
 | **4** | **مسار مجاني محلي** (docx / exceljs / pdf-lib / pptxgenjs / JSZip) | مجاني دائماً | ممتاز للتعديل الموضعي؛ تحويل نصّي فقط لـ pdf↔docx | تعديل بدون تحويل؛ أو احتياطي تحويل |
 | — | LibreOffice / Tesseract عبر جسر الماك | مجاني محلياً | ممتاز إن وُجد على الماك | OCR صفحات + تحويل مرئي |
@@ -63,7 +63,7 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
    - Excel/CSV ↔ Google Sheets ↔ `xlsx` / `pdf` / `csv`…
    - PowerPoint ↔ Google Slides ↔ `pptx` / `pdf`…
    - يُرفع ملف مؤقت → يُصدَّر → يُنقل لسلة المهملات (`drive.file`).
-2. **LibreOffice** — إن `soffice` متوفر (افتراضي على CranL).
+2. **LibreOffice** — إن `soffice` متوفر (اختياري عبر `INSTALL_LIBREOFFICE=1`).
 3. **CloudConvert** — إن `CLOUDCONVERT_API_KEY` مضبوط (اختياري مدفوع).
 4. **إعادة بناء نصية** — `pdf` ↔ `docx` / `txt` / `md` / جداول منظّمة…
 5. **خطأ عربي واضح** — يوجّه لربط Google أو إضافة المفتاح المدفوع.
