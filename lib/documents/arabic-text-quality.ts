@@ -71,8 +71,17 @@ export function hasArabicMojibake(text: string): boolean {
   if (q.broken || q.mojibakeHits > 0) return true
   if (/الالئحة|األساسية|واألهداف|املادة|االسم/.test(t)) return true
   if (/\uFFFD/.test(t)) return true
+  // Latin mojibake / CP1256-as-UTF8 style (common OCR export bugs)
+  if (
+    /Ã.|Â.|Ø.|Ù.|Ø§|Ù„|Ã©|Ã |Ð.|Ñ./.test(t) &&
+    /[\u0600-\u06FF]/.test(t) === false
+  ) {
+    if (/Ã.|Â.|Ø.|Ù./.test(t)) return true
+  }
   // Dense latin mojibake (UTF-8 misread as Latin-1 / CP1256)
   if (/(?:Ã.|Â.|Ø.|Ù.){3,}/.test(t)) return true
+  // Reversed / nonsense stacks of isolated presentation forms mixed with wrong alef-lam
+  if (/الال[^اأإآ]|األ[^ا-ي]/.test(t) && q.badLig >= 3) return true
   return false
 }
 
@@ -238,7 +247,7 @@ export function brokenToUnicodeErrorAr(opts?: {
   ]
   if (opts?.hasPaddle === false) {
     parts.push(
-      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي.'
+      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى (ليس لأنه أقوى من Gemini).'
     )
   }
   if (opts?.hasMistral === false) {
