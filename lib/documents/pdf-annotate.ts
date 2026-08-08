@@ -5,7 +5,7 @@
  */
 import { PDFDocument, rgb, StandardFonts, type PDFPage, type PDFFont } from 'pdf-lib'
 import * as fontkit from '@pdf-lib/fontkit'
-import { shapeArabicForPdf } from '@/lib/documents/pdf'
+import { shapeArabicForPdf } from '@/lib/documents/pdf-arabic-shape'
 
 export type PdfNormPoint = { x: number; y: number }
 
