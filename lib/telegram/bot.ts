@@ -99,6 +99,8 @@ import {
   telegramEffortMaxSteps,
   telegramGoogleLinkedHintAr,
 } from '@/lib/telegram/power-path'
+import { loadTelegramAgentPool } from '@/lib/telegram/agent-pool'
+import type { RoomAgent } from '@/lib/rooms/agents'
 import { effortToRunParams } from '@/lib/ai/run-effort'
 import { parseTelegramMessageIntent } from '@/lib/telegram/message-intent'
 import {
@@ -173,7 +175,7 @@ let commandsRegistered = false
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — أقصى قوة أدواتية: نفس غرفة الموقع (ليس نسخة بصرية كاملة).
 - افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
-- أيقظ وكيل١ ثم وكيل٢ عند الانشغال. «يا وكيل١» / @وكيل٢ / «أبغا للجميع» يوجّهون المقاعد مثل الموقع.
+- أيقظ وكيل١ ثم وكيل٢…عند الانشغال. طلب ثقيل / «أبغا للجميع» / وضع فريق الغرفة → تشغيل متوازٍ للمقاعد المتفرّغة (حتى ٨). «يا وكيل١» / @وكيل٢ يوجّهان مقعداً بعينه.
 - نفّذ بكل الأدوات: ملفات تيليجرام/خزنة الغرفة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل. Drive اختياري.
 - بحث عام في «الموقع/الغرفة»: room_search أولاً ثم فصّل. إحاطة/ملخص اليوم: owner_morning_brief.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
@@ -731,6 +733,206 @@ async function deliverSilentTelegramResults(opts: {
   return sent
 }
 
+/** Per-seat identity block — mirrors /api/chat agentBlock. */
+function telegramSeatIdentityBlock(agent: RoomAgent, team: boolean): string {
+  const task = agent.taskAr ? `\nالمهمة المعيّنة: ${agent.taskAr}` : ''
+  const collab = team
+    ? '\n\nأنت في وضع تعاون جماعي عبر تيليجرام: نفّذ حصتك، لا تكرر عمل الزملاء بلا فائدة، وأعد نتيجة قابلة للاستخدام.'
+    : ''
+  return `\n\nهويتك في الغرفة: «${agent.nameAr}» (${agent.slug}).${task}\n${agent.systemPromptAr}${collab}`
+}
+
+function mergeTelegramTeamTexts(
+  results: Array<{ nameAr: string; text: string }>
+): string {
+  const parts = results
+    .map((r) => {
+      const t = r.text.trim()
+      if (!t) return ''
+      return `【${r.nameAr}】\n${t}`
+    })
+    .filter(Boolean)
+  if (!parts.length) return 'تم تشغيل الفريق، لكن لم يُنتَج رد نصي.'
+  if (parts.length === 1) return results.find((r) => r.text.trim())?.text.trim() || parts[0]
+  return `نتائج الفريق (${parts.length} مقاعد):\n\n${parts.join('\n\n')}`
+}
+
+/**
+ * Parallel seats: primary streams to Telegram ack; peers run generateText.
+ * Shared tools + file lock; attachments/HITL merged.
+ */
+async function runTelegramTeamAgentTurn(opts: {
+  ctx: Context
+  agents: RoomAgent[]
+  prompt: string
+  systemBase: string
+  modelSlug: string
+  requesterId: string
+  scopeId: string
+  maxSteps: number
+  tools: ToolSet
+  placeholderMessageId?: number
+  silent: boolean
+  runLocked: <T>(fn: () => Promise<T>) => Promise<T>
+}): Promise<{
+  text: string
+  citations: RoomCitation[]
+  pendingApprovalIds: string[]
+  attachments: TelegramAttachmentRef[]
+}> {
+  const [primary, ...peers] = opts.agents
+  const team = opts.agents.length > 1
+  const peerMaxSteps = Math.max(4, Math.min(opts.maxSteps, 6))
+
+  const peerJobs = peers.map((agent) =>
+    opts.runLocked(async () => {
+      const system =
+        opts.systemBase + telegramSeatIdentityBlock(agent, team)
+      try {
+        const out = await runSilentTelegramTools({
+          prompt: opts.prompt,
+          system,
+          modelSlug: agent.preferredModel || opts.modelSlug,
+          scopeId: opts.scopeId,
+          maxSteps: peerMaxSteps,
+          tools: opts.tools,
+        })
+        return { agent, ...out }
+      } catch (e) {
+        console.error('[telegram] peer seat', agent.slug, e)
+        return {
+          agent,
+          text: '',
+          citations: [] as RoomCitation[],
+          pendingApprovalIds: [] as string[],
+          attachments: [] as TelegramAttachmentRef[],
+        }
+      }
+    })
+  )
+
+  const primarySystem =
+    opts.systemBase + telegramSeatIdentityBlock(primary, team)
+
+  if (opts.silent) {
+    const [primaryOut, ...peerOuts] = await Promise.all([
+      opts.runLocked(() =>
+        runSilentTelegramTools({
+          prompt: opts.prompt,
+          system: primarySystem,
+          modelSlug: primary.preferredModel || opts.modelSlug,
+          scopeId: opts.scopeId,
+          maxSteps: opts.maxSteps,
+          tools: opts.tools,
+        })
+      ),
+      ...peerJobs,
+    ])
+    const citations = [...primaryOut.citations]
+    const pendingApprovalIds = [...primaryOut.pendingApprovalIds]
+    const attachments = [...primaryOut.attachments]
+    for (const p of peerOuts) {
+      for (const c of p.citations) {
+        if (!citations.some((x) => x.labelAr === c.labelAr)) citations.push(c)
+      }
+      for (const id of p.pendingApprovalIds) {
+        if (!pendingApprovalIds.includes(id)) pendingApprovalIds.push(id)
+      }
+      for (const a of p.attachments) {
+        if (!attachments.some((x) => x.fileId === a.fileId)) attachments.push(a)
+      }
+    }
+    const text = mergeTelegramTeamTexts([
+      { nameAr: primary.nameAr, text: primaryOut.text },
+      ...peerOuts.map((p) => ({ nameAr: p.agent.nameAr, text: p.text })),
+    ])
+    return { text, citations, pendingApprovalIds, attachments }
+  }
+
+  // Visible: stream primary while peers work in parallel.
+  const peerPromise = Promise.all(peerJobs)
+  const primaryOut = await opts.runLocked(() =>
+    streamTelegramReply({
+      ctx: opts.ctx,
+      prompt: opts.prompt,
+      system: primarySystem,
+      modelSlug: primary.preferredModel || opts.modelSlug,
+      requesterId: opts.requesterId,
+      scopeId: opts.scopeId,
+      maxSteps: opts.maxSteps,
+      tools: opts.tools,
+      placeholderMessageId: opts.placeholderMessageId,
+    })
+  )
+  const peerOuts = await peerPromise
+
+  const citations = [...primaryOut.citations]
+  const pendingApprovalIds = [...primaryOut.pendingApprovalIds]
+  const attachmentNames = [...primaryOut.attachmentsSent]
+  const attachments: TelegramAttachmentRef[] = []
+
+  const peerNotes: Array<{ nameAr: string; text: string }> = []
+  for (const p of peerOuts) {
+    for (const c of p.citations) {
+      if (!citations.some((x) => x.labelAr === c.labelAr)) citations.push(c)
+    }
+    for (const id of p.pendingApprovalIds) {
+      if (!pendingApprovalIds.includes(id)) pendingApprovalIds.push(id)
+    }
+    if (p.text.trim() && p.text.trim() !== primaryOut.text.trim()) {
+      peerNotes.push({ nameAr: p.agent.nameAr, text: p.text })
+    }
+    for (const a of p.attachments) {
+      if (!attachments.some((x) => x.fileId === a.fileId)) attachments.push(a)
+    }
+  }
+
+  // Primary already edited the ack — append peer digests + extra attachments.
+  let text = primaryOut.text
+  if (peerNotes.length) {
+    const digest = peerNotes
+      .map((n) => `【${n.nameAr}】 ${n.text.slice(0, 600)}`)
+      .join('\n')
+    text = `${primaryOut.text}\n\n—\nزملاء الفريق:\n${digest}`.slice(0, 3900)
+    try {
+      if (opts.placeholderMessageId) {
+        await opts.ctx.api.editMessageText(
+          opts.ctx.chat!.id,
+          opts.placeholderMessageId,
+          text
+        )
+      } else {
+        await opts.ctx.reply(text.slice(0, 3900))
+      }
+    } catch {
+      /* ignore edit races */
+    }
+  }
+
+  if (attachments.length) {
+    const extra = await sendAttachmentsToTelegramChat({
+      ctx: opts.ctx,
+      attachments,
+      captionAr: '📎 ناتج زملاء الفريق',
+    })
+    attachmentNames.push(...extra)
+  }
+
+  for (const id of pendingApprovalIds.slice(primaryOut.pendingApprovalIds.length, 4)) {
+    await opts.ctx.reply(`موافقة مطلوبة أيضاً (#${id.slice(0, 8)})`, {
+      reply_markup: buildApprovalKeyboard(id),
+    })
+  }
+
+  return {
+    text,
+    citations,
+    pendingApprovalIds,
+    attachments: attachments.map((a) => a),
+  }
+}
+
+
 async function runTelegramAgentTurn(opts: {
   ctx: Context
   promptSource: string
@@ -781,11 +983,18 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
+  const pool = await loadTelegramAgentPool({
+    scopeId,
+    userId: (await resolveTelegramRequesterUserId(opts.userId)).userId,
+  })
   const powered = buildTelegramPowerPrompt({
     raw: opts.promptSource,
     scopeId,
     work,
+    catalog: pool.agents,
+    collabMode: pool.collabMode,
   })
+  const seatIds = powered.wakeAgents.map((a) => a.id)
   const seatId = powered.wakeAgent?.id
 
   void opts.ctx.replyWithChatAction('typing').catch(() => undefined)
@@ -798,7 +1007,11 @@ async function runTelegramAgentTurn(opts: {
     } else {
       ackBits.push('⏳ استلمت — جاري العمل…')
       if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
-      else if (powered.wakeAgent) {
+      else if (powered.parallel && powered.wakeAgents.length > 1) {
+        ackBits.push(
+          `الفريق: ${powered.wakeAgents.map((a) => a.nameAr).join('، ')}`
+        )
+      } else if (powered.wakeAgent) {
         ackBits.push(`المقعد: ${powered.wakeAgent.nameAr}`)
       }
       if (opts.workLabelAr || work.kind !== 'casual') {
@@ -806,6 +1019,9 @@ async function runTelegramAgentTurn(opts: {
       }
       if (work.kind === 'file' || work.forceHeavy) {
         ackBits.push('أدوات كاملة (ملفات / Drive / تحويل)')
+      }
+      if (powered.parallel) {
+        ackBits.push(`متوازٍ ×${powered.wakeAgents.length}`)
       }
     }
     ack = await opts.ctx.reply(ackBits.join('\n'))
@@ -839,7 +1055,7 @@ async function runTelegramAgentTurn(opts: {
     }
   }
 
-  if (seatId) markTelegramSeatBusy(scopeId, seatId)
+  for (const id of seatIds) markTelegramSeatBusy(scopeId, id)
 
   try {
   // Deterministic «أرسل لفلان» / بث المجموعة — قبل الوكيل
@@ -1185,17 +1401,38 @@ async function runTelegramAgentTurn(opts: {
     )
   }
 
+  const teamAgents = powered.wakeAgents.length
+    ? powered.wakeAgents
+    : powered.wakeAgent
+      ? [powered.wakeAgent]
+      : []
+  const useTeam = powered.parallel && teamAgents.length > 1
+
   if (silent) {
-    const silentOut = await runLocked(() =>
-      runSilentTelegramTools({
-        prompt: normalized.normalizedPromptAr,
-        system: lockedSystem,
-        modelSlug,
-        scopeId,
-        maxSteps,
-        tools,
-      })
-    )
+    const silentOut = useTeam
+      ? await runTelegramTeamAgentTurn({
+          ctx: opts.ctx,
+          agents: teamAgents,
+          prompt: normalized.normalizedPromptAr,
+          systemBase: lockedSystem,
+          modelSlug,
+          requesterId,
+          scopeId,
+          maxSteps,
+          tools,
+          silent: true,
+          runLocked,
+        })
+      : await runLocked(() =>
+          runSilentTelegramTools({
+            prompt: normalized.normalizedPromptAr,
+            system: lockedSystem,
+            modelSlug,
+            scopeId,
+            maxSteps,
+            tools,
+          })
+        )
     const attachmentsSent = await deliverSilentTelegramResults({
       ctx: opts.ctx,
       attachments: silentOut.attachments,
@@ -1219,9 +1456,10 @@ async function runTelegramAgentTurn(opts: {
         agentReplyAr: gap,
       })
       console.info('[telegram] timing', {
-        path: 'agent-silent',
+        path: useTeam ? 'agent-silent-team' : 'agent-silent',
         heavy,
         work: work.kind,
+        seats: teamAgents.map((a) => a.slug).join(','),
         unknown,
         attachments: attachmentsSent.length,
         prepMs,
@@ -1247,9 +1485,10 @@ async function runTelegramAgentTurn(opts: {
       includeAgentReply: attachmentsSent.length > 0,
     })
     console.info('[telegram] timing', {
-      path: 'agent-silent',
+      path: useTeam ? 'agent-silent-team' : 'agent-silent',
       heavy,
       work: work.kind,
+      seats: teamAgents.map((a) => a.slug).join(','),
       unknown,
       attachments: attachmentsSent.length,
       prepMs,
@@ -1261,6 +1500,51 @@ async function runTelegramAgentTurn(opts: {
       citations: silentOut.citations,
       pendingApprovalIds: silentOut.pendingApprovalIds,
       attachmentsSent,
+    }
+  }
+
+  if (useTeam) {
+    const teamOut = await runTelegramTeamAgentTurn({
+      ctx: opts.ctx,
+      agents: teamAgents,
+      prompt: normalized.normalizedPromptAr,
+      systemBase: lockedSystem,
+      modelSlug,
+      requesterId,
+      scopeId,
+      maxSteps,
+      tools,
+      placeholderMessageId: ack?.message_id,
+      silent: false,
+      runLocked,
+    })
+    console.info('[telegram] timing', {
+      path: 'agent-team',
+      heavy,
+      work: work.kind,
+      seats: teamAgents.map((a) => a.slug).join(','),
+      model: modelSlug,
+      dialect: needDialect,
+      maxSteps,
+      toolCount: Object.keys(tools).length,
+      prepMs,
+      streamMs: Date.now() - tStream,
+      totalMs: Date.now() - t0,
+    })
+    void mirrorChannelTurnToRoom({
+      scopeId,
+      channel: 'telegram',
+      externalId: opts.chatId,
+      userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+      userMessageAr: opts.promptSource,
+      agentReplyAr: teamOut.text,
+    })
+    await maybeSendTelegramVoiceReply(opts.ctx, teamOut.text)
+    return {
+      text: teamOut.text,
+      citations: teamOut.citations,
+      pendingApprovalIds: teamOut.pendingApprovalIds,
+      attachmentsSent: [],
     }
   }
 
@@ -1303,7 +1587,8 @@ async function runTelegramAgentTurn(opts: {
   await maybeSendTelegramVoiceReply(opts.ctx, out.text)
   return out
   } finally {
-    if (seatId) markTelegramSeatFree(scopeId, seatId)
+    for (const id of seatIds) markTelegramSeatFree(scopeId, id)
+    if (seatId && !seatIds.includes(seatId)) markTelegramSeatFree(scopeId, seatId)
   }
 }
 

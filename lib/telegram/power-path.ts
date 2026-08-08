@@ -6,7 +6,6 @@
  */
 
 import {
-  agentsForScope,
   findMentionedAgents,
   isAgentTeamBroadcastToken,
   type RoomAgent,
@@ -20,6 +19,11 @@ import { planRoomRunAdaptation } from '@/lib/rooms/run-adapt'
 import { effortToRunParams, type RunEffort } from '@/lib/ai/run-effort'
 import { listGoogleAccounts } from '@/lib/google/tokens'
 import { looksLikeTelegramMessaging } from '@/lib/telegram/message-intent'
+import {
+  getTelegramAgentMaxParallel,
+  shouldTelegramTeamFanOut,
+} from '@/lib/telegram/agent-pool'
+import type { AgentCollabMode } from '@/lib/rooms/agents'
 
 export type TelegramWorkKind =
   | 'appointment'
@@ -366,8 +370,10 @@ function workKindNudge(kind: TelegramWorkKind): string {
         '[قصد تيليجرام: ملف — تيليجرام أولاً]',
         'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل الوحيدة — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
         'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف آخر) / أي بديل من Drive أو الويب.',
-        'إن تعذّر قراءة بايتات المرفق: اعتذر بالعربية واطلب إعادة الإرسال — لا تختار ملفاً آخر.',
+        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في الخزنة أو مهمة معلّقة أو نسخة Drive بنفس الاسم حرفياً — استأنف منها.',
+        'إن انعدمت كل المسارات: رسالة عربية واحدة فقط تطلب الرفع لغرفة الفريق/Drive بنفس الاسم — ثم انتظر المهمة المعلّقة.',
         'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
+        'ملف كبير (>حد تنزيل البوت): أكمل عبر خزنة الغرفة/Drive ثم أرسل الناتج بـ return_file/sendDocument (اضغط إن لزم) — لا تعتبر رابط Drive إكمالاً زائفاً دون محاولة الإرسال.',
         'مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'OCR للصور/PDF الممسوح: arabic_ocr. تعليق PDF: pdf_annotate أو pdf_stamp ثم return_file.',
@@ -408,21 +414,31 @@ function workKindNudge(kind: TelegramWorkKind): string {
 
 /**
  * Build the user prompt for the Telegram agent turn (room intent + work kind).
+ * Pass `catalog` from loadTelegramAgentPool so TG can enlist وكيل١…٨.
  */
 export function buildTelegramPowerPrompt(opts: {
   raw: string
   scopeId: string
   work: TelegramWorkIntent
+  /** Full seat pool (roster + builtins). Required for multi-seat. */
+  catalog: RoomAgent[]
+  collabMode?: AgentCollabMode
 }): {
   prompt: string
   roomAgents: RoomAgent[]
+  /** Primary seat (streams to Telegram ack). */
   wakeAgent: RoomAgent | null
+  /** All seats woken this turn (1 = cascade, N = parallel team). */
+  wakeAgents: RoomAgent[]
+  parallel: boolean
   wakeNoticeAr?: string
   adapt: ReturnType<typeof planRoomRunAdaptation>
 } {
-  const catalog = agentsForScope(opts.scopeId)
+  const catalog = opts.catalog.length
+    ? opts.catalog
+    : ([] as RoomAgent[])
   const mentioned = findMentionedAgents(opts.raw, catalog)
-  const wantsAll = (() => {
+  const wantsAllToken = (() => {
     const m = opts.raw.match(/@([\u0600-\u06FFa-zA-Z0-9_\-]+)/)
     return Boolean(m && isAgentTeamBroadcastToken(m[1]))
   })()
@@ -434,15 +450,31 @@ export function buildTelegramPowerPrompt(opts: {
       : roomIntent.kind === 'directed'
         ? roomIntent.agents
         : []
+
+  const teamCap = getTelegramAgentMaxParallel()
+  const fanOut = shouldTelegramTeamFanOut({
+    raw: opts.raw,
+    workKind: opts.work.kind,
+    preferFullAgent: opts.work.preferFullAgent,
+    forceHeavy: opts.work.forceHeavy,
+    collabMode: opts.collabMode || 'solo',
+    mentionedCount: directed.length,
+    wantsAllToken,
+    broadcastIntent: roomIntent.kind === 'broadcast',
+  })
+
   const pick = pickAgentSeatsForMessage({
     seated: catalog,
     busyAgentIds: busySetFor(opts.scopeId),
     mentioned: directed,
-    wantsAll: wantsAll || roomIntent.kind === 'broadcast',
-    teamCap: 4,
+    wantsAll: fanOut,
+    teamCap,
   })
 
-  const wakeAgent = pick.agents[0] || catalog[0] || null
+  const wakeAgents = pick.agents
+  const wakeAgent = wakeAgents[0] || null
+  const parallel = wakeAgents.length > 1
+
   const adapt = planRoomRunAdaptation({
     prompt: roomIntent.cleanPrompt || opts.raw,
     baseEffort: wakeAgent?.preferredEffort || 'LOW',
@@ -451,29 +483,49 @@ export function buildTelegramPowerPrompt(opts: {
     catalog,
     hasAttachments:
       opts.work.kind === 'file' || opts.work.kind === 'mail',
-    allowHandoff: !mentioned.length && !wantsAll,
+    // No specialty handoff when multi-seat / explicit mention / team fan-out.
+    allowHandoff: !mentioned.length && !fanOut && !parallel,
   })
 
   const handoff = adapt.handoffAgent
-  const runAgent = handoff || wakeAgent
+  // Handoff only replaces the solo primary; team fan-out keeps all seats.
+  // Queue-full (no agents) stays empty — do not invent a seat.
+  const runAgents =
+    wakeAgents.length === 0
+      ? []
+      : !parallel && handoff
+        ? [handoff]
+        : wakeAgents
+  const runAgent = runAgents[0] || null
+
+  const seatLine = parallel
+    ? `\n[فريق الغرفة (${runAgents.length}): ${runAgents.map((a) => `${a.nameAr}@${a.slug}`).join(' · ')} — نفّذوا معاً دون تكرار عديم الفائدة]`
+    : runAgent
+      ? `\n[مقعد الغرفة: ${runAgent.nameAr} @${runAgent.slug} — نفس قدرات وكلاء الموقع كاملة]`
+      : ''
 
   const parts = [
     roomIntent.cleanPrompt || opts.raw,
     roomIntentPromptNudge(roomIntent),
     workKindNudge(opts.work.kind),
-    runAgent
-      ? `\n[مقعد الغرفة: ${runAgent.nameAr} @${runAgent.slug} — نفس قدرات وكلاء الموقع كاملة]`
-      : '',
+    seatLine,
     adapt.noticesAr.length
       ? `[تكييف: ${adapt.noticesAr.join(' · ')}]`
       : '',
   ]
 
+  const teamNotice = parallel
+    ? `تشغيل متوازٍ: ${runAgents.map((a) => a.nameAr).join('، ')}`
+    : undefined
+
   return {
     prompt: parts.filter(Boolean).join('\n'),
     roomAgents: catalog,
     wakeAgent: runAgent,
-    wakeNoticeAr: pick.noticeAr || adapt.noticesAr[0],
+    wakeAgents: runAgents,
+    parallel,
+    wakeNoticeAr:
+      pick.noticeAr || teamNotice || adapt.noticesAr[0],
     adapt,
   }
 }
@@ -505,7 +557,7 @@ export async function telegramGoogleLinkedHintAr(
 
 export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة:
 - أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات تيليجرام/خزنة، تحويل، OCR، تقويم الغرفة، مهام، بريد، خطابات، محاضر، تبليغ، بحث موحّد room_search، إحاطة الصباح، تعليق PDF). Drive اختياري.
-- أيقظ وكيل١ ثم وكيل٢ عند الانشغال؛ «يا وكيل١» / «أبغا للجميع» يوجّهان المقاعد.
+- المقاعد: وكيل١…وكيل٨ (أو المخصصون في الغرفة). انشغال وكيل١ → إيقاظ التالي. طلب ثقيل / «أبغا للجميع» / وضع فريق → تشغيل متوازٍ للمقاعد المتفرّغة. «يا وكيل١» يوجّه مقعداً بعينه.
 - مرفق تيليجرام (fileId في الرسالة) = نسخة العمل. نفّذ عليه فوراً وأعد الناتج بـ return_file كمرفق تيليجرام. ممنوع رفض الطلب لأن الملف «ليس على Drive».
 - عقل الشركة (Drive): اختياري بعد النجاح إن رُبط Google؛ بدون ربط أكمل من خزنة الغرفة/تيليجرام فقط.
 - مشاركة ACL على Drive غير متاحة — أعِد webViewLink فقط عند توفره.

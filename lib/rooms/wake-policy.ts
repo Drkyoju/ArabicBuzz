@@ -36,20 +36,46 @@ export function pickAgentSeatsForMessage(opts: {
   const mentioned = opts.mentioned || []
 
   if (opts.wantsAll) {
-    const agents = seated.slice(0, cap)
+    // Prefer free seats so busy وكيل١ does not block وكيل٢…N from helping.
+    const free = seated.filter((a) => !busy.has(a.id)).slice(0, cap)
+    if (!free.length) {
+      const busyNames = seated
+        .filter((a) => busy.has(a.id))
+        .map((a) => a.nameAr)
+        .slice(0, 4)
+      const who = busyNames.length ? ` (${busyNames.join('، ')})` : ''
+      return {
+        agents: [],
+        wokeIds: [],
+        noticeAr: [
+          `⏳ الطابور ممتلئ — كل المقاعد تعمل الآن${who}.`,
+          'رسالتك محفوظة عند الإعادة: انتظر قليلاً ثم أعد الإرسال، أو أوقف تشغيلاً من الموقع.',
+          'لا تُحذف رسائل تيليجرام — سنرد بتعديل/رسالة جديدة عند التفرّغ.',
+        ].join('\n'),
+      }
+    }
+    const skippedBusy = seated.filter((a) => busy.has(a.id)).length
     return {
-      agents,
-      wokeIds: agents.map((a) => a.id),
-      noticeAr: `أُيقظ ${agents.length} مقاعد للبث للجميع`,
+      agents: free,
+      wokeIds: free.map((a) => a.id),
+      noticeAr:
+        skippedBusy > 0
+          ? `أُيقظ ${free.length} مقاعد متفرّغة للفريق (تخطّي ${skippedBusy} مشغول).`
+          : `أُيقظ ${free.length} مقاعد للبث للجميع`,
     }
   }
 
   if (mentioned.length) {
     const byId = new Map(seated.map((a) => [a.id, a]))
-    const agents = mentioned
+    const mentionedUnique = mentioned
       .map((m) => byId.get(m.id) || m)
       .filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i)
-      .slice(0, cap)
+    // Multi-mention: wake free mentioned seats; skip ones already busy.
+    const freeMentioned = mentionedUnique.filter((a) => !busy.has(a.id))
+    const agents = (freeMentioned.length ? freeMentioned : mentionedUnique).slice(
+      0,
+      cap
+    )
     return {
       agents,
       wokeIds: agents.map((a) => a.id),
