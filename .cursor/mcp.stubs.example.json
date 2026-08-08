@@ -1,0 +1,68 @@
+{
+  "_comment": "Optional Cursor MCP stubs — copy entries into .cursor/mcp.json after setting env vars. Do NOT invent API keys. Product Google/Telegram tools on CranL stay primary; these are local Cursor extras.",
+  "mcpServers": {
+    "google-workspace": {
+      "_docs": "https://github.com/taylorwilsdon/google_workspace_mcp — requires uv (uvx). Prefer native Gmail/Sheets in ArabicBuzz product.",
+      "command": "uvx",
+      "args": ["workspace-mcp"],
+      "env": {
+        "GOOGLE_OAUTH_CLIENT_ID": "${env:GOOGLE_CLIENT_ID}",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "${env:GOOGLE_CLIENT_SECRET}"
+      }
+    },
+    "google-workspace-remote": {
+      "_docs": "Self-hosted Streamable HTTP URL after you deploy workspace-mcp. Set MCP_GOOGLE_WORKSPACE_URL.",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${env:MCP_GOOGLE_WORKSPACE_URL}"]
+    },
+    "telegram-chigwell": {
+      "_docs": "https://github.com/chigwell/telegram-mcp — clone repo, uv sync, then point --directory at the clone. Userbot (my.telegram.org). Product bot (grammy) remains primary.",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${env:TELEGRAM_MCP_DIR}",
+        "run",
+        "main.py"
+      ],
+      "env": {
+        "TELEGRAM_API_ID": "${env:TELEGRAM_API_ID}",
+        "TELEGRAM_API_HASH": "${env:TELEGRAM_API_HASH}",
+        "TELEGRAM_SESSION_STRING": "${env:TELEGRAM_SESSION_STRING}",
+        "TELEGRAM_EXPOSED_TOOLS": "read-only"
+      }
+    },
+    "telegram-npm": {
+      "_docs": "https://www.npmjs.com/package/@chaindead/telegram-mcp — lighter npm alternative.",
+      "command": "npx",
+      "args": ["-y", "@chaindead/telegram-mcp"],
+      "env": {
+        "TG_APP_ID": "${env:TELEGRAM_API_ID}",
+        "TG_API_HASH": "${env:TELEGRAM_API_HASH}",
+        "TG_SESSION": "${env:TELEGRAM_SESSION_STRING}"
+      }
+    },
+    "notion": {
+      "_docs": "https://developers.notion.com/docs/mcp — OAuth / integration token.",
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "env": {
+        "NOTION_TOKEN": "${env:NOTION_TOKEN}"
+      }
+    },
+    "github-official": {
+      "_docs": "https://github.com/github/github-mcp-server — Docker image ghcr.io/github/github-mcp-server. Current active server remains @modelcontextprotocol/server-github in mcp.json.",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}

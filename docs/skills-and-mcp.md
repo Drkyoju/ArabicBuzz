@@ -31,6 +31,26 @@
 
 **تغطية سابقة كافية (لم نُكرّر):** محاضر MSA، Drive، مواعيد امتثال، تيليجرام، Excel/PDF/Word، بحث حكومي، HITL، أرشفة مرفقات.
 
+### مهارات Cursor — موجة 6 (أغسطس 2026) — Google / متصفح / عروض
+
+| مهارة | المصدر | لماذا؟ | تثبيت skills.sh |
+|-------|--------|--------|-----------------|
+| `gws-gmail` | googleworkspace/cli | بريد Gmail لوكيل Cursor (~69K) | https://skills.sh/googleworkspace/cli/gws-gmail |
+| `gws-calendar` | googleworkspace/cli | تقويم Google (~51K) | https://skills.sh/googleworkspace/cli/gws-calendar |
+| `gws-drive` | googleworkspace/cli | Drive (~64K) | https://skills.sh/googleworkspace/cli/gws-drive |
+| `pptx` | anthropics/skills | عروض PowerPoint (~197K) بجانب `arabic-presentations` | https://skills.sh/anthropics/skills/pptx |
+| `agent-browser` | vercel-labs/agent-browser | أتمتة متصفح (~643K) | https://skills.sh/vercel-labs/agent-browser/agent-browser |
+| `mcp-builder` | anthropics/skills | بناء خوادم MCP (~99K) | https://skills.sh/anthropics/skills/mcp-builder |
+
+```bash
+npx skills add googleworkspace/cli@gws-gmail -y
+npx skills add googleworkspace/cli@gws-calendar -y
+npx skills add googleworkspace/cli@gws-drive -y
+npx skills add anthropics/skills@pptx -y
+npx skills add vercel-labs/agent-browser@agent-browser -y
+npx skills add anthropics/skills@mcp-builder -y
+```
+
 ### مهارات Cursor — موجة 5 (أغسطس 2026)
 
 أُضيفت مهارات مجانية عالية القيمة متوافقة مع المكدس (Next.js / AI SDK / Supabase / shadcn / Vitest):
@@ -123,6 +143,15 @@ npx skills add itady74/ux-writing-arabic@ux-writing-arabic -y
 |------|---------|
 | `duckduckgo` | `@ericthered926/duckduckgo-mcp-server` — بحث مجاني بلا مفتاح |
 | `chrome-devtools` | `chrome-devtools-mcp` — تشخيص أداء/DOM بجانب Playwright |
+
+**موجة 6 (أغسطس 2026) — مفعّل في `.cursor/mcp.json`:**
+
+| خادم | ملاحظات |
+|------|---------|
+| `linear` | `mcp-remote` → `https://mcp.linear.app/sse` (OAuth عند أول استخدام) |
+| `postgres-toolbox` | `@toolbox-sdk/server --prebuilt=postgres` — يحتاج `DATABASE_URL` |
+
+**قوالب اختيارية (لا تُشغَّل تلقائياً):** انسخ من [`.cursor/mcp.stubs.example.json`](../.cursor/mcp.stubs.example.json) بعد ضبط المتغيرات — Google Workspace (`uvx workspace-mcp`)، تيليجرام userbot، Notion، GitHub الرسمي الجديد.
 
 يحتاج مفتاحاً اختيارياً في البيئة:
 

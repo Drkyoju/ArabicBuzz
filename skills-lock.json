@@ -7,6 +7,12 @@
       "skillPath": "skills/accessibility/SKILL.md",
       "computedHash": "10e83284d3395ab5ec2f2db602b663480a37a4ff404d16510eefe86b034fcc1a"
     },
+    "agent-browser": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "skillPath": "skills/agent-browser/SKILL.md",
+      "computedHash": "243eeaa5e9a42bb12d94d6af29a51b2c956546a16b1862282db1e5bd27315f8a"
+    },
     "ai-sdk": {
       "source": "vercel/ai",
       "sourceType": "github",
@@ -31,6 +37,24 @@
       "skillPath": "skills/docx/SKILL.md",
       "computedHash": "59c70107f8eae818bdfca7da685a6e4111aa519638b667775b794cb74987ec47"
     },
+    "gws-calendar": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "skillPath": "skills/gws-calendar/SKILL.md",
+      "computedHash": "2be9bcdd12a425169c79473c4e56200715e4a3b6c04ed2988839b12ce8aea6b8"
+    },
+    "gws-drive": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "skillPath": "skills/gws-drive/SKILL.md",
+      "computedHash": "d37fad56bb9547d2e169bfd04fbf1f4a377281456765c6243f092f32c973cdac"
+    },
+    "gws-gmail": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "skillPath": "skills/gws-gmail/SKILL.md",
+      "computedHash": "d37f41ad13fd3467d430e60dfb985d7818ef6976bae40182f8e46a410b8caa16"
+    },
     "gws-workflow-email-to-task": {
       "source": "googleworkspace/cli",
       "sourceType": "github",
@@ -42,6 +66,12 @@
       "sourceType": "github",
       "skillPath": "hebrew-rtl-best-practices/SKILL.md",
       "computedHash": "fd5cf4464c9daff3b58b97e25e618c581cf5632edc1319a0764f5353b6965bdc"
+    },
+    "mcp-builder": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mcp-builder/SKILL.md",
+      "computedHash": "0f4592dcb53cf2b5d6b7febee6b4152018b565551a1c29e3c612f57b218ab295"
     },
     "meeting-notes": {
       "source": "claude-office-skills/skills",
@@ -78,6 +108,12 @@
       "sourceType": "github",
       "skillPath": "core/SKILL.md",
       "computedHash": "30c421ae32c0110e00f86410a785403e37f690a6f278b96a29ada2156bfbf993"
+    },
+    "pptx": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pptx/SKILL.md",
+      "computedHash": "a7ff03e2c85b636f55232a6b1555f5dd90216b7a1a359ab289d8364e6acbc6a0"
     },
     "prisma-cli": {
       "source": "prisma/skills",
