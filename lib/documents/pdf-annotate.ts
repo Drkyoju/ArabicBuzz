@@ -184,14 +184,18 @@ function drawTextAnno(
   const pos = toPdfXY(page, { x: anno.x, y: anno.y })
   // pdf-lib draws from baseline; nudge down slightly from click point
   const y = Math.max(4, pos.y - size * 0.15)
-  page.drawText(shapeArabicForPdf(text), {
-    x: pos.x,
-    y,
-    size,
-    font,
-    color: rgb(r, g, b),
-    maxWidth: pw - pos.x - 8,
-  })
+  try {
+    page.drawText(shapeArabicForPdf(text), {
+      x: pos.x,
+      y,
+      size,
+      font,
+      color: rgb(r, g, b),
+      maxWidth: pw - pos.x - 8,
+    })
+  } catch {
+    /* StandardFonts cannot encode Arabic — soft layer still keeps the text. */
+  }
 }
 
 async function loadArabicFontForDoc(
@@ -234,14 +238,18 @@ function drawSticky(
   const text = String(anno.text || '').trim()
   if (!text) return
   const size = Math.max(8, Math.min(28, (anno.fontSize || 0.018) * ph))
-  page.drawText(shapeArabicForPdf(text), {
-    x: x + 4,
-    y: y + h - size - 4,
-    size,
-    font,
-    color: rgb(0.15, 0.12, 0.05),
-    maxWidth: w - 8,
-  })
+  try {
+    page.drawText(shapeArabicForPdf(text), {
+      x: x + 4,
+      y: y + h - size - 4,
+      size,
+      font,
+      color: rgb(0.15, 0.12, 0.05),
+      maxWidth: w - 8,
+    })
+  } catch {
+    /* StandardFonts cannot encode Arabic — soft layer still keeps the text. */
+  }
 }
 
 function drawTextHighlight(page: PDFPage, anno: PdfTextHighlightAnno) {
