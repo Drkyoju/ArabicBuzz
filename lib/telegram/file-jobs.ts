@@ -295,6 +295,25 @@ export async function bindOpenJobsToIncomingTelegramFile(opts: {
     status: opts.vaultFileId ? 'pending' : target.status,
     lastErrorAr: undefined,
   })
+  // Drop generic duplicate open jobs for the same seerah/file so agents run once.
+  for (const job of open) {
+    if (!next || job.id === next.id) continue
+    const sameFile =
+      (opts.telegramFileId && job.telegramFileId === opts.telegramFileId) ||
+      (opts.fileName &&
+        job.expectedFilename &&
+        filenamesStrictMatch(job.expectedFilename, opts.fileName)) ||
+      (matchMuallimSeerahFile(opts.fileName) &&
+        (matchMuallimSeerahFile(job.expectedFilename) ||
+          isMuallimSeerahShortQuery(job.expectedFilename)))
+    if (!sameFile) continue
+    if (!isGenericFileRequest(job.requestText)) continue
+    await updateTelegramFileJob(job.id, {
+      status: 'done',
+      lastErrorAr: `merged→${next.id.slice(0, 8)}`,
+      telegramFileId: opts.telegramFileId || job.telegramFileId,
+    })
+  }
   return next ? [next] : []
 }
 
