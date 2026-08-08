@@ -261,7 +261,8 @@ function commandForThisBot(
 
 /**
  * Linked group (after /link): every delivered update is ingested + analyzed.
- * Visible replies need @mention / reply-to-bot / command (or short «ما عرفت»).
+ * Visible replies follow INTENT (not @mention): actionable request → act + reply;
+ * people chatting → silent. Mention/reply/command still force full reply.
  * Unlinked group: only @mention / reply-to-bot (to nudge /link).
  * Disable Group Privacy so the bot receives every message live.
  */
@@ -311,10 +312,11 @@ function shouldHandleGroupText(opts: {
 function privacyHintAr(botUsername: string): string {
   const tag = botUsername ? `@${botUsername}` : 'البوت'
   return [
-    'مهم — ليرى البوت كل الرسائل ويحلّلها بصمت:',
+    'مهم — ليرى البوت كل الرسائل:',
     'BotFather → اختر البوت → Bot Settings → Group Privacy → Disable',
-    `يحفظ الملفات وينفّذ الطلبات فوراً. الرد الظاهر في القروب فقط عند منشن ${tag}، أو بجملة قصيرة «ما عرفت/ما حصلت» عند الفشل.`,
-    'النصوص لا تُنسخ فقاعات إلى شات غرفة الموقع — نافذة تيليجرام للمشاهدة، والوسائط للأرشيف/Drive.',
+    'يكتب طلبك عادي («أبغى كذا») أو صوت — بدون منشن. ينفّذ ويرد بالناتج.',
+    'الدردشة بين الناس تُترَك بصمت (استيراد الوسائط فقط). المنشن اختياري.',
+    `إن احتجت ردّاً نصياً صريحاً: منشن ${tag} أو رد على رسالة البوت.`,
   ].join('\n')
 }
 
@@ -1591,7 +1593,7 @@ export function getTelegramBot() {
     if (askCmd) {
       if (!askCmd.args) {
         await ctx.reply(
-          'اكتب طلبك مباشرة بالعربية — لا حاجة لـ /ask. مثال: «لخّص آخر قرارات المجلس»'
+          'اكتب طلبك مباشرة بالعربية — لا حاجة لـ /ask ولا للمنشن. مثال: «أبغى لائحة الجمعية»'
         )
         return
       }
@@ -1608,10 +1610,12 @@ export function getTelegramBot() {
       promptSource = gate.promptText
       if (!promptSource.trim()) return
       const addressed = ctxAddressesBot(ctx, botUsername)
+      const workKind = classifyTelegramWorkIntent(promptSource).kind
       replyMode = resolveGroupReplyMode({
         inGroup: true,
         mentioned: gate.viaMention || addressed.mentioned,
         isReplyToBot: isReplyToBot || addressed.isReplyToBot,
+        workKind,
       })
     }
 
@@ -1634,11 +1638,7 @@ export function getTelegramBot() {
     } catch (e) {
       console.error('[telegram] text handler', e)
       if (replyMode === 'silent_execute') {
-        try {
-          await ctx.reply(formatUnknownShortAr())
-        } catch {
-          /* ignore */
-        }
+        // Casual watch — do not interrupt with error spam.
         return
       }
       try {
@@ -1658,12 +1658,6 @@ export function getTelegramBot() {
     const inGroup = isGroupChat(ctx.chat)
     const botUsername = ctx.me.username || ''
     const addressed = ctxAddressesBot(ctx, botUsername)
-    const replyMode = resolveGroupReplyMode({
-      inGroup,
-      mentioned: addressed.mentioned,
-      isReplyToBot: addressed.isReplyToBot,
-    })
-    const visible = replyMode === 'full'
 
     try {
       if (inGroup) {
@@ -1672,7 +1666,8 @@ export function getTelegramBot() {
           externalId: chatId,
         })
         if (!binding) {
-          if (!visible) return
+          // Unlinked: only nudge when clearly addressing the bot.
+          if (!addressed.mentioned && !addressed.isReplyToBot) return
           await ctx.reply(
             formatTelegramErrorAr('اربط المجموعة', {
               inGroup: true,
@@ -1699,16 +1694,14 @@ export function getTelegramBot() {
         autoBind: !inGroup,
       })
       if (!scope) {
-        if (!visible) {
-          await ctx.reply(formatUnknownShortAr('تعذّر الربط'))
-          return
+        if (addressed.mentioned || addressed.isReplyToBot || !inGroup) {
+          await ctx.reply(
+            formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
+              inGroup,
+              botUsername,
+            })
+          )
         }
-        await ctx.reply(
-          formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
-            inGroup,
-            botUsername,
-          })
-        )
         return
       }
       void upsertChannelBinding({
@@ -1726,23 +1719,30 @@ export function getTelegramBot() {
         username: ctx.from?.username,
       })
 
-      if (visible) await ctx.reply('⏳ جاري تفريغ الصوت…')
       await ctx.replyWithChatAction('typing')
       const stt = await transcribeArabicSpeech(buffer, mime)
       const transcript = stt.text
       if (!transcript?.trim()) {
-        await ctx.reply(
-          visible
-            ? formatTelegramErrorAr('تعذّر تفريغ الصوت', {
-                inGroup,
-                botUsername,
-              })
-            : formatUnknownShortAr('تعذّر تفريغ الصوت')
-        )
+        // Empty STT — only complain when user clearly expected a bot reply.
+        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+          await ctx.reply(
+            formatTelegramErrorAr('تعذّر تفريغ الصوت', {
+              inGroup,
+              botUsername,
+            })
+          )
+        }
         return
       }
 
       const voiceWork = classifyTelegramWorkIntent(transcript)
+      const replyMode = resolveGroupReplyMode({
+        inGroup,
+        mentioned: addressed.mentioned,
+        isReplyToBot: addressed.isReplyToBot,
+        workKind: voiceWork.kind,
+      })
+      const visible = replyMode === 'full'
 
       // If STT returned mostly Latin (rare), ask the agent to translate → MSA then act.
       const arabicChars = (transcript.match(/[\u0600-\u06FF]/g) || []).length
@@ -1781,8 +1781,22 @@ export function getTelegramBot() {
         userId,
       })
 
-      // STT summary + quick buttons only when addressed (avoid group spam).
-      if (visible) {
+      // Casual human chat in group → watch/import only, no interrupt.
+      if (!visible) {
+        void mirrorChannelTurnToRoom({
+          scopeId: scope.scope.id,
+          channel: 'telegram',
+          externalId: chatId,
+          userLabelAr: ctx.from?.first_name || 'مستخدم تيليجرام',
+          userMessageAr: `[صوت] ${transcript}`,
+          agentReplyAr: '',
+          includeAgentReply: false,
+        })
+        return
+      }
+
+      // DM: optional quick buttons. Group actionable: execute immediately (no button lag).
+      if (!inGroup) {
         await ctx.reply(
           formatVoiceSttSummaryAr({
             transcript,
@@ -1827,18 +1841,19 @@ export function getTelegramBot() {
         forceHeavy:
           voiceWork.forceHeavy ||
           voiceWork.kind === 'question' ||
-          voiceWork.kind === 'mail',
+          voiceWork.kind === 'mail' ||
+          voiceWork.kind === 'file',
         workLabelAr: voiceWork.labelAr,
-        replyMode,
+        replyMode: 'full',
       })
     } catch (e) {
       console.error('[telegram] voice', e)
       try {
-        await ctx.reply(
-          visible
-            ? formatTelegramErrorAr(e, { inGroup, botUsername })
-            : formatUnknownShortAr()
-        )
+        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+          await ctx.reply(
+            formatTelegramErrorAr(e, { inGroup, botUsername })
+          )
+        }
       } catch {
         /* no send permission in group */
       }
@@ -1853,12 +1868,6 @@ export function getTelegramBot() {
     const botUsername = ctx.me.username || ''
     const caption = (ctx.message.caption || '').trim()
     const addressed = ctxAddressesBot(ctx, botUsername)
-    const replyMode = resolveGroupReplyMode({
-      inGroup,
-      mentioned: addressed.mentioned,
-      isReplyToBot: addressed.isReplyToBot,
-    })
-    const visible = replyMode === 'full'
 
     try {
       if (inGroup) {
@@ -1867,8 +1876,7 @@ export function getTelegramBot() {
           externalId: chatId,
         })
         if (!binding) {
-          // Unlinked: only nudge when addressed — otherwise ignore (no spam).
-          if (!visible) return
+          if (!addressed.mentioned && !addressed.isReplyToBot) return
           await ctx.reply(
             formatTelegramErrorAr('اربط المجموعة', {
               inGroup: true,
@@ -1885,16 +1893,14 @@ export function getTelegramBot() {
         autoBind: !inGroup,
       })
       if (!scope) {
-        if (!visible) {
-          await ctx.reply(formatUnknownShortAr('تعذّر الربط'))
-          return
+        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+          await ctx.reply(
+            formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
+              inGroup,
+              botUsername,
+            })
+          )
         }
-        await ctx.reply(
-          formatTelegramErrorAr('تعذّر ربط المحادثة — جرّب /link', {
-            inGroup,
-            botUsername,
-          })
-        )
         return
       }
       void upsertChannelBinding({
@@ -1929,9 +1935,9 @@ export function getTelegramBot() {
         const photos = ctx.message.photo || []
         const best = photos[photos.length - 1]
         if (!best) {
-          await ctx.reply(
-            visible ? 'لم أجد صورة صالحة.' : formatUnknownShortAr('ما حصلت')
-          )
+          if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+            await ctx.reply('لم أجد صورة صالحة.')
+          }
           return
         }
         ingested = await ingestTelegramPhotoToWorkspace({
@@ -1949,6 +1955,24 @@ export function getTelegramBot() {
       })
 
       const { text: captionStripped } = stripBotMention(caption, botUsername)
+      const captionWork = classifyTelegramWorkIntent(captionStripped)
+      // DM / @mention: always help. Group bare upload: import only unless caption is a request.
+      const workKind =
+        captionStripped.trim().length > 0
+          ? captionWork.kind === 'casual'
+            ? 'file'
+            : captionWork.kind
+          : !inGroup || addressed.mentioned || addressed.isReplyToBot
+            ? 'file'
+            : 'casual'
+      const replyMode = resolveGroupReplyMode({
+        inGroup,
+        mentioned: addressed.mentioned,
+        isReplyToBot: addressed.isReplyToBot,
+        workKind,
+      })
+      const visible = replyMode === 'full'
+
       const isImage =
         ingested.mimeType.startsWith('image/') ||
         /\.(png|jpe?g|webp|gif|tif{1,2}|bmp)$/i.test(ingested.name)
@@ -1966,14 +1990,18 @@ export function getTelegramBot() {
         ) ||
         (isPdf && /ممسوح|مسح|صورة|scan/.test(captionLower))
 
-      // Always save + analyze; visible reply only when @mentioned (or unknown).
+      // Group bare media: import only — do not interrupt chat.
+      if (!visible) {
+        return
+      }
+
       const userAsk =
         captionStripped ||
         (isVideo
-          ? 'استلمت فيديو من المجموعة. لخّص ما يمكن فهمه من الاسم/السياق واقترح الخطوة التالية (لا حاجة لإعادة رفعه — محفوظ في أرشيف الغرفة).'
+          ? 'استلمت فيديو. لخّص ما يمكن فهمه واقترح الخطوة التالية (محفوظ في أرشيف الغرفة).'
           : wantsOcr
             ? 'اقرأ النص الظاهر في الصورة/المستند الممسوح واستخرجه، ثم لخّص المطلوب.'
-            : 'اقرأ هذا المرفق من المجموعة. إن وُجد طلب في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار واقترح الخطوة التالية.')
+            : 'اقرأ هذا المرفق. إن وُجد طلب في التعليق نفّذه وأعد الملف المعدّل، وإلا لخّص المحتوى باختصار.')
 
       const ocrHint = wantsOcr
         ? [
@@ -2007,16 +2035,17 @@ export function getTelegramBot() {
         userId,
         scope,
         forceHeavy: true,
-        replyMode,
+        workLabelAr: 'ملف',
+        replyMode: 'full',
       })
     } catch (e) {
       console.error('[telegram] document/photo/video', e)
       try {
-        await ctx.reply(
-          visible
-            ? formatTelegramErrorAr(e, { inGroup, botUsername })
-            : formatUnknownShortAr()
-        )
+        if (!inGroup || addressed.mentioned || addressed.isReplyToBot) {
+          await ctx.reply(
+            formatTelegramErrorAr(e, { inGroup, botUsername })
+          )
+        }
       } catch {
         /* ignore */
       }

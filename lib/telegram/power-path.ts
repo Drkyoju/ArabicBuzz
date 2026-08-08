@@ -52,15 +52,22 @@ const MAIL_RE =
   /(?:بريد|إيميل|ايميل|إيميل|رسالة\s*إلكتروني|email|gmail|inbox|صندوق\s*(?:ال)?وارد|أرسل\s*(?:بريد|إيميل|ايميل)|رد\s*على\s*(?:ال)?بريد|mail_search|mail_send|ابحث\s*في\s*(?:ال)?بريد)/iu
 
 const QUESTION_RE =
-  /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف|لخ[ّ]?ص|ابحث|دور)/u
+  /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف|لخ[ّ]?ص|ابحث|دور|وين\s+(?:ال)?(?:ملف|لائح|مستند|موعد|مهم))/u
+
+/** Explicit ask-the-bot / do-work cues (Gulf + MSA). */
+const ACTION_RE =
+  /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|افتح|ور[ّ]?ني|وريني|احذف|حذف|امسح|عد[ّ]?ل|حو[ّ]?ل|لخ[ّ]?ص|اشرح|وض[ّ]?ح|ابحث|دور|جه[ّ]?ز|حض[ّ]?ر|اكتب|أنشئ|انشئ)/iu
 
 /** Explicit seat wake / agent mention — prefer full room agent turn. */
 const WAKE_RE =
   /(?:أيقظ|ايقاظ|وق[ّ]?ظ|wake)\s*(?:ال)?(?:وكيل|agent)|(?:يا\s+)?وك[يـ]?ل[٠-٩0-9]+|@(?:وكيل|agent)[\u0600-\u06FF0-9a-z_\-]*|وك[ّ]?ل\s+(?:ال)?وكيل|شغ[ّ]?ل\s+(?:ال)?وكيل|(?:للوكلاء|أبغا\s+للجميع)/iu
 
-/** Gulf/MSA action cues — treat as work, not idle chat. */
-const ACTION_RE =
-  /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|افتح|ور[ّ]?ني|وريني)/iu
+/**
+ * People talking to each other — not a bot request.
+ * Keep silent; do not interrupt group social chat.
+ */
+const HUMAN_CHAT_ONLY_RE =
+  /^(?:يا\s+[\u0600-\u06FFa-zA-Z]{2,}(?:\s+[\u0600-\u06FF]{0,20}){0,6}|هههه+|ههه+|لول|lol|lmao|طيب\s+وياك|إن\s*شاء\s*الله|ماشي|خلاص|وكيفك|كيفك|كيف\s*الحال|وش\s*أخبارك|وينك\b|مع السلامة|يلا|يالله)[\s!.؟?…]*$/iu
 
 /**
  * Light subset — only used for pure greetings / short thanks.
@@ -180,6 +187,23 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     }
   }
 
+  // Social chat between people — not for the bot (unless also a clear work ask).
+  if (
+    HUMAN_CHAT_ONLY_RE.test(t) &&
+    !FILE_RE.test(t) &&
+    !MAIL_RE.test(t) &&
+    !APPOINTMENT_RE.test(t) &&
+    !TASK_RE.test(t) &&
+    !WAKE_RE.test(t)
+  ) {
+    return {
+      kind: 'casual',
+      labelAr: 'دردشة بشرية',
+      forceHeavy: false,
+      preferFullAgent: false,
+    }
+  }
+
   if (looksLikeTelegramMessaging(t)) {
     return {
       kind: 'message',
@@ -228,7 +252,24 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
-  if (ACTION_RE.test(t) || QUESTION_RE.test(t) || t.length >= 28) {
+  if (ACTION_RE.test(t) || QUESTION_RE.test(t)) {
+    // Short social questions to people (وش رايك…) — not for the bot.
+    if (
+      !ACTION_RE.test(t) &&
+      t.length < 64 &&
+      /(?:رايك|رأيك|عنك|عندك\s*خبر|سمعت|يا\s+[\u0600-\u06FF]{2,})/iu.test(t) &&
+      !FILE_RE.test(t) &&
+      !MAIL_RE.test(t) &&
+      !APPOINTMENT_RE.test(t) &&
+      !TASK_RE.test(t)
+    ) {
+      return {
+        kind: 'casual',
+        labelAr: 'دردشة بشرية',
+        forceHeavy: false,
+        preferFullAgent: false,
+      }
+    }
     return {
       kind: 'question',
       labelAr: ACTION_RE.test(t) ? 'طلب عمل' : 'سؤال',
@@ -236,6 +277,8 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
+  // Long instructional paragraph with do-work verbs already caught by ACTION_RE.
+  // Bare long social chatter stays casual so we do not interrupt the group.
   return {
     kind: 'casual',
     labelAr: 'دردشة',
@@ -406,5 +449,5 @@ export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كا�
 - الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start؛ وإلا منشور في المجموعة المربوطة. لا تختلق وصول خاص.
 - الحذف فقط يحتاج موافقة بشرية (أزرار) على ملفات الغرفة/Drive — ممنوع حذف رسائل تيليجرام نهائياً (عدّل أو اترك + رد جديد).
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). لا تختلق مواعيد.
-- في المجموعة بدون منشن: نفّذ صامتاً؛ أرسل الملفات/الموافقات عند الطلب؛ ردّ نصياً فقط عند المنشن أو «ما عرفت/ما حصلت».
+- في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
 - PDF: استبدال عربي عبر pdf_replace_text أدق؛ لا تعتمد على إعادة بناء pdf-lib لنص عربي متصل.`

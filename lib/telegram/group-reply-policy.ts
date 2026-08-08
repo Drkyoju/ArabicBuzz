@@ -1,13 +1,11 @@
 /**
  * Linked Telegram group reply policy (product):
  * - Always ingest + analyze every delivered update.
- * - Execute actionable work immediately (even without @mention).
- * - Visible group *chat* replies ONLY when:
- *   (a) bot is @mentioned / reply-to-bot / commands → full reply
- *   (b) unknown / not-found after a task → short «ما عرفت / ما حصلت»
- * - Result delivery (files, HITL approval buttons) IS allowed without @mention
- *   when the user asked for a file/edit/delete — not treated as chatty spam.
- * - Casual chat: silent (no spam).
+ * - Intent detection replaces @mention as the gate.
+ * - If the message is a request the bot can fulfill → execute FAST + reply with result
+ *   (text, voice, files — mention optional).
+ * - If clearly people chatting / not for the bot → silent watch (media still imports).
+ * - @mention / reply-to-bot / commands still force a full visible reply.
  * - Never delete Telegram messages.
  */
 
@@ -18,10 +16,26 @@ export function resolveGroupReplyMode(opts: {
   mentioned: boolean
   isReplyToBot: boolean
   isCommand?: boolean
+  /** From classifyTelegramWorkIntent — drives no-mention auto-reply. */
+  workKind?: string
 }): TelegramGroupReplyMode {
   if (!opts.inGroup) return 'full'
   if (opts.isCommand || opts.mentioned || opts.isReplyToBot) return 'full'
+  // Intent wins over mention: any actionable work → act + reply with result.
+  if (opts.workKind && opts.workKind !== 'casual') return 'full'
+  // People chatting / greetings / unclear social → stay silent.
   return 'silent_execute'
+}
+
+/** True when the bot should speak results in the group (not only watch). */
+export function shouldReplyWithTelegramResult(opts: {
+  inGroup: boolean
+  mentioned: boolean
+  isReplyToBot: boolean
+  isCommand?: boolean
+  workKind?: string
+}): boolean {
+  return resolveGroupReplyMode(opts) === 'full'
 }
 
 /** Agent / tool output that means we should break silence with a short note. */

@@ -64,10 +64,16 @@ describe('classifyTelegramWorkIntent', () => {
       'question'
     )
     expect(classifyTelegramWorkIntent('أبغا اللائحة').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('وين الملف؟').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('أبغى موعد غداً').kind).toBe(
+      'appointment'
+    )
     expect(classifyTelegramWorkIntent('لخّص قرارات اللجنة الأخيرة').kind).toBe(
       'question'
     )
     expect(classifyTelegramWorkIntent('السلام عليكم').kind).toBe('casual')
+    expect(classifyTelegramWorkIntent('كيفك').kind).toBe('casual')
+    expect(classifyTelegramWorkIntent('يا أحمد وش رايك').kind).toBe('casual')
   })
 
   it('prefers messaging over appointment when notifying', () => {

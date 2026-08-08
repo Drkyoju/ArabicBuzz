@@ -16,22 +16,51 @@ describe('resolveGroupReplyMode', () => {
     ).toBe('full')
   })
 
-  it('group without mention is silent_execute', () => {
+  it('group actionable work without mention → full', () => {
     expect(
       resolveGroupReplyMode({
         inGroup: true,
         mentioned: false,
         isReplyToBot: false,
+        workKind: 'file',
+      })
+    ).toBe('full')
+    expect(
+      resolveGroupReplyMode({
+        inGroup: true,
+        mentioned: false,
+        isReplyToBot: false,
+        workKind: 'question',
+      })
+    ).toBe('full')
+    expect(
+      resolveGroupReplyMode({
+        inGroup: true,
+        mentioned: false,
+        isReplyToBot: false,
+        workKind: 'appointment',
+      })
+    ).toBe('full')
+  })
+
+  it('group casual without mention → silent watch', () => {
+    expect(
+      resolveGroupReplyMode({
+        inGroup: true,
+        mentioned: false,
+        isReplyToBot: false,
+        workKind: 'casual',
       })
     ).toBe('silent_execute')
   })
 
-  it('group @mention / reply / command → full', () => {
+  it('group @mention / reply / command → full even if casual', () => {
     expect(
       resolveGroupReplyMode({
         inGroup: true,
         mentioned: true,
         isReplyToBot: false,
+        workKind: 'casual',
       })
     ).toBe('full')
     expect(
@@ -39,6 +68,7 @@ describe('resolveGroupReplyMode', () => {
         inGroup: true,
         mentioned: false,
         isReplyToBot: true,
+        workKind: 'casual',
       })
     ).toBe('full')
     expect(
@@ -47,6 +77,7 @@ describe('resolveGroupReplyMode', () => {
         mentioned: false,
         isReplyToBot: false,
         isCommand: true,
+        workKind: 'casual',
       })
     ).toBe('full')
   })
