@@ -1,6 +1,6 @@
 ---
 name: arabic_pdf_word_convert
-description: "تحويل PDF↔Word عربي بلا طلاسم: Gemini (OCR Arena) أولاً → Paddle رخيص → Mistral اختياري → رفض صادق"
+description: "تحويل PDF↔Word عربي بلا طلاسم: Gemini Flash→أقوى → Paddle (أرخص من Mistral؛ الجودة ليست دائماً أقوى) → Mistral اختياري → رفض صادق"
 scope: shared
 id: arabic_pdf_word_convert
 author: "Arabic Buzz — Gemini→Paddle→Mistral→clean-or-refuse"
@@ -23,12 +23,10 @@ toolsRequired:
 
 ## المسار الصحيح (`convert_document`, engine=auto)
 
-Gemini أولاً لأنّه يتصدر [OCR Arena](https://www.ocrarena.ai/leaderboard) — Paddle/Mistral احتياطيان فقط.
-
 1. **Gemini Flash OCR/vision** → نص نظيف → إعادة بناء DOCX بـ RTL.
 2. إن فشل بوابة الجودة → **Gemini أقوى** (مثل `gemini-3.1-pro`).
-3. **PaddleOCR** إن وُجد `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` — احتياطي رخيص بعد فشل Gemini (ليس لأنه أقوى).
-4. **Mistral OCR** فقط إن وُجد `MISTRAL_API_KEY` وما زال النص غير نظيف (لا تختلق مفاتيح).
+3. **PaddleOCR** إن وُجد `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` — **أرخص من Mistral** عند التثبيت الذاتي؛ **الجودة ليست دائماً أقوى**.
+4. **Mistral OCR** فقط إن وُجد `MISTRAL_API_KEY` وما زال النص غير نظيف بعد Paddle (لا تختلق مفاتيح).
 5. **استخراج محلي نظيف** (`pdf-parse-safe` / صفحات) **فقط** إن اجتاز بوابة الجودة.
 6. وإلا → `{ ok: false, reason_ar: "…" }` بدون مرفق — أخبر المستخدم بصراحة بالعربية.
 7. افحص الناتج مجدداً — إن وُجدت طلاسم → رفض، لا مرفق.
@@ -38,9 +36,9 @@ Gemini أولاً لأنّه يتصدر [OCR Arena](https://www.ocrarena.ai/lead
 
 ## أدوات خارجية
 | أداة | دورها هنا | ملاحظة |
-| Gemini | OCR/vision أول المسار (يتصدر OCR Arena) | مفتاح موجود عادة |
-| PaddleOCR | احتياطي رخيص ذاتي بعد فشل Gemini | اختياري عبر URL/ENABLE — ليس أقوى من Gemini |
-| Mistral OCR | آخر API مدفوع اختياري | فقط مع `MISTRAL_API_KEY` |
+| Gemini | OCR/vision أول المسار (Flash ثم أقوى) | مفتاح موجود عادة |
+| PaddleOCR | أرخص من Mistral؛ الجودة ليست دائماً أقوى | اختياري عبر URL/ENABLE — لا في صورة CranL الرقيقة |
+| Mistral OCR | آخر API مدفوع اختياري بعد Paddle | فقط مع `MISTRAL_API_KEY` |
 | LibreOffice | Word↔PDF | إن وُجد soffice |
 | pdf2docx | **معطّل للعربية** | لا تستخدمه |
 | Google Drive | اختياري بـ engine=google + بوابة | التصدير المعطوب يُرفض |

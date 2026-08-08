@@ -243,11 +243,11 @@ export function brokenToUnicodeErrorAr(opts?: {
 }): string {
   const parts = [
     'تعذّر إنتاج نص عربي نظيف للتحويل — لن نُسلّم طلاسم (مثل الالئحة/األساسية/U+FFFD).',
-    'المسار (Gemini أولاً — يتصدر OCR Arena): Flash → Gemini أقوى إن ضعف → PaddleOCR احتياطي رخيص ذاتي الاستضافة بعد فشل بوابة Gemini (ليس لأنه أقوى) → Mistral إن وُجد المفتاح وما زال لازماً → محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
+    'المسار: Gemini Flash → Gemini أقوى إن ضعف → PaddleOCR (أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى) → Mistral إن وُجد المفتاح وما زال لازماً → محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
   ]
   if (opts?.hasPaddle === false) {
     parts.push(
-      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى (ليس لأنه أقوى من Gemini).'
+      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى.'
     )
   }
   if (opts?.hasMistral === false) {

@@ -697,7 +697,7 @@ export async function runConvertOcrCascade(opts: {
       attempts,
       'paddle',
       null,
-      'PaddleOCR: غير مضبوط (PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي. احتياطي رخيص بعد Gemini (Arena)؛ ليس أقوى من Gemini.'
+      'PaddleOCR: غير مضبوط (PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي. أرخص من Mistral عند التثبيت؛ الجودة ليست دائماً أقوى.'
     )
   }
 

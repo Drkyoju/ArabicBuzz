@@ -46,15 +46,14 @@ describe('convert OCR cascade config', () => {
     expect(paddleOcrConfigured()).toBe(true)
   })
 
-  it('Arabic refuse message prefers Gemini (Arena) then Paddle before Mistral', () => {
+  it('Arabic refuse message prefers Paddle before Mistral and states cost honesty', () => {
     const msg = brokenToUnicodeErrorAr({
       hasPaddle: false,
       hasMistral: false,
     })
-    expect(msg).toContain('OCR Arena')
     expect(msg).toContain('PaddleOCR')
     expect(msg).toContain('أرخص من Mistral')
-    expect(msg).toMatch(/ليس لأنه أقوى|ليس أقوى من Gemini|الجودة ليست دائماً أقوى/)
+    expect(msg).toContain('الجودة ليست دائماً أقوى')
     expect(msg).toMatch(/Flash|Gemini Flash/)
     expect(msg.indexOf('PaddleOCR')).toBeLessThan(msg.indexOf('Mistral إن'))
   })
