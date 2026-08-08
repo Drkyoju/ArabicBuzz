@@ -1,0 +1,742 @@
+'use client'
+
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
+import {
+  Eraser,
+  Highlighter,
+  Hand,
+  Loader2,
+  PenLine,
+  Save,
+  Square,
+  Trash2,
+  Type,
+  Undo2,
+  FilePlus2,
+  FileX2,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  burnPdfAnnotations,
+  newAnnoId,
+  type PdfAnnotateTool,
+  type PdfAnnotation,
+  type PdfNormPoint,
+} from '@/lib/documents/pdf-annotate'
+import {
+  loadClientArabicFont,
+  replaceWorkspacePdf,
+  suggestAnnotatedCopyName,
+  uploadWorkspacePdf,
+} from '@/lib/files/pdf-annotate-save'
+import {
+  useFilePreviewStore,
+} from '@/lib/files/preview-store'
+
+type PdfjsDoc = {
+  numPages: number
+  getPage: (n: number) => Promise<PdfjsPage>
+  destroy?: () => void
+}
+
+type PdfjsPage = {
+  getViewport: (opts: { scale: number }) => { width: number; height: number }
+  render: (opts: {
+    canvas: HTMLCanvasElement
+    canvasContext?: CanvasRenderingContext2D
+    viewport: { width: number; height: number }
+  }) => { promise: Promise<void> }
+}
+
+const TOOL_META: {
+  id: PdfAnnotateTool
+  label: string
+  title: string
+  Icon: typeof PenLine
+}[] = [
+  { id: 'pan', label: 'تحريك', title: 'تحريك الصفحة', Icon: Hand },
+  { id: 'pen', label: 'قلم', title: 'رسم حر', Icon: PenLine },
+  {
+    id: 'highlight',
+    label: 'تمييز',
+    title: 'تمييز أصفر',
+    Icon: Highlighter,
+  },
+  { id: 'text', label: 'نص', title: 'إضافة نص', Icon: Type },
+  { id: 'rect', label: 'مربع', title: 'مستطيل', Icon: Square },
+  { id: 'eraser', label: 'ممحاة', title: 'حذف تعليق بالنقر', Icon: Eraser },
+]
+
+const PEN_COLOR = '#0e5a46'
+const HIGHLIGHT_COLOR = '#f5c542'
+const RECT_COLOR = '#c45c26'
+const TEXT_COLOR = '#1a1a1a'
+
+function hitTest(
+  anno: PdfAnnotation,
+  p: PdfNormPoint,
+  threshold = 0.02
+): boolean {
+  if (anno.kind === 'text') {
+    return Math.hypot(anno.x - p.x, anno.y - p.y) < threshold * 2
+  }
+  if (anno.kind === 'rect') {
+    const x0 = Math.min(anno.x, anno.x + anno.w)
+    const x1 = Math.max(anno.x, anno.x + anno.w)
+    const y0 = Math.min(anno.y, anno.y + anno.h)
+    const y1 = Math.max(anno.y, anno.y + anno.h)
+    return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1
+  }
+  for (const pt of anno.points) {
+    if (Math.hypot(pt.x - p.x, pt.y - p.y) < threshold) return true
+  }
+  return false
+}
+
+function drawAnnosOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  annos: PdfAnnotation[]
+) {
+  ctx.clearRect(0, 0, width, height)
+  for (const a of annos) {
+    if (a.kind === 'pen' || a.kind === 'highlight') {
+      if (a.points.length < 2) continue
+      ctx.save()
+      ctx.strokeStyle = a.color
+      ctx.globalAlpha = a.opacity ?? (a.kind === 'highlight' ? 0.4 : 0.95)
+      ctx.lineWidth = Math.max(1, a.width * width)
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      if (a.kind === 'highlight') ctx.globalCompositeOperation = 'multiply'
+      ctx.beginPath()
+      ctx.moveTo(a.points[0]!.x * width, a.points[0]!.y * height)
+      for (let i = 1; i < a.points.length; i++) {
+        ctx.lineTo(a.points[i]!.x * width, a.points[i]!.y * height)
+      }
+      ctx.stroke()
+      ctx.restore()
+    } else if (a.kind === 'rect') {
+      ctx.save()
+      const x = a.x * width
+      const y = a.y * height
+      const w = a.w * width
+      const h = a.h * height
+      ctx.strokeStyle = a.color
+      ctx.fillStyle = a.color
+      ctx.globalAlpha = a.opacity ?? (a.fill ? 0.2 : 0.9)
+      ctx.lineWidth = Math.max(1, width * 0.002)
+      if (a.fill) ctx.fillRect(x, y, w, h)
+      ctx.strokeRect(x, y, w, h)
+      ctx.restore()
+    } else if (a.kind === 'text') {
+      ctx.save()
+      const size = Math.max(10, a.fontSize * height)
+      ctx.fillStyle = a.color
+      ctx.font = `${size}px "IBM Plex Sans Arabic", "Noto Naskh Arabic", sans-serif`
+      ctx.textAlign = 'right'
+      ctx.textBaseline = 'top'
+      ctx.direction = 'rtl'
+      ctx.fillText(a.text, a.x * width, a.y * height)
+      ctx.restore()
+    }
+  }
+}
+
+async function ensurePdfjs(): Promise<{
+  getDocument: (opts: { data: ArrayBuffer; useSystemFonts?: boolean }) => {
+    promise: Promise<PdfjsDoc>
+  }
+  GlobalWorkerOptions: { workerSrc: string }
+  version: string
+}> {
+  const pdfjs = await import('pdfjs-dist')
+  const version = pdfjs.version || '5.4.296'
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`
+  }
+  return pdfjs as unknown as {
+    getDocument: (opts: { data: ArrayBuffer; useSystemFonts?: boolean }) => {
+      promise: Promise<PdfjsDoc>
+    }
+    GlobalWorkerOptions: { workerSrc: string }
+    version: string
+  }
+}
+
+function PdfPageView({
+  doc,
+  pageIndex,
+  scale,
+  annotations,
+  tool,
+  onChangeAnnos,
+  drafting,
+  setDrafting,
+}: {
+  doc: PdfjsDoc
+  pageIndex: number
+  scale: number
+  annotations: PdfAnnotation[]
+  tool: PdfAnnotateTool
+  onChangeAnnos: (next: PdfAnnotation[]) => void
+  drafting: PdfAnnotation | null
+  setDrafting: (a: PdfAnnotation | null) => void
+}) {
+  const pdfCanvasRef = useRef<HTMLCanvasElement>(null)
+  const annoCanvasRef = useRef<HTMLCanvasElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  const drawingRef = useRef(false)
+
+  const pageAnnos = annotations.filter((a) => a.pageIndex === pageIndex)
+  const draft =
+    drafting && drafting.pageIndex === pageIndex ? drafting : null
+  const visible = draft ? [...pageAnnos, draft] : pageAnnos
+
+  useEffect(() => {
+    let cancelled = false
+    async function render() {
+      const page = await doc.getPage(pageIndex + 1)
+      if (cancelled) return
+      const viewport = page.getViewport({ scale })
+      const pdfCanvas = pdfCanvasRef.current
+      const annoCanvas = annoCanvasRef.current
+      if (!pdfCanvas || !annoCanvas) return
+      pdfCanvas.width = viewport.width
+      pdfCanvas.height = viewport.height
+      annoCanvas.width = viewport.width
+      annoCanvas.height = viewport.height
+      setSize({ w: viewport.width, h: viewport.height })
+      const ctx = pdfCanvas.getContext('2d')
+      if (!ctx) return
+      await page.render({
+        canvas: pdfCanvas,
+        canvasContext: ctx,
+        viewport,
+      }).promise
+    }
+    void render()
+    return () => {
+      cancelled = true
+    }
+  }, [doc, pageIndex, scale])
+
+  useEffect(() => {
+    const canvas = annoCanvasRef.current
+    if (!canvas || !size.w) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    drawAnnosOnCanvas(ctx, size.w, size.h, visible)
+  }, [visible, size.w, size.h])
+
+  const toNorm = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>): PdfNormPoint | null => {
+      const canvas = annoCanvasRef.current
+      if (!canvas || !size.w) return null
+      const rect = canvas.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / rect.width
+      const y = (e.clientY - rect.top) / rect.height
+      return {
+        x: Math.max(0, Math.min(1, x)),
+        y: Math.max(0, Math.min(1, y)),
+      }
+    },
+    [size.w]
+  )
+
+  function onPointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (tool === 'pan') return
+    const p = toNorm(e)
+    if (!p) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+
+    if (tool === 'eraser') {
+      const hit = [...pageAnnos].reverse().find((a) => hitTest(a, p))
+      if (hit) {
+        onChangeAnnos(annotations.filter((a) => a.id !== hit.id))
+      }
+      return
+    }
+
+    if (tool === 'text') {
+      const text = window.prompt('أدخل النص للتعليق:')
+      if (!text?.trim()) return
+      onChangeAnnos([
+        ...annotations,
+        {
+          id: newAnnoId(),
+          kind: 'text',
+          pageIndex,
+          x: p.x,
+          y: p.y,
+          text: text.trim().slice(0, 500),
+          fontSize: 0.028,
+          color: TEXT_COLOR,
+        },
+      ])
+      return
+    }
+
+    drawingRef.current = true
+    if (tool === 'pen') {
+      setDrafting({
+        id: newAnnoId(),
+        kind: 'pen',
+        pageIndex,
+        color: PEN_COLOR,
+        width: 0.004,
+        points: [p],
+        opacity: 0.95,
+      })
+    } else if (tool === 'highlight') {
+      setDrafting({
+        id: newAnnoId(),
+        kind: 'highlight',
+        pageIndex,
+        color: HIGHLIGHT_COLOR,
+        width: 0.018,
+        points: [p],
+        opacity: 0.4,
+      })
+    } else if (tool === 'rect') {
+      setDrafting({
+        id: newAnnoId(),
+        kind: 'rect',
+        pageIndex,
+        x: p.x,
+        y: p.y,
+        w: 0,
+        h: 0,
+        color: RECT_COLOR,
+        fill: true,
+        opacity: 0.22,
+      })
+    }
+  }
+
+  function onPointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!drawingRef.current || !drafting) return
+    const p = toNorm(e)
+    if (!p) return
+    if (drafting.kind === 'pen' || drafting.kind === 'highlight') {
+      const last = drafting.points[drafting.points.length - 1]
+      if (last && Math.hypot(last.x - p.x, last.y - p.y) < 0.002) return
+      setDrafting({ ...drafting, points: [...drafting.points, p] })
+    } else if (drafting.kind === 'rect') {
+      setDrafting({
+        ...drafting,
+        w: p.x - drafting.x,
+        h: p.y - drafting.y,
+      })
+    }
+  }
+
+  function onPointerUp() {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    if (!drafting || drafting.pageIndex !== pageIndex) {
+      setDrafting(null)
+      return
+    }
+    if (
+      (drafting.kind === 'pen' || drafting.kind === 'highlight') &&
+      drafting.points.length >= 2
+    ) {
+      onChangeAnnos([...annotations, drafting])
+    } else if (
+      drafting.kind === 'rect' &&
+      Math.abs(drafting.w) > 0.005 &&
+      Math.abs(drafting.h) > 0.005
+    ) {
+      onChangeAnnos([...annotations, drafting])
+    }
+    setDrafting(null)
+  }
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative mx-auto mb-3 w-fit max-w-full overflow-hidden rounded-md border border-ab-border bg-white shadow-sm"
+      dir="ltr"
+    >
+      <canvas ref={pdfCanvasRef} className="block max-w-full" />
+      <canvas
+        ref={annoCanvasRef}
+        className={cn(
+          'absolute inset-0 h-full w-full touch-none',
+          tool === 'pan' ? 'pointer-events-none' : 'cursor-crosshair'
+        )}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      />
+      <span className="pointer-events-none absolute start-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
+        {pageIndex + 1}
+      </span>
+    </div>
+  )
+}
+
+export function PdfAnnotator({
+  mediaUrl,
+  fileId,
+  scopeId,
+  fileName,
+  className,
+}: {
+  mediaUrl: string
+  fileId: string
+  scopeId: string
+  fileName: string
+  className?: string
+}) {
+  const bumpRevision = useFilePreviewStore((s) => s.bumpRevision)
+  const notifyFileReady = useFilePreviewStore((s) => s.notifyFileReady)
+  const openPreview = useFilePreviewStore((s) => s.openPreview)
+
+  const [doc, setDoc] = useState<PdfjsDoc | null>(null)
+  const [originalBytes, setOriginalBytes] = useState<ArrayBuffer | null>(null)
+  const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
+  const [tool, setTool] = useState<PdfAnnotateTool>('pen')
+  const [drafting, setDrafting] = useState<PdfAnnotation | null>(null)
+  const [scale, setScale] = useState(1.15)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [visiblePages, setVisiblePages] = useState(3)
+
+  const dirty = annotations.length > 0
+  const numPages = doc?.numPages ?? 0
+
+  useEffect(() => {
+    let cancelled = false
+    let loaded: PdfjsDoc | null = null
+    async function load() {
+      setLoading(true)
+      setError('')
+      setAnnotations([])
+      setDrafting(null)
+      setNote('')
+      try {
+        const res = await fetch(mediaUrl)
+        if (!res.ok) throw new Error('تعذّر تحميل PDF')
+        const buf = await res.arrayBuffer()
+        if (cancelled) return
+        setOriginalBytes(buf.slice(0))
+        const pdfjs = await ensurePdfjs()
+        const task = pdfjs.getDocument({ data: buf.slice(0) })
+        loaded = await task.promise
+        if (cancelled) {
+          loaded.destroy?.()
+          return
+        }
+        setDoc(loaded)
+        setVisiblePages(Math.min(3, loaded.numPages))
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'فشل فتح PDF')
+          setDoc(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+      loaded?.destroy?.()
+    }
+  }, [mediaUrl])
+
+  useEffect(() => {
+    function onResize() {
+      const w = window.innerWidth
+      setScale(w < 640 ? 0.85 : w < 1024 ? 1.05 : 1.2)
+    }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  async function buildAnnotatedBytes(): Promise<Uint8Array> {
+    if (!originalBytes) throw new Error('لا بيانات PDF')
+    const font = await loadClientArabicFont()
+    return burnPdfAnnotations(originalBytes, annotations, {
+      arabicFontBytes: font,
+    })
+  }
+
+  async function onSaveReplace() {
+    if (!dirty) {
+      setNote('لا تعديلات للحفظ')
+      return
+    }
+    setBusy(true)
+    setError('')
+    setNote('جاري حفظ التعليقات في الملف…')
+    try {
+      const bytes = await buildAnnotatedBytes()
+      const result = await replaceWorkspacePdf({
+        scopeId,
+        fileId,
+        bytes,
+        fileName,
+      })
+      setAnnotations([])
+      setNote(result.messageAr || 'حُفظت التعليقات في الملف')
+      bumpRevision()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل الحفظ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSaveAnnotatedCopy() {
+    if (!dirty) {
+      setNote('أضف تعليقاً أولاً ثم احفظ نسخة')
+      return
+    }
+    setBusy(true)
+    setError('')
+    setNote('جاري حفظ نسخة معلّقة…')
+    try {
+      const bytes = await buildAnnotatedBytes()
+      const name = suggestAnnotatedCopyName(fileName, 'annotated')
+      const result = await uploadWorkspacePdf({
+        scopeId,
+        bytes,
+        fileName: name,
+      })
+      setNote(result.messageAr || `حُفظت نسخة: ${name}`)
+      openPreview({
+        fileId: result.file.id,
+        scopeId,
+        name: result.file.originalName || name,
+        mimeType: 'application/pdf',
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل حفظ النسخة')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSaveCleanCopy() {
+    if (!originalBytes) return
+    setBusy(true)
+    setError('')
+    setNote('جاري حفظ ملف نظيف بدون تعليقات…')
+    try {
+      const name = suggestAnnotatedCopyName(fileName, 'clean')
+      const result = await uploadWorkspacePdf({
+        scopeId,
+        bytes: new Uint8Array(originalBytes),
+        fileName: name,
+      })
+      setNote(
+        result.messageAr ||
+          `حُفظ ملف نظيف بدون تمييز/قلم: ${result.file.originalName || name}`
+      )
+      notifyFileReady({
+        fileId: result.file.id,
+        scopeId,
+        name: result.file.originalName || name,
+        mimeType: 'application/pdf',
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل حفظ الملف النظيف')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function onDiscard() {
+    if (!dirty) {
+      setNote('لا تعليقات غير محفوظة')
+      return
+    }
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('تجاهل كل التعليقات غير المحفوظة؟')
+    ) {
+      return
+    }
+    setAnnotations([])
+    setDrafting(null)
+    setNote('تُجاهلت التعليقات — الملف الأصلي كما هو')
+  }
+
+  function onUndo() {
+    setAnnotations((prev) => prev.slice(0, -1))
+  }
+
+  if (loading) {
+    return (
+      <div
+        className={cn(
+          'flex min-h-[16rem] items-center justify-center gap-2 text-sm text-ab-muted',
+          className
+        )}
+        dir="rtl"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" />
+        جاري تجهيز معاينة PDF…
+      </div>
+    )
+  }
+
+  if (error && !doc) {
+    return (
+      <div className={cn('space-y-2', className)} dir="rtl">
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {error}
+        </p>
+        <iframe
+          title={fileName}
+          src={mediaUrl}
+          className="h-full min-h-[24rem] w-full rounded-md border border-ab-border bg-white"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('flex h-full min-h-0 flex-col gap-2', className)} dir="rtl">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 rounded-md border border-ab-border bg-white/80 p-1.5">
+        {TOOL_META.map(({ id, label, title, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            title={title}
+            disabled={busy}
+            onClick={() => setTool(id)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+              tool === id
+                ? 'bg-ab-accent text-white'
+                : 'text-ab-ink hover:bg-stone-100'
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+        <span className="mx-0.5 h-4 w-px bg-ab-border" aria-hidden />
+        <button
+          type="button"
+          title="تراجع"
+          disabled={busy || !dirty}
+          onClick={onUndo}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-100 disabled:opacity-40"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+          تراجع
+        </button>
+        <button
+          type="button"
+          title="تجاهل التعليقات"
+          disabled={busy || !dirty}
+          onClick={onDiscard}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-100 disabled:opacity-40"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          تجاهل
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-ab-border" aria-hidden />
+        <button
+          type="button"
+          title="حفظ في نفس الملف"
+          disabled={busy || !dirty}
+          onClick={() => void onSaveReplace()}
+          className="inline-flex items-center gap-1 rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+        >
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          حفظ
+        </button>
+        <button
+          type="button"
+          title="حفظ نسخة معلّقة جديدة"
+          disabled={busy || !dirty}
+          onClick={() => void onSaveAnnotatedCopy()}
+          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+        >
+          <FilePlus2 className="h-3.5 w-3.5" />
+          نسخة معلّقة
+        </button>
+        <button
+          type="button"
+          title="ملف جديد بدون تعليقات"
+          disabled={busy || !originalBytes}
+          onClick={() => void onSaveCleanCopy()}
+          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+        >
+          <FileX2 className="h-3.5 w-3.5" />
+          بدون تعديل
+        </button>
+      </div>
+
+      <p className="shrink-0 text-[10px] leading-relaxed text-ab-muted">
+        أدوات: قلم · تمييز · نص · مربع · ممحاة. «حفظ» يدمج التعليقات في الملف،
+        «تجاهل» يلغيها دون حفظ، «بدون تعديل» ينشئ ملفاً نظيفاً من الأصل. على
+        الجوال: القلم والتمييز يعملان باللمس؛ النص عبر نافذة إدخال.
+        {dirty ? ` · ${annotations.length} تعليق غير محفوظ` : ''}
+      </p>
+
+      {(note || error) && (
+        <p
+          className={cn(
+            'shrink-0 rounded-md px-2.5 py-1.5 text-[11px]',
+            error
+              ? 'border border-amber-200 bg-amber-50 text-amber-900'
+              : 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+          )}
+        >
+          {error || note}
+        </p>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-auto rounded-md bg-stone-100/80 p-2">
+        {doc &&
+          Array.from({ length: Math.min(visiblePages, numPages) }, (_, i) => (
+            <PdfPageView
+              key={`${fileId}-p${i}`}
+              doc={doc}
+              pageIndex={i}
+              scale={scale}
+              annotations={annotations}
+              tool={tool}
+              onChangeAnnos={setAnnotations}
+              drafting={drafting}
+              setDrafting={setDrafting}
+            />
+          ))}
+        {doc && visiblePages < numPages && (
+          <button
+            type="button"
+            className="mx-auto mb-2 block rounded-md border border-ab-border bg-white px-3 py-1.5 text-[12px] text-ab-ink hover:bg-stone-50"
+            onClick={() =>
+              setVisiblePages((n) => Math.min(numPages, n + 5))
+            }
+          >
+            عرض المزيد ({visiblePages}/{numPages})
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

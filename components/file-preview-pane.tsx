@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import {
   Download,
   Eye,
@@ -15,6 +16,19 @@ import {
   type FilePreviewTarget,
 } from '@/lib/files/preview-store'
 import { cn } from '@/lib/utils'
+
+const PdfAnnotator = dynamic(
+  () =>
+    import('@/components/pdf-annotator').then((m) => m.PdfAnnotator),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="text-sm text-stone-500" dir="rtl">
+        جاري تجهيز محرّر PDF…
+      </p>
+    ),
+  }
+)
 
 type PreviewPayload = {
   ok?: boolean
@@ -267,11 +281,17 @@ export function FilePreviewPane({
       </header>
 
       <p className="shrink-0 border-b border-emerald-100 bg-emerald-50/80 px-3 py-1.5 text-[10px] text-emerald-900">
-        اكتب في الشات ما تريد تعديله — تظهر النسخة الجديدة هنا تلقائياً بعد رد
-        الوكيل.
+        {mode === 'pdf'
+          ? 'علّق على PDF (قلم / تمييز / نص) ثم احفظ أو تجاهل. اكتب في الشات أيضاً لطلب تعديل من الوكيل.'
+          : 'اكتب في الشات ما تريد تعديله — تظهر النسخة الجديدة هنا تلقائياً بعد رد الوكيل.'}
       </p>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div
+        className={cn(
+          'min-h-0 flex-1 p-3',
+          mode === 'pdf' ? 'flex flex-col overflow-hidden' : 'overflow-auto'
+        )}
+      >
         {loading && !payload ? (
           <p className="text-sm text-stone-500">جاري فتح المعاينة…</p>
         ) : error ? (
@@ -286,10 +306,12 @@ export function FilePreviewPane({
             className="mx-auto max-h-full max-w-full rounded-md border border-ab-border object-contain"
           />
         ) : mode === 'pdf' && mediaUrl ? (
-          <iframe
-            title={title}
-            src={mediaUrl}
-            className="h-full min-h-[24rem] w-full rounded-md border border-ab-border bg-white"
+          <PdfAnnotator
+            mediaUrl={mediaUrl}
+            fileId={file.fileId}
+            scopeId={file.scopeId}
+            fileName={title}
+            className="h-full min-h-[24rem]"
           />
         ) : mode === 'audio' && mediaUrl ? (
           <div className="flex flex-col items-center gap-3 py-6">
