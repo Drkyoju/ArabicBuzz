@@ -1207,10 +1207,10 @@ export function RoomCalendarBoard({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-ab-ink">
+          <h3 className="min-w-0 shrink text-sm font-semibold text-ab-ink">
               السبورة · {upcoming.length} موعد
           </h3>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
             {signedIn === true && (
               <button
                 type="button"

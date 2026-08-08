@@ -216,12 +216,18 @@ function DayBlock({
   subtitle,
   events,
   isToday,
+  emptyHintAr,
 }: {
   title: string
   subtitle?: string
   events: CalEvent[]
   isToday?: boolean
+  /** Empty-state copy — avoid saying «لهذا اليوم» on غداً / بعد غد. */
+  emptyHintAr?: string
 }) {
+  const emptyLabel =
+    emptyHintAr ||
+    (isToday ? 'لا مواعيد لهذا اليوم — أضف من التقويم' : `لا مواعيد لـ«${title}»`)
   return (
     <div
       className={cn(
@@ -247,7 +253,7 @@ function DayBlock({
       </div>
       {events.length === 0 ? (
         <p className="border-t border-ab-hairline px-3.5 py-4 text-[12px] text-ab-muted-soft">
-          لا مواعيد
+          {emptyLabel}
         </p>
       ) : (
         <ul>
@@ -325,7 +331,8 @@ export function HomeDashboard({
   const [liveData, setLiveData] = useState<Digest | null>(null)
   const [teamInbox, setTeamInbox] = useState<TeamInboxItem[]>([])
   const [mailUnread, setMailUnread] = useState<number | null>(null)
-  const [busy, setBusy] = useState(false)
+  // Start busy so signed-in cold load does not flash empty «لا مواعيد» chrome.
+  const [busy, setBusy] = useState(true)
   const [err, setErr] = useState('')
   const [activityOpen, setActivityOpen] = useState(false)
   const demo = useMemo(() => buildGuestDemoDigest(), [])
@@ -603,8 +610,9 @@ export function HomeDashboard({
       : agendaDays.filter((d) => d.offset >= 2 && d.events.length > 0)
   const beyondMonthCount = liveDigest?.beyondMonthCount || 0
 
-  // Auth still resolving — avoid flashing empty signed-in chrome / recipes.
-  if (authPending) {
+  // Auth still resolving, or first digest not yet in — avoid flashing empty chrome.
+  const dataPending = authPending || (signedIn === true && liveData === null && !err)
+  if (dataPending) {
     return (
       <section className="ab-page-narrow" dir="rtl">
         <header className="ab-page-head">
@@ -613,9 +621,11 @@ export function HomeDashboard({
             <DateDual className="mt-1.5" />
           </div>
         </header>
+        <p className="mb-3 text-sm text-ab-muted">جاري تحميل لوحة اليوم…</p>
         <div className="space-y-3" aria-hidden>
           <div className="h-20 animate-pulse rounded-xl bg-ab-stage" />
           <div className="h-32 animate-pulse rounded-xl bg-ab-stage" />
+          <div className="h-24 animate-pulse rounded-xl bg-ab-stage" />
         </div>
       </section>
     )
@@ -795,6 +805,13 @@ export function HomeDashboard({
                   subtitle={d.weekdayAr || d.ymd}
                   events={d.events}
                   isToday={d.offset === 0}
+                  emptyHintAr={
+                    d.offset === 0
+                      ? 'لا مواعيد لهذا اليوم — أضف من التقويم'
+                      : d.offset === 1
+                        ? 'لا مواعيد لغدًا — أضف من التقويم'
+                        : undefined
+                  }
                 />
               ))}
             </div>

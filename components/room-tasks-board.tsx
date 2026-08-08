@@ -67,6 +67,7 @@ export function RoomTasksBoard() {
   const [dueAt, setDueAt] = useState('')
   const [newAssignee, setNewAssignee] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [openComments, setOpenComments] = useState<string | null>(null)
@@ -79,21 +80,43 @@ export function RoomTasksBoard() {
   } | null>(null)
 
   const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const [tasksRes, membersRes] = await Promise.all([
-        fetch(`/api/rooms/tasks?scopeId=${encodeURIComponent(scopeId)}`, {
-          headers: await authHeaders(),
-        }),
-        fetch(`/api/rooms/members?scopeId=${encodeURIComponent(scopeId)}`, {
-          headers: await authHeaders(),
-        }),
-      ])
+      let tasksRes = await fetch(
+        `/api/rooms/tasks?scopeId=${encodeURIComponent(scopeId)}`,
+        { headers: await authHeaders(undefined, { waitMs: 4500 }) }
+      )
+      let membersRes = await fetch(
+        `/api/rooms/members?scopeId=${encodeURIComponent(scopeId)}`,
+        { headers: await authHeaders() }
+      )
+      // Retry once if session was still hydrating.
+      if (tasksRes.status === 401) {
+        await new Promise((r) => setTimeout(r, 700))
+        tasksRes = await fetch(
+          `/api/rooms/tasks?scopeId=${encodeURIComponent(scopeId)}`,
+          { headers: await authHeaders(undefined, { waitMs: 2000 }) }
+        )
+        membersRes = await fetch(
+          `/api/rooms/members?scopeId=${encodeURIComponent(scopeId)}`,
+          { headers: await authHeaders() }
+        )
+      }
+      if (!tasksRes.ok) {
+        setErr('تعذّر تحميل المهام')
+        return
+      }
       const tasksData = (await tasksRes.json()) as { tasks?: Task[] }
-      const membersData = (await membersRes.json()) as { members?: Member[] }
+      const membersData = membersRes.ok
+        ? ((await membersRes.json()) as { members?: Member[] })
+        : { members: [] as Member[] }
       setTasks(tasksData.tasks || [])
       setMembers(membersData.members || [])
+      setErr('')
     } catch {
-      /* ignore */
+      setErr('تعذّر تحميل المهام')
+    } finally {
+      setLoading(false)
     }
   }, [scopeId])
 
@@ -401,7 +424,11 @@ export function RoomTasksBoard() {
       )}
 
       <ul className="divide-y divide-ab-border rounded-xl border border-ab-border bg-white">
-        {open.length === 0 ? (
+        {loading ? (
+          <li className="p-6 text-center text-sm text-ab-muted-soft">
+            جاري تحميل المهام…
+          </li>
+        ) : open.length === 0 ? (
           <li className="p-6 text-center text-sm text-ab-muted-soft">
             لا مهام — أضف يدوياً أو اطلب من الوكيل: «أضف طلباً… إلى لوحة الغرفة».
           </li>

@@ -65,7 +65,8 @@ export function FilesPanel() {
   const [files, setFiles] = useState<ListedFile[]>([])
   const [source, setSource] = useState<string>('none')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  // Assume loading until first fetch settles — avoids empty-vault flash.
+  const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [postByFileId, setPostByFileId] = useState<Record<string, string>>({})
