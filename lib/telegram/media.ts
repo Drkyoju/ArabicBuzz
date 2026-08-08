@@ -101,61 +101,41 @@ export function extractAttachmentsFromAgentSteps(
 export async function downloadTelegramFileBuffer(
   ctx: Context,
   fileId: string,
-  opts?: { fileName?: string; declaredSizeBytes?: number }
-): Promise<{ buffer: Buffer; filePath: string }> {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
-
-  const declared = opts?.declaredSizeBytes
-  // Still attempt getFile even when declared >20MB — some files are mis-sized,
-  // and we need the error path to persist metadata. Only short-circuit if clearly huge.
+  opts?: {
+    fileName?: string
+    declaredSizeBytes?: number
+    chatId?: string
+    messageId?: string | number
+  }
+): Promise<{ buffer: Buffer; filePath: string; source?: string }> {
+  void ctx
+  const { downloadTelegramFileCascaded } = await import(
+    '@/lib/telegram/large-file-download'
+  )
+  const hit = await downloadTelegramFileCascaded({
+    fileId,
+    fileName: opts?.fileName,
+    declaredSizeBytes: opts?.declaredSizeBytes,
+    chatId: opts?.chatId,
+    messageId: opts?.messageId,
+  })
+  // Keep successful bytes even when slightly over the cloud soft cap —
+  // discarding a successful download is worse. Only reject absurd cloud payloads.
   if (
-    typeof declared === 'number' &&
-    Number.isFinite(declared) &&
-    declared > TELEGRAM_MAX_DOWNLOAD_BYTES * 3
+    hit.buffer.byteLength > TELEGRAM_MAX_DOWNLOAD_BYTES * 3 &&
+    hit.source === 'cloud_bot_api'
   ) {
     throw new Error(
       telegramFileTooLargeAr({
         fileName: opts?.fileName,
-        sizeBytes: declared,
+        sizeBytes: opts?.declaredSizeBytes ?? hit.buffer.byteLength,
       })
     )
   }
-
-  const file = await ctx.api.getFile(fileId)
-  if (!file.file_path) {
-    throw new Error(
-      telegramFileTooLargeAr({
-        fileName: opts?.fileName,
-        sizeBytes: declared,
-      })
-    )
-  }
-  const remoteSize =
-    typeof (file as { file_size?: number }).file_size === 'number'
-      ? (file as { file_size?: number }).file_size
-      : undefined
-  // Prefer attempting download; Telegram may still serve ≤20MB despite declared size.
-
-  const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`
-  const res = await fetch(url)
-  if (!res.ok) {
-    if (res.status === 400 || res.status === 404) {
-      throw new Error(
-        telegramFileTooLargeAr({
-          fileName: opts?.fileName,
-          sizeBytes: declared ?? remoteSize,
-        })
-      )
-    }
-    throw new Error(`تعذّر تنزيل الملف من تيليجرام (${res.status})`)
-  }
-  const buffer = Buffer.from(await res.arrayBuffer())
-  // If Telegram actually returned bytes, keep them even when slightly over the
-  // advertised cloud download cap — discarding a successful download is worse.
   return {
-    buffer,
-    filePath: file.file_path,
+    buffer: hit.buffer,
+    filePath: hit.filePath,
+    source: hit.source,
   }
 }
 
@@ -167,11 +147,18 @@ export async function ingestTelegramDocumentToWorkspace(opts: {
   mimeType?: string
   /** Telegram document.file_size when known */
   fileSize?: number
+  chatId?: string
+  messageId?: string | number
 }): Promise<{ fileId: string; name: string; mimeType: string }> {
   const { buffer, filePath } = await downloadTelegramFileBuffer(
     opts.ctx,
     opts.fileId,
-    { fileName: opts.fileName, declaredSizeBytes: opts.fileSize }
+    {
+      fileName: opts.fileName,
+      declaredSizeBytes: opts.fileSize,
+      chatId: opts.chatId,
+      messageId: opts.messageId,
+    }
   )
   const ext = filePath.includes('.')
     ? filePath.slice(filePath.lastIndexOf('.'))

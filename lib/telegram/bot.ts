@@ -2825,6 +2825,8 @@ export function getTelegramBot() {
             fileName: declaredName,
             mimeType: doc.mime_type,
             fileSize: doc.file_size,
+            chatId,
+            messageId,
           })
         } catch (dlErr) {
           const persisted = await persistTelegramAttachment({

@@ -116,6 +116,18 @@ export async function GET() {
     supabaseError,
     prismaError,
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
+    telegramLocalBotApiConfigured: Boolean(
+      (
+        process.env.TELEGRAM_BOT_API_URL ||
+        process.env.TELEGRAM_BOT_API_ROOT ||
+        ''
+      ).trim()
+    ),
+    telegramLargeFileMacHop: Boolean(
+      (process.env.MAC_SYNC_URL || '').trim()
+    ),
+    telegramLargeFilePathAr:
+      'ملف كبير مجاني: Bot API محلي → جسر الماك → سحابة (~20م.ب) → خزنة/Drive ثم إكمال المهمة',
     webSearchFreePath: true,
     webCrawlFreePath: true,
     officeConvertFreePath: true,

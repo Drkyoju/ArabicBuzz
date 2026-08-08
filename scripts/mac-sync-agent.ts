@@ -1145,6 +1145,76 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // POST /telegram/fetch-file — large TG download via local Bot API (free path)
+  if (req.method === 'POST' && url.pathname === '/telegram/fetch-file') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        fileId?: string
+        fileName?: string
+        declaredSizeBytes?: number
+        chatId?: string
+        messageId?: string | number
+      }
+      const fileId = String(body.fileId || '').trim()
+      if (!fileId) {
+        json(res, 400, { error: 'fileId required', ok: false })
+        return
+      }
+      const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+      if (!token) {
+        json(res, 503, {
+          error: 'TELEGRAM_BOT_TOKEN missing on Mac',
+          ok: false,
+        })
+        return
+      }
+      const {
+        downloadTelegramFileViaBotApiRoots,
+        DEFAULT_LOCAL_BOT_API,
+      } = await import('../lib/telegram/bot-api-download')
+      const localRoot = (
+        process.env.TELEGRAM_BOT_API_URL ||
+        process.env.TELEGRAM_BOT_API_ROOT ||
+        DEFAULT_LOCAL_BOT_API
+      )
+        .trim()
+        .replace(/\/$/, '')
+      const hit = await downloadTelegramFileViaBotApiRoots({
+        token,
+        fileId,
+        preferLocal: true,
+        roots: [localRoot, 'https://api.telegram.org'],
+      })
+      if (!hit) {
+        json(res, 404, {
+          ok: false,
+          error:
+            'تعذّر التنزيل عبر Bot API المحلي — شغّل deploy/telegram-bot-api على الماك (منفذ 8081).',
+        })
+        return
+      }
+      json(res, 200, {
+        ok: true,
+        contentBase64: hit.buffer.toString('base64'),
+        filePath: hit.filePath,
+        source: hit.source,
+        remoteSize: hit.remoteSize ?? hit.buffer.byteLength,
+        fileName: body.fileName || hit.filePath,
+      })
+    } catch (e) {
+      json(res, 500, {
+        ok: false,
+        error: e instanceof Error ? e.message : 'fetch-file failed',
+      })
+    }
+    return
+  }
+
   json(res, 404, { error: 'not found' })
 })
 
@@ -1161,6 +1231,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /pdf-docx-convert (PDF↔DOCX local quality path)`)
   console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
+  console.log(`  POST /telegram/fetch-file (large TG via local Bot API)`)
   console.log(`  vault: ${status.root}`)
   console.log(`  secret: Bearer ${SECRET.slice(0, 4)}…`)
   console.log(`  tunnel tip: npx ngrok http ${PORT}`)

@@ -112,7 +112,7 @@ export function isTelegramDownloadLimitError(err: unknown): boolean {
       : typeof err === 'string'
         ? err
         : ''
-  return /حد التنزيل|تنزيل بوت تيليجرام|TELEGRAM_MAX_DOWNLOAD|20 م\.ب|سجّلت .*تنزيل بوت/i.test(
+  return /حد التنزيل|تنزيل بوت تيليجرام|TELEGRAM_MAX_DOWNLOAD|20 م\.ب|سجّلت .*تنزيل بوت|مسار التنزيل الموسّع|Bot API محلي/i.test(
     raw
   )
 }

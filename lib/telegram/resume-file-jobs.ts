@@ -42,18 +42,48 @@ export async function prepareTelegramFileJobResumes(opts: {
   const notifiedWaiting: string[] = []
 
   for (const job of open) {
-    const resolved = await resolveTelegramJobFile(job)
+    let working: TelegramFileJob = job
+    // Free cascade: local Bot API / Mac hop before waiting_file notify
+    if (
+      (job.status === 'waiting_file' || job.status === 'failed') &&
+      (job.telegramFileId || job.attachmentId)
+    ) {
+      try {
+        const { tryFillWaitingJobFromTelegramCascade } = await import(
+          '@/lib/telegram/retry-large-download'
+        )
+        const filled = await tryFillWaitingJobFromTelegramCascade({
+          jobId: job.id,
+          chatId: job.chatId,
+          scopeId: job.scopeId,
+          expectedFilename: job.expectedFilename || undefined,
+          telegramFileId: job.telegramFileId,
+        })
+        if (filled) {
+          working = {
+            ...job,
+            vaultFileId: filled.vaultFileId,
+            expectedFilename: job.expectedFilename || filled.fileName,
+            status: 'pending',
+          }
+        }
+      } catch (e) {
+        console.warn('[telegram] cascade fill', job.id, e)
+      }
+    }
+
+    const resolved = await resolveTelegramJobFile(working)
     if (resolved) {
-      await updateTelegramFileJob(job.id, {
+      await updateTelegramFileJob(working.id, {
         status: 'pending',
         vaultFileId: resolved.vaultFileId,
-        expectedFilename: job.expectedFilename || resolved.fileName,
+        expectedFilename: working.expectedFilename || resolved.fileName,
         lastErrorAr: undefined,
       })
       const refreshed = {
-        ...job,
+        ...working,
         vaultFileId: resolved.vaultFileId,
-        expectedFilename: job.expectedFilename || resolved.fileName,
+        expectedFilename: working.expectedFilename || resolved.fileName,
         status: 'pending' as const,
       }
       ready.push({
@@ -63,9 +93,9 @@ export async function prepareTelegramFileJobResumes(opts: {
       continue
     }
 
-    const wait = await shouldNotifyWaitingFileOnce(job)
+    const wait = await shouldNotifyWaitingFileOnce(working)
     if (wait.notify && wait.messageAr) {
-      await markJobWaitingFileNotified(job.id)
+      await markJobWaitingFileNotified(working.id)
       notifiedWaiting.push(wait.messageAr)
     }
   }

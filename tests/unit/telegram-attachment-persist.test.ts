@@ -82,7 +82,7 @@ describe('telegram attachment persist + jobs', () => {
       sizeBytes: 22_000_000,
     })
     expect(msg).toMatch(/سجّلت/)
-    expect(msg).toMatch(/غرفة|Drive|درايف/i)
+    expect(msg).toMatch(/تلقائياً|Bot API|ماك|غرفة|Drive/i)
     expect(msg).not.toMatch(/أعد إرسال الملف عبر تيليجرام مراراً/)
     expect(isTelegramDownloadLimitError(new Error(msg))).toBe(true)
     expect(telegramFileTooLargeAr({ fileName: 'x.pdf' })).toMatch(/سجّلت/)
