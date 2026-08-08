@@ -1763,6 +1763,7 @@ export function getTelegramBot() {
           fileId: doc.file_id,
           fileName: doc.file_name || `telegram-reply-doc-${Date.now()}`,
           mimeType: doc.mime_type,
+          fileSize: doc.file_size,
         })
         rememberTelegramMedia(chatId, {
           fileId: ingested.fileId,
@@ -2154,6 +2155,7 @@ export function getTelegramBot() {
           fileId: doc.file_id,
           fileName: doc.file_name || `telegram-doc-${Date.now()}`,
           mimeType: doc.mime_type,
+          fileSize: doc.file_size,
         })
       } else if (ctx.message.video) {
         const vid = ctx.message.video
@@ -2274,19 +2276,11 @@ export function getTelegramBot() {
       })
     } catch (e) {
       console.error('[telegram] document/photo/video', e)
-      // Caption/work media must never fail silently.
-      const hadCaption = Boolean((ctx.message.caption || '').trim())
+      // Never silent-fail media ingest in a linked group (size cap / download errors).
       try {
-        if (
-          !inGroup ||
-          hadCaption ||
-          addressed.mentioned ||
-          addressed.isReplyToBot
-        ) {
-          await ctx.reply(
-            formatTelegramErrorAr(e, { inGroup, botUsername })
-          )
-        }
+        await ctx.reply(
+          formatTelegramErrorAr(e, { inGroup, botUsername })
+        )
       } catch {
         /* ignore */
       }

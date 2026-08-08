@@ -64,7 +64,9 @@ import {
 } from '@/lib/agents/tools/image-tools'
 import {
   executePdfCreate,
+  executePdfDuplicatePage,
   executePdfFillForm,
+  executePdfInsertBlankPage,
   executePdfListFields,
   executePdfMerge,
   executePdfReplaceText,
@@ -266,6 +268,8 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   pdf_stamp: executePdfStamp,
   pdf_annotate: executePdfAnnotate,
   pdf_merge: executePdfMerge,
+  pdf_duplicate_page: executePdfDuplicatePage,
+  pdf_insert_blank_page: executePdfInsertBlankPage,
   pdf_list_fields: executePdfListFields,
   pdf_fill_form: executePdfFillForm,
   pdf_replace_text: executePdfReplaceText,

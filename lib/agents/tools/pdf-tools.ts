@@ -1,6 +1,8 @@
 import {
   buildPdfFromText,
+  duplicatePdfPageAfter,
   fillPdfForm,
+  insertBlankPdfPage,
   listPdfFormFields,
   mergePdfs,
   stampPdf,
@@ -137,6 +139,87 @@ export async function executePdfMerge(
     markEdited: true,
   })
   return downloadMeta(scopeId, saved.file, `دُمجت ${ids.length} ملفات PDF.`)
+}
+
+/**
+ * Duplicate a PDF page (full content) and insert the copy after another page.
+ * Default task: copyPage=48, afterPage=45.
+ * Optional mode=blank keeps empty page with sizeFromPage dimensions.
+ */
+export async function executePdfDuplicatePage(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const scopeId = scopeOf(params)
+  const ref = String(params.fileId || params.path || '').trim()
+  if (!ref) throw new Error('مرّر fileId لملف PDF')
+  const afterPage = Number(params.afterPage)
+  if (!Number.isFinite(afterPage) || afterPage < 1) {
+    throw new Error('مرّر afterPage (رقم الصفحة 1-based التي تليها النسخة)')
+  }
+  const mode = String(params.mode || 'duplicate').toLowerCase()
+  const { hit } = await loadPdfBuffer(scopeId, ref)
+
+  let result: {
+    buffer: Buffer
+    pageCountBefore: number
+    pageCountAfter: number
+  }
+  let messageAr: string
+  let defaultOut: string
+  const base = hit.meta.originalName.replace(/\.pdf$/i, '')
+
+  if (mode === 'blank') {
+    const sizeFromPage =
+      params.sizeFromPage != null
+        ? Number(params.sizeFromPage)
+        : params.copyPage != null
+          ? Number(params.copyPage)
+          : undefined
+    result = await insertBlankPdfPage({
+      pdf: hit.buffer,
+      afterPage,
+      sizeFromPage:
+        sizeFromPage != null && Number.isFinite(sizeFromPage)
+          ? sizeFromPage
+          : undefined,
+    })
+    defaultOut = `${base}_صفحة_بيضاء_بعد_${afterPage}.pdf`
+    messageAr = `أُدرجت صفحة بيضاء بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
+  } else {
+    const copyPage = Number(params.copyPage ?? params.sizeFromPage)
+    if (!Number.isFinite(copyPage) || copyPage < 1) {
+      throw new Error('مرّر copyPage (رقم الصفحة 1-based لنسخ محتواها كاملاً)')
+    }
+    result = await duplicatePdfPageAfter({
+      pdf: hit.buffer,
+      copyPage,
+      afterPage,
+    })
+    defaultOut = `${base}_نسخ_صفحة${copyPage}_بعد_${afterPage}.pdf`
+    messageAr = `نُسخت الصفحة ${copyPage} بالكامل وأُدرجت بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
+  }
+
+  const saved = await saveWorkspaceFile({
+    scopeId,
+    buffer: result.buffer,
+    originalName: String(params.outputName || defaultOut),
+    mimeType: 'application/pdf',
+    markEdited: true,
+  })
+  return {
+    ...downloadMeta(scopeId, saved.file, messageAr),
+    pageCountBefore: result.pageCountBefore,
+    pageCountAfter: result.pageCountAfter,
+  }
+}
+
+/** @deprecated Use executePdfDuplicatePage — kept for older prompts. */
+export async function executePdfInsertBlankPage(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  return executePdfDuplicatePage(_n, { ...params, mode: 'blank' })
 }
 
 export async function executePdfListFields(

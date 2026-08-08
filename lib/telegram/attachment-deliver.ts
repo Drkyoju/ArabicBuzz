@@ -15,6 +15,8 @@ export const TELEGRAM_DELIVER_ATTACHMENT_TOOLS = new Set([
   'pdf_stamp',
   'pdf_annotate',
   'pdf_merge',
+  'pdf_duplicate_page',
+  'pdf_insert_blank_page',
   'pdf_fill_form',
   'pdf_replace_text',
   'edit_image',
@@ -74,3 +76,31 @@ export function shouldDeliverSilentAttachment(opts: {
 
 /** Telegram Bot API soft limit for sendDocument / sendPhoto payloads. */
 export const TELEGRAM_MAX_UPLOAD_BYTES = 48 * 1024 * 1024
+
+/**
+ * Cloud Bot API download hard cap (~20 MiB). Larger files need Local Bot API
+ * server, or user upload to room/Drive. We surface this clearly — never silent.
+ */
+export const TELEGRAM_MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
+
+export function telegramFileTooLargeAr(opts: {
+  fileName?: string
+  sizeBytes?: number
+  limitBytes?: number
+}): string {
+  const limit = opts.limitBytes ?? TELEGRAM_MAX_DOWNLOAD_BYTES
+  const sizeMb =
+    opts.sizeBytes != null
+      ? (opts.sizeBytes / (1024 * 1024)).toFixed(1)
+      : null
+  const limitMb = (limit / (1024 * 1024)).toFixed(0)
+  const name = opts.fileName ? `«${opts.fileName}»` : 'المرفق'
+  return [
+    `تعذّر تنزيل ${name} عبر بوت تيليجرام السحابي.`,
+    sizeMb
+      ? `حجم الملف ≈ ${sizeMb} م.ب — الحد ≈ ${limitMb} م.ب.`
+      : `حد التنزيل ≈ ${limitMb} م.ب.`,
+    'الحلول: (1) اضغط الملف وأعد إرساله هنا، أو (2) ارفعه من الموقع إلى ملفات الغرفة، أو (3) ارفعه إلى عقل الشركة (Drive) بنفس الاسم ثم اذكر الاسم هنا.',
+    'لن أستبدل ملفك بملف آخر من Drive بالتشابه في الاسم.',
+  ].join('\n')
+}

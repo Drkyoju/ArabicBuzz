@@ -144,6 +144,8 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'pdf_stamp',
   'pdf_annotate',
   'pdf_merge',
+  'pdf_duplicate_page',
+  'pdf_insert_blank_page',
   'pdf_list_fields',
   'pdf_fill_form',
   'pdf_replace_text',
@@ -368,6 +370,7 @@ function workKindNudge(kind: TelegramWorkKind): string {
         'مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'OCR للصور/PDF الممسوح: arabic_ocr. تعليق PDF: pdf_annotate أو pdf_stamp ثم return_file.',
+        'إدراج/نسخ صفحات PDF: pdf_duplicate_page (نسخ محتوى صفحة 48 بعد 45) — ليس صفحة بيضاء إلا إذا طُلبت صراحة mode=blank. ثم return_file.',
         'PDF عربي: فضّل pdf_replace_text (HarfBuzz/PyMuPDF). إعادة بناء PDF بـ edit_document قد تضعف اتصال الحروف — كن صادقاً إن فشل الاستبدال.',
       ].join(' ')
     case 'mail':

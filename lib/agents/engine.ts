@@ -786,6 +786,50 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('pdf_merge'),
         }),
     }),
+    pdf_duplicate_page: tool({
+      description:
+        'نسخ صفحة PDF بمحتواها كاملاً (ليس صفحة بيضاء) وإدراج النسخة بعد صفحة أخرى. مثال: copyPage=48 afterPage=45 ثم return_file. mode=blank فقط إن طُلبت صفحة فارغة صراحة.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        copyPage: z
+          .number()
+          .describe('رقم الصفحة 1-based لنسخ محتواها كاملاً (مثل 48)'),
+        afterPage: z
+          .number()
+          .describe('رقم الصفحة 1-based التي توضع النسخة بعدها (مثل 45)'),
+        mode: z.enum(['duplicate', 'blank']).optional(),
+        sizeFromPage: z.number().optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_duplicate_page',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_duplicate_page'),
+        }),
+    }),
+    pdf_insert_blank_page: tool({
+      description:
+        'إدراج صفحة بيضاء فارغة بنفس المقاس بعد صفحة معيّنة. لطلب «نسخ صفحة بمحتواها» استخدم pdf_duplicate_page.',
+      inputSchema: z.object({
+        fileId: z.string(),
+        afterPage: z.number(),
+        sizeFromPage: z.number().optional(),
+        outputName: z.string().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'pdf_insert_blank_page',
+          params: { ...params, scopeId: scopeId || 'shared-demo' },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('pdf_insert_blank_page'),
+        }),
+    }),
     pdf_list_fields: tool({
       description: 'عرض حقول نموذج AcroForm في PDF قبل التعبئة.',
       inputSchema: z.object({ fileId: z.string() }),

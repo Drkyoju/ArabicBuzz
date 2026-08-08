@@ -238,3 +238,90 @@ export async function rotatePdfPages(opts: {
   }
   return Buffer.from(await doc.save())
 }
+
+/**
+ * Duplicate a page (full content) and insert the copy after another page.
+ * Example: copyPage=48, afterPage=45 → pages …45, [copy of 48], 46, 47, 48…
+ * Uses pdf-lib page copy (preserves content/graphics of the source page).
+ */
+export async function duplicatePdfPageAfter(opts: {
+  pdf: Buffer | Uint8Array
+  /** 1-based page to clone (e.g. 48). */
+  copyPage: number
+  /** 1-based: place the clone immediately after this page (e.g. 45). */
+  afterPage: number
+}): Promise<{ buffer: Buffer; pageCountBefore: number; pageCountAfter: number }> {
+  const src = await PDFDocument.load(opts.pdf, { ignoreEncryption: true })
+  const n = src.getPageCount()
+  if (n < 1) throw new Error('ملف PDF فارغ')
+  const copyPage = Math.floor(Number(opts.copyPage))
+  const after = Math.floor(Number(opts.afterPage))
+  if (!Number.isFinite(copyPage) || copyPage < 1 || copyPage > n) {
+    throw new Error(`copyPage يجب أن يكون بين 1 و ${n}`)
+  }
+  if (!Number.isFinite(after) || after < 1 || after > n) {
+    throw new Error(`afterPage يجب أن يكون بين 1 و ${n}`)
+  }
+
+  const out = await PDFDocument.create()
+  const indices = src.getPageIndices()
+  const copied = await out.copyPages(src, indices)
+  const [dup] = await out.copyPages(src, [copyPage - 1])
+  if (!dup) throw new Error('تعذّر نسخ الصفحة المطلوبة')
+
+  for (let i = 0; i < copied.length; i++) {
+    out.addPage(copied[i]!)
+    if (i === after - 1) {
+      out.addPage(dup)
+    }
+  }
+  const buffer = Buffer.from(await out.save())
+  return {
+    buffer,
+    pageCountBefore: n,
+    pageCountAfter: out.getPageCount(),
+  }
+}
+
+/**
+ * @deprecated Prefer duplicatePdfPageAfter for «نسخ صفحة».
+ * Insert a blank white page after a 1-based page number (same size as sizeFromPage).
+ */
+export async function insertBlankPdfPage(opts: {
+  pdf: Buffer | Uint8Array
+  /** 1-based: blank is placed immediately after this page. */
+  afterPage: number
+  /** 1-based: copy width/height from this page (e.g. 48). Defaults to afterPage. */
+  sizeFromPage?: number
+}): Promise<{ buffer: Buffer; pageCountBefore: number; pageCountAfter: number }> {
+  const src = await PDFDocument.load(opts.pdf, { ignoreEncryption: true })
+  const n = src.getPageCount()
+  if (n < 1) throw new Error('ملف PDF فارغ')
+  const after = Math.floor(Number(opts.afterPage))
+  if (!Number.isFinite(after) || after < 1 || after > n) {
+    throw new Error(`afterPage يجب أن يكون بين 1 و ${n} (عدد الصفحات الحالي)`)
+  }
+  const sizePage = Math.floor(Number(opts.sizeFromPage ?? after))
+  if (!Number.isFinite(sizePage) || sizePage < 1 || sizePage > n) {
+    throw new Error(`sizeFromPage يجب أن يكون بين 1 و ${n}`)
+  }
+
+  const template = src.getPage(sizePage - 1)
+  const { width, height } = template.getSize()
+
+  const out = await PDFDocument.create()
+  const indices = src.getPageIndices()
+  const copied = await out.copyPages(src, indices)
+  for (let i = 0; i < copied.length; i++) {
+    out.addPage(copied[i]!)
+    if (i === after - 1) {
+      out.addPage([width, height])
+    }
+  }
+  const buffer = Buffer.from(await out.save())
+  return {
+    buffer,
+    pageCountBefore: n,
+    pageCountAfter: out.getPageCount(),
+  }
+}

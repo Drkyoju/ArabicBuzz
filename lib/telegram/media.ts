@@ -1,6 +1,10 @@
 import { InputFile, type Context } from 'grammy'
 import { readWorkspaceFile, saveWorkspaceFile } from '@/lib/documents/workspace'
-import { TELEGRAM_MAX_UPLOAD_BYTES } from '@/lib/telegram/attachment-deliver'
+import {
+  TELEGRAM_MAX_DOWNLOAD_BYTES,
+  TELEGRAM_MAX_UPLOAD_BYTES,
+  telegramFileTooLargeAr,
+} from '@/lib/telegram/attachment-deliver'
 
 export type TelegramAttachmentRef = {
   fileId: string
@@ -96,17 +100,68 @@ export function extractAttachmentsFromAgentSteps(
 
 export async function downloadTelegramFileBuffer(
   ctx: Context,
-  fileId: string
+  fileId: string,
+  opts?: { fileName?: string; declaredSizeBytes?: number }
 ): Promise<{ buffer: Buffer; filePath: string }> {
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN missing')
+
+  const declared = opts?.declaredSizeBytes
+  if (
+    typeof declared === 'number' &&
+    Number.isFinite(declared) &&
+    declared > TELEGRAM_MAX_DOWNLOAD_BYTES
+  ) {
+    throw new Error(
+      telegramFileTooLargeAr({
+        fileName: opts?.fileName,
+        sizeBytes: declared,
+      })
+    )
+  }
+
   const file = await ctx.api.getFile(fileId)
   if (!file.file_path) throw new Error('مسار ملف تيليجرام غير متوفر')
+  const remoteSize =
+    typeof (file as { file_size?: number }).file_size === 'number'
+      ? (file as { file_size?: number }).file_size
+      : undefined
+  if (
+    typeof remoteSize === 'number' &&
+    remoteSize > TELEGRAM_MAX_DOWNLOAD_BYTES
+  ) {
+    throw new Error(
+      telegramFileTooLargeAr({
+        fileName: opts?.fileName,
+        sizeBytes: remoteSize,
+      })
+    )
+  }
+
   const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`
   const res = await fetch(url)
-  if (!res.ok) throw new Error(`تعذّر تنزيل الملف من تيليجرام (${res.status})`)
+  if (!res.ok) {
+    if (res.status === 400 || res.status === 404) {
+      throw new Error(
+        telegramFileTooLargeAr({
+          fileName: opts?.fileName,
+          sizeBytes: declared ?? remoteSize,
+        })
+      )
+    }
+    throw new Error(`تعذّر تنزيل الملف من تيليجرام (${res.status})`)
+  }
+  const buffer = Buffer.from(await res.arrayBuffer())
+  if (buffer.length > TELEGRAM_MAX_DOWNLOAD_BYTES) {
+    throw new Error(
+      telegramFileTooLargeAr({
+        fileName: opts?.fileName,
+        sizeBytes: buffer.length,
+      })
+    )
+  }
   return {
-    buffer: Buffer.from(await res.arrayBuffer()),
+    buffer,
     filePath: file.file_path,
   }
 }
@@ -117,10 +172,13 @@ export async function ingestTelegramDocumentToWorkspace(opts: {
   fileId: string
   fileName: string
   mimeType?: string
+  /** Telegram document.file_size when known */
+  fileSize?: number
 }): Promise<{ fileId: string; name: string; mimeType: string }> {
   const { buffer, filePath } = await downloadTelegramFileBuffer(
     opts.ctx,
-    opts.fileId
+    opts.fileId,
+    { fileName: opts.fileName, declaredSizeBytes: opts.fileSize }
   )
   const ext = filePath.includes('.')
     ? filePath.slice(filePath.lastIndexOf('.'))
