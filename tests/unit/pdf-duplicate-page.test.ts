@@ -54,3 +54,26 @@ describe('insertBlankPdfPage', () => {
     expect(doc.getPage(45).getWidth()).toBe(700)
   })
 })
+
+describe('findEmptyContentPage', () => {
+  it('picks a text-empty page when others have writing', async () => {
+    const src = await PDFDocument.create()
+    const font = await src.embedFont(StandardFonts.Helvetica)
+    for (let i = 0; i < 10; i++) {
+      const page = src.addPage([400, 600])
+      if (i !== 6) {
+        page.drawText(`PAGE-${i + 1}`, {
+          x: 40,
+          y: 500,
+          size: 20,
+          font,
+          color: rgb(0, 0, 0),
+        })
+      }
+    }
+    const bytes = Buffer.from(await src.save())
+    const { findEmptyContentPage } = await import('@/lib/documents/pdf')
+    const found = await findEmptyContentPage({ pdf: bytes, searchFromPage: 2 })
+    expect(found).toBe(7)
+  })
+})

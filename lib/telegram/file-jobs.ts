@@ -132,8 +132,12 @@ function preferRicherRequest(existing: string, incoming: string): string {
   if (!b) return a
   if (!a || isGenericFileRequest(a)) return b
   if (isGenericFileRequest(b)) return a
-  if (inferPdfDuplicateWorkParams(a) && !inferPdfDuplicateWorkParams(b)) return a
-  if (inferPdfDuplicateWorkParams(b) && !inferPdfDuplicateWorkParams(a)) return b
+  const dupA = inferPdfDuplicateWorkParams(a)
+  const dupB = inferPdfDuplicateWorkParams(b)
+  // Explicit empty-page correction always wins over stale «صفحة 48».
+  if (dupB?.findEmptyPage) return b
+  if (dupA && !dupB) return a
+  if (dupB && !dupA) return b
   return b.length >= a.length ? b : a
 }
 
@@ -168,8 +172,9 @@ export function pickOpenJobForIncomingFile(
         /معلم|سيرة|معالم/i.test(job.requestText)
       const hasDup =
         Boolean(inferPdfDuplicateWorkParams(job.requestText)) ||
-        (typeof job.workParams.copyPage === 'number' &&
-          typeof job.workParams.afterPage === 'number')
+        (typeof job.workParams.afterPage === 'number' &&
+          (typeof job.workParams.copyPage === 'number' ||
+            job.workParams.findEmptyPage === true))
       if (jobSeerah || hasDup) return true
     }
     if (
@@ -190,8 +195,9 @@ export function pickOpenJobForIncomingFile(
     .map((job) => {
       const hasDup =
         Boolean(inferPdfDuplicateWorkParams(job.requestText)) ||
-        (typeof job.workParams.copyPage === 'number' &&
-          typeof job.workParams.afterPage === 'number')
+        (typeof job.workParams.afterPage === 'number' &&
+          (typeof job.workParams.copyPage === 'number' ||
+            job.workParams.findEmptyPage === true))
       const rich = !isGenericFileRequest(job.requestText)
       const score = (hasDup ? 100 : 0) + (rich ? 20 : 0) + job.requestText.length / 100
       return { job, score }
@@ -229,8 +235,14 @@ export async function enqueueTelegramFileJob(opts: {
       ...(opts.workParams || {}),
     }
     if (incomingDup) {
-      mergedParams.copyPage = incomingDup.copyPage
       mergedParams.afterPage = incomingDup.afterPage
+      if (incomingDup.findEmptyPage) {
+        mergedParams.findEmptyPage = true
+        delete mergedParams.copyPage
+      } else {
+        mergedParams.copyPage = incomingDup.copyPage
+        delete mergedParams.findEmptyPage
+      }
     }
     const hasBytes = Boolean(opts.vaultFileId || existing.vaultFileId)
     const next = await updateTelegramFileJob(existing.id, {
@@ -327,6 +339,24 @@ export async function bindOpenJobsToIncomingTelegramFile(opts: {
   return next ? [next] : []
 }
 
+export async function getTelegramFileJob(
+  id: string
+): Promise<TelegramFileJob | null> {
+  const fromMem = mem.get(id)
+  if (fromMem) return fromMem
+  const sb = getSupabaseAdmin()
+  if (!sb) return null
+  try {
+    const { data } = await sb.from(TABLE).select('*').eq('id', id).maybeSingle()
+    if (!data) return null
+    const job = rowToJob(data as Record<string, unknown>)
+    mem.set(job.id, job)
+    return job
+  } catch {
+    return null
+  }
+}
+
 export async function updateTelegramFileJob(
   id: string,
   patch: Partial<
@@ -407,25 +437,51 @@ export async function listOpenTelegramFileJobs(opts?: {
   }
 }
 
+/** Structured PDF page-duplicate / empty-page-copy intent. */
+export type PdfDuplicateWorkParams =
+  | { copyPage: number; afterPage: number; findEmptyPage?: false }
+  | { afterPage: number; findEmptyPage: true }
+
 /**
  * Infer structured PDF page-duplicate intent from Arabic/English requests.
+ *
+ * «صفحة فاضية/فارغة» = copy an existing content-less page from the file
+ * (NOT invent a white blank; NOT default to page 48).
+ * «صفحة بيضاء» is handled elsewhere (pdf_insert_blank_page).
  */
 export function inferPdfDuplicateWorkParams(
   requestText: string
-): { copyPage: number; afterPage: number } | null {
+): PdfDuplicateWorkParams | null {
   const t = requestText.replace(/\s+/g, ' ')
-  // «كرر/انسخ صفحة 48 بعد 45»
-  const m1 = t.match(
-    /(?:كرر|كرّر|انسخ|نسخ|duplicate|copy)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})\s*(?:بعد|after)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
+
+  // Correction / empty-page intent wins over stale «صفحة 48» numbers.
+  const wantsEmptyFromDoc =
+    /صفح[ةه]\s*(?:فاضي[ةه]|فارغ[ةه])|(?:فاضي[ةه]|فارغ[ةه])\s*(?:من\s*)?(?:ال)?(?:كتاب[ةه]|محتوى|نص)?|(?:بدون|بلا)\s*(?:كتاب[ةه]|نص|محتوى)|empty\s*page|content[- ]?less\s*page/iu.test(
+      t
+    ) && !/صفح[ةه]\s*بيضاء|blank\s*page|أدرج\s*صفحة\s*بيضاء|ادرج\s*صفحة\s*بيضاء/iu.test(t)
+
+  const afterOnly = t.match(
+    /(?:بعد|after)\s*(?:ال)?(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
   )
-  if (m1) {
-    return { copyPage: Number(m1[1]), afterPage: Number(m1[2]) }
+
+  if (wantsEmptyFromDoc && afterOnly) {
+    return { findEmptyPage: true, afterPage: Number(afterOnly[1]) }
   }
-  const m2 = t.match(
-    /(?:صفحة|صفحه|page)\s*(\d{1,4})\s*(?:بعد|after)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
-  )
-  if (m2 && /كرر|كرّر|انسخ|نسخ|duplicate|copy|ضع|حط/i.test(t)) {
-    return { copyPage: Number(m2[1]), afterPage: Number(m2[2]) }
+
+  // «كرر/انسخ صفحة 48 بعد 45» — only when NOT asking for an empty leaf.
+  if (!wantsEmptyFromDoc) {
+    const m1 = t.match(
+      /(?:كرر|كرّر|انسخ|نسخ|duplicate|copy)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})\s*(?:بعد|after)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
+    )
+    if (m1) {
+      return { copyPage: Number(m1[1]), afterPage: Number(m1[2]) }
+    }
+    const m2 = t.match(
+      /(?:صفحة|صفحه|page)\s*(\d{1,4})\s*(?:بعد|after)\s*(?:صفحة|صفحه|page)?\s*(\d{1,4})/i
+    )
+    if (m2 && /كرر|كرّر|انسخ|نسخ|duplicate|copy|ضع|حط/i.test(t)) {
+      return { copyPage: Number(m2[1]), afterPage: Number(m2[2]) }
+    }
   }
   return null
 }
@@ -560,20 +616,39 @@ export async function shouldNotifyWaitingFileOnce(
   return { notify: false }
 }
 
+export function formatPdfDuplicateToolHintAr(
+  dup: PdfDuplicateWorkParams,
+  fileId?: string
+): string {
+  const fid = fileId ? ` fileId=${fileId}` : ''
+  if (dup.findEmptyPage) {
+    return `استدعِ pdf_duplicate_page: findEmptyPage=true afterPage=${dup.afterPage}${fid} ثم return_file. صفحة فاضية = صفحة موجودة بلا كتابة — ممنوع mode=blank وممنوع افتراض copyPage=48.`
+  }
+  return `استدعِ pdf_duplicate_page: copyPage=${dup.copyPage} afterPage=${dup.afterPage}${fid} ثم return_file.`
+}
+
+export function resolvePdfDuplicateParams(
+  job: Pick<TelegramFileJob, 'requestText' | 'workParams'>
+): PdfDuplicateWorkParams | null {
+  const fromText = inferPdfDuplicateWorkParams(job.requestText)
+  if (fromText) return fromText
+  const after = Number(job.workParams.afterPage)
+  if (!Number.isFinite(after) || after < 1) return null
+  if (job.workParams.findEmptyPage === true) {
+    return { findEmptyPage: true, afterPage: after }
+  }
+  const copy = Number(job.workParams.copyPage)
+  if (Number.isFinite(copy) && copy >= 1) {
+    return { copyPage: copy, afterPage: after }
+  }
+  return null
+}
+
 export function buildResumePromptForJob(
   job: TelegramFileJob,
   resolved: ResolvedJobFile
 ): string {
-  const dup = inferPdfDuplicateWorkParams(job.requestText)
-  const params =
-    dup ||
-    (typeof job.workParams.copyPage === 'number' &&
-    typeof job.workParams.afterPage === 'number'
-      ? {
-          copyPage: Number(job.workParams.copyPage),
-          afterPage: Number(job.workParams.afterPage),
-        }
-      : null)
+  const params = resolvePdfDuplicateParams(job)
 
   const lines = [
     job.requestText || 'أكمل المهمة المعلّقة على هذا الملف.',
@@ -582,7 +657,12 @@ export function buildResumePromptForJob(
     `ملف العمل: «${resolved.fileName}» (fileId=${resolved.vaultFileId}, مصدر=${resolved.source}).`,
     'نفّذ على هذا fileId مباشرة ثم return_file كمرفق تيليجرام. ممنوع استبدال بملف آخر بالاسم.',
   ]
-  if (params) {
+  if (params?.findEmptyPage) {
+    lines.push(
+      `استدعِ pdf_duplicate_page فوراً: findEmptyPage=true afterPage=${params.afterPage} fileId=${resolved.vaultFileId} ثم return_file.`,
+      'صفحة فاضية = انسخ صفحة موجودة بلا كتابة من الملف نفسه. ممنوع اختراع صفحة بيضاء (mode=blank). ممنوع copyPage=48 إلا إن طُلب رقم الصفحة صراحة.'
+    )
+  } else if (params && 'copyPage' in params && params.copyPage != null) {
     lines.push(
       `استدعِ pdf_duplicate_page فوراً: copyPage=${params.copyPage} afterPage=${params.afterPage} fileId=${resolved.vaultFileId} ثم return_file.`
     )

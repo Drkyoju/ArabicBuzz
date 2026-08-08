@@ -19,6 +19,18 @@ type Rule = {
 
 const RULES: Rule[] = [
   {
+    re: /(?:صفح[ةه]\s*(?:فاضي[ةه]|فارغ[ةه])|(?:فاضي[ةه]|فارغ[ةه]).{0,30}صفح|(?:بدون|بلا)\s*(?:كتاب[ةه]|نص)).{0,80}(?:بعد|after)|findEmptyPage/iu,
+    hints: [
+      {
+        toolName: 'pdf_duplicate_page',
+        libAr: 'pdf-lib (مدمج)',
+        whyAr: 'نسخ صفحة فاضية موجودة من الملف (بلا كتابة) مجاناً محلياً',
+        instructionAr:
+          'نفّذ فوراً pdf_duplicate_page مع findEmptyPage=true وafterPage المطلوب ثم return_file. ممنوع mode=blank وممنوع افتراض copyPage=48 وممنوع اختراع صفحة بيضاء.',
+      },
+    ],
+  },
+  {
     re: /(?:كرر|انسخ|نسخ|duplicate|copy)\s*(?:صفح|page)|pdf_duplicate|صفح[ةه]\s*\d+\s*(?:بعد|after)/iu,
     hints: [
       {
@@ -26,7 +38,7 @@ const RULES: Rule[] = [
         libAr: 'pdf-lib (مدمج)',
         whyAr: 'نسخ/إدراج صفحة PDF متاح مجاناً محلياً',
         instructionAr:
-          'نفّذ فوراً pdf_duplicate_page (mode=copy للمحتوى؛ blank فقط إن طُلبت صفحة بيضاء) ثم return_file كمرفق تيليجرام. ممنوع طلب إعادة الإرسال.',
+          'نفّذ فوراً pdf_duplicate_page (mode=duplicate لنسخ محتوى صفحة مرقّمة؛ findEmptyPage=true لصفحة فاضية موجودة؛ blank فقط إن طُلبت صفحة بيضاء مخترعة) ثم return_file كمرفق تيليجرام. ممنوع طلب إعادة الإرسال.',
       },
     ],
   },
@@ -92,8 +104,9 @@ const RULES: Rule[] = [
       {
         toolName: 'pdf_insert_blank_page',
         libAr: 'pdf-lib (مدمج)',
-        whyAr: 'إدراج صفحة بيضاء مجاني',
-        instructionAr: 'نفّذ pdf_insert_blank_page ثم return_file.',
+        whyAr: 'إدراج صفحة بيضاء مخترعة مجاني',
+        instructionAr:
+          'نفّذ pdf_insert_blank_page ثم return_file. إن طُلبت «صفحة فاضية» من الملف استخدم pdf_duplicate_page+findEmptyPage بدل هذه الأداة.',
       },
     ],
   },

@@ -143,8 +143,9 @@ export async function executePdfMerge(
 
 /**
  * Duplicate a PDF page (full content) and insert the copy after another page.
- * Default task: copyPage=48, afterPage=45.
- * Optional mode=blank keeps empty page with sizeFromPage dimensions.
+ * findEmptyPage=true: locate an existing content-less page («صفحة فاضية») and copy it —
+ * never invent a white blank and never default to page 48.
+ * mode=blank only when the user explicitly asked for a fabricated white page.
  */
 export async function executePdfDuplicatePage(
   _n: string,
@@ -158,6 +159,9 @@ export async function executePdfDuplicatePage(
     throw new Error('مرّر afterPage (رقم الصفحة 1-based التي تليها النسخة)')
   }
   const mode = String(params.mode || 'duplicate').toLowerCase()
+  const findEmpty =
+    params.findEmptyPage === true ||
+    String(params.findEmptyPage || '').toLowerCase() === 'true'
   const { hit } = await loadPdfBuffer(scopeId, ref)
 
   let result: {
@@ -169,7 +173,7 @@ export async function executePdfDuplicatePage(
   let defaultOut: string
   const base = hit.meta.originalName.replace(/\.pdf$/i, '')
 
-  if (mode === 'blank') {
+  if (mode === 'blank' && !findEmpty) {
     const sizeFromPage =
       params.sizeFromPage != null
         ? Number(params.sizeFromPage)
@@ -187,9 +191,16 @@ export async function executePdfDuplicatePage(
     defaultOut = `${base}_صفحة_بيضاء_بعد_${afterPage}.pdf`
     messageAr = `أُدرجت صفحة بيضاء بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
   } else {
-    const copyPage = Number(params.copyPage ?? params.sizeFromPage)
-    if (!Number.isFinite(copyPage) || copyPage < 1) {
-      throw new Error('مرّر copyPage (رقم الصفحة 1-based لنسخ محتواها كاملاً)')
+    let copyPage = Number(params.copyPage ?? params.sizeFromPage)
+    if (findEmpty || !Number.isFinite(copyPage) || copyPage < 1) {
+      const { findEmptyContentPage } = await import('@/lib/documents/pdf')
+      const found = await findEmptyContentPage({ pdf: hit.buffer })
+      if (found == null) {
+        throw new Error(
+          'لم أجد صفحة فاضية (بلا كتابة) في الملف — حدّد رقم الصفحة صراحة أو ارفع نسخة أوضح.'
+        )
+      }
+      copyPage = found
     }
     result = await duplicatePdfPageAfter({
       pdf: hit.buffer,
@@ -197,7 +208,9 @@ export async function executePdfDuplicatePage(
       afterPage,
     })
     defaultOut = `${base}_نسخ_صفحة${copyPage}_بعد_${afterPage}.pdf`
-    messageAr = `نُسخت الصفحة ${copyPage} بالكامل وأُدرجت بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
+    messageAr = findEmpty
+      ? `عُثر على صفحة فاضية (ص ${copyPage}) فنُسخت بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
+      : `نُسخت الصفحة ${copyPage} بالكامل وأُدرجت بعد الصفحة ${afterPage}. الصفحات: ${result.pageCountBefore} → ${result.pageCountAfter}.`
   }
 
   const saved = await saveWorkspaceFile({

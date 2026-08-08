@@ -298,26 +298,60 @@ export async function archiveTelegramGroupToDrive(opts?: {
 }
 
 /**
- * Resolve a pending file job via mesh search + execute duplicate if params set.
- * Never asks the user to resend.
+ * Resolve a pending file job via mesh search + execute duplicate / empty-page copy.
+ * Never asks the user to resend. Reads job request_text/work_params when present.
  */
 export async function resolveAndRunPendingPdfJob(opts: {
   jobId: string
-  queryNames: string[]
+  queryNames?: string[]
   chatId: string
   scopeId: string
-  copyPage: number
-  afterPage: number
+  copyPage?: number
+  afterPage?: number
+  findEmptyPage?: boolean
 }): Promise<{
   ok: boolean
   source?: string
   resultName?: string
   pages?: string
+  emptySourcePage?: number
   errorAr?: string
 }> {
+  const { getTelegramFileJob, resolvePdfDuplicateParams, updateTelegramFileJob } =
+    await import('@/lib/telegram/file-jobs')
+  const job = await getTelegramFileJob(opts.jobId)
+  const inferred = job ? resolvePdfDuplicateParams(job) : null
+  const findEmpty =
+    opts.findEmptyPage === true ||
+    inferred?.findEmptyPage === true ||
+    job?.workParams?.findEmptyPage === true
+  const afterPage =
+    opts.afterPage ??
+    inferred?.afterPage ??
+    (typeof job?.workParams?.afterPage === 'number'
+      ? Number(job.workParams.afterPage)
+      : 45)
+  const copyPageExplicit =
+    opts.copyPage ??
+    (inferred && !inferred.findEmptyPage ? inferred.copyPage : undefined) ??
+    (typeof job?.workParams?.copyPage === 'number'
+      ? Number(job.workParams.copyPage)
+      : undefined)
+
   const { findAcrossStorageMesh } = await import('@/lib/telegram/storage-mesh')
+  const queryNames =
+    opts.queryNames?.length
+      ? opts.queryNames
+      : [
+          job?.expectedFilename,
+          'المعلم الاول',
+          'المعلم الأول',
+          'المعلم الأول من معالم من السيرة النبوية',
+          'المعلم الاول من معالم من السيرة النبوية',
+        ].filter(Boolean) as string[]
+
   let hit = null as Awaited<ReturnType<typeof findAcrossStorageMesh>>
-  for (const q of opts.queryNames) {
+  for (const q of queryNames) {
     hit = await findAcrossStorageMesh({
       scopeId: opts.scopeId,
       chatId: opts.chatId,
@@ -334,16 +368,31 @@ export async function resolveAndRunPendingPdfJob(opts: {
     }
   }
 
-  const { duplicatePdfPageAfter } = await import('@/lib/documents/pdf')
+  const { duplicatePdfPageAfter, findEmptyContentPage } = await import(
+    '@/lib/documents/pdf'
+  )
   const { saveWorkspaceFile } = await import('@/lib/documents/workspace')
+
+  let copyPage = copyPageExplicit
+  if (findEmpty || copyPage == null) {
+    const found = await findEmptyContentPage({ pdf: hit.buffer })
+    if (found == null) {
+      return {
+        ok: false,
+        errorAr: 'لم أجد صفحة فاضية بلا كتابة في الملف.',
+      }
+    }
+    copyPage = found
+  }
+
   const out = await duplicatePdfPageAfter({
     pdf: hit.buffer,
-    copyPage: opts.copyPage,
-    afterPage: opts.afterPage,
+    copyPage,
+    afterPage,
   })
   const outName =
     (hit.fileName || 'المعلم-الاول').replace(/\.pdf$/i, '') +
-    '_نسخ_صفحة48_بعد_45.pdf'
+    `_نسخ_صفحة${copyPage}_بعد_${afterPage}.pdf`
   const saved = await saveWorkspaceFile({
     scopeId: opts.scopeId,
     buffer: out.buffer,
@@ -361,34 +410,53 @@ export async function resolveAndRunPendingPdfJob(opts: {
   if (!token) {
     return { ok: false, errorAr: 'TELEGRAM_BOT_TOKEN missing' }
   }
-  const form = new FormData()
-  form.append('chat_id', opts.chatId)
-  form.append(
-    'caption',
-    `تم: نسخت الصفحة ${opts.copyPage} بالكامل وأدرجتها بعد الصفحة ${opts.afterPage} في «${hit.fileName}». الصفحات: ${out.pageCountBefore} → ${out.pageCountAfter}. (مصدر: ${hit.source})`
-  )
-  form.append(
-    'document',
-    new Blob([new Uint8Array(out.buffer)], { type: 'application/pdf' }),
-    outName
-  )
-  const res = await fetch(
-    `https://api.telegram.org/bot${token}/sendDocument`,
-    { method: 'POST', body: form }
-  )
-  if (!res.ok) {
-    const t = await res.text()
-    return { ok: false, errorAr: `sendDocument ${res.status}: ${t.slice(0, 200)}` }
+  const caption = findEmpty
+    ? `تم: عُثر على صفحة فاضية (ص ${copyPage}) فنُسخت بعد الصفحة ${afterPage} في «${hit.fileName}». الصفحات: ${out.pageCountBefore} → ${out.pageCountAfter}. (مصدر: ${hit.source})`
+    : `تم: نسخت الصفحة ${copyPage} بالكامل وأدرجتها بعد الصفحة ${afterPage} في «${hit.fileName}». الصفحات: ${out.pageCountBefore} → ${out.pageCountAfter}. (مصدر: ${hit.source})`
+  // Prefer Local Bot API for large PDFs when configured.
+  const localRoot = (process.env.TELEGRAM_BOT_API_URL || '')
+    .trim()
+    .replace(/\/$/, '')
+  const roots = localRoot
+    ? [localRoot, 'https://api.telegram.org']
+    : ['https://api.telegram.org']
+  let sentOk = false
+  let lastErr = ''
+  for (const root of roots) {
+    const form = new FormData()
+    form.append('chat_id', opts.chatId)
+    form.append('caption', caption)
+    form.append(
+      'document',
+      new Blob([new Uint8Array(out.buffer)], { type: 'application/pdf' }),
+      outName
+    )
+    const res = await fetch(`${root}/bot${token}/sendDocument`, {
+      method: 'POST',
+      body: form,
+    })
+    if (res.ok) {
+      sentOk = true
+      break
+    }
+    lastErr = await res.text()
+  }
+  if (!sentOk) {
+    return {
+      ok: false,
+      errorAr: `sendDocument failed: ${lastErr.slice(0, 200)}`,
+    }
   }
 
-  const { updateTelegramFileJob } = await import('@/lib/telegram/file-jobs')
   await updateTelegramFileJob(opts.jobId, {
     status: 'done',
     vaultFileId: saved.file.id,
     resultVaultFileId: saved.file.id,
     resultName: outName,
     expectedFilename: hit.fileName,
-    workParams: { copyPage: opts.copyPage, afterPage: opts.afterPage },
+    workParams: findEmpty
+      ? { findEmptyPage: true, afterPage, copyPage }
+      : { copyPage, afterPage },
   })
 
   return {
@@ -396,5 +464,6 @@ export async function resolveAndRunPendingPdfJob(opts: {
     source: hit.source,
     resultName: outName,
     pages: `${out.pageCountBefore}→${out.pageCountAfter}`,
+    emptySourcePage: findEmpty ? copyPage : undefined,
   }
 }

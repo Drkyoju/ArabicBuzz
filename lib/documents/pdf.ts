@@ -240,6 +240,107 @@ export async function rotatePdfPages(opts: {
 }
 
 /**
+ * Find an existing content-less page («صفحة فاضية» = no writing).
+ * Does NOT invent a white blank page. Prefers text-empty pages when the PDF
+ * has a mixed text layer; otherwise uses pdfjs operator-count outliers
+ * (typical blank leaf in scanned books) without rewriting the whole file.
+ * Returns 1-based page number, or null if none found.
+ */
+export async function findEmptyContentPage(opts: {
+  pdf: Buffer | Uint8Array
+  /** Skip very early pages (covers); 1-based inclusive start to search. Default 2. */
+  searchFromPage?: number
+}): Promise<number | null> {
+  const bytes =
+    opts.pdf instanceof Buffer ? opts.pdf : Buffer.from(opts.pdf)
+  const from = Math.max(1, Math.floor(Number(opts.searchFromPage ?? 2)))
+
+  try {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(bytes),
+      useSystemFonts: true,
+      disableWorker: true,
+    } as never)
+    const doc = await loadingTask.promise
+    const n = doc.numPages
+    if (n < 1) return null
+
+    type Hint = { page: number; textLen: number; ops: number }
+    const hints: Hint[] = []
+    for (let i = from; i <= n; i++) {
+      const page = await doc.getPage(i)
+      const content = await page.getTextContent()
+      const text = (content.items as Array<{ str?: string }>)
+        .map((it) => it.str || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      let ops = 0
+      try {
+        const list = await page.getOperatorList()
+        ops = Array.isArray(list?.fnArray) ? list.fnArray.length : 0
+      } catch {
+        ops = 0
+      }
+      hints.push({ page: i, textLen: text.length, ops })
+    }
+
+    const withText = hints.filter((h) => h.textLen >= 40)
+    const textEmpty = hints.filter((h) => h.textLen < 8)
+    if (withText.length > 0 && textEmpty.length > 0) {
+      return textEmpty[0]!.page
+    }
+
+    // Scanned / no usable text: lowest operator-count outlier.
+    if (hints.length < 3) return textEmpty[0]?.page ?? null
+    const byOps = [...hints].sort((a, b) => a.ops - b.ops)
+    const median = byOps[Math.floor(byOps.length / 2)]!.ops
+    const smallest = byOps[0]!
+    if (median > 0 && smallest.ops <= median * 0.5) {
+      return smallest.page
+    }
+    const upper = byOps.slice(Math.floor(byOps.length / 2))
+    const upperMean =
+      upper.reduce((s, x) => s + x.ops, 0) / Math.max(1, upper.length)
+    if (upperMean > 0 && smallest.ops <= upperMean * 0.4) {
+      return smallest.page
+    }
+    return textEmpty[0]?.page ?? null
+  } catch {
+    // Last resort: single-page footprint sample (cap pages to avoid OOM/timeout).
+    try {
+      const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
+      const n = src.getPageCount()
+      if (n < 3) return null
+      const maxSample = Math.min(n, 40)
+      const step = Math.max(1, Math.ceil((n - from + 1) / maxSample))
+      const footprints: { page: number; footprint: number }[] = []
+      for (let i = from; i <= n; i += step) {
+        const one = await PDFDocument.create()
+        const [p] = await one.copyPages(src, [i - 1])
+        if (!p) continue
+        one.addPage(p)
+        footprints.push({
+          page: i,
+          footprint: (await one.save()).byteLength,
+        })
+      }
+      if (footprints.length < 3) return null
+      const sorted = [...footprints].sort((a, b) => a.footprint - b.footprint)
+      const median = sorted[Math.floor(sorted.length / 2)]!.footprint
+      const smallest = sorted[0]!
+      if (smallest.footprint > 0 && smallest.footprint <= median * 0.45) {
+        return smallest.page
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+}
+
+/**
  * Duplicate a page (full content) and insert the copy after another page.
  * Example: copyPage=48, afterPage=45 → pages …45, [copy of 48], 46, 47, 48…
  * Uses pdf-lib page copy (preserves content/graphics of the source page).

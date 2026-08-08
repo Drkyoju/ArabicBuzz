@@ -3,7 +3,7 @@
  * Prefer deterministic tools (pdf_duplicate_page) then sendDocument to the group.
  */
 import {
-  inferPdfDuplicateWorkParams,
+  resolvePdfDuplicateParams,
   updateTelegramFileJob,
   type TelegramFileJob,
 } from '@/lib/telegram/file-jobs'
@@ -33,15 +33,7 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
 
   await updateTelegramFileJob(job.id, { status: 'running' })
 
-  const dup =
-    inferPdfDuplicateWorkParams(job.requestText) ||
-    (typeof job.workParams.copyPage === 'number' &&
-    typeof job.workParams.afterPage === 'number'
-      ? {
-          copyPage: Number(job.workParams.copyPage),
-          afterPage: Number(job.workParams.afterPage),
-        }
-      : null)
+  const dup = resolvePdfDuplicateParams(job)
 
   try {
     let resultFileId = vaultId
@@ -55,8 +47,10 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
       const out = await executePdfDuplicatePage('pdf_duplicate_page', {
         scopeId: job.scopeId,
         fileId: vaultId,
-        copyPage: dup.copyPage,
         afterPage: dup.afterPage,
+        ...(dup.findEmptyPage
+          ? { findEmptyPage: true }
+          : { copyPage: dup.copyPage }),
       })
       resultFileId = String(out.fileId)
       resultName = String(out.name)

@@ -810,15 +810,24 @@ export function getNativeAiTools(opts?: {
     }),
     pdf_duplicate_page: tool({
       description:
-        'نسخ صفحة PDF بمحتواها كاملاً (ليس صفحة بيضاء) وإدراج النسخة بعد صفحة أخرى. مثال: copyPage=48 afterPage=45 ثم return_file. mode=blank فقط إن طُلبت صفحة فارغة صراحة.',
+        'نسخ صفحة PDF بمحتواها وإدراج النسخة بعد صفحة أخرى. لـ«صفحة فاضية/فارغة» استخدم findEmptyPage=true مع afterPage (يعثر على صفحة بلا كتابة داخل الملف وينسخها) — ممنوع اختراع صفحة بيضاء وممنوع افتراض copyPage=48. mode=blank فقط إن طُلبت صفحة بيضاء مخترعة صراحة.',
       inputSchema: z.object({
         fileId: z.string(),
         copyPage: z
           .number()
-          .describe('رقم الصفحة 1-based لنسخ محتواها كاملاً (مثل 48)'),
+          .optional()
+          .describe(
+            'رقم الصفحة 1-based لنسخ محتواها (مثل 48) — اتركه إن findEmptyPage=true'
+          ),
         afterPage: z
           .number()
           .describe('رقم الصفحة 1-based التي توضع النسخة بعدها (مثل 45)'),
+        findEmptyPage: z
+          .boolean()
+          .optional()
+          .describe(
+            'true = ابحث عن صفحة فاضية موجودة بلا كتابة وانسخها (ليس بيضاء مخترعة)'
+          ),
         mode: z.enum(['duplicate', 'blank']).optional(),
         sizeFromPage: z.number().optional(),
         outputName: z.string().optional(),
@@ -835,7 +844,7 @@ export function getNativeAiTools(opts?: {
     }),
     pdf_insert_blank_page: tool({
       description:
-        'إدراج صفحة بيضاء فارغة بنفس المقاس بعد صفحة معيّنة. لطلب «نسخ صفحة بمحتواها» استخدم pdf_duplicate_page.',
+        'إدراج صفحة بيضاء فارغة مخترعة بنفس المقاس بعد صفحة معيّنة. لطلب «نسخ صفحة فاضية موجودة من الملف» استخدم pdf_duplicate_page مع findEmptyPage=true — لا تستخدم هذه الأداة.',
       inputSchema: z.object({
         fileId: z.string(),
         afterPage: z.number(),

@@ -77,6 +77,7 @@ import {
 } from '@/lib/telegram/attachment-persist'
 import {
   enqueueTelegramFileJob,
+  formatPdfDuplicateToolHintAr,
   inferPdfDuplicateWorkParams,
   updateTelegramFileJob,
 } from '@/lib/telegram/file-jobs'
@@ -3115,7 +3116,7 @@ export function getTelegramBot() {
         }),
         ocrHint,
         dup
-          ? `استدعِ pdf_duplicate_page: copyPage=${dup.copyPage} afterPage=${dup.afterPage} ثم return_file.`
+          ? formatPdfDuplicateToolHintAr(dup)
           : '',
         'نفّذ الطلب على هذا fileId مباشرة وأعد الناتج كمرفق تيليجرام. مزامنة Drive اختيارية فقط ولا تمنع التنفيذ. ممنوع طلب إعادة الإرسال.',
       ]

@@ -171,6 +171,17 @@ describe('telegram attachment persist + jobs', () => {
     ).toEqual({ copyPage: 48, afterPage: 45 })
   })
 
+  it('infers empty-page copy (صفحة فاضية) not page 48', () => {
+    expect(
+      inferPdfDuplicateWorkParams(
+        'تصحيح المهمة: انسخ صفحة فاضية من الملف (بدون كتابة) وضعها بعد الصفحة 45 — مو نسخ محتوى الصفحة 48.'
+      )
+    ).toEqual({ findEmptyPage: true, afterPage: 45 })
+    expect(
+      inferPdfDuplicateWorkParams('انسخ صفحة فاضية بعد 45 في المعلم الأول')
+    ).toEqual({ findEmptyPage: true, afterPage: 45 })
+  })
+
   it('binds waiting job then marks pending when exact vault name appears', async () => {
     const job = await enqueueTelegramFileJob({
       chatId: 'chat-bind',

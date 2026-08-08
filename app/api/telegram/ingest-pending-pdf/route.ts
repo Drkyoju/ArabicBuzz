@@ -81,7 +81,9 @@ export async function POST(req: NextRequest) {
     status: 'pending',
     vaultFileId: saved.file.id,
     expectedFilename: saved.file.originalName,
-    workParams: { copyPage: 48, afterPage: 45 },
+    requestText:
+      'تصحيح المهمة: انسخ صفحة فاضية من الملف (بدون كتابة) وضعها بعد الصفحة 45 — مو نسخ محتوى الصفحة 48.',
+    workParams: { findEmptyPage: true, afterPage: 45 },
   })
 
   const ran = await afterVaultFileMaybeRunTelegramJobs({

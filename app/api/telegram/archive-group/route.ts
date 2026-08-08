@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
       chatId: body.chatId || archive.chatId,
       scopeId: body.scopeId || archive.scopeId,
-      copyPage: 48,
+      findEmptyPage: true,
       afterPage: 45,
       queryNames: [
         'المعلم الاول',
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       pendingPdf &&
       'ok' in pendingPdf &&
       (pendingPdf as { ok: boolean }).ok
-        ? 'أُكملت مهمة نسخ صفحة 48 وأُرسل الملف للمجموعة.'
+        ? 'أُكملت مهمة نسخ صفحة فاضية وأُرسل الملف للمجموعة.'
         : 'مهمة المعلم الأول ما زالت معلّقة صامتة إن لم تُوجد البايتات بعد.',
       archive.deepHistory?.credentialsReady === false
         ? archive.deepHistoryStatus.setupAr

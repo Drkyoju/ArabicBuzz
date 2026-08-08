@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
       jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
       chatId: '-1003855925966',
       scopeId: 'shared-demo',
-      copyPage: 48,
+      findEmptyPage: true,
       afterPage: 45,
       queryNames: [
         'المعلم الاول',

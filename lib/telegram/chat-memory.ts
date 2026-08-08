@@ -46,11 +46,16 @@ export async function buildTelegramGroupChatMemoryAr(opts: {
   if (openJobs.length) {
     lines.push('', '### مهام ملفات معلّقة (أولوية تنفيذ)')
     for (const j of openJobs) {
-      const params =
-        typeof j.workParams.copyPage === 'number' &&
-        typeof j.workParams.afterPage === 'number'
-          ? ` · pdf_duplicate_page copyPage=${j.workParams.copyPage} afterPage=${j.workParams.afterPage}`
-          : ''
+      const params = (() => {
+        if (typeof j.workParams.afterPage !== 'number') return ''
+        if (j.workParams.findEmptyPage === true) {
+          return ` · pdf_duplicate_page findEmptyPage=true afterPage=${j.workParams.afterPage}`
+        }
+        if (typeof j.workParams.copyPage === 'number') {
+          return ` · pdf_duplicate_page copyPage=${j.workParams.copyPage} afterPage=${j.workParams.afterPage}`
+        }
+        return ''
+      })()
       lines.push(
         [
           `- #${j.id.slice(0, 8)} status=${j.status}`,
@@ -78,7 +83,7 @@ export async function buildTelegramGroupChatMemoryAr(opts: {
 
   lines.push(
     '',
-    'قواعد: لا تطلب إعادة إرسال. لا تستبدل بملف أحياء. إن وُجدت مهمة نسخ صفحة نفّذ pdf_duplicate_page ثم return_file عبر وكلاء الغرفة.'
+    'قواعد: لا تطلب إعادة إرسال. لا تستبدل بملف أحياء. إن وُجدت مهمة «صفحة فاضية» نفّذ pdf_duplicate_page مع findEmptyPage=true (ممنوع copyPage=48 وممنوع صفحة بيضاء مخترعة) ثم return_file عبر وكلاء الغرفة.'
   )
   return lines.join('\n')
 }
