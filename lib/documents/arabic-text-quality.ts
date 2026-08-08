@@ -233,6 +233,10 @@ export function structureArabicParagraphs(text: string): Array<{
   })
 }
 
+/** Soft refuse when Gemini→Paddle (and optional Mistral) cannot produce clean Arabic. */
+export const CONVERT_OCR_REFUSE_AR =
+  'تعذّر التحويل بنص عربي نظيف (Gemini ثم Paddle). لم نُنشئ ملفاً حتى لا يصلك طلاسم. إن رغبت لاحقاً بتجربة Mistral OCR أخبرني، أو أوقف التحويل لهذا الملف.'
+
 /** Arabic error when free rebuild would produce garbage. */
 export function brokenToUnicodeErrorAr(opts?: {
   hasMac?: boolean
@@ -242,17 +246,17 @@ export function brokenToUnicodeErrorAr(opts?: {
   hasPaddle?: boolean
 }): string {
   const parts = [
-    'تعذّر إنتاج نص عربي نظيف للتحويل — لن نُسلّم طلاسم (مثل الالئحة/األساسية/U+FFFD).',
-    'المسار: Gemini Flash → Gemini أقوى إن ضعف → PaddleOCR (أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى) → Mistral إن وُجد المفتاح وما زال لازماً → محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
+    CONVERT_OCR_REFUSE_AR,
+    'المسار الافتراضي: Gemini Flash → Gemini أقوى إن ضعف → PaddleOCR → توقّف. Mistral معطّل افتراضياً (CONVERT_ALLOW_MISTRAL=1 + MISTRAL_API_KEY فقط). محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
   ]
   if (opts?.hasPaddle === false) {
     parts.push(
-      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم. أرخص من Mistral عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى.'
+      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم.'
     )
   }
   if (opts?.hasMistral === false) {
     parts.push(
-      'Mistral OCR غير مضبوط (اختياري عبر MISTRAL_API_KEY) — لم يُستخدم إلا بعد Paddle عند الحاجة.'
+      'Mistral OCR غير مفعّل (افتراضي OFF — يحتاج CONVERT_ALLOW_MISTRAL=1 وMISTRAL_API_KEY معاً).'
     )
   }
   if (opts?.hasMac) {

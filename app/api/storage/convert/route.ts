@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 /**
- * Clean PDF↔Word — Gemini first (OCR Arena leader) → strong Gemini → Paddle → Mistral → refuse.
+ * Clean PDF↔Word — Gemini → strong Gemini → Paddle → STOP (Mistral opt-in only).
  * UI: «إلى Word» / «إلى PDF». Never returns a طلاسم file as success.
  */
 export async function POST(req: Request) {

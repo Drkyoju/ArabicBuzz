@@ -60,8 +60,8 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 
 1. **Gemini Flash OCR/vision** — استخراج نص عربي نظيف ثم إعادة بناء DOCX/XLSX/PPTX بـ RTL.
 2. **Gemini أقوى** (مثل `gemini-3.1-pro`) إن فشل Flash بوابة الجودة.
-3. **PaddleOCR** — احتياطي رخيص ذاتي الاستضافة (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`) بعد فشل Gemini فقط؛ ليس لأنه أقوى من Gemini.
-4. **Mistral OCR** — فقط إن وُجد `MISTRAL_API_KEY` وما زال لازماً بعد Paddle (لا مفاتيح مخترعة).
+3. **PaddleOCR** — بعد فشل بوابة Gemini (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`).
+4. **توقّف** — لا Mistral تلقائياً. فقط إن `CONVERT_ALLOW_MISTRAL=1` و`MISTRAL_API_KEY` (افتراضي OFF)، وإلا رفض صادق بلا طلاسم.
 5. **استخراج محلي نظيف** — `pdf-parse-safe` / صفحات **فقط** إن اجتاز بوابة الجودة.
 6. وإلا **`{ ok: false, reason_ar }`** — بلا مرفق. لا طلاسم، لا كذب.
 
@@ -77,7 +77,7 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 
 ### تحذير: PDF عربي بطبقة ToUnicode معطوبة
 
-بعض اللوائح تبدو صحيحة بصرياً لكن Unicode يعطي «الالئحة / األساسية». المسارات المعطوبة (`pdf2docx`، Drive الفاسد، pdf-lib) **معطّلة**. المسار: Gemini (Arena)→Paddle→Mistral→محلي نظيف أو **رفض صادق**.
+بعض اللوائح تبدو صحيحة بصرياً لكن Unicode يعطي «الالئحة / األساسية». المسارات المعطوبة (`pdf2docx`، Drive الفاسد، pdf-lib) **معطّلة**. المسار: Gemini → Paddle → توقّف (Mistral فقط مع `CONVERT_ALLOW_MISTRAL=1`) → محلي نظيف أو **رفض صادق**.
 
 `convert_document(engine=auto)` **يرفض** عند أي شك (افتراضي).
 

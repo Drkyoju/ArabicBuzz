@@ -15,10 +15,10 @@
  * Gemini leads OCR Arena (https://www.ocrarena.ai/leaderboard) — primary, not a last resort.
  * 1) Gemini Flash OCR/vision
  * 2) Stronger Gemini if Flash fails quality gate (project max, e.g. 3.1 Pro)
- * 3) PaddleOCR when available (PADDLE_OCR_URL / ENABLE_PADDLE_OCR) — cheap self-hosted
- *    fallback only after Gemini quality gate fails (not because Paddle is "stronger")
- * 4) Mistral OCR only if MISTRAL_API_KEY and still needed after Paddle
- * 5) Else refuse — never return mojibake
+ * 3) PaddleOCR when available (PADDLE_OCR_URL / ENABLE_PADDLE_OCR) — after Gemini gate fails
+ * 4) STOP — do NOT auto-call Mistral. Opt-in only:
+ *    CONVERT_ALLOW_MISTRAL=1 AND MISTRAL_API_KEY (default OFF)
+ * 5) Else refuse — never return mojibake / طلاسم
  *
  * Note: Paddle is NOT baked into the thin CranL image by default (too heavy).
  * Prefer a sidecar via PADDLE_OCR_URL, or ENABLE_PADDLE_OCR=1 where paddleocr is installed.
@@ -33,7 +33,6 @@ import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import {
   assessArabicTextQuality,
   hasArabicMojibake,
-  pickBestCleanArabicText,
 } from '@/lib/documents/arabic-text-quality'
 import {
   macPageOcr,
@@ -55,8 +54,16 @@ export type ArabicOcrResult = {
   error?: string
 }
 
+/**
+ * Mistral OCR for convert is opt-in only (default OFF).
+ * Requires CONVERT_ALLOW_MISTRAL=1 AND MISTRAL_API_KEY — never auto-call after Paddle.
+ */
 export function mistralOcrConfigured(): boolean {
-  return Boolean(process.env.MISTRAL_API_KEY?.trim()) && !IS_AIR_GAPPED_MODE
+  return (
+    process.env.CONVERT_ALLOW_MISTRAL?.trim() === '1' &&
+    Boolean(process.env.MISTRAL_API_KEY?.trim()) &&
+    !IS_AIR_GAPPED_MODE
+  )
 }
 
 /** Sidecar URL and/or local ENABLE_PADDLE_OCR — never invent keys. */
@@ -314,7 +321,8 @@ async function ocrViaGemini(
 }
 
 /**
- * Optional paid OCR — only when MISTRAL_API_KEY is set.
+ * Optional paid OCR — only when CONVERT_ALLOW_MISTRAL=1 AND MISTRAL_API_KEY.
+ * Default OFF: convert cascade stops after Gemini→Paddle without calling this.
  * Uses official POST /v1/ocr with data-URL document (no invented keys).
  */
 async function ocrViaMistral(
@@ -619,8 +627,8 @@ function pushAttempt(
 
 /**
  * Convert PDF→Office OCR cascade (strict honesty):
- * Gemini Flash → Gemini stronger → PaddleOCR → Mistral (if key) → refuse.
- * Gemini-first matches OCR Arena leadership; Paddle/Mistral are fallbacks only.
+ * Gemini Flash → Gemini stronger → PaddleOCR → STOP
+ * (Mistral only if CONVERT_ALLOW_MISTRAL=1 + MISTRAL_API_KEY — default OFF).
  * Never returns mojibake — caller must refuse if null.
  */
 export async function runConvertOcrCascade(opts: {
@@ -681,7 +689,7 @@ export async function runConvertOcrCascade(opts: {
     )
   }
 
-  // 3) PaddleOCR — cheap self-hosted after Gemini gate fails (not "stronger than Gemini")
+  // 3) PaddleOCR after Gemini quality gate fails
   if (paddleOcrConfigured()) {
     const paddle = await ocrViaPaddle(opts.buffer, mime, filename)
     if (paddle?.text?.trim() && ocrPassesConvertGate(paddle.text)) {
@@ -697,43 +705,11 @@ export async function runConvertOcrCascade(opts: {
       attempts,
       'paddle',
       null,
-      'PaddleOCR: غير مضبوط (PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي. أرخص من Mistral عند التثبيت؛ الجودة ليست دائماً أقوى.'
+      'PaddleOCR: غير مضبوط (PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي.'
     )
   }
 
-  // Optional free Mac/Qari before paid Mistral
-  const freeTries: ArabicOcrResult[] = []
-  const mac = await ocrViaMacFree(opts.buffer, mime, filename)
-  if (mac) freeTries.push(mac)
-  const qari = await ocrViaLocalQari(opts.buffer, mime, filename)
-  if (qari?.text) freeTries.push(qari)
-  const hf = await ocrViaHuggingFaceQari(opts.buffer, mime)
-  if (hf?.text) freeTries.push(hf)
-
-  const freePicked = pickBestCleanArabicText(
-    freeTries.map((r) => ({
-      text: r.text,
-      source: `ocr-${r.provider}`,
-    }))
-  )
-  for (const r of freeTries) {
-    const clean = ocrPassesConvertGate(r.text)
-    attempts.push({
-      provider: r.provider,
-      ok: clean,
-      detailAr: clean
-        ? `${r.provider}: نص نظيف`
-        : r.error || `${r.provider}: فشل بوابة الجودة أو نص قصير`,
-    })
-  }
-  if (freePicked && ocrPassesConvertGate(freePicked.text)) {
-    return {
-      best: { text: freePicked.text, source: freePicked.source },
-      attempts,
-    }
-  }
-
-  // 4) Mistral only if key present AND still needed
+  // 4) Mistral ONLY if explicitly enabled (CONVERT_ALLOW_MISTRAL=1 + key). Default: STOP.
   if (mistralOcrConfigured()) {
     const mistral = await ocrViaMistral(opts.buffer, mime, filename)
     if (mistral?.text?.trim() && ocrPassesConvertGate(mistral.text)) {
@@ -749,7 +725,7 @@ export async function runConvertOcrCascade(opts: {
       attempts,
       'mistral',
       null,
-      'Mistral: غير مضبوط (لا MISTRAL_API_KEY) — تُخطّي'
+      'Mistral: معطّل افتراضياً — يتطلّب CONVERT_ALLOW_MISTRAL=1 وMISTRAL_API_KEY. توقّفنا بعد Gemini وPaddle (لا استدعاء تلقائي).'
     )
   }
 

@@ -474,7 +474,7 @@ export function FilesPanel() {
     setBusyId(fileId)
     setNote(
       toFormat === 'docx'
-        ? 'جاري التحويل النظيف PDF→Word (Gemini Flash→Paddle أرخص من Mistral→…)…'
+        ? 'جاري التحويل النظيف PDF→Word (Gemini Flash→Paddle→توقّف)…'
         : 'جاري التحويل النظيف Word→PDF…'
     )
     try {

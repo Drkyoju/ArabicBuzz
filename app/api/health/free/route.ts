@@ -126,9 +126,13 @@ export async function GET() {
       process.env.PADDLE_OCR_URL?.trim() ||
         process.env.ENABLE_PADDLE_OCR?.trim() === '1'
     ),
-    mistralOcrConfigured: Boolean(process.env.MISTRAL_API_KEY?.trim()),
+    mistralOcrConfigured:
+      process.env.CONVERT_ALLOW_MISTRAL?.trim() === '1' &&
+      Boolean(process.env.MISTRAL_API_KEY?.trim()),
+    convertAllowMistral:
+      process.env.CONVERT_ALLOW_MISTRAL?.trim() === '1',
     ocrConvertCascadeAr:
-      'Gemini Flash → Gemini أقوى → PaddleOCR (أرخص من Mistral عند التثبيت؛ الجودة ليست دائماً أقوى) → Mistral إن وُجد المفتاح → رفض بلا طلاسم',
+      'Gemini Flash → Gemini أقوى → PaddleOCR → توقّف (Mistral فقط مع CONVERT_ALLOW_MISTRAL=1 + مفتاح؛ افتراضي OFF) → رفض بلا طلاسم',
     googleDriveConvertHintAr:
       'مجاني مع حساب Google مربوط (drive.file) — الأفضل للعربية والتخطيط',
     cloudConvertOptionalPaid: true,

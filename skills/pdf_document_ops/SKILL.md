@@ -35,7 +35,7 @@ toolsRequired:
 
 ## مصفوفة التحويل (جودة — نظيف أو ارفض)
 | الزوج | المسموح | معطّل |
-| pdf→docx | `convert_document` auto: Gemini(Arena)→Paddle→Mistral→محلي نظيف أو ارفض | Drive طلاسم، pdf2docx عربي، rebuild معطوب |
+| pdf→docx | `convert_document` auto: Gemini→Paddle→توقّف (Mistral opt-in)→محلي نظيف أو ارفض | Drive طلاسم، pdf2docx عربي، rebuild معطوب |
 | docx→pdf | Drive بجودة نظيفة أو LibreOffice أو CloudConvert (مدفوع اختياري) | pdf-lib جسم عربي |
 | pdf↔xlsx/pptx | نفس مصدر النص النظيف فقط | أي مسار يمرّر طلاسم |
 

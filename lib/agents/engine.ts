@@ -230,7 +230,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_document: tool({
       description:
-        'تحويل صيغ وإرفاق الناتج في الشات. قاعدة مطلقة: لا طلاسم عربية أبداً. PDF→Word: Gemini Flash أولاً (يتصدر OCR Arena) → Gemini أقوى إن ضعف → PaddleOCR احتياطي رخيص بعد فشل بوابة Gemini (ليس أقوى من Gemini) → Mistral إن وُجد المفتاح وما زال لازماً → محلي نظيف أو {ok:false, reason_ar} بدون مرفق. ممنوع: Drive المعطوب، pdf-lib عربي، pdf2docx للعربية. إن شكّ → ارفض بصدق عربي صريح.',
+        'تحويل صيغ وإرفاق الناتج في الشات. قاعدة مطلقة: لا طلاسم عربية أبداً. PDF→Word: Gemini Flash → Gemini أقوى إن ضعف → PaddleOCR → توقّف. Mistral معطّل افتراضياً (CONVERT_ALLOW_MISTRAL=1 + مفتاح فقط). محلي نظيف أو {ok:false, reason_ar} بدون مرفق. ممنوع: Drive المعطوب، pdf-lib عربي، pdf2docx للعربية. إن شكّ → ارفض بصدق عربي صريح.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z
@@ -242,7 +242,7 @@ export function getNativeAiTools(opts?: {
           .enum(['auto', 'google', 'free', 'cloudconvert'])
           .optional()
           .describe(
-            'auto=Gemini Flash→أقوى→Paddle→Mistral→محلي نظيف أو ارفض. google=Drive مع بوابة جودة. free=نفس سلسلة OCR النظيفة. cloudconvert اختياري مدفوع.'
+            'auto=Gemini Flash→أقوى→Paddle→توقّف (Mistral opt-in فقط)→محلي نظيف أو ارفض. google=Drive مع بوابة جودة. free=نفس سلسلة OCR النظيفة. cloudconvert اختياري مدفوع.'
           ),
       }),
       execute: async (params) =>
@@ -261,7 +261,7 @@ export function getNativeAiTools(opts?: {
     }),
     convert_file: tool({
       description:
-        'Alias لـ convert_document — تحويل بلا طلاسم. PDF→Word: Gemini Flash→أقوى→Paddle (أرخص من Mistral)→Mistral إن لزم→محلي نظيف؛ وإلا رفض عربي صريح بدون مرفق.',
+        'Alias لـ convert_document — تحويل بلا طلاسم. PDF→Word: Gemini Flash→أقوى→Paddle→توقّف؛ Mistral فقط إن CONVERT_ALLOW_MISTRAL=1؛ وإلا رفض عربي صريح بدون مرفق.',
       inputSchema: z.object({
         fileId: z.string().describe('معرّف الملف في مساحة الغرفة'),
         toFormat: z

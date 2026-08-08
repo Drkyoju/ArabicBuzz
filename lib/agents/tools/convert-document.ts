@@ -5,9 +5,8 @@
  *  Gemini leads OCR Arena (ocrarena.ai/leaderboard) — primary vision OCR.
  *  1) Gemini Flash OCR → clean text → rebuild Word/etc.
  *  2) Stronger Gemini if Flash fails quality gate
- *  3) PaddleOCR when available — cheap self-hosted after Gemini gate fails
- *     (not because Paddle is stronger than Gemini)
- *  4) Mistral OCR only if MISTRAL_API_KEY and still needed after Paddle
+ *  3) PaddleOCR when available — after Gemini gate fails
+ *  4) STOP — Mistral only if CONVERT_ALLOW_MISTRAL=1 AND MISTRAL_API_KEY (default OFF)
  *  5) Local clean extract ONLY if quality gate passes
  *  6) Else refuse with MSA { ok: false, reason_ar } — never attach a bad file
  *
@@ -25,6 +24,7 @@ import {
 import { readDocumentPages } from '@/lib/documents/read-pages'
 import {
   brokenToUnicodeErrorAr,
+  CONVERT_OCR_REFUSE_AR,
   convertRefuseResult,
   hasArabicMojibake,
   pickBestCleanArabicText,
@@ -479,7 +479,7 @@ export async function executeConvertDocument(
   })
 }
 
-/** PDF→Office: Gemini Flash → strong → Paddle → Mistral → local clean → refuse. */
+/** PDF→Office: Gemini Flash → strong → Paddle → STOP (Mistral opt-in) → local clean → refuse. */
 async function rebuildPdfToOfficeHonest(opts: {
   hit: Awaited<ReturnType<typeof readWorkspaceFile>>
   scopeId: string
@@ -538,14 +538,8 @@ async function rebuildPdfToOfficeHonest(opts: {
       .join(' · ')
     return convertRefuseResult(
       [
-        brokenToUnicodeErrorAr({
-          hasMac: macSyncConfigured(),
-          hasGoogleHint: true,
-          hasMistral: mistralOcrConfigured(),
-          hasPaddle: paddleOcrConfigured(),
-        }),
+        CONVERT_OCR_REFUSE_AR,
         attemptLines ? `تفاصيل المحاولات: ${attemptLines}` : '',
-        'لن نُرفق ملفاً يبدو سليماً وهو فاسد — أخبرناك بصراحة.',
       ]
         .filter(Boolean)
         .join(' '),
@@ -554,12 +548,15 @@ async function rebuildPdfToOfficeHonest(opts: {
           'gemini-flash',
           'gemini-strong',
           'paddle',
-          'mistral',
+          'stop',
+          'mistral-opt-in',
           'local-clean',
           'refuse',
         ],
         ocrAttempts: ocrCascade.attempts,
         engine: 'refuse',
+        mistralOptIn: mistralOcrConfigured(),
+        paddleConfigured: paddleOcrConfigured(),
       }
     )
   }
@@ -577,9 +574,9 @@ async function rebuildPdfToOfficeHonest(opts: {
   const noteExtra = !ocrUsed
     ? 'محرّك: استخراج محلي نظيف اجتاز بوابة الجودة فقط.'
     : best.source.includes('paddle')
-      ? 'محرّك: PaddleOCR (أرخص من Mistral؛ الجودة ليست دائماً أقوى) → إعادة بناء نظيفة.'
+      ? 'محرّك: PaddleOCR (بعد فشل بوابة Gemini) → إعادة بناء نظيفة.'
       : best.source.includes('mistral')
-        ? 'محرّك: Mistral OCR (بعد Gemini وPaddle) → إعادة بناء نظيفة.'
+        ? 'محرّك: Mistral OCR (مفعّل صراحةً عبر CONVERT_ALLOW_MISTRAL) → إعادة بناء نظيفة.'
         : best.source.includes('gemini-strong')
           ? 'محرّك: Gemini أقوى (بعد Flash ضعيف) → إعادة بناء DOCX/Office بـ RTL. بلا طلاسم.'
           : best.source.includes('gemini')
@@ -842,7 +839,7 @@ async function finishRebuildFromCleanText(opts: {
     sourceName: hit.meta.originalName,
     messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} — ${opts.noteExtra} نزّل أو عاين من فقاعة الشات.`,
     noteAr:
-      'سلسلة نظيفة: Gemini → Mistral (إن وُجد المفتاح) → استخراج محلي إن اجتاز البوابة. Drive المعطوب وpdf2docx للعربية وpdf-lib العربي معطّلة. التخطيط الأصلي 100٪ غير مضمون؛ النص بلا طلاسم.',
+      'سلسلة نظيفة: Gemini → Paddle → توقّف (Mistral فقط مع CONVERT_ALLOW_MISTRAL=1). محلي نظيف إن اجتاز البوابة. Drive المعطوب وpdf2docx للعربية وpdf-lib العربي معطّلة. التخطيط الأصلي 100٪ غير مضمون؛ النص بلا طلاسم.',
     extra: {
       charCount: text.length,
       paragraphCount: paragraphStrings.length,
@@ -866,7 +863,8 @@ async function finishRebuildFromCleanText(opts: {
         'gemini-flash',
         'gemini-strong',
         'paddle',
-        'mistral',
+        'stop',
+        'mistral-opt-in',
         'local-clean',
       ],
     },

@@ -3,11 +3,15 @@ import {
   mistralOcrConfigured,
   paddleOcrConfigured,
 } from '@/lib/rag/ocr'
-import { brokenToUnicodeErrorAr } from '@/lib/documents/arabic-text-quality'
+import {
+  brokenToUnicodeErrorAr,
+  CONVERT_OCR_REFUSE_AR,
+} from '@/lib/documents/arabic-text-quality'
 
 describe('convert OCR cascade config', () => {
   const keys = [
     'MISTRAL_API_KEY',
+    'CONVERT_ALLOW_MISTRAL',
     'PADDLE_OCR_URL',
     'ENABLE_PADDLE_OCR',
     'INSTALL_PADDLE_OCR',
@@ -31,9 +35,11 @@ describe('convert OCR cascade config', () => {
     snap('PADDLE_OCR_URL')
     snap('ENABLE_PADDLE_OCR')
     snap('MISTRAL_API_KEY')
+    snap('CONVERT_ALLOW_MISTRAL')
     process.env.PADDLE_OCR_URL = 'https://paddle.example'
     delete process.env.ENABLE_PADDLE_OCR
     delete process.env.MISTRAL_API_KEY
+    delete process.env.CONVERT_ALLOW_MISTRAL
     expect(paddleOcrConfigured()).toBe(true)
     expect(mistralOcrConfigured()).toBe(false)
   })
@@ -46,15 +52,42 @@ describe('convert OCR cascade config', () => {
     expect(paddleOcrConfigured()).toBe(true)
   })
 
-  it('Arabic refuse message prefers Paddle before Mistral and states cost honesty', () => {
+  it('does not auto-enable Mistral with key alone (needs CONVERT_ALLOW_MISTRAL=1)', () => {
+    snap('MISTRAL_API_KEY')
+    snap('CONVERT_ALLOW_MISTRAL')
+    snap('AIRGAP_MODE')
+    process.env.MISTRAL_API_KEY = 'sk-test'
+    delete process.env.CONVERT_ALLOW_MISTRAL
+    delete process.env.AIRGAP_MODE
+    expect(mistralOcrConfigured()).toBe(false)
+  })
+
+  it('enables Mistral only when CONVERT_ALLOW_MISTRAL=1 and key present', () => {
+    snap('MISTRAL_API_KEY')
+    snap('CONVERT_ALLOW_MISTRAL')
+    snap('AIRGAP_MODE')
+    process.env.MISTRAL_API_KEY = 'sk-test'
+    process.env.CONVERT_ALLOW_MISTRAL = '1'
+    delete process.env.AIRGAP_MODE
+    expect(mistralOcrConfigured()).toBe(true)
+  })
+
+  it('Arabic refuse message stops after Gemini→Paddle (no auto Mistral)', () => {
     const msg = brokenToUnicodeErrorAr({
       hasPaddle: false,
       hasMistral: false,
     })
+    expect(msg).toContain(CONVERT_OCR_REFUSE_AR)
     expect(msg).toContain('PaddleOCR')
-    expect(msg).toContain('أرخص من Mistral')
-    expect(msg).toContain('الجودة ليست دائماً أقوى')
+    expect(msg).toContain('CONVERT_ALLOW_MISTRAL=1')
     expect(msg).toMatch(/Flash|Gemini Flash/)
-    expect(msg.indexOf('PaddleOCR')).toBeLessThan(msg.indexOf('Mistral إن'))
+    expect(msg).toMatch(/توقّف/)
+    expect(msg).toContain('معطّل افتراضياً')
+    // Cascade path sentence: Gemini → Paddle → stop before Mistral opt-in wording
+    const pathIdx = msg.indexOf('المسار الافتراضي')
+    expect(pathIdx).toBeGreaterThanOrEqual(0)
+    expect(msg.indexOf('PaddleOCR', pathIdx)).toBeLessThan(
+      msg.indexOf('Mistral معطّل', pathIdx)
+    )
   })
 })

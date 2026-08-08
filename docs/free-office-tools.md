@@ -20,7 +20,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | كشف PDF ممسوح | `lib/documents/scanned-detect.ts` | Netlify | صفحات فارغة/قصيرة أو ToUnicode معطوب |
 | قراءة وكيل صفحة بصفحة | `read_document` → `readDocumentPages` | Netlify + ماك | حتى 8 صفحات OCR لكل استدعاء ثم `nextPageStart` |
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
-| PDF→DOCX عربي | `convert_document`: Gemini OCR → Mistral (إن المفتاح) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
+| PDF→DOCX عربي | `convert_document`: Gemini → Paddle → توقّف (Mistral opt-in) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
 | Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
@@ -37,9 +37,9 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 2. إن كانت الصورة أو معظم صفحات PDF فارغة/قصيرة/معطوبة → يُعلَّم «ممسوح».
 3. يشغّل OCR للتحويل النظيف (PDF→Office):
    - Gemini Flash أولاً → Gemini أقوى إن ضعف النص
-   - ثم **PaddleOCR** إن وُجد (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`) — أرخص من Mistral؛ الجودة ليست دائماً أقوى
-   - ثم Mistral فقط إن وُجد `MISTRAL_API_KEY` وما زال لازماً
-   - وإلا رفض عربي صريح بلا ملف طلاسم
+   - ثم **PaddleOCR** إن وُجد (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`)
+   - ثم **توقّف** — لا Mistral تلقائي. Mistral فقط مع `CONVERT_ALLOW_MISTRAL=1` و`MISTRAL_API_KEY` (افتراضي OFF)
+   - وإلا رفض عربي صريح بلا ملف طلاسم (يعرض خيار تجربة Mistral لاحقاً أو إيقاف الملف)
    - للقراءة العامة: جسر الماك Tesseract → Qari → Gemini
 4. يعيد النص مع `ocrUsed=true` و`warningAr` إن لزم.
 5. للمستندات الطويلة: كرّر `read_document(pageStart=nextPageStart)` حتى `hasMore=false`.
@@ -83,8 +83,9 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 |-------|---------|--------|
 | `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك |
 | `GEMINI_API_KEY` | عادة موجود | Gemini Flash ثم نموذج أقوى في سلسلة التحويل |
-| `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | PaddleOCR — **أرخص من Mistral** عند التثبيت الذاتي؛ الجودة ليست دائماً أقوى. لا يُضمَّن في صورة CranL الرقيقة — انظر `deploy/paddle-ocr/` |
-| `MISTRAL_API_KEY` | اختياري مدفوع | فقط بعد فشل Paddle إن وُجد المفتاح — لا تُخترع مفاتيح |
+| `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | PaddleOCR بعد فشل بوابة Gemini. لا يُضمَّن في صورة CranL الرقيقة — انظر `deploy/paddle-ocr/` |
+| `CONVERT_ALLOW_MISTRAL` | اختياري — افتراضي OFF | يجب `=1` مع `MISTRAL_API_KEY` لتشغيل Mistral بعد Paddle؛ بدونها نتوقّف ونرفض بلا طلاسم |
+| `MISTRAL_API_KEY` | اختياري مدفوع | لا يُستدعى تلقائياً — يحتاج أيضاً `CONVERT_ALLOW_MISTRAL=1` |
 | `QARI_OCR_URL` | اختياري | Qari محلي |
 | Google OAuth (ربط المستخدم) | لمسار Drive | لا مفتاح تحويل إضافي — يستخدم `drive.file` بعد الربط |
 | `CLOUDCONVERT_API_KEY` | اختياري مدفوع | تحويل صيغ فقط — **لا يُشترى تلقائياً** |
