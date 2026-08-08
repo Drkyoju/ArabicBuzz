@@ -22,6 +22,8 @@ import {
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { ORG_REPLY_TEMPLATES } from '@/lib/email/org-reply-templates'
+import { plainTextToMailHtml } from '@/lib/email/mail-html'
+import { MailRichComposer } from '@/components/mail-rich-composer'
 
 type MailboxPublic = {
   id: string
@@ -144,6 +146,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [notifyTelegram, setNotifyTelegram] = useState(true)
 
   const [replyText, setReplyText] = useState('')
+  const [replyHtml, setReplyHtml] = useState('')
   const [replySubject, setReplySubject] = useState('')
   const [draftAccepted, setDraftAccepted] = useState(false)
   const [intel, setIntel] = useState<Intel | null>(null)
@@ -298,6 +301,26 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     }
   }
 
+  function setReplyBody(plainOrHtml: string) {
+    const raw = plainOrHtml || ''
+    const looksHtml = /^\s*</.test(raw)
+    setReplyHtml(looksHtml ? raw : plainTextToMailHtml(raw))
+    setReplyText(
+      looksHtml
+        ? raw
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .trim()
+        : raw
+    )
+  }
+
+  function clearReplyBody() {
+    setReplyText('')
+    setReplyHtml('')
+  }
+
   async function saveSettings() {
     if (!isOwner) return
     setBusy('save')
@@ -409,7 +432,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       if (!i?.draftBody) throw new Error('تعذّر تجهيز المسودة')
       setIntel(i)
       setReplySubject(i.draftSubject || replySubject)
-      setReplyText(i.draftBody)
+      setReplyBody(i.draftBody)
       setDraftAccepted(true)
       setOkMsg('المسودة في صندوق الرد — راجعها وعدّلها ثم أرسل، أو أرسل فوراً.')
       requestAnimationFrame(() =>
@@ -429,13 +452,15 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     try {
       let subject = replySubject.trim()
       let body = replyText.trim()
-      if (!body) {
+      let html = replyHtml.trim()
+      if (!body && !html.replace(/<[^>]+>/g, '').trim()) {
         const i = await draftReplySelected()
         if (!i?.draftBody) return
         subject = i.draftSubject || subject
         body = i.draftBody
+        html = plainTextToMailHtml(body)
         setReplySubject(subject)
-        setReplyText(body)
+        setReplyBody(body)
       }
       setBusy('send')
       const headers = await authHeaders()
@@ -445,7 +470,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         body: JSON.stringify({
           to: selected.from,
           subject,
-          bodyText: body,
+          bodyText: body || undefined,
+          bodyHtml: html || plainTextToMailHtml(body),
           replyToMessageId: selected.id,
           forceSend: true,
         }),
@@ -471,7 +497,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           'قَبِل خادم SMTP الرسالة. هذا ليس إيصال وصول إلى صندوق المستلم.',
       })
       setOkMsg(note || 'أُرسل الرد فوراً')
-      setReplyText('')
+      clearReplyBody()
       setDraftAccepted(false)
       await loadMessages()
     } catch (e) {
@@ -530,7 +556,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setDelivery(null)
     setRelated([])
     setAiMode('idle')
-    setReplyText('')
+    clearReplyBody()
     // Show reading pane immediately (mobile swaps away from the tall list).
     setSelected((prev) =>
       prev?.id === id
@@ -589,6 +615,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           to: selected.from,
           subject: replySubject,
           bodyText: replyText,
+          bodyHtml: replyHtml || plainTextToMailHtml(replyText),
           replyToMessageId: selected.id,
           forceSend: true,
         }),
@@ -614,7 +641,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           'قَبِل خادم SMTP الرسالة. هذا ليس إيصال وصول إلى صندوق المستلم.',
       })
       setOkMsg(note || 'أُرسل الرد')
-      setReplyText('')
+      clearReplyBody()
       setDraftAccepted(false)
       await loadMessages()
       requestAnimationFrame(() =>
@@ -650,7 +677,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   }
 
   function discardDraft() {
-    setReplyText('')
+    clearReplyBody()
     setReplySubject(
       selected?.subject?.match(/^(re|رد)\s*:/i)
         ? selected.subject
@@ -663,7 +690,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   function acceptDraft() {
     if (!intel) return
     setReplySubject(intel.draftSubject)
-    setReplyText(intel.draftBody)
+    setReplyBody(intel.draftBody)
     setDraftAccepted(true)
     setOkMsg('قُبلت المسودة — يمكنك تعديلها ثم الإرسال.')
     requestAnimationFrame(() =>
@@ -1275,7 +1302,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                         key={t.id}
                         type="button"
                         onClick={() => {
-                          setReplyText(t.bodyAr)
+                          setReplyBody(t.bodyAr)
                           if (t.subjectHintAr) {
                             const base = selected?.subject || ''
                             const already =
@@ -1309,16 +1336,19 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     onChange={(e) => setReplySubject(e.target.value)}
                   />
                 </label>
-                <label className="block text-xs">
-                  <span className="text-stone-500">نص الرد (عدّل ثم أرسل)</span>
-                  <textarea
-                    rows={6}
-                    className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                <div className="block text-xs">
+                  <span className="text-stone-500">نص الرد (تنسيق ثم أرسل)</span>
+                  <MailRichComposer
+                    className="mt-1"
+                    content={replyHtml || replyText}
                     placeholder="اضغط «اكتب رد بالذكاء» أو قالب جاهز أو اكتب ردك…"
+                    disabled={busy === 'send'}
+                    onChange={({ html, text }) => {
+                      setReplyHtml(html)
+                      setReplyText(text)
+                    }}
                   />
-                </label>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"

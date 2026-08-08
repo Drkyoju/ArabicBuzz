@@ -6,6 +6,11 @@ import {
   markSeen,
   upsertMessage,
 } from '@/lib/email/imap-store'
+import {
+  htmlToPlainText,
+  quoteOriginalAsHtml,
+  wrapMailBodyHtml,
+} from '@/lib/email/mail-html'
 
 /** RFC 2047 for Arabic subjects. */
 function encodeHeaderUtf8(value: string): string {
@@ -102,7 +107,7 @@ export async function sendSmtpMail(
     if (!bodyText && !bodyHtml) {
       throw new Error('يلزم نص الرد (bodyText أو bodyHtml).')
     }
-    // Quote original at bottom for plain replies
+    // Quote original at bottom (plain + HTML when rich reply)
     if (bodyText && orig.body_text) {
       const quote = orig.body_text
         .split('\n')
@@ -110,6 +115,10 @@ export async function sendSmtpMail(
         .join('\n')
         .slice(0, 4000)
       bodyText = `${bodyText}\n\n---\n${quote}`
+    }
+    if (bodyHtml) {
+      const q = quoteOriginalAsHtml(orig.body_html, orig.body_text)
+      if (q) bodyHtml = `${bodyHtml}<br/><hr style="border:none;border-top:1px solid #d6d3d1;margin:1em 0"/>${q}`
     }
     await markSeen(orig.id, true).catch(() => null)
     await markAnswered(orig.id, true).catch(() => null)
@@ -120,6 +129,11 @@ export async function sendSmtpMail(
   if (!bodyText && !bodyHtml) {
     throw new Error('يلزم نص الرسالة (bodyText أو bodyHtml).')
   }
+
+  if (bodyHtml && !bodyText) {
+    bodyText = htmlToPlainText(bodyHtml)
+  }
+  const htmlPart = bodyHtml ? wrapMailBodyHtml(bodyHtml) : undefined
 
   const transporter = nodemailer.createTransport({
     host: creds.smtpHost,
@@ -139,7 +153,7 @@ export async function sendSmtpMail(
       bcc,
       subject: encodeHeaderUtf8(subject),
       text: bodyText || undefined,
-      html: bodyHtml || undefined,
+      html: htmlPart,
       headers,
     })
 
@@ -160,7 +174,7 @@ export async function sendSmtpMail(
         dateAt: new Date(),
         snippet: (bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 240),
         bodyText: (bodyText || '').slice(0, 50_000),
-        bodyHtml: bodyHtml ? bodyHtml.slice(0, 80_000) : null,
+        bodyHtml: htmlPart ? htmlPart.slice(0, 80_000) : null,
         seen: true,
         answered: false,
         attachmentsJson: [],
