@@ -1,11 +1,14 @@
 import { InputFile, type Context } from 'grammy'
 import { readWorkspaceFile, saveWorkspaceFile } from '@/lib/documents/workspace'
+import { TELEGRAM_MAX_UPLOAD_BYTES } from '@/lib/telegram/attachment-deliver'
 
 export type TelegramAttachmentRef = {
   fileId: string
   name: string
   mimeType?: string
   scopeId: string
+  /** Tool that produced this attachment (for silent-group delivery filter). */
+  toolName?: string
 }
 
 /** Skip emoji-only / sticker-like chatter so the bot does not spam the group. */
@@ -27,7 +30,8 @@ export function isTrivialGroupMessage(text: string): boolean {
 
 export function extractAttachmentsFromToolOutput(
   out: unknown,
-  fallbackScopeId: string
+  fallbackScopeId: string,
+  toolName?: string
 ): TelegramAttachmentRef[] {
   if (!out || typeof out !== 'object') return []
   const o = out as Record<string, unknown>
@@ -41,6 +45,7 @@ export function extractAttachmentsFromToolOutput(
       name,
       mimeType: raw.mimeType ? String(raw.mimeType) : undefined,
       scopeId: String(raw.scopeId || fallbackScopeId),
+      toolName: toolName || undefined,
     })
   }
   if (Array.isArray(o.attachments)) {
@@ -50,6 +55,39 @@ export function extractAttachmentsFromToolOutput(
   }
   if (o.fileId && (o.name || o.originalName || o.downloadPath)) {
     push(o)
+  }
+  return found
+}
+
+/** Pull attachments from AI SDK generateText / streamText steps. */
+export function extractAttachmentsFromAgentSteps(
+  steps: unknown,
+  fallbackScopeId: string
+): TelegramAttachmentRef[] {
+  const found: TelegramAttachmentRef[] = []
+  if (!Array.isArray(steps)) return found
+  for (const step of steps) {
+    const toolResults = (
+      step as {
+        toolResults?: Array<{
+          toolName?: string
+          result?: unknown
+          output?: unknown
+        }>
+      }
+    ).toolResults
+    if (!Array.isArray(toolResults)) continue
+    for (const tr of toolResults) {
+      const out = tr.result ?? tr.output
+      const toolName = tr.toolName ? String(tr.toolName) : undefined
+      for (const a of extractAttachmentsFromToolOutput(
+        out,
+        fallbackScopeId,
+        toolName
+      )) {
+        if (!found.some((x) => x.fileId === a.fileId)) found.push(a)
+      }
+    }
   }
   return found
 }
@@ -156,6 +194,13 @@ export async function ingestTelegramVideoToWorkspace(opts: {
   }
 }
 
+function isImageMime(mime?: string, name?: string): boolean {
+  const m = (mime || '').toLowerCase()
+  if (m.startsWith('image/') && !m.includes('svg')) return true
+  const n = (name || '').toLowerCase()
+  return /\.(jpe?g|png|webp|gif)$/i.test(n)
+}
+
 export async function sendAttachmentsToTelegramChat(opts: {
   ctx: Context
   attachments: TelegramAttachmentRef[]
@@ -168,18 +213,42 @@ export async function sendAttachmentsToTelegramChat(opts: {
     seen.add(a.fileId)
     try {
       const file = await readWorkspaceFile(a.scopeId, a.fileId)
-      await opts.ctx.replyWithDocument(
-        new InputFile(file.buffer, file.meta.originalName || a.name),
-        {
-          caption: (opts.captionAr || `📎 ${file.meta.originalName}`).slice(
-            0,
-            1000
-          ),
+      const name = file.meta.originalName || a.name
+      const mime = file.meta.mimeType || a.mimeType
+      if (file.buffer.byteLength > TELEGRAM_MAX_UPLOAD_BYTES) {
+        const mb = (file.buffer.byteLength / (1024 * 1024)).toFixed(1)
+        await opts.ctx.reply(
+          `الملف «${name}» كبير جداً لإرساله عبر تيليجرام (~${mb} م.ب). افتحه من خزنة الغرفة على الموقع.`
+        )
+        continue
+      }
+      const caption = (
+        opts.captionAr || `📎 ${name}`
+      ).slice(0, 1000)
+      if (isImageMime(mime, name) && file.buffer.byteLength < 10 * 1024 * 1024) {
+        try {
+          await opts.ctx.replyWithPhoto(new InputFile(file.buffer, name), {
+            caption,
+          })
+          sent.push(name)
+          continue
+        } catch {
+          /* fall through to document */
         }
-      )
-      sent.push(file.meta.originalName)
+      }
+      await opts.ctx.replyWithDocument(new InputFile(file.buffer, name), {
+        caption,
+      })
+      sent.push(name)
     } catch (e) {
       console.error('[telegram] send attachment', a.fileId, e)
+      try {
+        await opts.ctx.reply(
+          `تعذّر إرسال المرفق «${a.name}» عبر تيليجرام. جرّب من خزنة الغرفة على الموقع.`
+        )
+      } catch {
+        /* ignore */
+      }
     }
   }
   return sent

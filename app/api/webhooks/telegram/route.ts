@@ -90,9 +90,9 @@ export async function GET() {
         'wake_cascade_agent1',
       ],
       privacyNoteAr:
-        'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل. ينفّذ الطلبات صامتاً؛ الرد الظاهر عند منشن البوت أو بجملة «ما عرفت/ما حصلت». لا يُنسخ نص القروب إلى شات الغرفة.',
+        'بعد /link: عطّل Group Privacy من BotFather ليرى البوت كل الرسائل. ينفّذ الطلبات صامتاً؛ يرسل الملفات/الموافقات عند الطلب؛ الرد النصي الظاهر عند منشن البوت أو بجملة «ما عرفت/ما حصلت». لا يُنسخ نص القروب إلى شات الغرفة.',
       limitsAr:
-        'Drive يحتاج ربط Google من الموقع. OCR الممسوح أدق مع جسر ماك. الحذف فقط بموافقة. البوت لا يحذف رسائل تيليجرام أبداً.',
+        'Drive يحتاج ربط Google من الموقع. OCR الممسوح أدق مع جسر ماك. الحذف فقط بموافقة. البوت لا يحذف رسائل تيليجرام أبداً. PDF عربي: pdf_replace_text أدق من إعادة البناء.',
     },
     latency: {
       chatModelDefault: process.env.TELEGRAM_HARNESS_MODEL || 'gemini-2.5-flash',
@@ -116,6 +116,8 @@ export async function GET() {
         'broadcast',
         'wake',
       ],
+      voiceAutoExecute: true,
+      silentGroupFileDelivery: true,
       fastPath: [
         'greeting',
         'calendar_count',

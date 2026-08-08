@@ -44,6 +44,7 @@ import {
 } from '@/lib/telegram/voice-quick'
 import {
   extractAttachmentsFromToolOutput,
+  extractAttachmentsFromAgentSteps,
   ingestTelegramDocumentToWorkspace,
   ingestTelegramPhotoToWorkspace,
   ingestTelegramVideoToWorkspace,
@@ -51,6 +52,7 @@ import {
   sendAttachmentsToTelegramChat,
   type TelegramAttachmentRef,
 } from '@/lib/telegram/media'
+import { shouldDeliverSilentAttachment } from '@/lib/telegram/attachment-deliver'
 import { afterTelegramMediaSaved } from '@/lib/telegram/media-import'
 import {
   formatUnknownShortAr,
@@ -133,15 +135,18 @@ let commandsRegistered = false
 
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام — أقصى قوة: نفس غرفة الموقع + كل الأدوات الأصلية.
 - افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
-- لا تنتظر /ask — بعد /link نفّذ أي طلب عمل فوراً (نص · صوت · ملف · صورة).
+- لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
 - أيقظ وكيل١ ثم وكيل٢ عند الانشغال. «يا وكيل١» / @وكيل٢ / «أبغا للجميع» يوجّهون المقاعد مثل الموقع.
 - نفّذ بكل الأدوات: ملفات، Drive/عقل الشركة، تحويل، OCR، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث ويب، تبليغ أعضاء، سير عمل.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
 - موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
 - مهام: room_tasks_create / update فوراً.
-- ملفات: list_workspace_files / search_knowledge_base → brain_open_document → read/edit/convert → return_file (مرفق هنا).
+- ملفات: list_workspace_files / search_knowledge_base → brain_open_document (Drive) → read/edit/convert → return_file دائماً عند طلب الملف أو بعد التعديل (يُرسل كمرفق تيليجرام).
+- تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text ثم return_file — واحفظ لـ Drive بـ brain_save_document إن طُلب.
+- حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
 - بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
+- بحث ويب: web_search / web_fetch عند طلب بحث أو معلومة خارجية.
 - «أرسل لفلان» / تنسيق / تبليغ: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة.
 - الحذف على ملفات الغرفة/Drive فقط بموافقة بشرية (أزرار). ممنوع نهائياً حذف أي شيء على تيليجرام — عدّل رسالة التقدّم أو اتركها + رد جديد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
@@ -546,12 +551,22 @@ async function streamTelegramReply(opts: {
   }
   for (const step of steps) {
     const toolResults = (
-      step as { toolResults?: Array<{ result?: unknown; output?: unknown }> }
+      step as {
+        toolResults?: Array<{
+          toolName?: string
+          result?: unknown
+          output?: unknown
+        }>
+      }
     ).toolResults
     if (!Array.isArray(toolResults)) continue
     for (const tr of toolResults) {
       const out = tr.result ?? tr.output
-      for (const a of extractAttachmentsFromToolOutput(out, opts.scopeId)) {
+      for (const a of extractAttachmentsFromToolOutput(
+        out,
+        opts.scopeId,
+        tr.toolName ? String(tr.toolName) : undefined
+      )) {
         if (!attachmentBucket.some((x) => x.fileId === a.fileId)) {
           attachmentBucket.push(a)
         }
@@ -588,7 +603,8 @@ async function streamTelegramReply(opts: {
   return { text: body, citations, pendingApprovalIds, attachmentsSent }
 }
 
-/** Run tools without posting to the group (silent execute). */
+/** Run tools without posting chatty text (silent execute).
+ * Still collects attachments + HITL approvals for result delivery. */
 async function runSilentTelegramTools(opts: {
   prompt: string
   system: string
@@ -600,6 +616,7 @@ async function runSilentTelegramTools(opts: {
   text: string
   citations: RoomCitation[]
   pendingApprovalIds: string[]
+  attachments: TelegramAttachmentRef[]
 }> {
   const citations: RoomCitation[] = []
   const pendingApprovalIds: string[] = []
@@ -619,7 +636,39 @@ async function runSilentTelegramTools(opts: {
   for (const id of stepsExtract.pendingApprovalIds) {
     if (!pendingApprovalIds.includes(id)) pendingApprovalIds.push(id)
   }
-  return { text, citations, pendingApprovalIds }
+  const attachments = extractAttachmentsFromAgentSteps(steps, opts.scopeId)
+  return { text, citations, pendingApprovalIds, attachments }
+}
+
+/** File/HITL results are allowed in silent group mode (not chatty spam). */
+async function deliverSilentTelegramResults(opts: {
+  ctx: Context
+  attachments: TelegramAttachmentRef[]
+  pendingApprovalIds: string[]
+  workKind: string
+  prompt: string
+}): Promise<string[]> {
+  const toSend = opts.attachments.filter((a) =>
+    shouldDeliverSilentAttachment({
+      toolName: a.toolName,
+      workKind: opts.workKind,
+      prompt: opts.prompt,
+    })
+  )
+  const sent =
+    toSend.length > 0
+      ? await sendAttachmentsToTelegramChat({
+          ctx: opts.ctx,
+          attachments: toSend,
+          captionAr: '📎 ناتج العمل',
+        })
+      : []
+  for (const id of opts.pendingApprovalIds.slice(0, 3)) {
+    await opts.ctx.reply(`موافقة مطلوبة (#${id.slice(0, 8)})`, {
+      reply_markup: buildApprovalKeyboard(id),
+    })
+  }
+  return sent
 }
 
 async function runTelegramAgentTurn(opts: {
@@ -921,7 +970,20 @@ async function runTelegramAgentTurn(opts: {
           attachmentsSent,
         }
       }
-      // silent: execute already done via runAssistant; only speak on unknown
+      // silent: execute already done via runAssistant; deliver files/HITL; speak on unknown
+      const attachmentsSent = await deliverSilentTelegramResults({
+        ctx: opts.ctx,
+        attachments: (run.attachments || []).map((a) => ({
+          fileId: a.fileId,
+          name: a.name,
+          mimeType: a.mimeType,
+          scopeId: a.scopeId || scopeId,
+          toolName: undefined,
+        })),
+        pendingApprovalIds: run.pendingApprovalIds || [],
+        workKind: work.kind,
+        prompt: opts.promptSource,
+      })
       if (looksLikeUnknownOrNotFound(text)) {
         await opts.ctx.reply(formatUnknownShortAr(text))
       }
@@ -933,12 +995,16 @@ async function runTelegramAgentTurn(opts: {
         userMessageAr: opts.promptSource,
         agentReplyAr: looksLikeUnknownOrNotFound(text)
           ? formatUnknownShortAr(text)
-          : '',
-        includeAgentReply: looksLikeUnknownOrNotFound(text),
+          : attachmentsSent.length
+            ? `أُرسل: ${attachmentsSent.join(' · ')}`
+            : '',
+        includeAgentReply:
+          looksLikeUnknownOrNotFound(text) || attachmentsSent.length > 0,
       })
       console.info('[telegram] timing', {
         path: 'assistant-silent',
         assistantId: routed.assistantId,
+        attachments: attachmentsSent.length,
         totalMs: Date.now() - t0,
       })
       return {
@@ -947,7 +1013,7 @@ async function runTelegramAgentTurn(opts: {
           : '',
         citations: run.citations || [],
         pendingApprovalIds: run.pendingApprovalIds || [],
-        attachmentsSent: [] as string[],
+        attachmentsSent,
       }
     } catch (e) {
       console.error('[telegram] assistant-path', e)
@@ -1011,6 +1077,13 @@ async function runTelegramAgentTurn(opts: {
       maxSteps,
       tools,
     })
+    const attachmentsSent = await deliverSilentTelegramResults({
+      ctx: opts.ctx,
+      attachments: silentOut.attachments,
+      pendingApprovalIds: silentOut.pendingApprovalIds,
+      workKind: work.kind,
+      prompt: opts.promptSource,
+    })
     const unknown = looksLikeUnknownOrNotFound(silentOut.text)
     if (unknown) {
       const short = formatUnknownShortAr(silentOut.text)
@@ -1030,8 +1103,10 @@ async function runTelegramAgentTurn(opts: {
         externalId: opts.chatId,
         userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
         userMessageAr: opts.promptSource,
-        agentReplyAr: '',
-        includeAgentReply: false,
+        agentReplyAr: attachmentsSent.length
+          ? `أُرسل: ${attachmentsSent.join(' · ')}`
+          : '',
+        includeAgentReply: attachmentsSent.length > 0,
       })
     }
     console.info('[telegram] timing', {
@@ -1039,6 +1114,7 @@ async function runTelegramAgentTurn(opts: {
       heavy,
       work: work.kind,
       unknown,
+      attachments: attachmentsSent.length,
       prepMs,
       streamMs: Date.now() - tStream,
       totalMs: Date.now() - t0,
@@ -1047,7 +1123,7 @@ async function runTelegramAgentTurn(opts: {
       text: unknown ? formatUnknownShortAr(silentOut.text) : '',
       citations: silentOut.citations,
       pendingApprovalIds: silentOut.pendingApprovalIds,
-      attachmentsSent: [] as string[],
+      attachmentsSent,
     }
   }
 

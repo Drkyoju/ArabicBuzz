@@ -2,9 +2,11 @@
  * Linked Telegram group reply policy (product):
  * - Always ingest + analyze every delivered update.
  * - Execute actionable work immediately (even without @mention).
- * - Visible group replies ONLY when:
+ * - Visible group *chat* replies ONLY when:
  *   (a) bot is @mentioned / reply-to-bot / commands → full reply
  *   (b) unknown / not-found after a task → short «ما عرفت / ما حصلت»
+ * - Result delivery (files, HITL approval buttons) IS allowed without @mention
+ *   when the user asked for a file/edit/delete — not treated as chatty spam.
  * - Casual chat: silent (no spam).
  * - Never delete Telegram messages.
  */

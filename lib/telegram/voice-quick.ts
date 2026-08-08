@@ -208,9 +208,9 @@ export function formatVoiceSttSummaryAr(opts: {
     `«${short}»`,
     '',
     `القصد: ${opts.intentLabelAr} · ${opts.providerLabelAr}`,
-    'صح؟ سيُنفَّذ تلقائياً — أو اختر زراً:',
+    'جاري التنفيذ الآن — أو اختر زراً لتوجيه القصد:',
   ].join('\n')
 }
 
 export const VOICE_QUICK_HINT_AR =
-  'أزرار سريعة — أو اكتب تصحيحاً:'
+  'أزرار سريعة (اختياري) — التنفيذ بدأ تلقائياً:'
