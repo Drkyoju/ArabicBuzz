@@ -30,6 +30,19 @@ export type PdfHighlightAnno = {
   opacity?: number
 }
 
+/** Semi-transparent rect highlight (text-selection style). */
+export type PdfTextHighlightAnno = {
+  id: string
+  kind: 'textHighlight'
+  pageIndex: number
+  x: number
+  y: number
+  w: number
+  h: number
+  color: string
+  opacity?: number
+}
+
 export type PdfTextAnno = {
   id: string
   kind: 'text'
@@ -40,6 +53,20 @@ export type PdfTextAnno = {
   /** Font size as fraction of page height. */
   fontSize: number
   color: string
+}
+
+/** Sticky note — yellow callout with body text (burned as filled rect + text). */
+export type PdfStickyAnno = {
+  id: string
+  kind: 'sticky'
+  pageIndex: number
+  x: number
+  y: number
+  w: number
+  h: number
+  text: string
+  color: string
+  fontSize: number
 }
 
 export type PdfRectAnno = {
@@ -58,14 +85,18 @@ export type PdfRectAnno = {
 export type PdfAnnotation =
   | PdfPenAnno
   | PdfHighlightAnno
+  | PdfTextHighlightAnno
   | PdfTextAnno
+  | PdfStickyAnno
   | PdfRectAnno
 
 export type PdfAnnotateTool =
   | 'pan'
   | 'pen'
   | 'highlight'
+  | 'textHighlight'
   | 'text'
+  | 'sticky'
   | 'rect'
   | 'eraser'
 
@@ -178,6 +209,59 @@ async function loadArabicFontForDoc(
   return doc.embedFont(StandardFonts.Helvetica)
 }
 
+function drawSticky(
+  page: PDFPage,
+  anno: PdfStickyAnno,
+  font: PDFFont
+) {
+  const { width: pw, height: ph } = page.getSize()
+  const { r, g, b } = parseHexColor(anno.color || '#f5e6a3')
+  const x = Math.max(0, Math.min(1, anno.x)) * pw
+  const yTop = Math.max(0, Math.min(1, anno.y)) * ph
+  const w = Math.max(0.04, Math.min(1, Math.abs(anno.w || 0.22))) * pw
+  const h = Math.max(0.04, Math.min(1, Math.abs(anno.h || 0.12))) * ph
+  const y = ph - yTop - h
+  page.drawRectangle({
+    x,
+    y,
+    width: w,
+    height: h,
+    color: rgb(r, g, b),
+    opacity: 0.92,
+    borderColor: rgb(0.55, 0.45, 0.1),
+    borderWidth: 0.8,
+  })
+  const text = String(anno.text || '').trim()
+  if (!text) return
+  const size = Math.max(8, Math.min(28, (anno.fontSize || 0.018) * ph))
+  page.drawText(shapeArabicForPdf(text), {
+    x: x + 4,
+    y: y + h - size - 4,
+    size,
+    font,
+    color: rgb(0.15, 0.12, 0.05),
+    maxWidth: w - 8,
+  })
+}
+
+function drawTextHighlight(page: PDFPage, anno: PdfTextHighlightAnno) {
+  const { width: pw, height: ph } = page.getSize()
+  const { r, g, b } = parseHexColor(anno.color || '#f5c542')
+  const x = Math.max(0, Math.min(1, anno.x)) * pw
+  const yTop = Math.max(0, Math.min(1, anno.y)) * ph
+  const w = Math.max(0.001, Math.min(1, Math.abs(anno.w))) * pw
+  const h = Math.max(0.001, Math.min(1, Math.abs(anno.h))) * ph
+  const y = ph - yTop - (anno.h < 0 ? 0 : h)
+  page.drawRectangle({
+    x: anno.w < 0 ? x - w : x,
+    y: anno.h < 0 ? y - h : y,
+    width: w,
+    height: h,
+    color: rgb(r, g, b),
+    opacity: anno.opacity ?? 0.35,
+  })
+}
+
 /** Burn annotations into PDF bytes. Returns a new PDF ArrayBuffer. */
 export async function burnPdfAnnotations(
   pdfBytes: ArrayBuffer | Uint8Array,
@@ -193,14 +277,56 @@ export async function burnPdfAnnotations(
     if (!page) continue
     if (anno.kind === 'pen' || anno.kind === 'highlight') {
       drawStroke(page, anno)
+    } else if (anno.kind === 'textHighlight') {
+      drawTextHighlight(page, anno)
     } else if (anno.kind === 'rect') {
       drawRect(page, anno)
+    } else if (anno.kind === 'sticky') {
+      drawSticky(page, anno, font)
     } else if (anno.kind === 'text') {
       drawTextAnno(page, anno, font)
     }
   }
 
   return doc.save({ useObjectStreams: false })
+}
+
+/** Soft-layer JSON key for browser localStorage (re-editable until burn). */
+export function softLayerStorageKey(fileId: string): string {
+  return `ab-pdf-soft-layer:v1:${fileId}`
+}
+
+export function loadSoftLayer(fileId: string): PdfAnnotation[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(softLayerStorageKey(fileId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as { annotations?: PdfAnnotation[] }
+    return Array.isArray(parsed.annotations) ? parsed.annotations : []
+  } catch {
+    return []
+  }
+}
+
+export function saveSoftLayer(fileId: string, annotations: PdfAnnotation[]) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(
+      softLayerStorageKey(fileId),
+      JSON.stringify({ annotations, savedAt: new Date().toISOString() })
+    )
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function clearSoftLayer(fileId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(softLayerStorageKey(fileId))
+  } catch {
+    /* ignore */
+  }
 }
 
 export function annotationsDirty(list: PdfAnnotation[]): boolean {

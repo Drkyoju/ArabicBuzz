@@ -329,6 +329,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let mailEnergy: unknown = null
+  try {
+    const { runDueMailEnergyJobs } = await import(
+      '@/lib/email/mail-energy-runner'
+    )
+    mailEnergy = await runDueMailEnergyJobs(now)
+  } catch (e) {
+    mailEnergy = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'mail energy error',
+    }
+  }
+
   return NextResponse.json({
     ran,
     scheduledCount: scheduled.length,
@@ -342,5 +355,6 @@ export async function POST(req: NextRequest) {
     autoWire,
     roomChatRetention,
     vaultBackup,
+    mailEnergy,
   })
 }

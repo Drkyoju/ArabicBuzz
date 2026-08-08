@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSessionUser, requireRealUser } from '@/lib/auth/session'
 import { listGoogleAccounts } from '@/lib/google/tokens'
 import {
+  applyGmailLabel,
+  downloadGmailAttachment,
+  ensureGmailLabel,
   getGmailProfile,
+  listGmailLabels,
   listGmailMailbox,
   markGmailRead,
   readGmailMessage,
@@ -10,9 +14,15 @@ import {
   searchGmailAttachments,
   searchGmailMessages,
   sendGmailMessage,
+  snoozeGmailMessage,
   starGmailMessage,
 } from '@/lib/google/gmail'
 import { analyzePersonalGmailMessage } from '@/lib/email/personal-mail-intel'
+import {
+  cancelMailEnergyJob,
+  insertMailEnergyJob,
+  listPendingMailEnergyForUser,
+} from '@/lib/email/mail-energy-store'
 import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import { warmProviderKeyCache } from '@/lib/ai/provider-key-store'
 
@@ -22,7 +32,9 @@ export const dynamic = 'force-dynamic'
  * Personal Gmail API — caller's mailbox only (never org IMAP info@).
  *
  * GET: connection + inbox list (folder / q / pageToken)
- * POST actions: get | search | attachments | analyze | send | reply | mark | star
+ * POST actions: get | search | attachments | download_attachment | analyze |
+ *   send | reply | mark | star | snooze | schedule_send | remind | labels |
+ *   apply_label | energy_list | energy_cancel
  */
 export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
@@ -112,6 +124,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     action?: string
     messageId?: string
+    attachmentId?: string
     query?: string
     q?: string
     folder?: string
@@ -127,6 +140,16 @@ export async function POST(req: NextRequest) {
     accountEmail?: string
     maxResults?: number
     pageToken?: string
+    /** ISO datetime or relative minutes (number) */
+    until?: string
+    minutes?: number
+    hours?: number
+    noteAr?: string
+    labelId?: string
+    labelName?: string
+    add?: boolean
+    jobId?: string
+    notifyTelegram?: boolean
   }
 
   const accounts = await listGoogleAccounts(auth.user.id)
@@ -296,6 +319,200 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, message })
       }
 
+      case 'download_attachment': {
+        const messageId = String(body.messageId || '').trim()
+        const attachmentId = String(body.attachmentId || '').trim()
+        if (!messageId || !attachmentId) {
+          return NextResponse.json(
+            { error: 'مرّر messageId و attachmentId' },
+            { status: 400 }
+          )
+        }
+        const detail = await readGmailMessage(auth.user.id, messageId, {
+          accountEmail,
+        })
+        const meta = detail.attachments.find(
+          (a) => a.attachmentId === attachmentId
+        )
+        const { data, size } = await downloadGmailAttachment(
+          auth.user.id,
+          messageId,
+          attachmentId,
+          { accountEmail }
+        )
+        const filename = meta?.filename || 'attachment.bin'
+        const mimeType = meta?.mimeType || 'application/octet-stream'
+        return new NextResponse(new Uint8Array(data), {
+          status: 200,
+          headers: {
+            'Content-Type': mimeType,
+            'Content-Length': String(size),
+            'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+            'Cache-Control': 'private, no-store',
+          },
+        })
+      }
+
+      case 'snooze': {
+        const messageId = String(body.messageId || '').trim()
+        if (!messageId) {
+          return NextResponse.json({ error: 'مرّر messageId' }, { status: 400 })
+        }
+        const dueAt = resolveDueAt(body)
+        if (!dueAt || dueAt.getTime() <= Date.now() + 60_000) {
+          return NextResponse.json(
+            { error: 'حدّد وقت تأجيل لاحقاً (دقائق/ساعات أو until ISO).' },
+            { status: 400 }
+          )
+        }
+        const msg = await readGmailMessage(auth.user.id, messageId, {
+          accountEmail,
+        }).catch(() => null)
+        const { message, snoozeLabelId } = await snoozeGmailMessage(
+          auth.user.id,
+          messageId,
+          { accountEmail }
+        )
+        const job = await insertMailEnergyJob({
+          userId: auth.user.id,
+          accountEmail,
+          kind: 'snooze',
+          messageId,
+          subject: msg?.subject || message.subject || null,
+          dueAt,
+          payload: { snoozeLabelId, messageId },
+        })
+        return NextResponse.json({
+          ok: true,
+          message,
+          job,
+          messageAr: `أُجّلت الرسالة حتى ${dueAt.toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}`,
+        })
+      }
+
+      case 'schedule_send': {
+        const to = String(body.to || '').trim()
+        const subject = String(body.subject || '').trim()
+        const bodyText = String(body.bodyText || '').trim()
+        const bodyHtml = body.bodyHtml ? String(body.bodyHtml).trim() : ''
+        if (!to || !subject || (!bodyText && !bodyHtml)) {
+          return NextResponse.json(
+            { error: 'مرّر to و subject ونص الرسالة للجدولة.' },
+            { status: 400 }
+          )
+        }
+        const dueAt = resolveDueAt(body)
+        if (!dueAt || dueAt.getTime() <= Date.now() + 60_000) {
+          return NextResponse.json(
+            { error: 'حدّد وقت إرسال لاحقاً.' },
+            { status: 400 }
+          )
+        }
+        const job = await insertMailEnergyJob({
+          userId: auth.user.id,
+          accountEmail,
+          kind: 'schedule_send',
+          subject,
+          dueAt,
+          payload: {
+            to,
+            subject,
+            bodyText,
+            bodyHtml: bodyHtml || undefined,
+            cc: body.cc,
+            bcc: body.bcc,
+          },
+        })
+        return NextResponse.json({
+          ok: true,
+          job,
+          messageAr: `جُدول الإرسال إلى ${to} عند ${dueAt.toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}`,
+        })
+      }
+
+      case 'remind': {
+        const messageId = String(body.messageId || '').trim()
+        if (!messageId) {
+          return NextResponse.json({ error: 'مرّر messageId' }, { status: 400 })
+        }
+        const dueAt = resolveDueAt(body)
+        if (!dueAt || dueAt.getTime() <= Date.now() + 30_000) {
+          return NextResponse.json(
+            { error: 'حدّد وقت تذكير لاحقاً.' },
+            { status: 400 }
+          )
+        }
+        const msg = await readGmailMessage(auth.user.id, messageId, {
+          accountEmail,
+        }).catch(() => null)
+        const job = await insertMailEnergyJob({
+          userId: auth.user.id,
+          accountEmail,
+          kind: 'reminder',
+          messageId,
+          subject: msg?.subject || null,
+          dueAt,
+          payload: {
+            messageId,
+            noteAr: body.noteAr || 'حان وقت متابعة هذه الرسالة.',
+          },
+        })
+        return NextResponse.json({
+          ok: true,
+          job,
+          messageAr: `سيُرسل تذكير عند ${dueAt.toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' })}`,
+        })
+      }
+
+      case 'labels': {
+        const labels = await listGmailLabels(auth.user.id, { accountEmail })
+        return NextResponse.json({ ok: true, labels })
+      }
+
+      case 'apply_label': {
+        const messageId = String(body.messageId || '').trim()
+        let labelId = String(body.labelId || '').trim()
+        const labelName = String(body.labelName || '').trim()
+        if (!messageId) {
+          return NextResponse.json({ error: 'مرّر messageId' }, { status: 400 })
+        }
+        if (!labelId && labelName) {
+          const created = await ensureGmailLabel(auth.user.id, labelName, {
+            accountEmail,
+          })
+          labelId = created.id
+        }
+        if (!labelId) {
+          return NextResponse.json(
+            { error: 'مرّر labelId أو labelName' },
+            { status: 400 }
+          )
+        }
+        const message = await applyGmailLabel(auth.user.id, messageId, {
+          labelId,
+          add: body.add !== false,
+          accountEmail,
+        })
+        return NextResponse.json({ ok: true, message, labelId })
+      }
+
+      case 'energy_list': {
+        const jobs = await listPendingMailEnergyForUser(auth.user.id)
+        return NextResponse.json({ ok: true, jobs })
+      }
+
+      case 'energy_cancel': {
+        const jobId = String(body.jobId || '').trim()
+        if (!jobId) {
+          return NextResponse.json({ error: 'مرّر jobId' }, { status: 400 })
+        }
+        await cancelMailEnergyJob(jobId, auth.user.id)
+        return NextResponse.json({
+          ok: true,
+          messageAr: 'أُلغيت المهمة المجدولة.',
+        })
+      }
+
       case 'search_messages': {
         // Free-text across whole mailbox
         const query = String(body.query || body.q || '').trim()
@@ -319,7 +536,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'إجراء غير معروف. المتاح: get, list, search, search_messages, attachments, analyze, send, reply, mark, star',
+              'إجراء غير معروف. المتاح: get, list, search, search_messages, attachments, download_attachment, analyze, send, reply, mark, star, snooze, schedule_send, remind, labels, apply_label, energy_list, energy_cancel',
           },
           { status: 400 }
         )
@@ -333,4 +550,21 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+function resolveDueAt(body: {
+  until?: string
+  minutes?: number
+  hours?: number
+}): Date | null {
+  if (body.until) {
+    const d = new Date(body.until)
+    if (!Number.isNaN(d.getTime())) return d
+  }
+  const mins = Number(body.minutes || 0)
+  const hours = Number(body.hours || 0)
+  if (mins > 0 || hours > 0) {
+    return new Date(Date.now() + (mins * 60_000 || 0) + (hours * 3_600_000 || 0))
+  }
+  return null
 }

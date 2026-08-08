@@ -4,6 +4,8 @@
  */
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib'
 import * as fontkit from '@pdf-lib/fontkit'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
 export type PdfFormField = {
   name: string
@@ -15,6 +17,26 @@ let arabicFontCache: Uint8Array | null = null
 
 async function loadArabicFontBytes(): Promise<Uint8Array | null> {
   if (arabicFontCache) return arabicFontCache
+
+  // Prefer baked-in TTF (CranL / Docker public/fonts) over CDN.
+  const cwd = process.cwd()
+  const localPaths = [
+    path.join(cwd, 'public/fonts/NotoNaskhArabic-Regular.ttf'),
+    path.join(cwd, 'assets/fonts/NotoNaskhArabic-Regular.ttf'),
+    path.join(cwd, 'fonts/NotoNaskhArabic-Regular.ttf'),
+  ]
+  for (const filePath of localPaths) {
+    try {
+      const buf = new Uint8Array(await readFile(filePath))
+      if (buf.byteLength > 1000) {
+        arabicFontCache = buf
+        return buf
+      }
+    } catch {
+      /* try next */
+    }
+  }
+
   const urls = [
     'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf',
     'https://cdn.jsdelivr.net/npm/@fontsource/noto-naskh-arabic@5.0.0/files/noto-naskh-arabic-arabic-400-normal.woff',

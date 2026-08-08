@@ -38,8 +38,10 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-c
   && if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
        apt-get install -y --no-install-recommends \
          libreoffice-writer-nogui libreoffice-calc-nogui \
-         fonts-noto-core fonts-noto-ui-core fonts-dejavu-core \
-         fonts-liberation fonts-freefont-ttf; \
+         fonts-noto-core fonts-noto-ui-core fonts-noto-extra \
+         fonts-dejavu-core fonts-liberation fonts-freefont-ttf; \
+     else \
+       apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-ui-core || true; \
      fi \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
@@ -53,6 +55,9 @@ ENV HOSTNAME=0.0.0.0
 ENV AB_LIBREOFFICE_IMAGE=$INSTALL_LIBREOFFICE
 
 COPY --from=builder /app/public ./public
+# Ensure Noto Naskh Arabic TTF is present for PDF text/sticky burn-in
+# (also served via /api/fonts/arabic and /fonts/*).
+COPY --from=builder /app/public/fonts ./public/fonts
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma engines + schema for runtime generate safety / migrations tooling

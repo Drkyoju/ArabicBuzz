@@ -139,11 +139,14 @@ export type StepAttachmentRef = {
   name: string
   mimeType?: string
   scopeId?: string
+  /** Tool that produced this attachment (Telegram silent delivery filter). */
+  toolName?: string
 }
 
 function pushStepAttachment(
   bucket: StepAttachmentRef[],
-  out: unknown
+  out: unknown,
+  toolName?: string
 ) {
   if (!out || typeof out !== 'object') return
   const o = out as Record<string, unknown>
@@ -159,6 +162,7 @@ function pushStepAttachment(
       name,
       mimeType: raw.mimeType ? String(raw.mimeType) : undefined,
       scopeId: raw.scopeId ? String(raw.scopeId) : undefined,
+      toolName: toolName || undefined,
     })
   }
   if (Array.isArray(o.attachments)) {
@@ -213,7 +217,11 @@ export function extractFromAgentSteps(steps: unknown): {
       }
       const aid = extractPausedApprovalId(out)
       if (aid && !pendingApprovalIds.includes(aid)) pendingApprovalIds.push(aid)
-      pushStepAttachment(attachments, out)
+      pushStepAttachment(
+        attachments,
+        out,
+        name && name !== 'undefined' ? name : undefined
+      )
     }
 
     // Fallback: toolCalls without paired results still count as used

@@ -76,6 +76,28 @@ describe('classifyTelegramWorkIntent', () => {
     expect(classifyTelegramWorkIntent('يا أحمد وش رايك').kind).toBe('casual')
   })
 
+  it('classifies Gulf dialect file asks', () => {
+    expect(classifyTelegramWorkIntent('ابغى الملف').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('عطني اللائحة').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('نزّل المستند').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('ورّيني العقد').kind).toBe('file')
+  })
+
+  it('keeps short social / weather chat casual (fewer false execute)', () => {
+    expect(classifyTelegramWorkIntent('كيف الجو').kind).toBe('casual')
+    expect(classifyTelegramWorkIntent('وش رأيك يا فلان').kind).toBe('casual')
+    expect(classifyTelegramWorkIntent('هههه تمام').kind).toBe('casual')
+  })
+
+  it('treats vocative + work verb as work (fewer false silent)', () => {
+    expect(classifyTelegramWorkIntent('يا أحمد سوي بحث عن القرار').kind).not.toBe(
+      'casual'
+    )
+    expect(classifyTelegramWorkIntent('يا سارة جيب الملف').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('يا محمد ابحث عن اللائحة').kind).toBe('file')
+    expect(classifyTelegramWorkIntent('يا علي حوّل المستند').kind).toBe('file')
+  })
+
   it('prefers messaging over appointment when notifying', () => {
     expect(
       classifyTelegramWorkIntent('أرسل لأحمد: موعد الغد ملغى').kind

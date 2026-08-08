@@ -104,12 +104,24 @@ export type SidebarSection =
 const PRIMARY_NAV: Array<{
   id: SidebarSection
   labelAr: string
+  /** Optional longer hint (e.g. employee mail distinction). */
+  titleAr?: string
   icon: LucideIcon
 }> = [
   { id: 'home', labelAr: 'لوحة اليوم', icon: Home },
   { id: 'assistants', labelAr: 'مهام التشغيل', icon: Bot },
-  { id: 'personal-mail', labelAr: 'بريدي الشخصي', icon: Inbox },
-  { id: 'mail', labelAr: 'بريد الجمعية', icon: Mail },
+  {
+    id: 'personal-mail',
+    labelAr: 'بريدي الشخصي',
+    titleAr: 'Gmail الخاص بك فقط — منفصل عن بريد الجمعية',
+    icon: Inbox,
+  },
+  {
+    id: 'mail',
+    labelAr: 'بريد الجمعية',
+    titleAr: 'صندوق الجمعية المشترك (IMAP) — ليس بريدك الشخصي',
+    icon: Mail,
+  },
   { id: 'calendar', labelAr: 'تقويم الفريق', icon: CalendarDays },
   // غرفة الفريق: single entry under «الغرفة» below (fuller room row) — no nav duplicate.
   { id: 'files', labelAr: 'ملفات الفريق', icon: FolderOpen },
@@ -411,7 +423,7 @@ function SidebarBody({
 
       <nav className="border-b border-ab-border p-2" aria-label="أقسام التطبيق">
         <ul className="space-y-0.5">
-          {primaryNav.map(({ id, labelAr, icon: Icon }) => {
+          {primaryNav.map(({ id, labelAr, titleAr, icon: Icon }) => {
             const active = activeSection === id
             const badge =
               id === 'approvals' && pendingApprovals > 0
@@ -424,6 +436,7 @@ function SidebarBody({
               <li key={id}>
                 <button
                   type="button"
+                  title={titleAr}
                   onClick={() => {
                     onSectionChange?.(id)
                     onNavigate?.()
@@ -829,6 +842,7 @@ export function Sidebar({
               <MailBell
                 compact
                 onOpenMail={() => onSectionChange?.('mail')}
+                onOpenPersonalMail={() => onSectionChange?.('personal-mail')}
               />
             )}
             {signedIn === false ? (

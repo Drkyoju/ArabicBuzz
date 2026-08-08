@@ -503,6 +503,7 @@ async function streamTelegramReply(opts: {
         delta?: string
         output?: unknown
         result?: unknown
+        toolName?: string
       }
       if (
         p.type === 'text-delta' ||
@@ -531,7 +532,11 @@ async function streamTelegramReply(opts: {
         }
         const aid = extractPausedApprovalId(out)
         if (aid && !pendingApprovalIds.includes(aid)) pendingApprovalIds.push(aid)
-        for (const a of extractAttachmentsFromToolOutput(out, opts.scopeId)) {
+        for (const a of extractAttachmentsFromToolOutput(
+          out,
+          opts.scopeId,
+          p.toolName ? String(p.toolName) : undefined
+        )) {
           if (!attachmentBucket.some((x) => x.fileId === a.fileId)) {
             attachmentBucket.push(a)
           }
@@ -980,7 +985,7 @@ async function runTelegramAgentTurn(opts: {
           name: a.name,
           mimeType: a.mimeType,
           scopeId: a.scopeId || scopeId,
-          toolName: undefined,
+          toolName: a.toolName,
         })),
         pendingApprovalIds: run.pendingApprovalIds || [],
         workKind: work.kind,

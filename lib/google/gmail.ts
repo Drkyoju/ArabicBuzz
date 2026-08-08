@@ -151,7 +151,15 @@ function toSummary(msg: {
 
 /** Folder → Gmail query fragment. */
 export function gmailQueryForFolder(
-  folder: 'INBOX' | 'SENT' | 'STARRED' | 'IMPORTANT' | 'ALL' | 'UNREAD' | string
+  folder:
+    | 'INBOX'
+    | 'SENT'
+    | 'STARRED'
+    | 'IMPORTANT'
+    | 'ALL'
+    | 'UNREAD'
+    | 'SNOOZED'
+    | string
 ): string {
   switch (folder) {
     case 'INBOX':
@@ -164,11 +172,116 @@ export function gmailQueryForFolder(
       return 'is:important'
     case 'UNREAD':
       return 'is:unread'
+    case 'SNOOZED':
+      return 'label:ArabicBuzz-Snoozed'
     case 'ALL':
       return 'in:anywhere'
     default:
       return folder.trim() || 'in:inbox'
   }
+}
+
+/** Download attachment bytes (Gmail API). Data is base64url. */
+export async function downloadGmailAttachment(
+  userId: string,
+  messageId: string,
+  attachmentId: string,
+  opts?: { accountEmail?: string | null }
+): Promise<{ data: Buffer; size: number }> {
+  const mid = messageId.trim()
+  const aid = attachmentId.trim()
+  if (!mid || !aid) throw new Error('يلزم messageId و attachmentId.')
+  const res = await gmailFetch(
+    userId,
+    `/users/me/messages/${encodeURIComponent(mid)}/attachments/${encodeURIComponent(aid)}`,
+    { accountEmail: opts?.accountEmail || null }
+  )
+  const data = (await res.json()) as {
+    data?: string
+    size?: number
+    error?: { message?: string }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error?.message ||
+        `Gmail attachment HTTP ${res.status} — تحقق من صلاحية gmail.readonly`
+    )
+  }
+  if (!data.data) throw new Error('لم يُرجع Gmail بيانات المرفق.')
+  const b64 = data.data.replace(/-/g, '+').replace(/_/g, '/')
+  const buf = Buffer.from(b64, 'base64')
+  return { data: buf, size: data.size ?? buf.length }
+}
+
+const SNOOZE_LABEL_NAME = 'ArabicBuzz-Snoozed'
+
+/** Ensure custom label exists; returns label id. Needs gmail.modify / labels. */
+export async function ensureGmailLabel(
+  userId: string,
+  name: string,
+  opts?: { accountEmail?: string | null }
+): Promise<{ id: string; name: string }> {
+  const labels = await listGmailLabels(userId, opts)
+  const existing = labels.find(
+    (l) => l.name === name || l.name.toLowerCase() === name.toLowerCase()
+  )
+  if (existing?.id) return { id: existing.id, name: existing.name }
+  const res = await gmailFetch(userId, '/users/me/labels', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      labelListVisibility: 'labelShow',
+      messageListVisibility: 'show',
+    }),
+    accountEmail: opts?.accountEmail || null,
+  })
+  const data = (await res.json()) as {
+    id?: string
+    name?: string
+    error?: { message?: string }
+  }
+  if (!res.ok || !data.id) {
+    throw new Error(
+      data.error?.message || `تعذّر إنشاء التصنيف ${name}`
+    )
+  }
+  return { id: data.id, name: data.name || name }
+}
+
+/**
+ * Snooze: remove INBOX, apply ArabicBuzz-Snoozed label.
+ * Wake is handled by mail-energy cron (unsnoozeGmailMessage).
+ */
+export async function snoozeGmailMessage(
+  userId: string,
+  messageId: string,
+  opts?: { accountEmail?: string | null }
+): Promise<{ message: GmailMessageSummary; snoozeLabelId: string }> {
+  const label = await ensureGmailLabel(userId, SNOOZE_LABEL_NAME, opts)
+  const message = await modifyGmailLabels(userId, messageId, {
+    addLabelIds: [label.id],
+    removeLabelIds: ['INBOX'],
+    accountEmail: opts?.accountEmail,
+  })
+  return { message, snoozeLabelId: label.id }
+}
+
+/** Restore snoozed message to INBOX and drop snooze label. */
+export async function unsnoozeGmailMessage(
+  userId: string,
+  messageId: string,
+  opts?: { accountEmail?: string | null; snoozeLabelId?: string }
+): Promise<GmailMessageSummary> {
+  let snoozeId = opts?.snoozeLabelId
+  if (!snoozeId) {
+    const label = await ensureGmailLabel(userId, SNOOZE_LABEL_NAME, opts)
+    snoozeId = label.id
+  }
+  return modifyGmailLabels(userId, messageId, {
+    addLabelIds: ['INBOX'],
+    removeLabelIds: [snoozeId],
+    accountEmail: opts?.accountEmail,
+  })
 }
 
 /**
@@ -435,6 +548,24 @@ export async function starGmailMessage(
     addLabelIds: starred ? ['STARRED'] : [],
     removeLabelIds: starred ? [] : ['STARRED'],
     accountEmail: opts?.accountEmail,
+  })
+}
+
+/** Apply or remove an arbitrary Gmail label by id. */
+export async function applyGmailLabel(
+  userId: string,
+  messageId: string,
+  opts: {
+    labelId: string
+    add?: boolean
+    accountEmail?: string | null
+  }
+) {
+  const add = opts.add !== false
+  return modifyGmailLabels(userId, messageId, {
+    addLabelIds: add ? [opts.labelId] : [],
+    removeLabelIds: add ? [] : [opts.labelId],
+    accountEmail: opts.accountEmail,
   })
 }
 

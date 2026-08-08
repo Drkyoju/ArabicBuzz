@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   onOpenMail?: () => void
+  onOpenPersonalMail?: () => void
   className?: string
   /** Compact icon for mobile top bar */
   compact?: boolean
@@ -33,26 +34,44 @@ async function ensureNotifPermission(): Promise<NotificationPermission | null> {
   }
 }
 
-function showBrowserMailNotif(unread: number) {
+function showBrowserMailNotif(opts: {
+  unread: number
+  kind: 'org' | 'personal'
+  subjects?: string[]
+}) {
   if (!canUseBrowserNotifications()) return
   if (Notification.permission !== 'granted') return
   try {
-    // `renotify` is widely supported but missing from DOM lib typings.
-    const opts: NotificationOptions & { renotify?: boolean } = {
-      body:
-        unread === 1
-          ? 'رسالة جديدة في بريد الجمعية — افتح الوارد للرد أو التلخيص.'
-          : `${unread} رسائل غير مقروءة في بريد الجمعية.`,
-      tag: 'ab-org-mail-unread',
+    const isOrg = opts.kind === 'org'
+    const sample = opts.subjects?.[0]
+    const body = isOrg
+      ? opts.unread === 1
+        ? sample
+          ? `جديد: ${sample}`
+          : 'رسالة جديدة في بريد الجمعية — افتح الوارد للرد أو التلخيص.'
+        : `${opts.unread} رسائل غير مقروءة في بريد الجمعية.`
+      : opts.unread === 1
+        ? sample
+          ? `Gmail: ${sample}`
+          : 'رسالة جديدة في بريدك الشخصي.'
+        : `${opts.unread} رسائل غير مقروءة في بريدك الشخصي.`
+    const notifOpts: NotificationOptions & { renotify?: boolean } = {
+      body,
+      tag: isOrg ? 'ab-org-mail-unread' : 'ab-personal-mail-unread',
       dir: 'rtl',
       lang: 'ar',
       renotify: true,
     }
-    const n = new Notification('بريد جديد — جمعية الهدى والحكمة', opts)
+    const n = new Notification(
+      isOrg ? 'بريد جديد — جمعية الهدى والحكمة' : 'بريد جديد — حسابك الشخصي',
+      notifOpts
+    )
     n.onclick = () => {
       try {
         window.focus()
-        window.dispatchEvent(new Event('ab-open-mail'))
+        window.dispatchEvent(
+          new Event(isOrg ? 'ab-open-mail' : 'ab-open-personal-mail')
+        )
       } catch {
         /* ignore */
       }
@@ -64,46 +83,83 @@ function showBrowserMailNotif(unread: number) {
 }
 
 /**
- * Header bell — badge when org IMAP mailbox has unread mail.
- * Polls /api/mail/unread; fires browser notification when count rises
- * (requires user-granted Notification permission).
+ * Header bell — org IMAP + personal Gmail unread.
+ * Polls both; browser Notification when either count rises.
  */
-export function MailBell({ onOpenMail, className, compact }: Props) {
+export function MailBell({
+  onOpenMail,
+  onOpenPersonalMail,
+  className,
+  compact,
+}: Props) {
   const signedIn = useSignedIn()
-  const [unread, setUnread] = useState(0)
-  const [configured, setConfigured] = useState(false)
+  const [orgUnread, setOrgUnread] = useState(0)
+  const [personalUnread, setPersonalUnread] = useState(0)
+  const [orgConfigured, setOrgConfigured] = useState(false)
+  const [personalConnected, setPersonalConnected] = useState(false)
   const [pulse, setPulse] = useState(false)
-  const prevUnread = useRef(0)
   const primed = useRef(false)
 
   const poll = useCallback(async () => {
     if (signedIn !== true) {
-      setUnread(0)
-      setConfigured(false)
+      setOrgUnread(0)
+      setPersonalUnread(0)
+      setOrgConfigured(false)
+      setPersonalConnected(false)
       return
     }
     try {
       const headers = await authHeaders()
-      const res = await fetch('/api/mail/unread', { headers })
-      if (!res.ok) return
-      const data = (await res.json()) as {
-        configured?: boolean
-        unread?: number
-      }
-      setConfigured(Boolean(data.configured))
-      const next = Number(data.unread || 0)
-      setUnread((prev) => {
-        if (next > prev) {
-          setPulse(true)
-          if (primed.current) {
+      const [orgRes, personalRes] = await Promise.all([
+        fetch('/api/mail/unread', { headers }),
+        fetch('/api/mail/personal/unread', { headers }),
+      ])
+
+      if (orgRes.ok) {
+        const data = (await orgRes.json()) as {
+          configured?: boolean
+          unread?: number
+        }
+        setOrgConfigured(Boolean(data.configured))
+        const next = Number(data.unread || 0)
+        setOrgUnread((prev) => {
+          if (next > prev && primed.current) {
+            setPulse(true)
             void ensureNotifPermission().then((perm) => {
-              if (perm === 'granted') showBrowserMailNotif(next)
+              if (perm === 'granted') {
+                showBrowserMailNotif({ unread: next, kind: 'org' })
+              }
             })
           }
+          return next
+        })
+      }
+
+      if (personalRes.ok) {
+        const data = (await personalRes.json()) as {
+          connected?: boolean
+          unread?: number
+          sampleSubjects?: string[]
         }
-        prevUnread.current = next
-        return next
-      })
+        setPersonalConnected(Boolean(data.connected))
+        const next = Number(data.unread || 0)
+        setPersonalUnread((prev) => {
+          if (next > prev && primed.current) {
+            setPulse(true)
+            void ensureNotifPermission().then((perm) => {
+              if (perm === 'granted') {
+                showBrowserMailNotif({
+                  unread: next,
+                  kind: 'personal',
+                  subjects: data.sampleSubjects,
+                })
+              }
+            })
+          }
+          return next
+        })
+      }
+
       primed.current = true
     } catch {
       /* ignore */
@@ -118,10 +174,12 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
     const onMail = () => void poll()
     window.addEventListener('focus', onFocus)
     window.addEventListener('ab-mail-changed', onMail)
+    window.addEventListener('ab-personal-mail-changed', onMail)
     return () => {
       window.clearInterval(t)
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('ab-mail-changed', onMail)
+      window.removeEventListener('ab-personal-mail-changed', onMail)
     }
   }, [poll, signedIn])
 
@@ -131,26 +189,36 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
     return () => window.clearTimeout(t)
   }, [pulse])
 
-  if (signedIn !== true || !configured) return null
+  const visible = signedIn === true && (orgConfigured || personalConnected)
+  if (!visible) return null
 
-  const hasNew = unread > 0
+  const total = orgUnread + personalUnread
+  const hasNew = total > 0
 
   return (
     <button
       type="button"
       onClick={() => {
         void ensureNotifPermission()
-        onOpenMail?.()
+        if (personalUnread > 0 && orgUnread === 0) {
+          onOpenPersonalMail?.()
+          window.dispatchEvent(new Event('ab-open-personal-mail'))
+        } else {
+          onOpenMail?.()
+        }
       }}
       title={
         hasNew
-          ? `${unread} رسالة غير مقروءة في بريد الجمعية`
-          : 'بريد الجمعية — لا رسائل جديدة'
+          ? [
+              orgUnread > 0 ? `${orgUnread} جمعية` : null,
+              personalUnread > 0 ? `${personalUnread} شخصي` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : 'البريد — لا رسائل جديدة'
       }
       aria-label={
-        hasNew
-          ? `بريد جديد: ${unread} غير مقروءة`
-          : 'بريد الجمعية'
+        hasNew ? `بريد جديد: ${total} غير مقروءة` : 'البريد'
       }
       className={cn(
         'relative inline-flex items-center justify-center rounded-md text-ab-ink transition-colors hover:bg-stone-100',
@@ -179,12 +247,12 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
           )}
           aria-hidden
         >
-          {unread > 99 ? '99+' : unread}
+          {total > 99 ? '99+' : total}
         </span>
       )}
       {hasNew && !compact && (
         <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-700 sm:hidden">
-          {unread > 99 ? '99+' : unread}
+          {total > 99 ? '99+' : total}
         </span>
       )}
     </button>

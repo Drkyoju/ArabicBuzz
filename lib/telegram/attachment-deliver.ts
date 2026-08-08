@@ -33,7 +33,14 @@ export const TELEGRAM_OPEN_ATTACHMENT_TOOLS = new Set([
 ])
 
 const FILE_DELIVER_PROMPT_RE =
-  /(?:أرسل|ارسل|جيب|هات|ور[ّ]?ني|وريني|نز[ّ]?ل|حم[ّ]?ل|عطني|أبغ[اى]\s*(?:ال)?ملف|ابي\s*(?:ال)?ملف|أريد\s*(?:ال)?ملف|اريد\s*(?:ال)?ملف|أرسله|ارسليه|ابغى\s*الملف|افتح\s*(?:لي\s*)?(?:ال)?ملف|send\s*(?:me\s*)?(?:the\s*)?file|download)/iu
+  /(?:أرسل|ارسل|جيب|هات|ور[ّ]?ي?ني|وريني|نز[ّ]?ل|حم[ّ]?ل|عطني|أبغ[اى]\s*(?:ال)?ملف|ابي\s*(?:ال)?ملف|أريد\s*(?:ال)?ملف|اريد\s*(?:ال)?ملف|أبغ[اى]\s*(?:ال)?(?:لائح|مستند|عقد)|ابغى\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|أرسل\s*(?:ال)?ملف|ارسل\s*(?:ال)?ملف|هات\s*(?:ال)?لائح|عطني\s*(?:ال)?لائح|أرسله|ارسليه|ابغى\s*الملف|افتح\s*(?:لي\s*)?(?:ال)?ملف|من\s*(?:ال)?درايف|من\s*(?:ال)?عقل|send\s*(?:me\s*)?(?:the\s*)?file|download)/iu
+
+/**
+ * Explicit «send me the file» / Drive-brain fetch cues in the user prompt.
+ */
+export function shouldForceFileDelivery(prompt?: string): boolean {
+  return FILE_DELIVER_PROMPT_RE.test(prompt || '')
+}
 
 /**
  * In silent group mode: send tool attachments when they are deliverables,
@@ -45,6 +52,7 @@ export function shouldDeliverSilentAttachment(opts: {
   prompt?: string
 }): boolean {
   const tool = (opts.toolName || '').trim()
+  const forcePrompt = shouldForceFileDelivery(opts.prompt)
   if (tool && TELEGRAM_DELIVER_ATTACHMENT_TOOLS.has(tool)) return true
   if (opts.workKind === 'file') {
     if (!tool || TELEGRAM_OPEN_ATTACHMENT_TOOLS.has(tool)) return true
@@ -53,13 +61,12 @@ export function shouldDeliverSilentAttachment(opts: {
     return true
   }
   if (tool && TELEGRAM_OPEN_ATTACHMENT_TOOLS.has(tool)) {
-    return FILE_DELIVER_PROMPT_RE.test(opts.prompt || '')
+    // brain_open_document / reads: deliver on explicit file ask or Drive/brain cue.
+    return forcePrompt
   }
   // No tool name (assistant path): deliver on file turns or explicit ask.
   if (!tool) {
-    return (
-      opts.workKind === 'file' || FILE_DELIVER_PROMPT_RE.test(opts.prompt || '')
-    )
+    return opts.workKind === 'file' || forcePrompt
   }
   return false
 }

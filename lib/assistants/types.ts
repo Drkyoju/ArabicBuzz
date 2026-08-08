@@ -73,6 +73,7 @@ export type AssistantRunResult = {
     name: string
     mimeType?: string
     scopeId?: string
+    toolName?: string
   }>
   blocked?: {
     reason: 'google' | 'telegram' | 'mail' | 'auth'

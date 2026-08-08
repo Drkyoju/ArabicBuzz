@@ -392,6 +392,40 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     }
   }
 
+  async function downloadOrgAttachment(attId: string, filename: string) {
+    if (!selected) return
+    setBusy(`dl-${attId}`)
+    setError('')
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(
+        `/api/mail/messages/${selected.id}/attachments/${encodeURIComponent(attId)}`,
+        { headers }
+      )
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          messageAr?: string
+        }
+        throw new Error(data.error || data.messageAr || 'فشل تنزيل المرفق')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename || 'attachment.bin'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setOkMsg(`تم تنزيل: ${filename}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل تنزيل المرفق')
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function runAnalyze(id: string, force = false) {
     setBusy('analyze')
     try {
@@ -1171,9 +1205,12 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           ))}
           {!loading && messages.length === 0 && configured && (
             <li className="ab-empty !py-8">
-              <p className="text-xs font-semibold text-ab-ink">لا رسائل بعد</p>
+              <p className="text-xs font-semibold text-ab-ink">
+                لا رسائل في بريد الجمعية
+              </p>
               <p className="mt-1 text-[11px] text-ab-muted">
-                اضغط «حدّث الوارد» لمزامنة صندوق الجمعية.
+                صندوق الجمعية المشترك — منفصل عن «بريدي الشخصي». اضغط «حدّث
+                الوارد» للمزامنة.
               </p>
             </li>
           )}
@@ -1554,13 +1591,28 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       key={a.id}
                       className="rounded-md bg-stone-50 px-2 py-1.5 text-[11px]"
                     >
-                      <p className="font-medium text-ab-ink" dir="auto">
-                        {a.filename}{' '}
-                        <span className="font-normal text-ab-muted-soft" dir="ltr">
-                          ({Math.round(a.size / 1024)} KB
-                          {a.extractMethod ? ` · ${a.extractMethod}` : ''})
-                        </span>
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-ab-ink" dir="auto">
+                          {a.filename}{' '}
+                          <span
+                            className="font-normal text-ab-muted-soft"
+                            dir="ltr"
+                          >
+                            ({Math.round(a.size / 1024)} KB
+                            {a.extractMethod ? ` · ${a.extractMethod}` : ''})
+                          </span>
+                        </p>
+                        <button
+                          type="button"
+                          disabled={busy === `dl-${a.id}`}
+                          onClick={() =>
+                            void downloadOrgAttachment(a.id, a.filename)
+                          }
+                          className="inline-flex items-center gap-1 rounded border border-ab-border bg-white px-2 py-0.5 text-[10px] font-semibold text-ab-ink hover:border-ab-accent/40 disabled:opacity-50"
+                        >
+                          تنزيل
+                        </button>
+                      </div>
                       {a.textPreview ? (
                         <pre
                           dir="auto"

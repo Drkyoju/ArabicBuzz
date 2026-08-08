@@ -218,7 +218,7 @@ export async function sendAttachmentsToTelegramChat(opts: {
       if (file.buffer.byteLength > TELEGRAM_MAX_UPLOAD_BYTES) {
         const mb = (file.buffer.byteLength / (1024 * 1024)).toFixed(1)
         await opts.ctx.reply(
-          `الملف «${name}» كبير جداً لإرساله عبر تيليجرام (~${mb} م.ب). افتحه من خزنة الغرفة على الموقع.`
+          `الملف «${name}» تجاوز حد الإرسال عبر تيليجرام (~${mb} م.ب). يمكنك فتحه من خزنة الغرفة على الموقع.`
         )
         continue
       }
@@ -244,7 +244,7 @@ export async function sendAttachmentsToTelegramChat(opts: {
       console.error('[telegram] send attachment', a.fileId, e)
       try {
         await opts.ctx.reply(
-          `تعذّر إرسال المرفق «${a.name}» عبر تيليجرام. جرّب من خزنة الغرفة على الموقع.`
+          `لم نتمكّن من إرسال «${a.name}» هنا حالياً. يمكنك تنزيله من خزنة الغرفة على الموقع.`
         )
       } catch {
         /* ignore */

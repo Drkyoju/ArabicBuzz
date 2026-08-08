@@ -77,6 +77,29 @@ describe('pdf-annotate burn-in', () => {
         fontSize: 0.03,
         color: '#111111',
       },
+      {
+        id: '5',
+        kind: 'textHighlight',
+        pageIndex: 0,
+        x: 0.1,
+        y: 0.2,
+        w: 0.5,
+        h: 0.04,
+        color: '#f5c542',
+        opacity: 0.35,
+      },
+      {
+        id: '6',
+        kind: 'sticky',
+        pageIndex: 0,
+        x: 0.6,
+        y: 0.15,
+        w: 0.25,
+        h: 0.12,
+        text: 'ملاحظة',
+        color: '#f5e6a3',
+        fontSize: 0.02,
+      },
     ]
     const out = await burnPdfAnnotations(src, annos)
     expect(out.byteLength).toBeGreaterThan(src.byteLength)

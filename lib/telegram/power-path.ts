@@ -46,7 +46,7 @@ const TASK_RE =
   /(?:مهم[ةه]|مهام|تاسك|task|to-?do|أضف\s*مهم|سج[ّل]\s*مهم|ذك[ّر]ني|تذكير|تابع|متابعة|checklist)/iu
 
 const FILE_RE =
-  /(?:ملف|ملفات|مستند|وثيق|لائح|عقد|نموذج|جدول|ورد|وورد|word|excel|xlsx|pdf|pptx|باور|حو[ّ]?ل|عد[ّ]?ل|احذف|حذف|امسح|استخرج|ocr|درايف|drive|عقل\s*الشركة|قاعدة\s*المعرفة|ابحث\s*عن\s*(?:ال)?(?:ملف|لائح)|زامن\s*(?:ال)?درايف|جيب\s*(?:لي\s*)?(?:ال)?(?:ملف|لائح)|هات\s*(?:ال)?(?:ملف|لائح))/iu
+  /(?:ملف|ملفات|مستند|وثيق|لائح|عقد|نموذج|جدول|ورد|وورد|word|excel|xlsx|pdf|pptx|باور|حو[ّ]?ل|عد[ّ]?ل|احذف|حذف|امسح|استخرج|ocr|درايف|drive|عقل\s*الشركة|قاعدة\s*المعرفة|ابحث\s*عن\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|زامن\s*(?:ال)?درايف|جيب\s*(?:لي\s*)?(?:ال)?(?:ملف|لائح|مستند|عقد)|هات\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|عطني\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|نز[ّ]?ل\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|ور[ّ]?ي?ني\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|أبغ[اى]\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|ابغى\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|أرسل\s*(?:ال)?(?:ملف|لائح)|ارسل\s*(?:ال)?(?:ملف|لائح))/iu
 
 const MAIL_RE =
   /(?:بريد|إيميل|ايميل|إيميل|رسالة\s*إلكتروني|email|gmail|inbox|صندوق\s*(?:ال)?وارد|أرسل\s*(?:بريد|إيميل|ايميل)|رد\s*على\s*(?:ال)?بريد|mail_search|mail_send|ابحث\s*في\s*(?:ال)?بريد)/iu
@@ -56,7 +56,14 @@ const QUESTION_RE =
 
 /** Explicit ask-the-bot / do-work cues (Gulf + MSA). */
 const ACTION_RE =
-  /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|افتح|ور[ّ]?ني|وريني|احذف|حذف|امسح|عد[ّ]?ل|حو[ّ]?ل|لخ[ّ]?ص|اشرح|وض[ّ]?ح|ابحث|دور|جه[ّ]?ز|حض[ّ]?ر|اكتب|أنشئ|انشئ)/iu
+  /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|عطني|نز[ّ]?ل|حم[ّ]?ل|افتح|ور[ّ]?ي?ني|وريني|احذف|حذف|امسح|عد[ّ]?ل|حو[ّ]?ل|لخ[ّ]?ص|اشرح|وض[ّ]?ح|ابحث|دور|جه[ّ]?ز|حض[ّ]?ر|اكتب|أنشئ|انشئ)/iu
+
+/** Clear work verbs — used with vocatives so «يا فلان سوي…» is not treated as casual. */
+const CLEAR_WORK_VERB_RE =
+  /(?:سو[يّ]|جيب|ابحث|حو[ّ]?ل|هات|عطني|نز[ّ]?ل|ور[ّ]?ي?ني|نف[ّ]?ذ|عد[ّ]?ل)/iu
+
+/** Person-name vocative (يا أحمد / يا سارة…). */
+const PERSON_VOCATIVE_RE = /يا\s+[\u0600-\u06FFa-zA-Z]{2,}/u
 
 /** Explicit seat wake / agent mention — prefer full room agent turn. */
 const WAKE_RE =
@@ -67,7 +74,11 @@ const WAKE_RE =
  * Keep silent; do not interrupt group social chat.
  */
 const HUMAN_CHAT_ONLY_RE =
-  /^(?:يا\s+[\u0600-\u06FFa-zA-Z]{2,}(?:\s+[\u0600-\u06FF]{0,20}){0,6}|هههه+|ههه+|لول|lol|lmao|طيب\s+وياك|إن\s*شاء\s*الله|ماشي|خلاص|وكيفك|كيفك|كيف\s*الحال|وش\s*أخبارك|وينك\b|مع السلامة|يلا|يالله)[\s!.؟?…]*$/iu
+  /^(?:يا\s+[\u0600-\u06FFa-zA-Z]{2,}(?:\s+[\u0600-\u06FF]{0,20}){0,6}|هههه+(?:\s*تمام)?|ههه+|لول|lol|lmao|طيب\s+وياك|إن\s*شاء\s*الله|ماشي|خلاص|وكيفك|كيفك|كيف\s*الحال|كيف\s*الجو|وش\s*أخبارك|وش\s*رأيك|وش\s*رايك|وينك\b|مع السلامة|يلا|يالله|تمام\s*هههه*)[\s!.؟?…]*$/iu
+
+/** Short social questions / reactions — not for the bot when alone. */
+const SHORT_SOCIAL_QUESTION_RE =
+  /(?:رايك|رأيك|عنك|عندك\s*خبر|سمعت|يا\s+[\u0600-\u06FF]{2,}|كيف\s*الجو|هههه+\s*تمام|تمام\s*هههه*|وش\s*رأيك\s+يا|وش\s*رايك\s+يا)/iu
 
 /**
  * Light subset — only used for pure greetings / short thanks.
@@ -188,13 +199,18 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
   }
 
   // Social chat between people — not for the bot (unless also a clear work ask).
+  // Vocative + work verb («يا أحمد سوي / جيب / ابحث / حوّل») = work, not casual.
+  const vocativeWork =
+    PERSON_VOCATIVE_RE.test(t) && CLEAR_WORK_VERB_RE.test(t)
   if (
     HUMAN_CHAT_ONLY_RE.test(t) &&
+    !vocativeWork &&
     !FILE_RE.test(t) &&
     !MAIL_RE.test(t) &&
     !APPOINTMENT_RE.test(t) &&
     !TASK_RE.test(t) &&
-    !WAKE_RE.test(t)
+    !WAKE_RE.test(t) &&
+    !ACTION_RE.test(t)
   ) {
     return {
       kind: 'casual',
@@ -253,15 +269,17 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     }
   }
   if (ACTION_RE.test(t) || QUESTION_RE.test(t)) {
-    // Short social questions to people (وش رايك…) — not for the bot.
+    // Short social questions to people (وش رايك / كيف الجو…) — not for the bot.
+    // QUESTION_RE alone on short lines needs a stronger non-social signal.
     if (
       !ACTION_RE.test(t) &&
       t.length < 64 &&
-      /(?:رايك|رأيك|عنك|عندك\s*خبر|سمعت|يا\s+[\u0600-\u06FF]{2,})/iu.test(t) &&
+      SHORT_SOCIAL_QUESTION_RE.test(t) &&
       !FILE_RE.test(t) &&
       !MAIL_RE.test(t) &&
       !APPOINTMENT_RE.test(t) &&
-      !TASK_RE.test(t)
+      !TASK_RE.test(t) &&
+      !CLEAR_WORK_VERB_RE.test(t)
     ) {
       return {
         kind: 'casual',

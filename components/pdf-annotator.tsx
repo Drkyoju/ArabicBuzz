@@ -15,16 +15,21 @@ import {
   PenLine,
   Save,
   Square,
+  StickyNote,
   Trash2,
   Type,
   Undo2,
   FilePlus2,
   FileX2,
+  Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   burnPdfAnnotations,
+  clearSoftLayer,
+  loadSoftLayer,
   newAnnoId,
+  saveSoftLayer,
   type PdfAnnotateTool,
   type PdfAnnotation,
   type PdfNormPoint,
@@ -64,11 +69,23 @@ const TOOL_META: {
   { id: 'pen', label: 'قلم', title: 'رسم حر', Icon: PenLine },
   {
     id: 'highlight',
-    label: 'تمييز',
-    title: 'تمييز أصفر',
+    label: 'قلم تمييز',
+    title: 'تمييز حر أصفر',
+    Icon: Highlighter,
+  },
+  {
+    id: 'textHighlight',
+    label: 'تحديد نص',
+    title: 'تمييز مستطيل (تحديد نص / فقرة)',
     Icon: Highlighter,
   },
   { id: 'text', label: 'نص', title: 'إضافة نص', Icon: Type },
+  {
+    id: 'sticky',
+    label: 'ملاحظة',
+    title: 'ملاحظة لاصقة صفراء',
+    Icon: StickyNote,
+  },
   { id: 'rect', label: 'مربع', title: 'مستطيل', Icon: Square },
   { id: 'eraser', label: 'ممحاة', title: 'حذف تعليق بالنقر', Icon: Eraser },
 ]
@@ -77,6 +94,7 @@ const PEN_COLOR = '#0e5a46'
 const HIGHLIGHT_COLOR = '#f5c542'
 const RECT_COLOR = '#c45c26'
 const TEXT_COLOR = '#1a1a1a'
+const STICKY_COLOR = '#f5e6a3'
 
 function hitTest(
   anno: PdfAnnotation,
@@ -86,7 +104,11 @@ function hitTest(
   if (anno.kind === 'text') {
     return Math.hypot(anno.x - p.x, anno.y - p.y) < threshold * 2
   }
-  if (anno.kind === 'rect') {
+  if (
+    anno.kind === 'rect' ||
+    anno.kind === 'textHighlight' ||
+    anno.kind === 'sticky'
+  ) {
     const x0 = Math.min(anno.x, anno.x + anno.w)
     const x1 = Math.max(anno.x, anno.x + anno.w)
     const y0 = Math.min(anno.y, anno.y + anno.h)
@@ -123,26 +145,48 @@ function drawAnnosOnCanvas(
       }
       ctx.stroke()
       ctx.restore()
+    } else if (a.kind === 'textHighlight') {
+      ctx.save()
+      ctx.fillStyle = a.color
+      ctx.globalAlpha = a.opacity ?? 0.35
+      ctx.fillRect(a.x * width, a.y * height, a.w * width, a.h * height)
+      ctx.restore()
     } else if (a.kind === 'rect') {
       ctx.save()
-      const x = a.x * width
-      const y = a.y * height
-      const w = a.w * width
-      const h = a.h * height
       ctx.strokeStyle = a.color
-      ctx.fillStyle = a.color
-      ctx.globalAlpha = a.opacity ?? (a.fill ? 0.2 : 0.9)
-      ctx.lineWidth = Math.max(1, width * 0.002)
-      if (a.fill) ctx.fillRect(x, y, w, h)
-      ctx.strokeRect(x, y, w, h)
+      ctx.globalAlpha = a.opacity ?? 0.9
+      ctx.lineWidth = Math.max(1, 0.002 * width)
+      if (a.fill) {
+        ctx.fillStyle = a.color
+        ctx.globalAlpha = a.opacity ?? 0.25
+        ctx.fillRect(a.x * width, a.y * height, a.w * width, a.h * height)
+      } else {
+        ctx.strokeRect(a.x * width, a.y * height, a.w * width, a.h * height)
+      }
+      ctx.restore()
+    } else if (a.kind === 'sticky') {
+      ctx.save()
+      ctx.fillStyle = a.color || STICKY_COLOR
+      ctx.globalAlpha = 0.92
+      ctx.fillRect(a.x * width, a.y * height, a.w * width, a.h * height)
+      ctx.strokeStyle = '#8a7020'
+      ctx.lineWidth = 1
+      ctx.strokeRect(a.x * width, a.y * height, a.w * width, a.h * height)
+      ctx.fillStyle = '#1a1a1a'
+      ctx.globalAlpha = 1
+      ctx.font = `${Math.max(10, a.fontSize * height)}px sans-serif`
+      ctx.direction = 'rtl'
+      const lines = String(a.text || '').split('\n').slice(0, 6)
+      let ly = a.y * height + a.fontSize * height + 4
+      for (const line of lines) {
+        ctx.fillText(line, a.x * width + a.w * width - 6, ly, a.w * width - 12)
+        ly += a.fontSize * height * 1.25
+      }
       ctx.restore()
     } else if (a.kind === 'text') {
       ctx.save()
-      const size = Math.max(10, a.fontSize * height)
       ctx.fillStyle = a.color
-      ctx.font = `${size}px "IBM Plex Sans Arabic", "Noto Naskh Arabic", sans-serif`
-      ctx.textAlign = 'right'
-      ctx.textBaseline = 'top'
+      ctx.font = `${Math.max(10, a.fontSize * height)}px sans-serif`
       ctx.direction = 'rtl'
       ctx.fillText(a.text, a.x * width, a.y * height)
       ctx.restore()
@@ -285,6 +329,27 @@ function PdfPageView({
       return
     }
 
+    if (tool === 'sticky') {
+      const text = window.prompt('نص الملاحظة اللاصقة:')
+      if (!text?.trim()) return
+      onChangeAnnos([
+        ...annotations,
+        {
+          id: newAnnoId(),
+          kind: 'sticky',
+          pageIndex,
+          x: Math.max(0, p.x - 0.11),
+          y: Math.max(0, p.y - 0.02),
+          w: 0.22,
+          h: 0.12,
+          text: text.trim().slice(0, 400),
+          color: STICKY_COLOR,
+          fontSize: 0.018,
+        },
+      ])
+      return
+    }
+
     drawingRef.current = true
     if (tool === 'pen') {
       setDrafting({
@@ -305,6 +370,18 @@ function PdfPageView({
         width: 0.018,
         points: [p],
         opacity: 0.4,
+      })
+    } else if (tool === 'textHighlight') {
+      setDrafting({
+        id: newAnnoId(),
+        kind: 'textHighlight',
+        pageIndex,
+        x: p.x,
+        y: p.y,
+        w: 0,
+        h: 0,
+        color: HIGHLIGHT_COLOR,
+        opacity: 0.35,
       })
     } else if (tool === 'rect') {
       setDrafting({
@@ -330,7 +407,10 @@ function PdfPageView({
       const last = drafting.points[drafting.points.length - 1]
       if (last && Math.hypot(last.x - p.x, last.y - p.y) < 0.002) return
       setDrafting({ ...drafting, points: [...drafting.points, p] })
-    } else if (drafting.kind === 'rect') {
+    } else if (
+      drafting.kind === 'rect' ||
+      drafting.kind === 'textHighlight'
+    ) {
       setDrafting({
         ...drafting,
         w: p.x - drafting.x,
@@ -352,7 +432,7 @@ function PdfPageView({
     ) {
       onChangeAnnos([...annotations, drafting])
     } else if (
-      drafting.kind === 'rect' &&
+      (drafting.kind === 'rect' || drafting.kind === 'textHighlight') &&
       Math.abs(drafting.w) > 0.005 &&
       Math.abs(drafting.h) > 0.005
     ) {
@@ -428,6 +508,13 @@ export function PdfAnnotator({
       setDrafting(null)
       setNote('')
       try {
+        const soft = loadSoftLayer(fileId)
+        if (soft.length) {
+          setAnnotations(soft)
+          setNote(
+            `استُعيدت طبقة قابلة للتحرير (${soft.length} تعليق) — احفظ كحرق أو أبقِ الطبقة.`
+          )
+        }
         const res = await fetch(mediaUrl)
         if (!res.ok) throw new Error('تعذّر تحميل PDF')
         const buf = await res.arrayBuffer()
@@ -456,7 +543,12 @@ export function PdfAnnotator({
       cancelled = true
       loaded?.destroy?.()
     }
-  }, [mediaUrl])
+  }, [mediaUrl, fileId])
+
+  useEffect(() => {
+    if (!fileId || annotations.length === 0) return
+    saveSoftLayer(fileId, annotations)
+  }, [annotations, fileId])
 
   useEffect(() => {
     function onResize() {
@@ -493,6 +585,7 @@ export function PdfAnnotator({
         fileName,
       })
       setAnnotations([])
+      clearSoftLayer(fileId)
       setNote(result.messageAr || 'حُفظت التعليقات في الملف')
       bumpRevision()
     } catch (e) {
@@ -574,7 +667,19 @@ export function PdfAnnotator({
     }
     setAnnotations([])
     setDrafting(null)
+    clearSoftLayer(fileId)
     setNote('تُجاهلت التعليقات — الملف الأصلي كما هو')
+  }
+
+  function onSaveSoftOnly() {
+    if (!dirty) {
+      setNote('لا تعليقات لحفظ الطبقة')
+      return
+    }
+    saveSoftLayer(fileId, annotations)
+    setNote(
+      'حُفظت طبقة قابلة للتحرير محلياً في المتصفح — لن تُحرق في PDF حتى تضغط «حفظ في الملف».'
+    )
   }
 
   function onUndo() {
@@ -656,7 +761,17 @@ export function PdfAnnotator({
         <span className="mx-0.5 h-4 w-px bg-ab-border" aria-hidden />
         <button
           type="button"
-          title="حفظ في نفس الملف"
+          title="حفظ طبقة قابلة للتحرير (محلي — بدون حرق)"
+          disabled={busy || !dirty}
+          onClick={onSaveSoftOnly}
+          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] text-ab-ink hover:bg-stone-50 disabled:opacity-40"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          طبقة ناعمة
+        </button>
+        <button
+          type="button"
+          title="حفظ في نفس الملف (حرق دائم)"
           disabled={busy || !dirty}
           onClick={() => void onSaveReplace()}
           className="inline-flex items-center gap-1 rounded-md bg-ab-accent px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
@@ -666,7 +781,7 @@ export function PdfAnnotator({
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
-          حفظ
+          حفظ (حرق)
         </button>
         <button
           type="button"
@@ -691,10 +806,10 @@ export function PdfAnnotator({
       </div>
 
       <p className="shrink-0 text-[10px] leading-relaxed text-ab-muted">
-        أدوات: قلم · تمييز · نص · مربع · ممحاة. «حفظ» يدمج التعليقات في الملف،
-        «تجاهل» يلغيها دون حفظ، «بدون تعديل» ينشئ ملفاً نظيفاً من الأصل. على
-        الجوال: القلم والتمييز يعملان باللمس؛ النص عبر نافذة إدخال.
-        {dirty ? ` · ${annotations.length} تعليق غير محفوظ` : ''}
+        أدوات: قلم · تمييز حر · تحديد نص (مستطيل) · ملاحظة لاصقة · نص · مربع ·
+        ممحاة. «طبقة ناعمة» تُحفظ محلياً وقابلة للتحرير عند إعادة الفتح؛ «حفظ
+        (حرق)» يدمج التعليقات نهائياً في PDF.
+        {dirty ? ` · ${annotations.length} تعليق` : ''}
       </p>
 
       {(note || error) && (

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { shouldDeliverSilentAttachment } from '@/lib/telegram/attachment-deliver'
+import {
+  shouldDeliverSilentAttachment,
+  shouldForceFileDelivery,
+} from '@/lib/telegram/attachment-deliver'
 
 describe('shouldDeliverSilentAttachment', () => {
   it('delivers edit/return tools always', () => {
@@ -47,6 +50,33 @@ describe('shouldDeliverSilentAttachment', () => {
         prompt: 'جيب لي ملف اللائحة',
       })
     ).toBe(true)
+  })
+
+  it('delivers brain_open when prompt asks from Drive or brain', () => {
+    expect(
+      shouldDeliverSilentAttachment({
+        toolName: 'brain_open_document',
+        workKind: 'question',
+        prompt: 'افتح المحضر من درايف',
+      })
+    ).toBe(true)
+    expect(
+      shouldDeliverSilentAttachment({
+        toolName: 'brain_open_document',
+        workKind: 'question',
+        prompt: 'هات العقد من العقل',
+      })
+    ).toBe(true)
+  })
+
+  it('matches Gulf deliver prompts via shouldForceFileDelivery', () => {
+    expect(shouldForceFileDelivery('نزّل الملف')).toBe(true)
+    expect(shouldForceFileDelivery('عطني اللائحة')).toBe(true)
+    expect(shouldForceFileDelivery('ورّيني المستند')).toBe(true)
+    expect(shouldForceFileDelivery('ابغى الملف')).toBe(true)
+    expect(shouldForceFileDelivery('أرسل الملف')).toBe(true)
+    expect(shouldForceFileDelivery('هات اللائحة')).toBe(true)
+    expect(shouldForceFileDelivery('لخّص الاجتماع فقط')).toBe(false)
   })
 
   it('delivers assistant attachments without toolName on file ask', () => {

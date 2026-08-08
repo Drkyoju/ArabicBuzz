@@ -236,8 +236,13 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
 
   useEffect(() => {
     const openMail = () => setSection('mail')
+    const openPersonalMail = () => setSection('personal-mail')
     window.addEventListener('ab-open-mail', openMail)
-    return () => window.removeEventListener('ab-open-mail', openMail)
+    window.addEventListener('ab-open-personal-mail', openPersonalMail)
+    return () => {
+      window.removeEventListener('ab-open-mail', openMail)
+      window.removeEventListener('ab-open-personal-mail', openPersonalMail)
+    }
   }, [])
 
   // Members: no audit/skills/keys/ops even via deep-link.
@@ -468,7 +473,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <p className="truncate text-[13px] font-semibold tracking-tight text-ab-ink">
               {sectionTitleAr(section)}
             </p>
-            <MailBell onOpenMail={() => setSection('mail')} />
+            <MailBell
+              onOpenMail={() => setSection('mail')}
+              onOpenPersonalMail={() => setSection('personal-mail')}
+            />
           </div>
         )}
         {pendingCount > 0 &&

@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
+  Bell,
+  Clock,
+  Download,
   FileSearch,
   Inbox,
   Link2,
   Mail,
+  MailOpen,
   Paperclip,
   PenSquare,
   RefreshCw,
@@ -14,6 +18,7 @@ import {
   Send,
   Sparkles,
   Star,
+  Timer,
   X,
 } from 'lucide-react'
 import {
@@ -73,6 +78,7 @@ const FOLDERS = [
   { id: 'INBOX', label: 'الوارد' },
   { id: 'UNREAD', label: 'غير مقروء' },
   { id: 'STARRED', label: 'مهمّة' },
+  { id: 'SNOOZED', label: 'مؤجّل' },
   { id: 'SENT', label: 'المرسل' },
   { id: 'ALL', label: 'الكل' },
 ] as const
@@ -115,6 +121,8 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
   const [composeSubject, setComposeSubject] = useState('')
   const [composeText, setComposeText] = useState('')
   const [composeHtml, setComposeHtml] = useState('')
+  const [scheduleHours, setScheduleHours] = useState(1)
+  const [downloadingAtt, setDownloadingAtt] = useState('')
 
   const readingRef = useRef<HTMLDivElement>(null)
   const replyRef = useRef<HTMLDivElement>(null)
@@ -392,6 +400,157 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
     }
   }
 
+  async function toggleUnread(msg: MsgDetail) {
+    try {
+      const res = await fetch('/api/mail/personal', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'mark',
+          messageId: msg.id,
+          unread: !msg.unread,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'تعذّر تحديث القراءة')
+      const nextUnread = !msg.unread
+      setSelected({ ...msg, unread: nextUnread })
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id ? { ...m, unread: nextUnread } : m
+        )
+      )
+      window.dispatchEvent(new Event('ab-personal-mail-changed'))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذّر تحديث القراءة')
+    }
+  }
+
+  async function snoozeSelected(hours: number) {
+    if (!selected) return
+    setBusy('snooze')
+    setError('')
+    try {
+      const res = await fetch('/api/mail/personal', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'snooze',
+          messageId: selected.id,
+          hours,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل التأجيل')
+      setOkMsg(data.messageAr || 'أُجّلت الرسالة.')
+      setSelected(null)
+      void refresh()
+      window.dispatchEvent(new Event('ab-personal-mail-changed'))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل التأجيل')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function remindSelected(hours: number) {
+    if (!selected) return
+    setBusy('remind')
+    setError('')
+    try {
+      const res = await fetch('/api/mail/personal', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'remind',
+          messageId: selected.id,
+          hours,
+          noteAr: `تذكير: ${selected.subject}`,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل التذكير')
+      setOkMsg(data.messageAr || 'ضُبط التذكير.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل التذكير')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function scheduleCompose() {
+    const to = composeTo.trim()
+    const subject = composeSubject.trim()
+    const bodyText = composeText.trim()
+    if (!to || !subject || !bodyText) {
+      setError('أكمل: إلى، الموضوع، والنص قبل الجدولة.')
+      return
+    }
+    setBusy('schedule')
+    setError('')
+    try {
+      const res = await fetch('/api/mail/personal', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'schedule_send',
+          to,
+          subject,
+          bodyText,
+          bodyHtml: composeHtml.trim() || plainTextToMailHtml(bodyText),
+          hours: Math.max(1, scheduleHours),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل جدولة الإرسال')
+      setOkMsg(data.messageAr || 'جُدول الإرسال.')
+      setComposing(false)
+      setComposeTo('')
+      setComposeSubject('')
+      setComposeText('')
+      setComposeHtml('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل جدولة الإرسال')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function downloadAttachment(a: AttachmentMeta) {
+    if (!selected) return
+    setDownloadingAtt(a.attachmentId)
+    setError('')
+    try {
+      const res = await fetch('/api/mail/personal', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'download_attachment',
+          messageId: selected.id,
+          attachmentId: a.attachmentId,
+        }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error || 'فشل تنزيل المرفق')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = a.filename || 'attachment.bin'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setOkMsg(`تم تنزيل: ${a.filename}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل تنزيل المرفق')
+    } finally {
+      setDownloadingAtt('')
+    }
+  }
+
   function closeReading() {
     setSelected(null)
     setIntel(null)
@@ -469,7 +628,7 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
         <div className="min-w-0">
           <h2 className="ab-title flex items-center gap-2">
             <Mail className="h-5 w-5 text-ab-accent" aria-hidden />
-            نافذة البريد الشخصي
+            بريدي الشخصي
             {messages.filter((m) => m.unread).length > 0 && (
               <span className="rounded-full bg-ab-ink px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
                 {messages.filter((m) => m.unread).length} غير مقروء
@@ -729,7 +888,12 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                 {!loading && messages.length === 0 && (
                   <li className="ab-empty !py-6">
                     <Inbox className="mx-auto h-5 w-5 text-stone-400" />
-                    <p className="mt-1 text-xs text-stone-500">لا رسائل هنا</p>
+                    <p className="mt-1 text-xs font-semibold text-ab-ink">
+                      لا رسائل في بريدي الشخصي
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-stone-500">
+                      هذا Gmail الخاص بك — ليس بريد الجمعية.
+                    </p>
                   </li>
                 )}
               </ul>
@@ -776,7 +940,7 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                     }}
                     placeholder="نص الرسالة…"
                   />
-                  <button
+                    <button
                     type="button"
                     disabled={busy === 'send'}
                     onClick={() => void sendCompose()}
@@ -785,6 +949,35 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                     <Send className="h-3.5 w-3.5" />
                     أرسل
                   </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-[11px] text-stone-600">
+                      <Clock className="h-3.5 w-3.5" />
+                      جدولة بعد
+                      <input
+                        type="number"
+                        min={1}
+                        max={168}
+                        value={scheduleHours}
+                        onChange={(e) =>
+                          setScheduleHours(
+                            Math.max(1, Number(e.target.value) || 1)
+                          )
+                        }
+                        className="w-14 rounded border border-ab-border px-1 py-0.5 text-center text-[11px]"
+                        dir="ltr"
+                      />
+                      ساعة
+                    </label>
+                    <button
+                      type="button"
+                      disabled={busy === 'schedule'}
+                      onClick={() => void scheduleCompose()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-ab-ink px-3 py-2 text-xs font-bold text-ab-ink disabled:opacity-50"
+                    >
+                      <Timer className="h-3.5 w-3.5" />
+                      أرسل لاحقاً
+                    </button>
+                  </div>
                 </div>
               ) : !selected ? (
                 <p className="text-sm text-ab-muted">
@@ -819,6 +1012,17 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                       </button>
                       <button
                         type="button"
+                        onClick={() => void toggleUnread(selected)}
+                        className="rounded p-1.5 hover:bg-stone-100"
+                        title={
+                          selected.unread ? 'علّم كمقروء' : 'علّم كغير مقروء'
+                        }
+                        aria-label="مقروء"
+                      >
+                        <MailOpen className="h-4 w-4 text-stone-500" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={closeReading}
                         className="inline-flex items-center gap-1 rounded-lg border border-ab-border px-2 py-1 text-[11px] md:hidden"
                       >
@@ -826,6 +1030,36 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                         الوارد
                       </button>
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={busy === 'snooze'}
+                      onClick={() => void snoozeSelected(3)}
+                      className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[10px] font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <Timer className="h-3 w-3" />
+                      أجّل 3س
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === 'snooze'}
+                      onClick={() => void snoozeSelected(24)}
+                      className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[10px] font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <Timer className="h-3 w-3" />
+                      أجّل غداً
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === 'remind'}
+                      onClick={() => void remindSelected(4)}
+                      className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[10px] font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <Bell className="h-3 w-3" />
+                      ذكّرني بعد 4س
+                    </button>
                   </div>
 
                   <div className="grid gap-1.5 sm:grid-cols-2">
@@ -876,14 +1110,31 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
                         <Paperclip className="h-3 w-3" />
                         مرفقات ({selected.attachments.length})
                       </p>
-                      <ul className="space-y-0.5">
+                      <ul className="space-y-1">
                         {selected.attachments.map((a) => (
                           <li
                             key={a.attachmentId}
-                            className="truncate font-mono text-[10px] text-stone-700"
-                            dir="ltr"
+                            className="flex items-center justify-between gap-2"
                           >
-                            {a.filename}
+                            <span
+                              className="min-w-0 truncate font-mono text-[10px] text-stone-700"
+                              dir="ltr"
+                              title={a.filename}
+                            >
+                              {a.filename}
+                              {a.size
+                                ? ` (${Math.max(1, Math.round(a.size / 1024))} KB)`
+                                : ''}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={downloadingAtt === a.attachmentId}
+                              onClick={() => void downloadAttachment(a)}
+                              className="inline-flex shrink-0 items-center gap-1 rounded border border-ab-border bg-white px-1.5 py-0.5 text-[10px] font-semibold text-ab-ink hover:border-ab-accent/40 disabled:opacity-50"
+                            >
+                              <Download className="h-3 w-3" />
+                              تنزيل
+                            </button>
                           </li>
                         ))}
                       </ul>
