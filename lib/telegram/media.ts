@@ -151,14 +151,8 @@ export async function downloadTelegramFileBuffer(
     throw new Error(`تعذّر تنزيل الملف من تيليجرام (${res.status})`)
   }
   const buffer = Buffer.from(await res.arrayBuffer())
-  if (buffer.length > TELEGRAM_MAX_DOWNLOAD_BYTES) {
-    throw new Error(
-      telegramFileTooLargeAr({
-        fileName: opts?.fileName,
-        sizeBytes: buffer.length,
-      })
-    )
-  }
+  // If Telegram actually returned bytes, keep them even when slightly over the
+  // advertised cloud download cap — discarding a successful download is worse.
   return {
     buffer,
     filePath: file.file_path,
