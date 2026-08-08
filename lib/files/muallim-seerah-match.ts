@@ -8,6 +8,9 @@ const NORM_TATWEEL = /\u0640/g
 
 export function normalizeArabicFilename(s: string): string {
   return s
+    .normalize('NFD')
+    .replace(/[\u064B-\u065F\u0670]/g, '') // harakat + hamza marks
+    .normalize('NFC')
     .trim()
     .toLowerCase()
     .replace(NORM_TATWEEL, '')

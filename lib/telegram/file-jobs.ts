@@ -150,20 +150,18 @@ export function pickOpenJobForIncomingFile(
   const req = (opts.requestText || '').trim()
   const seerahIncoming = Boolean(name && matchMuallimSeerahFile(name))
 
-  for (const job of open) {
-    if (job.status !== 'waiting_file' && job.status !== 'failed' && job.status !== 'pending') {
-      continue
+  const eligible = open.filter((job) => {
+    if (
+      job.status !== 'waiting_file' &&
+      job.status !== 'failed' &&
+      job.status !== 'pending'
+    ) {
+      return false
     }
     if (name && job.expectedFilename && filenamesStrictMatch(job.expectedFilename, name)) {
-      return job
+      return true
     }
-  }
-
-  if (seerahIncoming) {
-    for (const job of open) {
-      if (job.status !== 'waiting_file' && job.status !== 'failed' && job.status !== 'pending') {
-        continue
-      }
+    if (seerahIncoming) {
       const jobSeerah =
         matchMuallimSeerahFile(job.expectedFilename) ||
         isMuallimSeerahShortQuery(job.expectedFilename) ||
@@ -172,22 +170,34 @@ export function pickOpenJobForIncomingFile(
         Boolean(inferPdfDuplicateWorkParams(job.requestText)) ||
         (typeof job.workParams.copyPage === 'number' &&
           typeof job.workParams.afterPage === 'number')
-      if (jobSeerah || hasDup) return job
+      if (jobSeerah || hasDup) return true
     }
-  }
+    if (
+      req &&
+      !isGenericFileRequest(req) &&
+      job.expectedFilename &&
+      name &&
+      filenamesStrictMatch(job.expectedFilename, name)
+    ) {
+      return true
+    }
+    return false
+  })
+  if (!eligible.length) return null
 
-  if (req && !isGenericFileRequest(req)) {
-    for (const job of open) {
-      if (
-        job.expectedFilename &&
-        name &&
-        filenamesStrictMatch(job.expectedFilename, name)
-      ) {
-        return job
-      }
-    }
-  }
-  return null
+  // Prefer the job that already carries real work (copyPage / richer request).
+  const scored = eligible
+    .map((job) => {
+      const hasDup =
+        Boolean(inferPdfDuplicateWorkParams(job.requestText)) ||
+        (typeof job.workParams.copyPage === 'number' &&
+          typeof job.workParams.afterPage === 'number')
+      const rich = !isGenericFileRequest(job.requestText)
+      const score = (hasDup ? 100 : 0) + (rich ? 20 : 0) + job.requestText.length / 100
+      return { job, score }
+    })
+    .sort((a, b) => b.score - a.score)
+  return scored[0]?.job || null
 }
 
 export async function enqueueTelegramFileJob(opts: {

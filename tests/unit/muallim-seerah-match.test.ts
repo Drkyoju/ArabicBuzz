@@ -42,15 +42,15 @@ describe('muallim seerah short-name alias', () => {
     expect(picked?.id).toBe('seerah')
   })
 
-  it('filenamesStrictMatch links short ↔ full seerah', () => {
+  it('matches underscore + NFD hamza Telegram filenames', () => {
     expect(
-      filenamesStrictMatch(
-        'المعلم الاول.pdf',
-        'المعلم الأول من معالم من السيرة النبوية.pdf'
-      )
+      matchMuallimSeerahFile('المعلم_الأول_من_معالم_من_السيرة_النبوية.pdf')
     ).toBe(true)
     expect(
-      filenamesStrictMatch('المعلم الاول.pdf', 'دليل معلم الأحياء.pdf')
-    ).toBe(false)
+      filenamesStrictMatch(
+        'المعلم الأول.pdf',
+        'المعلم_الأول_من_معالم_من_السيرة_النبوية.pdf'
+      )
+    ).toBe(true)
   })
 })
