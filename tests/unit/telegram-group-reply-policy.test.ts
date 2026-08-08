@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatUnknownShortAr,
+  looksLikeBlockedTaskReply,
   looksLikeUnknownOrNotFound,
   resolveGroupReplyMode,
 } from '@/lib/telegram/group-reply-policy'
+import { formatBlockedTaskReplyAr } from '@/lib/agents/tools/research-task-tools'
 
 describe('resolveGroupReplyMode', () => {
   it('DM is always full', () => {
@@ -94,6 +96,15 @@ describe('looksLikeUnknownOrNotFound', () => {
     expect(looksLikeUnknownOrNotFound('ما حصلت هذا الملف')).toBe(true)
     expect(looksLikeUnknownOrNotFound('تم إنشاء الموعد بنجاح')).toBe(false)
   })
+
+  it('detects blocked-task research template', () => {
+    const blocked = formatBlockedTaskReplyAr({
+      suggestions: [],
+      researched: true,
+    })
+    expect(looksLikeBlockedTaskReply(blocked)).toBe(true)
+    expect(looksLikeUnknownOrNotFound(blocked)).toBe(true)
+  })
 })
 
 describe('formatUnknownShortAr', () => {
@@ -101,5 +112,39 @@ describe('formatUnknownShortAr', () => {
     expect(formatUnknownShortAr('ما عرفت الموعد')).toBe('ما عرفت كذا.')
     expect(formatUnknownShortAr('الملف غير موجود')).toBe('ما حصلت هذا.')
     expect(formatUnknownShortAr('')).toBe('ما عرفت كذا.')
+  })
+
+  it('keeps fuller blocked-task MSA reply', () => {
+    const blocked = formatBlockedTaskReplyAr({
+      suggestions: [
+        {
+          title: 'Free MCP Example',
+          url: 'https://github.com/example/mcp',
+          snippet: 'open source',
+          costRank: 0,
+          costLabelAr: 'مجاني / مفتوح المصدر (مفضّل)',
+          kind: 'mcp',
+        },
+      ],
+      researched: true,
+    })
+    expect(formatUnknownShortAr(blocked)).toContain('تعذّر تنفيذ المهمة')
+    expect(formatUnknownShortAr(blocked)).toContain('أقترح (من الأرخص)')
+    expect(formatUnknownShortAr(blocked)).toContain(
+      'إن وفّرت مفتاح/تثبيت أحدها أقدر أكمّل.'
+    )
+  })
+})
+
+describe('formatBlockedTaskReplyAr', () => {
+  it('uses the product MSA template', () => {
+    const msg = formatBlockedTaskReplyAr({
+      suggestions: [],
+      researched: true,
+    })
+    expect(msg).toMatch(/^تعذّر تنفيذ المهمة بالأدوات الحالية\./)
+    expect(msg).toContain('بحثت عن حلول')
+    expect(msg).toContain('أقترح (من الأرخص)')
+    expect(msg).toContain('إن وفّرت مفتاح/تثبيت أحدها أقدر أكمّل.')
   })
 })

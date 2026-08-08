@@ -128,6 +128,7 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'send_file',
   'web_search',
   'web_fetch',
+  'research_task_tools',
   'convert_document',
   'convert_file',
   'gmail_search',

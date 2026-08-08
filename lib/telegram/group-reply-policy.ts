@@ -38,21 +38,37 @@ export function shouldReplyWithTelegramResult(opts: {
   return resolveGroupReplyMode(opts) === 'full'
 }
 
-/** Agent / tool output that means we should break silence with a short note. */
+/** Agent output already includes the blocked-task research template. */
+export function looksLikeBlockedTaskReply(text: string): boolean {
+  const t = String(text || '').trim()
+  if (!t) return false
+  return /تعذ[ّر]ر?\s*تنفيذ\s*المهمة|أقترح\s*\(من\s*الأرخص\)|إن\s*وفّرت\s*مفتاح/i.test(
+    t
+  )
+}
+
+/** Agent / tool output that means we should break silence (unknown or capability gap). */
 export function looksLikeUnknownOrNotFound(text: string): boolean {
   const t = String(text || '').trim()
   // Empty success (tools ran, no chatty reply) must stay silent — not «ما عرفت».
   if (!t) return false
+  if (looksLikeBlockedTaskReply(t)) return true
   return (
-    /ما\s*عرف(?:ت|نا)?|ما\s*عرفت|لم\s*أعر[ف]|لا\s*أعرف|ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|تعذ[ّر]ر?\s*العثور|لم\s*يُعثر|ما\s*لقيت|not\s*found|couldn'?t\s*find|i\s*don'?t\s*know/i.test(
+    /ما\s*عرف(?:ت|نا)?|ما\s*عرفت|لم\s*أعر[ف]|لا\s*أعرف|ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|تعذ[ّر]ر?\s*العثور|تعذ[ّر]ر?\s*التنفيذ|لا\s*أستطيع|غير\s*مدعوم|أدواتي\s*الحالية|لم\s*يُعثر|ما\s*لقيت|not\s*found|couldn'?t\s*find|i\s*don'?t\s*know|cannot\s*(complete|do)|unable\s*to|no\s*tool/i.test(
       t
     )
   )
 }
 
-/** Short Arabic failure note for the group (no long agent essay). */
+/**
+ * Short Arabic failure note for the group.
+ * If the agent already researched a capability gap, keep that fuller MSA reply.
+ */
 export function formatUnknownShortAr(raw?: string): string {
   const t = String(raw || '').trim()
+  if (looksLikeBlockedTaskReply(t)) {
+    return t.slice(0, 3500)
+  }
   if (/ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|not\s*found/i.test(t)) {
     return 'ما حصلت هذا.'
   }

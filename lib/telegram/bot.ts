@@ -69,10 +69,12 @@ import {
 import {
   formatUnknownShortAr,
   isCasualTelegramWork,
+  looksLikeBlockedTaskReply,
   looksLikeUnknownOrNotFound,
   resolveGroupReplyMode,
   type TelegramGroupReplyMode,
 } from '@/lib/telegram/group-reply-policy'
+import { resolveCapabilityGapReplyAr } from '@/lib/agents/tools/research-task-tools'
 import { saveWorkspaceFile } from '@/lib/documents/workspace'
 import { formatDownloadMarker } from '@/lib/files/file-markers'
 import {
@@ -128,6 +130,24 @@ function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   return out
 }
 
+/** Never silent on unknown capability — research free/low-cost tools then reply MSA. */
+async function replyForCapabilityGapAr(opts: {
+  task: string
+  agentText?: string
+}): Promise<string> {
+  const t = String(opts.agentText || '').trim()
+  if (looksLikeBlockedTaskReply(t)) return formatUnknownShortAr(t)
+  try {
+    return await resolveCapabilityGapReplyAr({
+      task: opts.task,
+      agentText: t,
+    })
+  } catch (e) {
+    console.warn('[telegram] capability-gap research', e)
+    return formatUnknownShortAr(t || opts.task)
+  }
+}
+
 function resolveTelegramModelSlug(
   heavy: boolean,
   preferred?: string | null
@@ -166,6 +186,7 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
 - بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
 - بحث ويب: web_search / web_fetch عند طلب بحث أو معلومة خارجية.
+- إن عجزت الأدوات الحالية عن المهمة (أو «ما عرفت»): استدعِ research_task_tools فوراً ثم انشر messageAr حرفياً في المجموعة — ممنوع الصمت، ممنوع ادّعاء النجاح، وفضّل الاقتراحات المجانية/الأرخص.
 - «أرسل لفلان» / تبليغ شخص: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة. تنسيق/تعديل ملف ≠ تبليغ شخص.
 - الحذف على ملفات الغرفة/Drive فقط بموافقة بشرية (أزرار). ممنوع نهائياً حذف أي شيء على تيليجرام — عدّل رسالة التقدّم أو اتركها + رد جديد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}`
@@ -600,9 +621,22 @@ async function streamTelegramReply(opts: {
     }
   }
 
-  const body =
+  const bodyBase =
     (finalText || 'تم استلام رسالتك، لكن لم يُنتَج رد نصي.') +
     formatCitationsFooterAr(citations)
+
+  // Capability gap → research free/low-cost skills/MCPs; never pretend success.
+  let body = bodyBase
+  if (
+    attachmentBucket.length === 0 &&
+    looksLikeUnknownOrNotFound(finalText || bodyBase) &&
+    !looksLikeBlockedTaskReply(finalText || '')
+  ) {
+    body = await replyForCapabilityGapAr({
+      task: opts.prompt,
+      agentText: finalText || bodyBase,
+    })
+  }
 
   const firstApproval = pendingApprovalIds[0]
   await finalizeTelegramAck({
@@ -845,7 +879,12 @@ async function runTelegramAgentTurn(opts: {
           text,
         })
       } else if (silent && !result.ok) {
-        await opts.ctx.reply(formatUnknownShortAr(text))
+        await opts.ctx.reply(
+          await replyForCapabilityGapAr({
+            task: opts.promptSource,
+            agentText: text,
+          })
+        )
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -893,7 +932,12 @@ async function runTelegramAgentTurn(opts: {
           text,
         })
       } else if (silent && looksLikeUnknownOrNotFound(text)) {
-        await opts.ctx.reply(formatUnknownShortAr(text))
+        await opts.ctx.reply(
+          await replyForCapabilityGapAr({
+            task: opts.promptSource,
+            agentText: text,
+          })
+        )
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -1012,7 +1056,32 @@ async function runTelegramAgentTurn(opts: {
         prompt: opts.promptSource,
       })
       if (looksLikeUnknownOrNotFound(text)) {
-        await opts.ctx.reply(formatUnknownShortAr(text))
+        const gap = await replyForCapabilityGapAr({
+          task: opts.promptSource,
+          agentText: text,
+        })
+        await opts.ctx.reply(gap)
+        void mirrorChannelTurnToRoom({
+          scopeId,
+          channel: 'telegram',
+          externalId: opts.chatId,
+          userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+          userMessageAr: opts.promptSource,
+          agentReplyAr: gap,
+          includeAgentReply: true,
+        })
+        console.info('[telegram] timing', {
+          path: 'assistant-silent',
+          assistantId: routed.assistantId,
+          attachments: attachmentsSent.length,
+          totalMs: Date.now() - t0,
+        })
+        return {
+          text: gap,
+          citations: run.citations || [],
+          pendingApprovalIds: run.pendingApprovalIds || [],
+          attachmentsSent,
+        }
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -1020,13 +1089,10 @@ async function runTelegramAgentTurn(opts: {
         externalId: opts.chatId,
         userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
         userMessageAr: opts.promptSource,
-        agentReplyAr: looksLikeUnknownOrNotFound(text)
-          ? formatUnknownShortAr(text)
-          : attachmentsSent.length
-            ? `أُرسل: ${attachmentsSent.join(' · ')}`
-            : '',
-        includeAgentReply:
-          looksLikeUnknownOrNotFound(text) || attachmentsSent.length > 0,
+        agentReplyAr: attachmentsSent.length
+          ? `أُرسل: ${attachmentsSent.join(' · ')}`
+          : '',
+        includeAgentReply: attachmentsSent.length > 0,
       })
       console.info('[telegram] timing', {
         path: 'assistant-silent',
@@ -1035,9 +1101,7 @@ async function runTelegramAgentTurn(opts: {
         totalMs: Date.now() - t0,
       })
       return {
-        text: looksLikeUnknownOrNotFound(text)
-          ? formatUnknownShortAr(text)
-          : '',
+        text: '',
         citations: run.citations || [],
         pendingApprovalIds: run.pendingApprovalIds || [],
         attachmentsSent,
@@ -1141,29 +1205,47 @@ async function runTelegramAgentTurn(opts: {
     })
     const unknown = looksLikeUnknownOrNotFound(silentOut.text)
     if (unknown) {
-      const short = formatUnknownShortAr(silentOut.text)
-      await opts.ctx.reply(short)
+      const gap = await replyForCapabilityGapAr({
+        task: opts.promptSource,
+        agentText: silentOut.text,
+      })
+      await opts.ctx.reply(gap)
       void mirrorChannelTurnToRoom({
         scopeId,
         channel: 'telegram',
         externalId: opts.chatId,
         userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
         userMessageAr: opts.promptSource,
-        agentReplyAr: short,
+        agentReplyAr: gap,
       })
-    } else {
-      void mirrorChannelTurnToRoom({
-        scopeId,
-        channel: 'telegram',
-        externalId: opts.chatId,
-        userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
-        userMessageAr: opts.promptSource,
-        agentReplyAr: attachmentsSent.length
-          ? `أُرسل: ${attachmentsSent.join(' · ')}`
-          : '',
-        includeAgentReply: attachmentsSent.length > 0,
+      console.info('[telegram] timing', {
+        path: 'agent-silent',
+        heavy,
+        work: work.kind,
+        unknown,
+        attachments: attachmentsSent.length,
+        prepMs,
+        streamMs: Date.now() - tStream,
+        totalMs: Date.now() - t0,
       })
+      return {
+        text: gap,
+        citations: silentOut.citations,
+        pendingApprovalIds: silentOut.pendingApprovalIds,
+        attachmentsSent,
+      }
     }
+    void mirrorChannelTurnToRoom({
+      scopeId,
+      channel: 'telegram',
+      externalId: opts.chatId,
+      userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
+      userMessageAr: opts.promptSource,
+      agentReplyAr: attachmentsSent.length
+        ? `أُرسل: ${attachmentsSent.join(' · ')}`
+        : '',
+      includeAgentReply: attachmentsSent.length > 0,
+    })
     console.info('[telegram] timing', {
       path: 'agent-silent',
       heavy,
@@ -1175,7 +1257,7 @@ async function runTelegramAgentTurn(opts: {
       totalMs: Date.now() - t0,
     })
     return {
-      text: unknown ? formatUnknownShortAr(silentOut.text) : '',
+      text: '',
       citations: silentOut.citations,
       pendingApprovalIds: silentOut.pendingApprovalIds,
       attachmentsSent,

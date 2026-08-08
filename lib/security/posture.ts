@@ -33,6 +33,7 @@ export const DELETE_CLASS_TOOLS = new Set([
 const LOW_RISK_TOOLS = new Set([
   'web_search',
   'web_fetch',
+  'research_task_tools',
   'read_file',
   'list_files',
   'list_workspace_files',

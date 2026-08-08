@@ -67,6 +67,7 @@ const TOOL_LABEL_AR: Record<string, string> = {
   notify_room_member: 'تبليغ عضو',
   web_search: 'بحث ويب',
   web_fetch: 'جلب صفحة',
+  research_task_tools: 'بحث أدوات/مهارات',
 }
 
 function summarizeToolOutput(name: string, out: unknown): string {

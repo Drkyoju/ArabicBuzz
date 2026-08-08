@@ -69,6 +69,28 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('web_fetch'),
         }),
     }),
+    research_task_tools: tool({
+      description:
+        'عندما لا تكفي الأدوات الحالية: ابحث في الويب وGitHub عن مهارات/MCP/أدوات مجانية أو رخيصة، رتّبها من الأرخص، وأرجع ردّاً عربياً جاهزاً للاعتذار مع الاقتراحات. ممنوع ادّعاء النجاح أو الصمت.',
+      inputSchema: z.object({
+        task: z
+          .string()
+          .describe('وصف المهمة التي تعذّر تنفيذها بالأدوات الحالية'),
+        taskAr: z.string().optional().describe('بديل عربي لوصف المهمة'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'research_task_tools',
+          params: {
+            ...params,
+            task: params.task || params.taskAr || '',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('research_task_tools'),
+        }),
+    }),
     read_file: tool({
       description:
         'قراءة ملف من مساحة العمل (Word/Excel/PowerPoint/PDF/نص) واستخراج نصه. مرّر fileId أو اسم الملف.',
