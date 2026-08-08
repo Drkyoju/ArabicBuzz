@@ -170,36 +170,63 @@ async function ocrViaGemini(
     const isImage = looksLikeImage(mime, filename)
     const isPdf = looksLikePdf(mime, filename)
 
-    const content: Array<
-      | { type: 'text'; text: string }
-      | { type: 'image'; image: Buffer }
-      | { type: 'file'; data: Buffer; mediaType: string }
-    > = [{ type: 'text', text: ARABIC_OCR_PROMPT }]
+    async function callGemini(payload: Buffer, mediaType: string) {
+      const content: Array<
+        | { type: 'text'; text: string }
+        | { type: 'image'; image: Buffer }
+        | { type: 'file'; data: Buffer; mediaType: string }
+      > = [{ type: 'text', text: ARABIC_OCR_PROMPT }]
 
-    if (isImage) {
-      content.push({ type: 'image', image: buffer })
-    } else if (isPdf) {
-      content.push({
-        type: 'file',
-        data: buffer,
-        mediaType: 'application/pdf',
+      if (mediaType.startsWith('image/')) {
+        content.push({ type: 'image', image: payload })
+      } else {
+        content.push({
+          type: 'file',
+          data: payload,
+          mediaType,
+        })
+      }
+
+      const result = await generateText({
+        model: google(modelId),
+        messages: [{ role: 'user', content }],
       })
-    } else {
-      content.push({ type: 'image', image: buffer })
+
+      const raw = result.text as unknown
+      let text = ''
+      if (typeof raw === 'string') text = raw.trim()
+      else if (raw && typeof raw === 'object' && 'text' in (raw as object)) {
+        text = String((raw as { text?: unknown }).text || '').trim()
+      }
+      return text && text !== '[object Object]' ? text : ''
     }
 
-    const result = await generateText({
-      model: google(modelId),
-      messages: [{ role: 'user', content }],
-    })
-
-    const raw = result.text as unknown
     let text = ''
-    if (typeof raw === 'string') text = raw.trim()
-    else if (raw && typeof raw === 'object' && 'text' in (raw as object)) {
-      text = String((raw as { text?: unknown }).text || '').trim()
+    if (isImage) {
+      text = await callGemini(buffer, mime.startsWith('image/') ? mime : 'image/png')
+    } else if (isPdf) {
+      // Full PDF first; on failure shrink to first pages (large scans often fail).
+      text = await callGemini(buffer, 'application/pdf')
+      if (!text && buffer.byteLength > 400_000) {
+        try {
+          const { PDFDocument } = await import('pdf-lib')
+          const src = await PDFDocument.load(buffer, { ignoreEncryption: true })
+          const slim = await PDFDocument.create()
+          const count = Math.min(3, src.getPageCount())
+          const idxs = Array.from({ length: count }, (_, i) => i)
+          const pages = await slim.copyPages(src, idxs)
+          for (const p of pages) slim.addPage(p)
+          const slimBytes = Buffer.from(await slim.save())
+          text = await callGemini(slimBytes, 'application/pdf')
+        } catch {
+          /* keep empty */
+        }
+      }
+    } else {
+      text = await callGemini(buffer, mime.startsWith('image/') ? mime : 'image/png')
     }
-    if (!text || text === '[object Object]') {
+
+    if (!text) {
       return {
         text: '',
         provider: 'gemini',

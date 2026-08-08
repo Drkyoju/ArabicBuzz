@@ -28,6 +28,7 @@ import {
 import { PERSONAL_DESK_COPY } from '@/lib/scopes/personal-desk'
 import { MailRichComposer } from '@/components/mail-rich-composer'
 import { plainTextToMailHtml } from '@/lib/email/mail-html'
+import { GmailModifyReconnectChecklist } from '@/components/user-console-checklists'
 
 type Msg = {
   id: string
@@ -714,6 +715,10 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
             (gmail.readonly / send / modify). إن كان التطبيق في وضع الاختبار،
             أضف بريدك كـ Test user في Google Cloud.
           </p>
+          <GmailModifyReconnectChecklist
+            compact
+            onReconnect={() => void connect()}
+          />
           <button
             type="button"
             onClick={() => void connect()}
@@ -728,6 +733,12 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
 
       {connected && (
         <>
+          <div className="mb-2">
+            <GmailModifyReconnectChecklist
+              compact
+              onReconnect={() => void connect()}
+            />
+          </div>
           <div
             className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-ab-border/80 bg-stone-50/90 px-3 py-1.5 text-[11px] text-stone-600"
             role="status"

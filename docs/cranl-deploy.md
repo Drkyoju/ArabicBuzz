@@ -39,6 +39,10 @@ cranl apps env set <app-id> KEY=VALUE   # may also 405; prefer dashboard/API PUT
 # Always set public URL to the CranL hostname after first deploy:
 # NEXT_PUBLIC_APP_URL / APP_URL = https://arabicbuzz-fooc9h.cranl.net
 #
+# Cron (mail snooze / schedule send / reminders + digests): set CRON_SECRET on CranL
+# to the same value as the GitHub Actions repo secret CRON_SECRET.
+# Workflow: .github/workflows/cron-runner.yml → POST /api/crons/runner every ~15 min.
+#
 # Staff roles (no secrets):
 # OWNER_EMAIL=ryodan71@gmail.com   # sole admin UI — optional if default
 # EMPLOYEE_EMAILS=hd.hk1444920@gmail.com,hd.hk2023429@gmail.com

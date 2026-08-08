@@ -6,6 +6,7 @@ import { DevDisclosure } from '@/components/dev-disclosure'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { CommitteeTelegramPanel } from '@/components/committee-telegram-panel'
+import { TelegramGroupPrivacyChecklist } from '@/components/user-console-checklists'
 
 /**
  * User-facing Telegram status — deep-link bind via ?start=scope_<id>.
@@ -103,6 +104,9 @@ export function TelegramConnectCard() {
           إن بقيت الخصوصية مفعّلة: منشن البوت أو رد على رسالته.
         </li>
       </ol>
+      <div className="mb-3">
+        <TelegramGroupPrivacyChecklist compact />
+      </div>
       {botBase.includes('t.me/') && (
         <div className="flex flex-wrap gap-2">
           <a

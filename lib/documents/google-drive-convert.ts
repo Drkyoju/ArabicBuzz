@@ -178,7 +178,7 @@ export async function convertViaGoogleDrive(opts: {
 
   if (!canConvertViaGoogleDrive(inputFormat, outputFormat)) {
     throw new Error(
-      `تحويل Google لا يدعم ${inputFormat || '?'} → ${outputFormat}. جرّب CloudConvert أو المسار النصّي.`
+      `تحويل Google لا يدعم ${inputFormat || '?'} → ${outputFormat}. الصيغ المجانية عبر Drive: PDF↔Word وExcel↔PDF وPowerPoint↔PDF ضمن نفس العائلة. أعد ربط Google من الإعدادات إن لزم.`
     )
   }
 
@@ -235,14 +235,50 @@ export async function convertViaGoogleDrive(opts: {
 
   const tempId = uploaded.id
   try {
+    // PDF→Docs OCR/import can lag a few seconds before export works.
     const exportUrl = `${DRIVE}/files/${encodeURIComponent(tempId)}/export?mimeType=${encodeURIComponent(exportMime)}`
-    const exportRes = await fetch(exportUrl, {
-      headers: { Authorization: `Bearer ${tok.accessToken}` },
-    })
-    if (!exportRes.ok) {
-      const errText = await exportRes.text().catch(() => '')
+    let lastErr = ''
+    let exportRes: Response | null = null
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 1200 * attempt))
+      }
+      // Confirm Google finished converting to Workspace mime (esp. scanned PDF).
+      if (inputFormat === 'pdf' || attempt > 0) {
+        try {
+          const metaRes = await fetch(
+            `${DRIVE}/files/${encodeURIComponent(tempId)}?fields=id,mimeType&supportsAllDrives=true`,
+            { headers: { Authorization: `Bearer ${tok.accessToken}` } }
+          )
+          if (metaRes.ok) {
+            const meta = (await metaRes.json()) as { mimeType?: string }
+            if (meta.mimeType && meta.mimeType !== googleMime && attempt < 4) {
+              continue
+            }
+          }
+        } catch {
+          /* ignore meta probe */
+        }
+      }
+      exportRes = await fetch(exportUrl, {
+        headers: { Authorization: `Bearer ${tok.accessToken}` },
+      })
+      if (exportRes.ok) break
+      lastErr = await exportRes.text().catch(() => '')
+      const retryable =
+        exportRes.status === 500 ||
+        exportRes.status === 403 ||
+        exportRes.status === 429 ||
+        exportRes.status === 404
+      if (!retryable || attempt === 4) {
+        throw new Error(
+          `تعذّر تصدير الناتج من Google (HTTP ${exportRes.status}) ${lastErr.slice(0, 160)}. إن كان PDF ممسوحاً انتظر لحظات وأعد المحاولة، أو أعد ربط Google بصلاحية Drive.`
+        )
+      }
+    }
+    if (!exportRes?.ok) {
       throw new Error(
-        `تعذّر تصدير الناتج من Google (HTTP ${exportRes.status}) ${errText.slice(0, 160)}`
+        `تعذّر تصدير الناتج من Google بعد عدة محاولات. ${lastErr.slice(0, 120)}`
       )
     }
     const ab = await exportRes.arrayBuffer()

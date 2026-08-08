@@ -151,6 +151,6 @@ npm run evals:fetch-arabic-fc   # regenerate vendor subset from HF
 4. **Cua bridge** (optional): `cua-driver serve` + `npm run cua:bridge` + `CUA_BRIDGE_*` — see `docs/cua-bridge.md`
 5. Optional free signups (no pressure): Langfuse hobby · Brave free tier
 6. Optional paid-leaning: `FIRECRAWL_API_KEY`, `STEEL_API_KEY`, `BROWSER_USE_URL`, `CLOUDCONVERT_API_KEY`
-7. Redeploy Netlify → verify صحة التشغيل — search/crawl should show **مجاني مدمج**
-8. **Hourly cron:** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST /api/crons/runner` with `CRON_SECRET` (must match Netlify). Repo secret `CRON_SECRET` is required; trigger manually via Actions → Cron runner → Run workflow.
-9. **Auth wall:** Netlify `AUTH_REQUIRED=true` (production + previews) — director allow-list still includes `ryodan71@gmail.com` when signed in
+7. Redeploy CranL → verify صحة التشغيل on https://arabicbuzz-fooc9h.cranl.net/ — search/crawl should show **مجاني مدمج**
+8. **Cron (~15 min):** GitHub Actions [`.github/workflows/cron-runner.yml`](../.github/workflows/cron-runner.yml) → `POST https://arabicbuzz-fooc9h.cranl.net/api/crons/runner` with `Authorization: Bearer $CRON_SECRET` (repo secret must match CranL env `CRON_SECRET`). Includes mail energy (snooze / schedule send / reminders), morning brief, overdue nudges. Trigger manually via Actions → Cron runner → Run workflow.
+9. **Auth wall:** CranL `AUTH_REQUIRED=true` — director allow-list still includes `ryodan71@gmail.com` when signed in

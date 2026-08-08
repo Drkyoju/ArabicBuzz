@@ -354,3 +354,62 @@ export function newAnnoId(): string {
   }
   return `a-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
+
+/** Normalize rect-like annotations so w/h are positive (top-left origin). */
+export function normalizeRectAnno<
+  T extends { x: number; y: number; w: number; h: number },
+>(anno: T): T {
+  let { x, y, w, h } = anno
+  if (w < 0) {
+    x += w
+    w = Math.abs(w)
+  }
+  if (h < 0) {
+    y += h
+    h = Math.abs(h)
+  }
+  return { ...anno, x, y, w, h }
+}
+
+/** Merge overlapping/adjacent text-highlight strips on the same page (soft layer). */
+export function mergeNearbyTextHighlights(
+  list: PdfAnnotation[],
+  pageIndex: number,
+  yTol = 0.008
+): PdfAnnotation[] {
+  const others = list.filter(
+    (a) => !(a.kind === 'textHighlight' && a.pageIndex === pageIndex)
+  )
+  const highlights = list
+    .filter(
+      (a): a is PdfTextHighlightAnno =>
+        a.kind === 'textHighlight' && a.pageIndex === pageIndex
+    )
+    .map((a) => normalizeRectAnno(a))
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+
+  if (highlights.length <= 1) return list
+
+  const merged: PdfTextHighlightAnno[] = []
+  for (const h of highlights) {
+    const last = merged[merged.length - 1]
+    if (
+      last &&
+      Math.abs(last.y - h.y) <= yTol &&
+      Math.abs(last.h - h.h) <= yTol * 2 &&
+      h.x <= last.x + last.w + 0.02
+    ) {
+      const x0 = Math.min(last.x, h.x)
+      const x1 = Math.max(last.x + last.w, h.x + h.w)
+      const y0 = Math.min(last.y, h.y)
+      const y1 = Math.max(last.y + last.h, h.y + h.h)
+      last.x = x0
+      last.y = y0
+      last.w = x1 - x0
+      last.h = y1 - y0
+    } else {
+      merged.push({ ...h })
+    }
+  }
+  return [...others, ...merged]
+}

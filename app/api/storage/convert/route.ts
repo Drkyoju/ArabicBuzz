@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 /**
- * One-click clean PDF→Word (Drive-first). UI: «حوّل نظيف».
+ * One-click clean PDF↔Word (Drive-first). UI: «إلى Word» / «إلى PDF».
  */
 export async function POST(req: Request) {
   const auth = await requireRealUser(req)

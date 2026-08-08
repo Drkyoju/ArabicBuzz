@@ -22,16 +22,17 @@
 #   POST https://<APP_URL>/api/crons/runner
 #   Authorization: Bearer $CRON_SECRET
 #
-# Runner covers: heartbeats · Thursday director digest (Asia/Riyadh) ·
-# morning room digest (06–10 Riyadh) · ~1h appointment Telegram reminders ·
+# Runner covers: heartbeats · mail energy (snooze / schedule send / reminders) ·
+# Thursday director digest (Asia/Riyadh) · morning room digest (06–10 Riyadh) ·
+# overdue task nudges · ~1h appointment Telegram reminders ·
 # Drive brain sync · room chat retention (ROOM_CHAT_RETENTION_DAYS, default 4)
 #
-# Or Thursday-only director digest:
-#   POST https://arabicbuzz.netlify.app/api/crons/director-digest
+# Or Thursday-only director digest (live host):
+#   POST https://arabicbuzz-fooc9h.cranl.net/api/crons/director-digest
 #   Authorization: Bearer $CRON_SECRET
 #   Body: {}  |  ?force=1 to send any day
 #
-# Env on Netlify: CRON_SECRET, DIRECTOR_EMAIL, RESEND_API_KEY, RESEND_FROM
+# Env on CranL (and Netlify fallback if used): CRON_SECRET, DIRECTOR_EMAIL, RESEND_API_KEY, RESEND_FROM
 # Optional: DIGEST_EMAIL, DIGEST_NAME_AR, TELEGRAM_* for digest channels
 # Optional: TELEGRAM_VOICE_REPLY=0|1|auto — short Arabic TTS (default auto)
 # Optional: ROOM_CHAT_RETENTION_DAYS=4 (prunes room_posts only; keeps workspace_files)

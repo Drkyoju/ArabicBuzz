@@ -13,6 +13,7 @@ import { SecurityPosturePicker } from '@/components/security-posture-picker'
 import { ProviderKeysPanel } from '@/components/provider-keys-panel'
 import { GoogleCalendarPanel } from '@/components/google-calendar-panel'
 import { GoogleSetupChecklist } from '@/components/google-setup-checklist'
+import { UserConsoleChecklists } from '@/components/user-console-checklists'
 import { MacBrainPanel } from '@/components/mac-brain-panel'
 import { GoogleDriveBrainPanel } from '@/components/google-drive-brain-panel'
 import { AssociationKnowledgePanel } from '@/components/association-knowledge-panel'
@@ -1002,6 +1003,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                       <AssociationKnowledgePanel />
                       <GoogleDriveBrainPanel />
                       <GoogleSetupChecklist focus="all" />
+                      <UserConsoleChecklists focus="all" />
                       <IntegrationsSetupPanel />
                       <McpServersPanel />
                       <div className="rounded-xl border border-ab-border bg-white p-4">

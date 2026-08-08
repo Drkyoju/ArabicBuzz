@@ -154,7 +154,10 @@ async function extractPdf(buffer: Buffer): Promise<string> {
     (pdfMod as { default?: (b: Buffer) => Promise<{ text: string }> }).default ||
     (pdfMod as unknown as (b: Buffer) => Promise<{ text: string }>)
   const parsed = await pdfParse(buffer)
-  return (parsed.text || '').trim()
+  const raw = parsed?.text
+  const text = typeof raw === 'string' ? raw : raw == null ? '' : String(raw)
+  const trimmed = text.trim()
+  return trimmed === '[object Object]' ? '' : trimmed
 }
 
 /**

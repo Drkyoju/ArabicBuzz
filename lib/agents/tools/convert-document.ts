@@ -184,7 +184,7 @@ export async function executeConvertDocument(
     if (!canConvertViaGoogleDrive(fromFormat, toFormat)) {
       if (engine === 'google') {
         throw new Error(
-          `تحويل Google لا يدعم ${fromFormat} → ${toFormat}. جرّب CloudConvert (اختياري مدفوع) أو صيغة ضمن نفس العائلة (مثل pdf↔docx أو xlsx↔pdf). للمسارات عبر العائلات (مثل pdf→xlsx أو xlsx→docx) يُستخدم المسار المنظّم المجاني أو CloudConvert.`
+          `تحويل Google لا يدعم ${fromFormat} → ${toFormat}. اربط Google واستخدم صيغة ضمن نفس العائلة (مثل pdf↔docx أو xlsx↔pdf أو pptx↔pdf). المسار النصّي المحلي احتياطي عند غياب Drive.`
         )
       }
     } else {

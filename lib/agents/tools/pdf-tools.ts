@@ -273,7 +273,7 @@ export async function executePdfReplaceText(
 
 /**
  * Burn structured annotations into a PDF (Telegram/agent equivalent of PDF Expert canvas).
- * Supports text, sticky, textHighlight, rect — not freehand pen UI.
+ * Supports text, sticky, textHighlight, highlight, pen, rect.
  */
 export async function executePdfAnnotate(
   _n: string,
@@ -290,7 +290,7 @@ export async function executePdfAnnotate(
     const text = String(params.text || params.noteAr || '').trim()
     if (!text) {
       throw new Error(
-        'مرّر annotations[] أو text لتعليق PDF (نص / sticky / تمييز).'
+        'مرّر annotations[] أو text لتعليق PDF (نص / sticky / تمييز / قلم).'
       )
     }
     raw.push({
@@ -346,6 +346,38 @@ export async function executePdfAnnotate(
         h: typeof a.h === 'number' ? a.h : 0.04,
         color: String(a.color || '#f5c542'),
         opacity: typeof a.opacity === 'number' ? a.opacity : 0.35,
+      })
+    } else if (kind === 'highlight' || kind === 'pen') {
+      const pointsRaw = Array.isArray(a.points) ? a.points : []
+      const points = pointsRaw
+        .map((p) => {
+          if (!p || typeof p !== 'object') return null
+          const pt = p as { x?: unknown; y?: unknown }
+          const px = typeof pt.x === 'number' ? pt.x : NaN
+          const py = typeof pt.y === 'number' ? pt.y : NaN
+          if (!Number.isFinite(px) || !Number.isFinite(py)) return null
+          return { x: px, y: py }
+        })
+        .filter((p): p is { x: number; y: number } => Boolean(p))
+      if (points.length < 2) continue
+      annotations.push({
+        id,
+        kind: kind === 'pen' ? 'pen' : 'highlight',
+        pageIndex,
+        color: String(a.color || (kind === 'pen' ? '#c41e3a' : '#f5c542')),
+        width:
+          typeof a.width === 'number'
+            ? a.width
+            : kind === 'pen'
+              ? 0.004
+              : 0.018,
+        points,
+        opacity:
+          typeof a.opacity === 'number'
+            ? a.opacity
+            : kind === 'highlight'
+              ? 0.4
+              : 0.95,
       })
     } else if (kind === 'rect') {
       annotations.push({

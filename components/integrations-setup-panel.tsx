@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react'
 import { MessageCircle, Radio } from 'lucide-react'
 import { DevDisclosure } from '@/components/dev-disclosure'
 import { authHeaders } from '@/lib/supabase/browser'
+import {
+  TelegramGroupPrivacyChecklist,
+  GoogleTestUsersChecklist,
+  GmailModifyReconnectChecklist,
+} from '@/components/user-console-checklists'
 
 type ZoomHint = { configured: boolean }
 
@@ -251,6 +256,15 @@ export function IntegrationsSetupPanel() {
             <code dir="ltr">/ask</code> · <code dir="ltr">/status</code>
           </li>
         </ol>
+        <div className="mt-2">
+          <TelegramGroupPrivacyChecklist compact />
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-ab-border bg-white p-3 space-y-2">
+        <p className="font-semibold text-ab-ink">ضغطات Console / BotFather</p>
+        <GoogleTestUsersChecklist compact />
+        <GmailModifyReconnectChecklist compact />
       </div>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">

@@ -28,11 +28,14 @@ import {
   burnPdfAnnotations,
   clearSoftLayer,
   loadSoftLayer,
+  mergeNearbyTextHighlights,
   newAnnoId,
+  normalizeRectAnno,
   saveSoftLayer,
   type PdfAnnotateTool,
   type PdfAnnotation,
   type PdfNormPoint,
+  type PdfTextHighlightAnno,
 } from '@/lib/documents/pdf-annotate'
 import {
   loadClientArabicFont,
@@ -50,13 +53,34 @@ type PdfjsDoc = {
   destroy?: () => void
 }
 
+type PdfjsTextItem = {
+  str?: string
+  transform?: number[]
+  width?: number
+  height?: number
+}
+
 type PdfjsPage = {
-  getViewport: (opts: { scale: number }) => { width: number; height: number }
+  getViewport: (opts: { scale: number }) => {
+    width: number
+    height: number
+  }
+  getTextContent: () => Promise<{ items: PdfjsTextItem[] }>
   render: (opts: {
     canvas: HTMLCanvasElement
     canvasContext?: CanvasRenderingContext2D
     viewport: { width: number; height: number }
   }) => { promise: Promise<void> }
+}
+
+type TextLayerSpan = {
+  key: string
+  text: string
+  left: number
+  top: number
+  width: number
+  height: number
+  fontSize: number
 }
 
 const TOOL_META: {
@@ -76,7 +100,7 @@ const TOOL_META: {
   {
     id: 'textHighlight',
     label: 'تحديد نص',
-    title: 'تمييز مستطيل (تحديد نص / فقرة)',
+    title: 'ظلّل بالنقر والسحب على النص (أو مستطيل إن لم توجد طبقة نص)',
     Icon: Highlighter,
   },
   { id: 'text', label: 'نص', title: 'إضافة نص', Icon: Type },
@@ -95,6 +119,46 @@ const HIGHLIGHT_COLOR = '#f5c542'
 const RECT_COLOR = '#c45c26'
 const TEXT_COLOR = '#1a1a1a'
 const STICKY_COLOR = '#f5e6a3'
+
+function promptEditText(initial: string, title: string): string | null {
+  const next = window.prompt(title, initial)
+  if (next === null) return null
+  const t = next.trim()
+  return t ? t.slice(0, 500) : ''
+}
+
+function clientRectsToHighlights(
+  wrap: HTMLElement,
+  pageIndex: number,
+  rects: DOMRectList | DOMRect[]
+): PdfTextHighlightAnno[] {
+  const pageRect = wrap.getBoundingClientRect()
+  if (pageRect.width < 1 || pageRect.height < 1) return []
+  const out: PdfTextHighlightAnno[] = []
+  const list = Array.from(rects as ArrayLike<DOMRect>)
+  for (const r of list) {
+    if (r.width < 2 || r.height < 2) continue
+    const x = (r.left - pageRect.left) / pageRect.width
+    const y = (r.top - pageRect.top) / pageRect.height
+    const w = r.width / pageRect.width
+    const h = r.height / pageRect.height
+    if (w < 0.004 || h < 0.004) continue
+    out.push(
+      normalizeRectAnno({
+        id: newAnnoId(),
+        kind: 'textHighlight',
+        pageIndex,
+        x: Math.max(0, Math.min(1, x)),
+        y: Math.max(0, Math.min(1, y)),
+        w: Math.max(0.004, Math.min(1, w)),
+        h: Math.max(0.006, Math.min(1, h)),
+        color: HIGHLIGHT_COLOR,
+        opacity: 0.38,
+      })
+    )
+  }
+  return out
+}
 
 function hitTest(
   anno: PdfAnnotation,
@@ -238,7 +302,9 @@ function PdfPageView({
   const annoCanvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  const [textSpans, setTextSpans] = useState<TextLayerSpan[]>([])
   const drawingRef = useRef(false)
+  const textSelectMode = tool === 'textHighlight'
 
   const pageAnnos = annotations.filter((a) => a.pageIndex === pageIndex)
   const draft =
@@ -266,6 +332,40 @@ function PdfPageView({
         canvasContext: ctx,
         viewport,
       }).promise
+      if (cancelled) return
+      try {
+        const content = await page.getTextContent()
+        const vw = viewport.width
+        const vh = viewport.height
+        const spans: TextLayerSpan[] = []
+        let i = 0
+        for (const raw of content.items) {
+          const item = raw as PdfjsTextItem
+          const str = String(item.str || '')
+          if (!str.trim() || !item.transform || item.transform.length < 6) {
+            continue
+          }
+          const [, , , , tx, ty] = item.transform
+          const fontHeight = Math.abs(item.transform[3] || item.height || 10)
+          const w = Math.max(item.width || str.length * fontHeight * 0.45, 2)
+          const h = Math.max(fontHeight, 6)
+          // pdf.js text transform is bottom-left PDF space at scale 1; multiply by scale
+          const left = tx * scale
+          const top = vh - ty * scale - h * scale
+          spans.push({
+            key: `t${pageIndex}-${i++}`,
+            text: str,
+            left,
+            top: Math.max(0, top),
+            width: w * scale,
+            height: h * scale,
+            fontSize: Math.max(6, h * scale),
+          })
+        }
+        if (!cancelled) setTextSpans(spans)
+      } catch {
+        if (!cancelled) setTextSpans([])
+      }
     }
     void render()
     return () => {
@@ -296,11 +396,71 @@ function PdfPageView({
     [size.w]
   )
 
+  function commitTextSelection() {
+    const wrap = wrapRef.current
+    if (!wrap || !textSelectMode) return
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.rangeCount < 1) return
+    const range = sel.getRangeAt(0)
+    if (!wrap.contains(range.commonAncestorContainer)) return
+    const rects = range.getClientRects()
+    const highlights = clientRectsToHighlights(wrap, pageIndex, rects)
+    sel.removeAllRanges()
+    if (!highlights.length) return
+    const next = mergeNearbyTextHighlights(
+      [...annotations, ...highlights],
+      pageIndex
+    )
+    onChangeAnnos(next)
+  }
+
+  function editHitAt(p: PdfNormPoint): boolean {
+    const hit = [...pageAnnos]
+      .reverse()
+      .find(
+        (a) =>
+          (a.kind === 'sticky' || a.kind === 'text') && hitTest(a, p, 0.03)
+      )
+    if (!hit) return false
+    if (hit.kind === 'sticky') {
+      const next = promptEditText(hit.text, 'عدّل الملاحظة اللاصقة:')
+      if (next === null) return true
+      if (!next) {
+        onChangeAnnos(annotations.filter((a) => a.id !== hit.id))
+        return true
+      }
+      onChangeAnnos(
+        annotations.map((a) =>
+          a.id === hit.id && a.kind === 'sticky' ? { ...a, text: next } : a
+        )
+      )
+      return true
+    }
+    if (hit.kind === 'text') {
+      const next = promptEditText(hit.text, 'عدّل نص التعليق:')
+      if (next === null) return true
+      if (!next) {
+        onChangeAnnos(annotations.filter((a) => a.id !== hit.id))
+        return true
+      }
+      onChangeAnnos(
+        annotations.map((a) =>
+          a.id === hit.id && a.kind === 'text' ? { ...a, text: next } : a
+        )
+      )
+      return true
+    }
+    return false
+  }
+
   function onPointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (tool === 'pan') return
+    if (textSelectMode) return
     const p = toNorm(e)
     if (!p) return
     e.currentTarget.setPointerCapture(e.pointerId)
+
+    if (e.detail >= 2 && editHitAt(p)) return
 
     if (tool === 'eraser') {
       const hit = [...pageAnnos].reverse().find((a) => hitTest(a, p))
@@ -311,8 +471,8 @@ function PdfPageView({
     }
 
     if (tool === 'text') {
-      const text = window.prompt('أدخل النص للتعليق:')
-      if (!text?.trim()) return
+      const text = promptEditText('', 'أدخل النص للتعليق:')
+      if (!text) return
       onChangeAnnos([
         ...annotations,
         {
@@ -321,7 +481,7 @@ function PdfPageView({
           pageIndex,
           x: p.x,
           y: p.y,
-          text: text.trim().slice(0, 500),
+          text,
           fontSize: 0.028,
           color: TEXT_COLOR,
         },
@@ -330,8 +490,8 @@ function PdfPageView({
     }
 
     if (tool === 'sticky') {
-      const text = window.prompt('نص الملاحظة اللاصقة:')
-      if (!text?.trim()) return
+      const text = promptEditText('', 'نص الملاحظة اللاصقة:')
+      if (!text) return
       onChangeAnnos([
         ...annotations,
         {
@@ -342,7 +502,7 @@ function PdfPageView({
           y: Math.max(0, p.y - 0.02),
           w: 0.22,
           h: 0.12,
-          text: text.trim().slice(0, 400),
+          text: text.slice(0, 400),
           color: STICKY_COLOR,
           fontSize: 0.018,
         },
@@ -371,18 +531,6 @@ function PdfPageView({
         points: [p],
         opacity: 0.4,
       })
-    } else if (tool === 'textHighlight') {
-      setDrafting({
-        id: newAnnoId(),
-        kind: 'textHighlight',
-        pageIndex,
-        x: p.x,
-        y: p.y,
-        w: 0,
-        h: 0,
-        color: HIGHLIGHT_COLOR,
-        opacity: 0.35,
-      })
     } else if (tool === 'rect') {
       setDrafting({
         id: newAnnoId(),
@@ -407,10 +555,7 @@ function PdfPageView({
       const last = drafting.points[drafting.points.length - 1]
       if (last && Math.hypot(last.x - p.x, last.y - p.y) < 0.002) return
       setDrafting({ ...drafting, points: [...drafting.points, p] })
-    } else if (
-      drafting.kind === 'rect' ||
-      drafting.kind === 'textHighlight'
-    ) {
+    } else if (drafting.kind === 'rect') {
       setDrafting({
         ...drafting,
         w: p.x - drafting.x,
@@ -432,11 +577,11 @@ function PdfPageView({
     ) {
       onChangeAnnos([...annotations, drafting])
     } else if (
-      (drafting.kind === 'rect' || drafting.kind === 'textHighlight') &&
+      drafting.kind === 'rect' &&
       Math.abs(drafting.w) > 0.005 &&
       Math.abs(drafting.h) > 0.005
     ) {
-      onChangeAnnos([...annotations, drafting])
+      onChangeAnnos([...annotations, normalizeRectAnno(drafting)])
     }
     setDrafting(null)
   }
@@ -452,13 +597,121 @@ function PdfPageView({
         ref={annoCanvasRef}
         className={cn(
           'absolute inset-0 h-full w-full touch-none',
-          tool === 'pan' ? 'pointer-events-none' : 'cursor-crosshair'
+          tool === 'pan' || textSelectMode
+            ? 'pointer-events-none'
+            : 'cursor-crosshair'
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
+      {textSelectMode && textSpans.length > 0 ? (
+        <div
+          className="absolute inset-0 z-[1] select-text"
+          style={{ width: size.w || undefined, height: size.h || undefined }}
+          onMouseUp={() => {
+            // Defer so selection is finalized
+            window.setTimeout(() => commitTextSelection(), 0)
+          }}
+          onTouchEnd={() => {
+            window.setTimeout(() => commitTextSelection(), 30)
+          }}
+        >
+          {textSpans.map((s) => (
+            <span
+              key={s.key}
+              style={{
+                position: 'absolute',
+                left: s.left,
+                top: s.top,
+                width: s.width,
+                height: s.height,
+                fontSize: s.fontSize,
+                lineHeight: 1,
+                color: 'transparent',
+                whiteSpace: 'pre',
+                cursor: 'text',
+              }}
+            >
+              {s.text}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {textSelectMode && textSpans.length === 0 && size.w > 0 ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-[1] cursor-crosshair bg-transparent"
+          aria-label="تمييز مستطيل عند غياب طبقة النص"
+          onPointerDown={(e) => {
+            const wrap = wrapRef.current
+            if (!wrap || !size.w) return
+            const rect = wrap.getBoundingClientRect()
+            const p = {
+              x: Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width)
+              ),
+              y: Math.max(
+                0,
+                Math.min(1, (e.clientY - rect.top) / rect.height)
+              ),
+            }
+            drawingRef.current = true
+            setDrafting({
+              id: newAnnoId(),
+              kind: 'textHighlight',
+              pageIndex,
+              x: p.x,
+              y: p.y,
+              w: 0,
+              h: 0,
+              color: HIGHLIGHT_COLOR,
+              opacity: 0.35,
+            })
+            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+          }}
+          onPointerMove={(e) => {
+            if (!drawingRef.current || !drafting) return
+            if (drafting.kind !== 'textHighlight') return
+            const wrap = wrapRef.current
+            if (!wrap) return
+            const rect = wrap.getBoundingClientRect()
+            const p = {
+              x: Math.max(
+                0,
+                Math.min(1, (e.clientX - rect.left) / rect.width)
+              ),
+              y: Math.max(
+                0,
+                Math.min(1, (e.clientY - rect.top) / rect.height)
+              ),
+            }
+            setDrafting({
+              ...drafting,
+              w: p.x - drafting.x,
+              h: p.y - drafting.y,
+            })
+          }}
+          onPointerUp={() => {
+            if (!drawingRef.current) return
+            drawingRef.current = false
+            if (
+              drafting?.kind === 'textHighlight' &&
+              drafting.pageIndex === pageIndex &&
+              Math.abs(drafting.w) > 0.005 &&
+              Math.abs(drafting.h) > 0.005
+            ) {
+              onChangeAnnos([
+                ...annotations,
+                normalizeRectAnno(drafting),
+              ])
+            }
+            setDrafting(null)
+          }}
+        />
+      ) : null}
       <span className="pointer-events-none absolute start-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
         {pageIndex + 1}
       </span>
@@ -806,9 +1059,8 @@ export function PdfAnnotator({
       </div>
 
       <p className="shrink-0 text-[10px] leading-relaxed text-ab-muted">
-        أدوات: قلم · تمييز حر · تحديد نص (مستطيل) · ملاحظة لاصقة · نص · مربع ·
-        ممحاة. «طبقة ناعمة» تُحفظ محلياً وقابلة للتحرير عند إعادة الفتح؛ «حفظ
-        (حرق)» يدمج التعليقات نهائياً في PDF.
+        تحديد نص: اسحب فوق الكلمات لتظليلها · ملاحظة/نص: نقر مزدوج لإعادة التحرير
+        · «طبقة ناعمة» محلية قابلة للتحرير قبل الحرق · ممحاة تحذف من الطبقة.
         {dirty ? ` · ${annotations.length} تعليق` : ''}
       </p>
 

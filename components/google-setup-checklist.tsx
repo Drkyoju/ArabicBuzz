@@ -5,6 +5,8 @@
  * Ops only — end users just click «ربط Google» in-app.
  * Publish app in Google Console cannot be done by code — owner must click.
  */
+import { GoogleTestUsersChecklist } from '@/components/user-console-checklists'
+
 export function GoogleSetupChecklist({
   className,
   focus = 'all',
@@ -85,6 +87,9 @@ export function GoogleSetupChecklist({
         <li>فعّل موفّر Google في Supabase + انسخ Client ID/Secret لـ CranL env</li>
         <li>{lastStep}</li>
       </ol>
+      <div className="mt-3">
+        <GoogleTestUsersChecklist />
+      </div>
       <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
         الدليل الكامل:{' '}
         <span dir="ltr" className="font-mono">

@@ -462,14 +462,21 @@ export function FilesPanel() {
     }
   }
 
-  async function convertCleanPdf(f: ListedFile) {
+  async function convertCleanOffice(
+    f: ListedFile,
+    toFormat: 'docx' | 'pdf'
+  ) {
     const fileId = f.id || ''
     if (!fileId) {
       setNote('معرّف الملف غير متاح.')
       return
     }
     setBusyId(fileId)
-    setNote('جاري التحويل النظيف عبر Drive…')
+    setNote(
+      toFormat === 'docx'
+        ? 'جاري التحويل النظيف PDF→Word عبر Drive…'
+        : 'جاري التحويل النظيف Word→PDF عبر Drive…'
+    )
     try {
       const res = await fetch('/api/storage/convert', {
         method: 'POST',
@@ -477,7 +484,7 @@ export function FilesPanel() {
         body: JSON.stringify({
           scopeId,
           fileId,
-          toFormat: 'docx',
+          toFormat,
           engine: 'auto',
         }),
       })
@@ -497,10 +504,14 @@ export function FilesPanel() {
         openFilePreviewInChat({
           fileId: data.fileId,
           scopeId,
-          name: data.name || 'converted.docx',
+          name:
+            data.name ||
+            (toFormat === 'docx' ? 'converted.docx' : 'converted.pdf'),
           mimeType:
             data.mimeType ||
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            (toFormat === 'docx'
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : 'application/pdf'),
         })
       }
       await load()
@@ -766,12 +777,26 @@ export function FilesPanel() {
                         <button
                           type="button"
                           disabled={!id || busy}
-                          onClick={() => void convertCleanPdf(f)}
+                          onClick={() => void convertCleanOffice(f, 'docx')}
                           className="ab-btn-secondary !py-1 text-[11px]"
-                          title="تحويل PDF→Word عبر Google Drive (المسار النظيف)"
+                          title="تحويل PDF→Word عبر Google Drive (المسار النظيف المجاني)"
                         >
                           <FileType2 className="h-3 w-3" />
-                          حوّل نظيف
+                          إلى Word
+                        </button>
+                      ) : null}
+                      {/\.docx?$/i.test(name) ||
+                      (f.mimeType || '').includes('wordprocessingml') ||
+                      (f.mimeType || '') === 'application/msword' ? (
+                        <button
+                          type="button"
+                          disabled={!id || busy}
+                          onClick={() => void convertCleanOffice(f, 'pdf')}
+                          className="ab-btn-secondary !py-1 text-[11px]"
+                          title="تحويل Word→PDF عبر Google Drive (المسار النظيف المجاني)"
+                        >
+                          <FileType2 className="h-3 w-3" />
+                          إلى PDF
                         </button>
                       ) : null}
                       {postByFileId[id] ? (

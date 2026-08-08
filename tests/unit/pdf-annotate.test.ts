@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import {
   burnPdfAnnotations,
+  normalizeRectAnno,
+  mergeNearbyTextHighlights,
   parseHexColor,
   type PdfAnnotation,
 } from '@/lib/documents/pdf-annotate'
@@ -123,5 +125,49 @@ describe('pdf-annotate burn-in', () => {
       },
     ])
     expect(out.byteLength).toBeGreaterThan(100)
+  })
+
+  it('normalizes negative rect dimensions', () => {
+    const n = normalizeRectAnno({
+      x: 0.5,
+      y: 0.5,
+      w: -0.2,
+      h: -0.1,
+    })
+    expect(n.x).toBeCloseTo(0.3)
+    expect(n.y).toBeCloseTo(0.4)
+    expect(n.w).toBeCloseTo(0.2)
+    expect(n.h).toBeCloseTo(0.1)
+  })
+
+  it('merges nearby text highlights on the same line', () => {
+    const list: PdfAnnotation[] = [
+      {
+        id: 'a',
+        kind: 'textHighlight',
+        pageIndex: 0,
+        x: 0.1,
+        y: 0.2,
+        w: 0.1,
+        h: 0.03,
+        color: '#f5c542',
+      },
+      {
+        id: 'b',
+        kind: 'textHighlight',
+        pageIndex: 0,
+        x: 0.2,
+        y: 0.205,
+        w: 0.12,
+        h: 0.03,
+        color: '#f5c542',
+      },
+    ]
+    const merged = mergeNearbyTextHighlights(list, 0)
+    const highs = merged.filter((a) => a.kind === 'textHighlight')
+    expect(highs).toHaveLength(1)
+    if (highs[0]?.kind === 'textHighlight') {
+      expect(highs[0].w).toBeGreaterThan(0.2)
+    }
   })
 })
