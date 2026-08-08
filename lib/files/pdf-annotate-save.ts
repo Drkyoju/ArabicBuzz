@@ -144,6 +144,7 @@ let arabicFontCache: Uint8Array | null = null
 export async function loadClientArabicFont(): Promise<Uint8Array | null> {
   if (arabicFontCache) return arabicFontCache
   const urls = [
+    '/fonts/NotoNaskhArabic-Regular.ttf',
     '/api/fonts/arabic',
     'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf',
   ]

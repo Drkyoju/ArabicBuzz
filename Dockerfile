@@ -55,6 +55,8 @@ ENV AB_LIBREOFFICE_IMAGE=$INSTALL_LIBREOFFICE
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Arabic TTF for PDF annotation burn-in (/api/fonts/arabic) + pdf-lib stamps
+COPY --from=builder /app/assets/fonts ./assets/fonts
 # Prisma engines + schema for runtime generate safety / migrations tooling
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
