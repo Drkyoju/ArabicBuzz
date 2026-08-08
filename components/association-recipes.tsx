@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  FileText,
   FolderSearch,
 } from 'lucide-react'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
@@ -21,6 +22,13 @@ const RECIPES = [
     detailAr: 'تقويم مشترك + تذكير تيليجرام قبل المواعيد المهمة.',
     section: 'calendar',
     icon: CalendarDays,
+  },
+  {
+    id: 'letters',
+    titleAr: 'قوالب خطابات',
+    detailAr: 'خطاب · تعميم · شكر · دعوة — من تقويم ← محضر وخطابات.',
+    section: 'calendar:meetings',
+    icon: FileText,
   },
 ] as const
 
@@ -45,10 +53,10 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        ملفات · مواعيد ومهام — غرفة الفريق من الشريط الجانبي.
+        ملفات · مواعيد · خطابات — غرفة الفريق من الشريط الجانبي.
       </p>
 
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {RECIPES.map((r) => {
           const Icon = r.icon
           return (

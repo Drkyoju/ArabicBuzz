@@ -95,7 +95,11 @@ export function LetterTemplatesPanel() {
   }
 
   return (
-    <section className="rounded-xl border border-ab-border bg-ab-surface p-3" dir="rtl">
+    <section
+      id="letter-templates"
+      className="rounded-xl border border-ab-border bg-ab-surface p-3"
+      dir="rtl"
+    >
       <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-ab-ink">
         <FileText className="h-4 w-4 text-ab-accent" aria-hidden />
         قوالب خطابات الجمعية

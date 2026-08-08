@@ -27,6 +27,7 @@ import { AuthButtons } from '@/components/auth-buttons'
 import { HelpTip } from '@/components/help-tip'
 import { WorkspaceAutoStatus } from '@/components/workspace-auto-status'
 import { MeetingCopilotPanel } from '@/components/meeting-copilot'
+import { LetterTemplatesPanel } from '@/components/letter-templates-panel'
 import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { RoomFullCalendar } from '@/components/room-full-calendar'
 import { RoomTasksBoard } from '@/components/room-tasks-board'
@@ -67,7 +68,7 @@ const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'schedule', labelAr: 'أسبوع / قائمة' },
   { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
-  { id: 'meetings', labelAr: 'محضر الاجتماع' },
+  { id: 'meetings', labelAr: 'محضر وخطابات' },
   { id: 'external', labelAr: 'تقويم Google' },
   { id: 'export', labelAr: 'تصدير' },
 ]
@@ -417,6 +418,23 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       })
       return
     }
+    if (
+      target === 'calendar:meetings' ||
+      target === 'calendar:letters' ||
+      target === 'letters'
+    ) {
+      setCalendarTab('meetings')
+      setSection('calendar')
+      requestAnimationFrame(() => {
+        document
+          .getElementById('calendar-tabs')
+          ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        document
+          .getElementById('letter-templates')
+          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      })
+      return
+    }
     if (target === 'calendar:full' || target === 'calendar-full') {
       setCalendarTab('full')
       setSection('calendar')
@@ -598,6 +616,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 <>
                   <ZoomLivePanel />
                   <MeetingCopilotPanel />
+                  <LetterTemplatesPanel />
                 </>
               )}
 
