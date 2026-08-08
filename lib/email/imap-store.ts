@@ -16,6 +16,7 @@ export type ImapMailboxRow = {
   enabled: boolean
   notify_telegram: boolean
   last_uid: string | number | bigint
+  last_uid_sent: string | number | bigint
   last_sync_at: Date | string | null
   last_error_ar: string | null
   created_by: string
@@ -79,6 +80,7 @@ export type ImapMailboxPublic = {
   enabled: boolean
   notifyTelegram: boolean
   lastUid: number
+  lastUidSent: number
   lastSyncAt: string | null
   lastErrorAr: string | null
   configured: boolean
@@ -97,6 +99,7 @@ export type ImapMailboxCreds = {
   password: string
   notifyTelegram: boolean
   lastUid: number
+  lastUidSent: number
 }
 
 async function ensureTables(): Promise<void> {
@@ -169,6 +172,14 @@ async function ensureTables(): Promise<void> {
       `),
     0
   )
+  await withPrismaFallback(
+    () =>
+      prisma.$executeRawUnsafe(`
+        ALTER TABLE imap_mailboxes
+          ADD COLUMN IF NOT EXISTS last_uid_sent BIGINT NOT NULL DEFAULT 0
+      `),
+    0
+  )
 }
 
 function toPublic(row: ImapMailboxRow): ImapMailboxPublic {
@@ -189,6 +200,10 @@ function toPublic(row: ImapMailboxRow): ImapMailboxPublic {
     enabled: Boolean(row.enabled),
     notifyTelegram: Boolean(row.notify_telegram),
     lastUid: Number(row.last_uid || 0),
+    lastUidSent: Number(
+      (row as ImapMailboxRow & { last_uid_sent?: string | number | bigint })
+        .last_uid_sent || 0
+    ),
     lastSyncAt: row.last_sync_at
       ? new Date(row.last_sync_at).toISOString()
       : null,
@@ -241,6 +256,10 @@ export async function getMailboxCreds(): Promise<ImapMailboxCreds | null> {
     password,
     notifyTelegram: Boolean(row.notify_telegram),
     lastUid: Number(row.last_uid || 0),
+    lastUidSent: Number(
+      (row as ImapMailboxRow & { last_uid_sent?: string | number | bigint })
+        .last_uid_sent || 0
+    ),
   }
 }
 
@@ -371,6 +390,7 @@ export async function deleteMailbox(): Promise<void> {
 export async function markSyncResult(opts: {
   mailboxId: string
   lastUid?: number
+  lastUidSent?: number
   errorAr?: string | null
 }): Promise<void> {
   await ensureTables()
@@ -392,11 +412,13 @@ export async function markSyncResult(opts: {
       prisma.$executeRawUnsafe(
         `UPDATE imap_mailboxes SET
            last_uid = GREATEST(last_uid, $1::bigint),
+           last_uid_sent = GREATEST(COALESCE(last_uid_sent, 0), $2::bigint),
            last_sync_at = NOW(),
            last_error_ar = NULL,
            updated_at = NOW()
-         WHERE id = $2`,
+         WHERE id = $3`,
         opts.lastUid ?? 0,
+        opts.lastUidSent ?? 0,
         opts.mailboxId
       ),
     0
@@ -516,26 +538,51 @@ export async function upsertMessage(
   return { id, isNew: true }
 }
 
+export type MailFolderFilter = 'all' | 'INBOX' | 'Sent'
+
+function folderSqlPredicate(folder: MailFolderFilter | undefined): {
+  clause: string
+  /** $n placeholder already embedded as literal-safe param index handled by caller */
+  value: string
+} {
+  const f = folder || 'INBOX'
+  if (f === 'all') return { clause: 'TRUE', value: '' }
+  if (f === 'Sent') {
+    return {
+      clause: `(folder = 'Sent' OR folder ILIKE '%sent%' OR folder ILIKE '%مرسل%')`,
+      value: '',
+    }
+  }
+  return { clause: `folder = 'INBOX'`, value: '' }
+}
+
 export async function listMessages(opts?: {
   unreadOnly?: boolean
   query?: string
   limit?: number
+  /** Default INBOX so Sent does not clutter الوارد. Use 'all' for corpus search. */
+  folder?: MailFolderFilter
 }): Promise<ImapMessageRow[]> {
   await ensureTables()
   const limit = Math.min(Math.max(opts?.limit || 30, 1), 100)
   const q = (opts?.query || '').trim()
   const unread = Boolean(opts?.unreadOnly)
+  const folder = opts?.folder ?? 'INBOX'
+  const folderPred = folderSqlPredicate(folder)
 
   if (q) {
-    const like = `%${q}%`
+    const like = `%${q.replace(/%/g, '')}%`
     return withPrismaFallback(
       () =>
         prisma.$queryRawUnsafe<ImapMessageRow[]>(
           `SELECT * FROM imap_messages
            WHERE ($1::boolean = false OR seen = false)
+             AND (${folderPred.clause})
              AND (
                subject ILIKE $2 OR from_addr ILIKE $2 OR to_addr ILIKE $2
-               OR snippet ILIKE $2 OR body_text ILIKE $2
+               OR cc_addr ILIKE $2 OR snippet ILIKE $2 OR body_text ILIKE $2
+               OR COALESCE(attachments_json::text, '') ILIKE $2
+               OR COALESCE(intel_json::text, '') ILIKE $2
              )
            ORDER BY date_at DESC NULLS LAST
            LIMIT $3`,
@@ -552,6 +599,7 @@ export async function listMessages(opts?: {
       prisma.$queryRawUnsafe<ImapMessageRow[]>(
         `SELECT * FROM imap_messages
          WHERE ($1::boolean = false OR seen = false)
+           AND (${folderPred.clause})
          ORDER BY date_at DESC NULLS LAST
          LIMIT $2`,
         unread,
@@ -559,6 +607,21 @@ export async function listMessages(opts?: {
       ),
     [] as ImapMessageRow[]
   )
+}
+
+/** Full-corpus mail search: inbox + sent + attachment extracted text. */
+export async function searchMailMessages(opts: {
+  query: string
+  limit?: number
+  folder?: MailFolderFilter
+}): Promise<ImapMessageRow[]> {
+  const q = opts.query.trim()
+  if (!q) return []
+  return listMessages({
+    query: q,
+    limit: opts.limit ?? 40,
+    folder: opts.folder ?? 'all',
+  })
 }
 
 export async function getMessageById(
@@ -581,7 +644,8 @@ export async function countUnread(): Promise<number> {
   const rows = await withPrismaFallback(
     () =>
       prisma.$queryRawUnsafe<Array<{ c: string | number }>>(
-        `SELECT COUNT(*)::int AS c FROM imap_messages WHERE seen = false`
+        `SELECT COUNT(*)::int AS c FROM imap_messages
+         WHERE seen = false AND folder = 'INBOX'`
       ),
     [] as Array<{ c: string | number }>
   )
@@ -594,7 +658,7 @@ export async function listUnnotified(limit = 10): Promise<ImapMessageRow[]> {
     () =>
       prisma.$queryRawUnsafe<ImapMessageRow[]>(
         `SELECT * FROM imap_messages
-         WHERE notified = false
+         WHERE notified = false AND folder = 'INBOX'
          ORDER BY date_at DESC NULLS LAST
          LIMIT $1`,
         Math.min(Math.max(limit, 1), 25)

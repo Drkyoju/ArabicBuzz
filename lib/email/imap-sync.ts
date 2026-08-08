@@ -64,7 +64,6 @@ async function withClient<T>(
     },
     logger: false,
     emitLogs: false,
-    // Netlify functions die hard on hung IMAP — fail fast instead of hanging.
     connectionTimeout: 12_000,
     greetingTimeout: 12_000,
     socketTimeout: 25_000,
@@ -85,23 +84,215 @@ async function withClient<T>(
   }
 }
 
+const SENT_CANDIDATES = [
+  'Sent',
+  'Sent Items',
+  'Sent Messages',
+  'INBOX.Sent',
+  '[Gmail]/Sent Mail',
+  'المرسل',
+  'رسائل مرسلة',
+]
+
+async function resolveSentMailboxPath(
+  client: ImapFlow
+): Promise<string | null> {
+  try {
+    const boxes = await client.list()
+    const paths = boxes.map((b) => b.path)
+    for (const c of SENT_CANDIDATES) {
+      if (paths.includes(c)) return c
+    }
+    const fuzzy = paths.find((p) => /sent|مرسل/i.test(p))
+    return fuzzy || null
+  } catch {
+    return null
+  }
+}
+
+type FolderSyncStats = {
+  fetched: number
+  newCount: number
+  maxUid: number
+}
+
+async function syncOneFolder(opts: {
+  client: ImapFlow
+  mailboxId: string
+  /** IMAP path to open */
+  imapPath: string
+  /** Normalized folder label stored in DB */
+  storeFolder: string
+  lastUid: number
+  maxMessages: number
+  /** For Sent: do not chase UNSEEN */
+  includeUnseen: boolean
+}): Promise<FolderSyncStats> {
+  const {
+    client,
+    mailboxId,
+    imapPath,
+    storeFolder,
+    lastUid,
+    maxMessages,
+    includeUnseen,
+  } = opts
+  let fetched = 0
+  let newCount = 0
+  let maxUid = lastUid
+
+  const lock = await client.getMailboxLock(imapPath)
+  try {
+    const mailbox = client.mailbox
+    if (!mailbox || typeof mailbox === 'boolean') {
+      throw new Error(`تعذّر فتح الصندوق ${imapPath}.`)
+    }
+
+    const uidSet = new Set<number>()
+
+    if (lastUid > 0) {
+      const newer = await client.search(
+        { uid: `${lastUid + 1}:*` },
+        { uid: true }
+      )
+      for (const u of newer || []) uidSet.add(Number(u))
+    }
+
+    if (includeUnseen) {
+      const unseen = await client.search({ seen: false }, { uid: true })
+      for (const u of unseen || []) uidSet.add(Number(u))
+    }
+
+    if (lastUid === 0 && uidSet.size === 0) {
+      const exists = typeof mailbox.exists === 'number' ? mailbox.exists : 0
+      if (exists > 0) {
+        const startSeq = Math.max(1, exists - maxMessages + 1)
+        for await (const msg of client.fetch(`${startSeq}:${exists}`, {
+          uid: true,
+        })) {
+          if (typeof msg.uid === 'number') uidSet.add(msg.uid)
+        }
+      }
+    }
+
+    const selected = [...uidSet]
+      .filter((u) => Number.isFinite(u) && u > 0)
+      .sort((a, b) => b - a)
+      .slice(0, maxMessages)
+
+    for (const uid of selected) {
+      let bodyText = ''
+      let bodyHtml = ''
+      let subject = '(بدون موضوع)'
+      let fromAddr = ''
+      let toAddr = ''
+      let ccAddr = ''
+      let messageId: string | null = null
+      let inReplyTo: string | null = null
+      let dateAt: Date | null = null
+      let seen = storeFolder !== 'INBOX'
+      let answered = false
+      let attachmentsJson: unknown = null
+
+      try {
+        const downloaded = await client.fetchOne(
+          String(uid),
+          {
+            uid: true,
+            flags: true,
+            envelope: true,
+            source: true,
+          },
+          { uid: true }
+        )
+        if (!downloaded || typeof downloaded === 'boolean') continue
+
+        const envelope = downloaded.envelope
+        const flags = downloaded.flags || new Set<string>()
+        seen = flags.has('\\Seen') || storeFolder !== 'INBOX'
+        answered = flags.has('\\Answered')
+        subject = String(envelope?.subject || '(بدون موضوع)')
+        fromAddr = addrList(envelope?.from)
+        toAddr = addrList(envelope?.to)
+        ccAddr = addrList(envelope?.cc)
+        messageId = envelope?.messageId
+          ? String(envelope.messageId)
+          : null
+        inReplyTo = envelope?.inReplyTo
+          ? String(envelope.inReplyTo)
+          : null
+        dateAt = envelope?.date ? new Date(envelope.date) : null
+
+        if (downloaded.source) {
+          const raw = Buffer.isBuffer(downloaded.source)
+            ? downloaded.source.toString('binary')
+            : String(downloaded.source)
+          const parsed = parseMimeMessage(raw)
+          bodyText = parsed.text
+          bodyHtml = parsed.html
+          if (parsed.attachments.length) {
+            const slice = parsed.attachments.slice(0, 6)
+            attachmentsJson = await extractAttachmentTexts(slice)
+          }
+        }
+      } catch {
+        continue
+      }
+
+      if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml)
+      if (!bodyText) bodyText = subject
+
+      const { isNew } = await upsertMessage({
+        mailboxId,
+        uid,
+        messageId,
+        inReplyTo,
+        referencesHdr: null,
+        folder: storeFolder,
+        subject,
+        fromAddr,
+        toAddr,
+        ccAddr,
+        dateAt,
+        snippet: snippetOf(bodyText),
+        bodyText: bodyText.slice(0, 50_000),
+        bodyHtml: bodyHtml ? bodyHtml.slice(0, 80_000) : null,
+        seen,
+        answered,
+        attachmentsJson,
+      })
+      fetched += 1
+      if (isNew) newCount += 1
+      if (uid > maxUid) maxUid = uid
+    }
+  } finally {
+    lock.release()
+  }
+
+  return { fetched, newCount, maxUid }
+}
+
 export type SyncResult = {
   ok: boolean
   fetched: number
   newCount: number
   unreadNotified: number
   lastUid: number
+  lastUidSent?: number
+  sentFetched?: number
   errorAr?: string
   messageAr: string
 }
 
 /**
- * Incremental IMAP sync of INBOX (UID > last_uid + UNSEEN).
- * Stores AR/EN bodies as plain text (+ HTML when present).
+ * Incremental IMAP sync of INBOX + Sent (when available).
+ * Stores AR/EN bodies as plain text (+ HTML when present) and extracts attachment text.
  */
 export async function syncImapInbox(opts?: {
   maxMessages?: number
   notifyTelegram?: boolean
+  /** Also sync Sent (default true). */
+  includeSent?: boolean
 }): Promise<SyncResult> {
   const creds = await getMailboxCreds()
   if (!creds) {
@@ -118,143 +309,53 @@ export async function syncImapInbox(opts?: {
   }
 
   const maxMessages = Math.min(Math.max(opts?.maxMessages || 40, 1), 80)
+  const includeSent = opts?.includeSent !== false
   let fetched = 0
   let newCount = 0
   let maxUid = creds.lastUid
+  let maxUidSent = creds.lastUidSent
+  let sentFetched = 0
 
   try {
     await withClient(creds, async (client) => {
-      const lock = await client.getMailboxLock('INBOX')
-      try {
-        const mailbox = client.mailbox
-        if (!mailbox || typeof mailbox === 'boolean') {
-          throw new Error('تعذّر فتح صندوق الوارد INBOX.')
-        }
+      const inbox = await syncOneFolder({
+        client,
+        mailboxId: creds.id,
+        imapPath: 'INBOX',
+        storeFolder: 'INBOX',
+        lastUid: creds.lastUid,
+        maxMessages,
+        includeUnseen: true,
+      })
+      fetched += inbox.fetched
+      newCount += inbox.newCount
+      maxUid = inbox.maxUid
 
-        const uidSet = new Set<number>()
-
-        if (creds.lastUid > 0) {
-          const newer = await client.search(
-            { uid: `${creds.lastUid + 1}:*` },
-            { uid: true }
-          )
-          for (const u of newer || []) uidSet.add(Number(u))
-        }
-
-        const unseen = await client.search({ seen: false }, { uid: true })
-        for (const u of unseen || []) uidSet.add(Number(u))
-
-        // First sync: newest N by UID
-        if (creds.lastUid === 0 && uidSet.size === 0) {
-          const exists =
-            typeof mailbox.exists === 'number' ? mailbox.exists : 0
-          if (exists > 0) {
-            const startSeq = Math.max(1, exists - maxMessages + 1)
-            for await (const msg of client.fetch(`${startSeq}:${exists}`, {
-              uid: true,
-            })) {
-              if (typeof msg.uid === 'number') uidSet.add(msg.uid)
-            }
-          }
-        }
-
-        const selected = [...uidSet]
-          .filter((u) => Number.isFinite(u) && u > 0)
-          .sort((a, b) => b - a)
-          .slice(0, maxMessages)
-
-        for (const uid of selected) {
-          let bodyText = ''
-          let bodyHtml = ''
-          let subject = '(بدون موضوع)'
-          let fromAddr = ''
-          let toAddr = ''
-          let ccAddr = ''
-          let messageId: string | null = null
-          let inReplyTo: string | null = null
-          let dateAt: Date | null = null
-          let seen = false
-          let answered = false
-          let attachmentsJson: unknown = null
-
-          try {
-            const downloaded = await client.fetchOne(
-              String(uid),
-              {
-                uid: true,
-                flags: true,
-                envelope: true,
-                source: true,
-              },
-              { uid: true }
-            )
-            if (!downloaded || typeof downloaded === 'boolean') continue
-
-            const envelope = downloaded.envelope
-            const flags = downloaded.flags || new Set<string>()
-            seen = flags.has('\\Seen')
-            answered = flags.has('\\Answered')
-            subject = String(envelope?.subject || '(بدون موضوع)')
-            fromAddr = addrList(envelope?.from)
-            toAddr = addrList(envelope?.to)
-            ccAddr = addrList(envelope?.cc)
-            messageId = envelope?.messageId
-              ? String(envelope.messageId)
-              : null
-            inReplyTo = envelope?.inReplyTo
-              ? String(envelope.inReplyTo)
-              : null
-            dateAt = envelope?.date ? new Date(envelope.date) : null
-
-            if (downloaded.source) {
-              const raw = Buffer.isBuffer(downloaded.source)
-                ? downloaded.source.toString('binary')
-                : String(downloaded.source)
-              const parsed = parseMimeMessage(raw)
-              bodyText = parsed.text
-              bodyHtml = parsed.html
-              if (parsed.attachments.length) {
-                // Extract text now (PDF/Word via existing RAG pipeline). Cap count.
-                const slice = parsed.attachments.slice(0, 6)
-                attachmentsJson = await extractAttachmentTexts(slice)
-              }
-            }
-          } catch {
-            continue
-          }
-
-          if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml)
-          if (!bodyText) bodyText = subject
-
-          const { isNew } = await upsertMessage({
+      if (includeSent) {
+        const sentPath = await resolveSentMailboxPath(client)
+        if (sentPath) {
+          const sent = await syncOneFolder({
+            client,
             mailboxId: creds.id,
-            uid,
-            messageId,
-            inReplyTo,
-            referencesHdr: null,
-            folder: 'INBOX',
-            subject,
-            fromAddr,
-            toAddr,
-            ccAddr,
-            dateAt,
-            snippet: snippetOf(bodyText),
-            bodyText: bodyText.slice(0, 50_000),
-            bodyHtml: bodyHtml ? bodyHtml.slice(0, 80_000) : null,
-            seen,
-            answered,
-            attachmentsJson,
+            imapPath: sentPath,
+            storeFolder: 'Sent',
+            lastUid: creds.lastUidSent,
+            maxMessages: Math.min(maxMessages, 30),
+            includeUnseen: false,
           })
-          fetched += 1
-          if (isNew) newCount += 1
-          if (uid > maxUid) maxUid = uid
+          sentFetched = sent.fetched
+          fetched += sent.fetched
+          newCount += sent.newCount
+          maxUidSent = sent.maxUid
         }
-      } finally {
-        lock.release()
       }
     })
 
-    await markSyncResult({ mailboxId: creds.id, lastUid: maxUid })
+    await markSyncResult({
+      mailboxId: creds.id,
+      lastUid: maxUid,
+      lastUidSent: maxUidSent,
+    })
 
     let unreadNotified = 0
     const shouldNotify =
@@ -263,18 +364,27 @@ export async function syncImapInbox(opts?: {
       unreadNotified = await notifyNewMailTelegram()
     }
 
+    const parts: string[] = []
+    if (fetched === 0) {
+      parts.push('لا رسائل جديدة للمزامنة.')
+    } else {
+      parts.push(
+        `تمت مزامنة ${fetched} رسالة (${newCount} جديدة)${
+          sentFetched ? ` منها ${sentFetched} من المرسل` : ''
+        }`
+      )
+    }
+    if (unreadNotified) parts.push(`أُخطر تيليجرام بـ ${unreadNotified}`)
+
     return {
       ok: true,
       fetched,
       newCount,
       unreadNotified,
       lastUid: maxUid,
-      messageAr:
-        fetched === 0
-          ? 'لا رسائل جديدة للمزامنة.'
-          : `تمت مزامنة ${fetched} رسالة (${newCount} جديدة)${
-              unreadNotified ? ` · أُخطر تيليجرام بـ ${unreadNotified}` : ''
-            }.`,
+      lastUidSent: maxUidSent,
+      sentFetched,
+      messageAr: parts.join(' · ') + (parts[0].endsWith('.') ? '' : '.'),
     }
   } catch (e) {
     const errorAr =
@@ -288,13 +398,13 @@ export async function syncImapInbox(opts?: {
       newCount,
       unreadNotified: 0,
       lastUid: maxUid,
+      lastUidSent: maxUidSent,
       errorAr,
       messageAr: errorAr,
     }
   }
 }
 
-/** Quick connectivity test (login + INBOX status). */
 async function notifyNewMailTelegram(): Promise<number> {
   const rows = await listUnnotified(8)
   if (!rows.length) return 0
@@ -351,9 +461,8 @@ export async function testImapConnection(): Promise<{
       ok: false,
       messageAr:
         e instanceof Error
-          ? `فشل الاتصال: ${e.message}`
+          ? `فشل IMAP: ${e.message}`
           : 'فشل الاتصال بـ IMAP.',
     }
   }
 }
-

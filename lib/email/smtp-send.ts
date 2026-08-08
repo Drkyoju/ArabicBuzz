@@ -4,6 +4,7 @@ import {
   getMessageById,
   markAnswered,
   markSeen,
+  upsertMessage,
 } from '@/lib/email/imap-store'
 
 /** RFC 2047 for Arabic subjects. */
@@ -141,6 +142,32 @@ export async function sendSmtpMail(
       html: bodyHtml || undefined,
       headers,
     })
+
+    // Archive a searchable local copy under Sent (attachment text empty for outbound).
+    try {
+      const uid = Date.now()
+      await upsertMessage({
+        mailboxId: creds.id,
+        uid,
+        messageId: info.messageId || null,
+        inReplyTo: headers['In-Reply-To'] || null,
+        referencesHdr: headers.References || null,
+        folder: 'Sent',
+        subject,
+        fromAddr: creds.emailAddress,
+        toAddr: to,
+        ccAddr: cc || '',
+        dateAt: new Date(),
+        snippet: (bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 240),
+        bodyText: (bodyText || '').slice(0, 50_000),
+        bodyHtml: bodyHtml ? bodyHtml.slice(0, 80_000) : null,
+        seen: true,
+        answered: false,
+        attachmentsJson: [],
+      })
+    } catch {
+      /* local Sent archive best-effort */
+    }
 
     const deliveryNoteAr =
       'قَبِل خادم SMTP الرسالة للإرسال. هذا ليس إيصال تسليم إلى صندوق المستلم — لا يتوفر DSN/قراءة في إعداد الجمعية الحالي.'

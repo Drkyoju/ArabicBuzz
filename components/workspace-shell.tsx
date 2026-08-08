@@ -233,6 +233,12 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [mode, roleReady, section])
 
+  useEffect(() => {
+    const openMail = () => setSection('mail')
+    window.addEventListener('ab-open-mail', openMail)
+    return () => window.removeEventListener('ab-open-mail', openMail)
+  }, [])
+
   // Members: no audit/skills/keys/ops even via deep-link.
   // Wait for role/email so owners are not bounced during the first paint.
   // «الذاكرة» المنفصلة أُلغيت — المعرفة = ملفات / عقل الشركة (Drive).

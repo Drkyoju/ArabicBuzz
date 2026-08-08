@@ -131,6 +131,7 @@ export async function searchMail(opts: {
       unreadOnly,
       query: queryClean || undefined,
       limit: opts.maxResults || 20,
+      folder: 'all',
     })
     const messages = rows.map((r) => {
       const d = fromImapRow(r)

@@ -13,10 +13,17 @@ export async function GET(req: NextRequest) {
   const unreadOnly = url.searchParams.get('unread') === '1'
   const q = url.searchParams.get('q') || undefined
   const limit = Number(url.searchParams.get('limit') || '40')
+  const folderRaw = (url.searchParams.get('folder') || 'INBOX').toLowerCase()
+  const folder =
+    folderRaw === 'all'
+      ? ('all' as const)
+      : folderRaw === 'sent'
+        ? ('Sent' as const)
+        : ('INBOX' as const)
 
   const [mailbox, messages, unread] = await Promise.all([
     getMailboxPublic(),
-    listMessages({ unreadOnly, query: q, limit }),
+    listMessages({ unreadOnly, query: q, limit, folder }),
     countUnread(),
   ])
 
@@ -26,6 +33,7 @@ export async function GET(req: NextRequest) {
     unread,
     lastSyncAt: mailbox?.lastSyncAt || null,
     lastErrorAr: mailbox?.lastErrorAr || null,
+    folder,
     messages: messages.map((m) => ({
       id: m.id,
       uid: Number(m.uid),
@@ -37,6 +45,7 @@ export async function GET(req: NextRequest) {
       snippet: m.snippet,
       seen: m.seen,
       answered: m.answered,
+      folder: m.folder,
       messageId: m.message_id,
     })),
   })

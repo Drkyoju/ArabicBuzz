@@ -54,6 +54,7 @@ const MIGRATIONS = [
   'supabase/migrations/029_assistant_jobs.sql',
   'supabase/migrations/030_imap_mailbox.sql',
   'supabase/migrations/031_imap_mail_intel.sql',
+  'supabase/migrations/033_imap_last_uid_sent.sql',
   'supabase/migrations/031_scope_agent_rosters.sql',
   'supabase/migrations/032_workspace_files_edited.sql',
   'supabase/migrations/033_assistant_jobs_model_effort.sql',

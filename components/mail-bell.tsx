@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
@@ -13,15 +13,66 @@ type Props = {
   compact?: boolean
 }
 
+const NOTIF_PERM_KEY = 'ab-mail-notif-asked-v1'
+
+function canUseBrowserNotifications(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
+async function ensureNotifPermission(): Promise<NotificationPermission | null> {
+  if (!canUseBrowserNotifications()) return null
+  if (Notification.permission === 'granted') return 'granted'
+  if (Notification.permission === 'denied') return 'denied'
+  try {
+    const asked = localStorage.getItem(NOTIF_PERM_KEY)
+    if (asked === '1') return Notification.permission
+    localStorage.setItem(NOTIF_PERM_KEY, '1')
+    return await Notification.requestPermission()
+  } catch {
+    return null
+  }
+}
+
+function showBrowserMailNotif(unread: number) {
+  if (!canUseBrowserNotifications()) return
+  if (Notification.permission !== 'granted') return
+  try {
+    const n = new Notification('بريد جديد — جمعية الهدى والحكمة', {
+      body:
+        unread === 1
+          ? 'رسالة جديدة في بريد الجمعية — افتح الوارد للرد أو التلخيص.'
+          : `${unread} رسائل غير مقروءة في بريد الجمعية.`,
+      tag: 'ab-org-mail-unread',
+      dir: 'rtl',
+      lang: 'ar',
+      renotify: true,
+    })
+    n.onclick = () => {
+      try {
+        window.focus()
+        window.dispatchEvent(new Event('ab-open-mail'))
+      } catch {
+        /* ignore */
+      }
+      n.close()
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Header bell — badge when org IMAP mailbox has unread mail.
- * Polls /api/mail/unread (extends existing IMAP store; no second mail system).
+ * Polls /api/mail/unread; fires browser notification when count rises
+ * (requires user-granted Notification permission).
  */
 export function MailBell({ onOpenMail, className, compact }: Props) {
   const signedIn = useSignedIn()
   const [unread, setUnread] = useState(0)
   const [configured, setConfigured] = useState(false)
   const [pulse, setPulse] = useState(false)
+  const prevUnread = useRef(0)
+  const primed = useRef(false)
 
   const poll = useCallback(async () => {
     if (signedIn !== true) {
@@ -40,9 +91,18 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
       setConfigured(Boolean(data.configured))
       const next = Number(data.unread || 0)
       setUnread((prev) => {
-        if (next > prev) setPulse(true)
+        if (next > prev) {
+          setPulse(true)
+          if (primed.current) {
+            void ensureNotifPermission().then((perm) => {
+              if (perm === 'granted') showBrowserMailNotif(next)
+            })
+          }
+        }
+        prevUnread.current = next
         return next
       })
+      primed.current = true
     } catch {
       /* ignore */
     }
@@ -76,7 +136,10 @@ export function MailBell({ onOpenMail, className, compact }: Props) {
   return (
     <button
       type="button"
-      onClick={() => onOpenMail?.()}
+      onClick={() => {
+        void ensureNotifPermission()
+        onOpenMail?.()
+      }}
       title={
         hasNew
           ? `${unread} رسالة غير مقروءة في بريد الجمعية`

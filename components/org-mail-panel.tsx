@@ -4,18 +4,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
+  FileSearch,
   Inbox,
   Link2,
   Mail,
   MessageCircleQuestion,
   Paperclip,
   RefreshCw,
+  Search,
   Send,
   Settings2,
   ShieldAlert,
   Sparkles,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { ORG_REPLY_TEMPLATES } from '@/lib/email/org-reply-templates'
@@ -48,6 +51,19 @@ type Msg = {
   date: string | null
   snippet: string
   seen: boolean
+  folder?: string
+}
+
+type CorpusHit = {
+  kind: 'mail' | 'mail_attachment' | 'workspace_file' | 'knowledge'
+  id: string
+  titleAr: string
+  snippet: string
+  href?: string
+  folder?: string
+  from?: string
+  messageId?: string
+  filename?: string
 }
 
 type AttachmentView = {
@@ -134,6 +150,13 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [askQ, setAskQ] = useState('')
   const [askA, setAskA] = useState('')
   const [related, setRelated] = useState<RelatedHit[]>([])
+  const [listFolder, setListFolder] = useState<'INBOX' | 'Sent' | 'all'>(
+    'INBOX'
+  )
+  const [corpusQ, setCorpusQ] = useState('')
+  const [corpusHits, setCorpusHits] = useState<CorpusHit[]>([])
+  const [corpusNote, setCorpusNote] = useState('')
+  const [aiMode, setAiMode] = useState<'idle' | 'summary' | 'draft'>('idle')
 
   const readingRef = useRef<HTMLDivElement>(null)
   const replyRef = useRef<HTMLDivElement>(null)
@@ -164,7 +187,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
 
   const loadMessages = useCallback(async () => {
     const headers = await authHeaders()
-    const res = await fetch('/api/mail/messages?limit=50', { headers })
+    const folderParam =
+      listFolder === 'all'
+        ? 'all'
+        : listFolder === 'Sent'
+          ? 'sent'
+          : 'INBOX'
+    const res = await fetch(
+      `/api/mail/messages?limit=50&folder=${encodeURIComponent(folderParam)}`,
+      { headers }
+    )
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'تعذّر تحميل الرسائل')
     setMessages(data.messages || [])
@@ -175,7 +207,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [listFolder])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -200,6 +232,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (!configured) return
+    void loadMessages().catch(() => null)
+  }, [listFolder, configured, loadMessages])
 
   // Deep-link ?msg=
   useEffect(() => {
@@ -339,11 +376,134 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       if (!res.ok) throw new Error(data.error || 'فشل التحليل')
       const i = data.intel as Intel
       setIntel(i)
-      if (!draftAccepted) {
-        setReplySubject(i.draftSubject || '')
-        setReplyText(i.draftBody || '')
-      }
       return i
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function summarizeSelected() {
+    if (!selected) return
+    setAiMode('summary')
+    setError('')
+    setOkMsg('')
+    try {
+      const i = await runAnalyze(selected.id, false)
+      setOkMsg('تم التلخيص — راجع الملخص أعلاه.')
+      return i
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل التلخيص')
+      return null
+    }
+  }
+
+  async function draftReplySelected() {
+    if (!selected) return
+    setAiMode('draft')
+    setError('')
+    setOkMsg('')
+    try {
+      const i = intel?.draftBody
+        ? intel
+        : await runAnalyze(selected.id, false)
+      if (!i?.draftBody) throw new Error('تعذّر تجهيز المسودة')
+      setIntel(i)
+      setReplySubject(i.draftSubject || replySubject)
+      setReplyText(i.draftBody)
+      setDraftAccepted(true)
+      setOkMsg('المسودة في صندوق الرد — راجعها وعدّلها ثم أرسل، أو أرسل فوراً.')
+      requestAnimationFrame(() =>
+        replyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      )
+      return i
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل تجهيز المسودة')
+      return null
+    }
+  }
+
+  async function sendNow() {
+    if (!selected) return
+    setError('')
+    setOkMsg('')
+    try {
+      let subject = replySubject.trim()
+      let body = replyText.trim()
+      if (!body) {
+        const i = await draftReplySelected()
+        if (!i?.draftBody) return
+        subject = i.draftSubject || subject
+        body = i.draftBody
+        setReplySubject(subject)
+        setReplyText(body)
+      }
+      setBusy('send')
+      const headers = await authHeaders()
+      const res = await fetch('/api/mail/send', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selected.from,
+          subject,
+          bodyText: body,
+          replyToMessageId: selected.id,
+          forceSend: true,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        const msg = data.error || 'فشل الإرسال'
+        setDelivery({
+          ok: false,
+          status: 'smtp_rejected',
+          messageAr: msg,
+        })
+        throw new Error(msg)
+      }
+      const note = [data.messageAr, data.deliveryNoteAr]
+        .filter(Boolean)
+        .join(' — ')
+      setDelivery({
+        ok: true,
+        status: 'smtp_accepted',
+        messageAr:
+          note ||
+          'قَبِل خادم SMTP الرسالة. هذا ليس إيصال وصول إلى صندوق المستلم.',
+      })
+      setOkMsg(note || 'أُرسل الرد فوراً')
+      setReplyText('')
+      setDraftAccepted(false)
+      await loadMessages()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل الإرسال الفوري')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function runCorpusSearch() {
+    const q = corpusQ.trim()
+    if (!q) {
+      setCorpusHits([])
+      setCorpusNote('')
+      return
+    }
+    setBusy('search')
+    setCorpusNote('')
+    setError('')
+    try {
+      const headers = await authHeaders()
+      const res = await fetch(
+        `/api/mail/search?q=${encodeURIComponent(q)}&folder=all&limit=40`,
+        { headers }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل البحث')
+      setCorpusHits((data.hits || []) as CorpusHit[])
+      setCorpusNote(data.messageAr || '')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل البحث')
+      setCorpusHits([])
     } finally {
       setBusy('')
     }
@@ -369,6 +529,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setDraftAccepted(false)
     setDelivery(null)
     setRelated([])
+    setAiMode('idle')
+    setReplyText('')
     // Show reading pane immediately (mobile swaps away from the tall list).
     setSelected((prev) =>
       prev?.id === id
@@ -394,28 +556,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
       setSelected(m)
       const existing = m.intel || null
       setIntel(existing)
-      if (existing?.draftBody) {
-        setReplySubject(existing.draftSubject)
-        setReplyText(existing.draftBody)
-      } else {
-        setReplyText('')
-        setReplySubject(
-          m.subject?.match(/^(re|رد)\s*:/i)
-            ? m.subject
-            : `Re: ${m.subject || ''}`
-        )
-      }
+      setReplySubject(
+        m.subject?.match(/^(re|رد)\s*:/i)
+          ? m.subject
+          : `Re: ${m.subject || ''}`
+      )
       await loadMessages()
       void loadRelated(id)
       requestAnimationFrame(() => {
         revealReadingPane()
-        replyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       })
-      if (!existing?.draftBody) {
-        void runAnalyze(id).catch((e) =>
-          setError(e instanceof Error ? e.message : 'فشل التحليل')
-        )
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطأ')
       setSelected(null)
@@ -544,7 +694,9 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             )}
           </h2>
           <p className="ab-subtitle">
-            افتح الرسالة ليصلك ملخص الوكيل ومسودة رد جاهزة للقبول أو التعديل.
+            اختر: لخّص أو اكتب رداً — المسودة تظهر في صندوق الرد للمراجعة قبل
+            الإرسال، مع خيار «أرسل فوراً». ابحث في كل الوارد والمرسل والمرفقات
+            والملفات.
           </p>
         </div>
         <div className="ab-page-head-actions">
@@ -782,17 +934,107 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             }`}
       </div>
 
+      {/* Corpus search: all mail + attachments + files */}
+      {configured && (
+        <div className="space-y-2 rounded-xl border border-ab-border bg-white p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-ab-ink">
+            <FileSearch className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+            بحث ذكي — كل البريد (وارد + مرسل) والمرفقات والملفات
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="min-w-[12rem] flex-1 rounded-lg border border-ab-border px-3 py-2 text-sm"
+              value={corpusQ}
+              onChange={(e) => setCorpusQ(e.target.value)}
+              placeholder="كلمة، اسم، موضوع، محتوى مرفق…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runCorpusSearch()
+              }}
+            />
+            <button
+              type="button"
+              disabled={busy === 'search' || !corpusQ.trim()}
+              onClick={() => void runCorpusSearch()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ab-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden />
+              {busy === 'search' ? 'جاري البحث…' : 'ابحث'}
+            </button>
+          </div>
+          {corpusNote && (
+            <p className="text-[11px] text-stone-500">{corpusNote}</p>
+          )}
+          {corpusHits.length > 0 && (
+            <ul className="max-h-48 space-y-1 overflow-y-auto">
+              {corpusHits.map((h) => (
+                <li key={`${h.kind}-${h.id}`}>
+                  <button
+                    type="button"
+                    className="w-full rounded-md border border-transparent px-2 py-1.5 text-right hover:border-ab-border hover:bg-stone-50"
+                    onClick={() => {
+                      if (h.messageId) void openMessage(h.messageId)
+                      else if (h.href) window.location.assign(h.href)
+                    }}
+                  >
+                    <span className="text-[10px] font-semibold text-ab-accent">
+                      {h.kind === 'mail'
+                        ? h.folder === 'Sent'
+                          ? 'مرسل'
+                          : 'وارد'
+                        : h.kind === 'mail_attachment'
+                          ? 'مرفق بريد'
+                          : h.kind === 'workspace_file'
+                            ? 'ملف غرفة'
+                            : 'معرفة'}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-medium text-ab-ink">
+                      {h.titleAr}
+                    </span>
+                    <span className="mt-0.5 block line-clamp-2 text-[11px] text-stone-500">
+                      {h.snippet}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/*
         Split view from `md` (not `lg`): with the sidebar, content is often <1024px
         and a stacked list + pane put the reply ~2400px below. Mobile swaps to
         reading-only when a message is open.
       */}
       <div className="grid gap-3 md:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] md:items-start md:gap-4">
+        <div
+          className={`space-y-2 ${showListOnMobile ? '' : 'hidden md:block'}`}
+        >
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                ['INBOX', 'الوارد'],
+                ['Sent', 'المرسل'],
+                ['all', 'الكل'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setListFolder(id)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                  listFolder === id
+                    ? 'bg-ab-ink text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         <ul
-          className={`max-h-[min(70dvh,36rem)] space-y-1 overflow-y-auto overscroll-contain md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] ${
-            showListOnMobile ? '' : 'hidden md:block'
-          }`}
-          aria-label="صندوق الوارد"
+          className="max-h-[min(70dvh,36rem)] space-y-1 overflow-y-auto overscroll-contain md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)]"
+          aria-label="صندوق البريد"
         >
           {messages.map((m) => (
             <li key={m.id}>
@@ -815,6 +1057,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   <div className="min-w-0 flex-1 truncate text-sm text-ab-ink">
                     {m.subject || '(بدون موضوع)'}
                   </div>
+                  {m.folder && m.folder !== 'INBOX' && (
+                    <span className="shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold text-stone-600">
+                      مرسل
+                    </span>
+                  )}
                 </div>
                 <div className="mt-0.5 truncate text-[11px] text-stone-500" dir="ltr">
                   {m.from}
@@ -834,6 +1081,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
             </li>
           )}
         </ul>
+        </div>
 
         <div
           ref={readingRef}
@@ -844,8 +1092,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         >
           {!selected ? (
             <p className="text-sm text-ab-muted">
-              اختر رسالة من القائمة — يظهر هنا ملخص الوكيل ونافذة الرد فوراً بجانب
-              الوارد (بدون التمرير لأسفل القائمة).
+              اختر رسالة — ثم اختر «لخّص» أو «اكتب رد». المسودة تظهر في صندوق
+              الرد للمراجعة قبل الإرسال.
             </p>
           ) : (
             <>
@@ -882,14 +1130,44 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 </button>
               </div>
 
+              {/* Explicit AI choices */}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={busy === 'analyze' || busy === 'read'}
+                  onClick={() => void summarizeSelected()}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-bold transition ${
+                    aiMode === 'summary'
+                      ? 'border-ab-accent bg-ab-accent/10 text-ab-ink'
+                      : 'border-ab-border bg-stone-50 text-ab-ink hover:border-ab-accent/40'
+                  } disabled:opacity-50`}
+                >
+                  <Sparkles className="h-4 w-4 text-ab-accent" aria-hidden />
+                  لخّص الرسالة
+                </button>
+                <button
+                  type="button"
+                  disabled={busy === 'analyze' || busy === 'read'}
+                  onClick={() => void draftReplySelected()}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-3 text-sm font-bold transition ${
+                    aiMode === 'draft'
+                      ? 'border-ab-accent bg-ab-accent/10 text-ab-ink'
+                      : 'border-ab-border bg-stone-50 text-ab-ink hover:border-ab-accent/40'
+                  } disabled:opacity-50`}
+                >
+                  <Send className="h-4 w-4 text-ab-accent" aria-hidden />
+                  اكتب رد بالذكاء
+                </button>
+              </div>
+
               {(busy === 'analyze' || busy === 'read') && (
                 <p className="flex items-center gap-2 text-xs text-ab-accent">
                   <Sparkles className="h-3.5 w-3.5 animate-pulse" aria-hidden />
-                  الوكيل يقرأ الرسالة ويجهّز المسودة…
+                  الوكيل يعمل على الرسالة…
                 </p>
               )}
 
-              {intel && (
+              {intel?.summaryAr ? (
                 <div className="space-y-2 rounded-lg border border-ab-accent/20 bg-ab-accent/5 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-ab-ink">
@@ -900,11 +1178,13 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       className="text-[10px] text-stone-500 underline"
                       disabled={busy === 'analyze'}
                       onClick={() =>
-                        void runAnalyze(selected.id, true).catch((e) =>
-                          setError(
-                            e instanceof Error ? e.message : 'فشل إعادة التحليل'
+                        void runAnalyze(selected.id, true)
+                          .then(() => setAiMode('summary'))
+                          .catch((e) =>
+                            setError(
+                              e instanceof Error ? e.message : 'فشل إعادة التحليل'
+                            )
                           )
-                        )
                       }
                     >
                       أعد التحليل
@@ -919,7 +1199,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     </p>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {/* Reply window — directly under agent summary so it is never buried */}
               <div
@@ -932,8 +1212,8 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   نافذة الرد
                 </p>
                 <p className="text-[11px] leading-relaxed text-stone-600">
-                  المسودة تُملأ تلقائياً. اضغط «قبول المسودة» أو عدّل النص ثم
-                  «أرسل الرد».
+                  اضغط «اكتب رد بالذكاء» لملء المسودة هنا، راجعها وعدّلها، ثم
+                  أرسل — أو «أرسل فوراً» دون تعديل إضافي.
                 </p>
 
                 {delivery && (
@@ -968,7 +1248,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-900 disabled:opacity-40"
                   >
                     <Check className="h-3 w-3" aria-hidden />
-                    قبول المسودة
+                    ضع المسودة في الصندوق
                   </button>
                   <button
                     type="button"
@@ -1036,7 +1316,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     className="mt-1 w-full rounded-lg border border-ab-border px-2 py-1.5 text-sm"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="مسودة الوكيل أو قالب جاهز أو اكتب ردك…"
+                    placeholder="اضغط «اكتب رد بالذكاء» أو قالب جاهز أو اكتب ردك…"
                   />
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -1047,7 +1327,17 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-ab-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     <Send className="h-3.5 w-3.5" aria-hidden />
-                    {busy === 'send' ? 'جاري الإرسال…' : 'أرسل الرد عبر SMTP'}
+                    {busy === 'send' ? 'جاري الإرسال…' : 'أرسل بعد المراجعة'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy === 'send' || busy === 'analyze'}
+                    onClick={() => void sendNow()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ab-accent bg-ab-accent/10 px-3 py-2 text-xs font-semibold text-ab-ink disabled:opacity-50"
+                    title="يجهّز المسودة إن لزم ويرسل فوراً دون انتظار تعديل إضافي"
+                  >
+                    <Zap className="h-3.5 w-3.5 text-ab-accent" aria-hidden />
+                    أرسل فوراً
                   </button>
                 </div>
                 <p className="rounded-md bg-white/80 px-2 py-1.5 text-[10px] leading-relaxed text-stone-500">
