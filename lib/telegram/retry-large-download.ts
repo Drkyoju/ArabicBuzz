@@ -73,6 +73,44 @@ export async function tryFillWaitingJobFromTelegramCascade(opts: {
   messageId?: string
 }): Promise<{ vaultFileId: string; fileName: string } | null> {
   const list = await listPersistedTelegramAttachments(opts.chatId, 24)
+
+  // If the open job still lacks telegram_file_id, bind the latest matching mirror row.
+  if (!opts.telegramFileId) {
+    try {
+      const { bindOpenJobsToIncomingTelegramFile, filenamesStrictMatch } =
+        await import('@/lib/telegram/file-jobs')
+      const { matchMuallimSeerahFile } = await import(
+        '@/lib/files/muallim-seerah-match'
+      )
+      for (const a of list) {
+        if (/أحياء|احياء|biology/i.test(a.fileName)) continue
+        const nameOk =
+          !opts.expectedFilename ||
+          filenamesStrictMatch(a.fileName, opts.expectedFilename) ||
+          (matchMuallimSeerahFile(a.fileName) &&
+            matchMuallimSeerahFile(opts.expectedFilename || 'المعلم الاول'))
+        if (!nameOk || !a.telegramFileId) continue
+        await bindOpenJobsToIncomingTelegramFile({
+          chatId: opts.chatId,
+          scopeId: opts.scopeId,
+          fileName: a.fileName,
+          telegramFileId: a.telegramFileId,
+          attachmentId: a.id,
+          vaultFileId: a.vaultFileId,
+          sizeBytes: a.sizeBytes,
+        })
+        opts = {
+          ...opts,
+          telegramFileId: a.telegramFileId,
+          expectedFilename: opts.expectedFilename || a.fileName,
+        }
+        break
+      }
+    } catch (e) {
+      console.warn('[telegram] bind file_id onto waiting job', e)
+    }
+  }
+
   const candidates = list.filter((a) => {
     if (a.hasBytes && a.vaultFileId) {
       if (

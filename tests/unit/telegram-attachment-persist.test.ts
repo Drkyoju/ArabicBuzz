@@ -191,6 +191,31 @@ describe('telegram attachment persist + jobs', () => {
     expect(bound[0]?.vaultFileId).toBe('vault-muallim')
   })
 
+  it('re-sent seerah PDF binds onto open duplicate-page job (keeps work params)', async () => {
+    const original = await enqueueTelegramFileJob({
+      chatId: 'chat-resend',
+      scopeId: 'shared-demo',
+      requestText: 'كرر صفحة 48 بعد 45 في المعلم الأول من معالم من السيرة النبوية',
+      expectedFilename: 'المعلم الأول.pdf',
+      workParams: { copyPage: 48, afterPage: 45 },
+      status: 'waiting_file',
+    })
+    const again = await enqueueTelegramFileJob({
+      chatId: 'chat-resend',
+      scopeId: 'shared-demo',
+      requestText: 'أكمل العمل على الملف المرفق',
+      expectedFilename: 'المعلم_الأول_من_معالم_من_السيرة_النبوية.pdf',
+      telegramFileId: 'tg-file-fresh',
+      attachmentId: 'att-1',
+      status: 'waiting_file',
+    })
+    expect(again.id).toBe(original.id)
+    expect(again.telegramFileId).toBe('tg-file-fresh')
+    expect(again.workParams.copyPage).toBe(48)
+    expect(again.workParams.afterPage).toBe(45)
+    expect(again.requestText).toMatch(/48/)
+  })
+
   it('one-shot never-stored copy', () => {
     expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
       /معلّقة صامتة|غير متوفر/

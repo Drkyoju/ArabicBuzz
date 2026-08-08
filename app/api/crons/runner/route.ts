@@ -245,29 +245,31 @@ export async function POST(req: NextRequest) {
 
   let telegramGroupArchive: unknown = null
   try {
-    const secret = process.env.CRON_SECRET || ''
-    if (secret && secret !== 'change-me') {
-      const base = appBaseUrl()
-      const archRes = await fetch(`${base}/api/telegram/archive-group`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chatId: '-1003855925966',
-          scopeId: 'shared-demo',
-          runPendingPdf: true,
-        }),
-        signal: AbortSignal.timeout(55_000),
-      })
-      telegramGroupArchive = await archRes.json().catch(() => ({
-        ok: false,
-        status: archRes.status,
-      }))
-    } else {
-      telegramGroupArchive = { skipped: true, reason: 'no_cron_secret' }
-    }
+    // In-process (avoids HTTP 404 when /api/telegram/archive-group is mid-deploy).
+    const { archiveTelegramGroupToDrive, resolveAndRunPendingPdfJob } =
+      await import('@/lib/telegram/group-archive')
+    const archive = await archiveTelegramGroupToDrive({
+      chatId: '-1003855925966',
+      scopeId: 'shared-demo',
+      syncRoom: true,
+      syncMac: true,
+    })
+    const pendingPdf = await resolveAndRunPendingPdfJob({
+      jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
+      chatId: '-1003855925966',
+      scopeId: 'shared-demo',
+      copyPage: 48,
+      afterPage: 45,
+      queryNames: [
+        'المعلم الاول',
+        'المعلم الأول',
+        'المعلم الأول من معالم من السيرة النبوية',
+        'المعلم الاول من معالم من السيرة النبوية',
+        'المعلم الأول.pdf',
+        'المعلم الاول.pdf',
+      ],
+    })
+    telegramGroupArchive = { ok: true, archive, pendingPdf }
   } catch (e) {
     telegramGroupArchive = {
       ok: false,

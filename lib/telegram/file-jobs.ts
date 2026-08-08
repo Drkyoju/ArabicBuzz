@@ -120,6 +120,76 @@ async function upsertJob(job: TelegramFileJob): Promise<TelegramFileJob> {
   return job
 }
 
+function isGenericFileRequest(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  return /^(أكمل|اكمل)\s*العمل\s*على\s*الملف/.test(t) || t.length < 12
+}
+
+function preferRicherRequest(existing: string, incoming: string): string {
+  const a = existing.trim()
+  const b = incoming.trim()
+  if (!b) return a
+  if (!a || isGenericFileRequest(a)) return b
+  if (isGenericFileRequest(b)) return a
+  if (inferPdfDuplicateWorkParams(a) && !inferPdfDuplicateWorkParams(b)) return a
+  if (inferPdfDuplicateWorkParams(b) && !inferPdfDuplicateWorkParams(a)) return b
+  return b.length >= a.length ? b : a
+}
+
+/**
+ * Prefer binding a resent Telegram document onto an open job that already
+ * carries the real work (e.g. نسخ ص48 بعد ص45) instead of spawning a generic
+ * «أكمل العمل على الملف» job that forgets the chat intent.
+ */
+export function pickOpenJobForIncomingFile(
+  open: TelegramFileJob[],
+  opts: { expectedFilename?: string; requestText?: string }
+): TelegramFileJob | null {
+  const name = (opts.expectedFilename || '').trim()
+  const req = (opts.requestText || '').trim()
+  const seerahIncoming = Boolean(name && matchMuallimSeerahFile(name))
+
+  for (const job of open) {
+    if (job.status !== 'waiting_file' && job.status !== 'failed' && job.status !== 'pending') {
+      continue
+    }
+    if (name && job.expectedFilename && filenamesStrictMatch(job.expectedFilename, name)) {
+      return job
+    }
+  }
+
+  if (seerahIncoming) {
+    for (const job of open) {
+      if (job.status !== 'waiting_file' && job.status !== 'failed' && job.status !== 'pending') {
+        continue
+      }
+      const jobSeerah =
+        matchMuallimSeerahFile(job.expectedFilename) ||
+        isMuallimSeerahShortQuery(job.expectedFilename) ||
+        /معلم|سيرة|معالم/i.test(job.requestText)
+      const hasDup =
+        Boolean(inferPdfDuplicateWorkParams(job.requestText)) ||
+        (typeof job.workParams.copyPage === 'number' &&
+          typeof job.workParams.afterPage === 'number')
+      if (jobSeerah || hasDup) return job
+    }
+  }
+
+  if (req && !isGenericFileRequest(req)) {
+    for (const job of open) {
+      if (
+        job.expectedFilename &&
+        name &&
+        filenamesStrictMatch(job.expectedFilename, name)
+      ) {
+        return job
+      }
+    }
+  }
+  return null
+}
+
 export async function enqueueTelegramFileJob(opts: {
   chatId: string
   scopeId: string
@@ -133,6 +203,42 @@ export async function enqueueTelegramFileJob(opts: {
   workParams?: Record<string, unknown>
   status?: TelegramFileJobStatus
 }): Promise<TelegramFileJob> {
+  const open = await listOpenTelegramFileJobs({
+    chatId: opts.chatId,
+    scopeId: opts.scopeId,
+    limit: 40,
+  })
+  const existing = pickOpenJobForIncomingFile(open, {
+    expectedFilename: opts.expectedFilename,
+    requestText: opts.requestText,
+  })
+  if (existing) {
+    const incomingDup = inferPdfDuplicateWorkParams(opts.requestText)
+    const mergedParams: Record<string, unknown> = {
+      ...existing.workParams,
+      ...(opts.workParams || {}),
+    }
+    if (incomingDup) {
+      mergedParams.copyPage = incomingDup.copyPage
+      mergedParams.afterPage = incomingDup.afterPage
+    }
+    const hasBytes = Boolean(opts.vaultFileId || existing.vaultFileId)
+    const next = await updateTelegramFileJob(existing.id, {
+      status:
+        opts.status ||
+        (hasBytes ? 'pending' : existing.status === 'failed' ? 'waiting_file' : existing.status),
+      expectedFilename:
+        (opts.expectedFilename || '').trim() || existing.expectedFilename,
+      attachmentId: opts.attachmentId || existing.attachmentId,
+      vaultFileId: opts.vaultFileId || existing.vaultFileId,
+      telegramFileId: opts.telegramFileId || existing.telegramFileId,
+      requestText: preferRicherRequest(existing.requestText, opts.requestText),
+      workParams: mergedParams,
+      lastErrorAr: undefined,
+    })
+    if (next) return next
+  }
+
   const now = new Date().toISOString()
   const hasBytes = Boolean(opts.vaultFileId)
   const job: TelegramFileJob = {
@@ -155,6 +261,41 @@ export async function enqueueTelegramFileJob(opts: {
     updatedAt: now,
   }
   return upsertJob(job)
+}
+
+/**
+ * Attach a live telegram file_id / attachment row onto open jobs that match
+ * the filename (seerah aliases). Used when the user re-sends without caption.
+ */
+export async function bindOpenJobsToIncomingTelegramFile(opts: {
+  chatId: string
+  scopeId: string
+  fileName: string
+  telegramFileId?: string
+  attachmentId?: string
+  vaultFileId?: string
+  sizeBytes?: number
+}): Promise<TelegramFileJob[]> {
+  const open = await listOpenTelegramFileJobs({
+    chatId: opts.chatId,
+    scopeId: opts.scopeId,
+    limit: 40,
+  })
+  const target =
+    pickOpenJobForIncomingFile(open, {
+      expectedFilename: opts.fileName,
+      requestText: '',
+    }) || null
+  if (!target) return []
+  const next = await updateTelegramFileJob(target.id, {
+    telegramFileId: opts.telegramFileId || target.telegramFileId,
+    attachmentId: opts.attachmentId || target.attachmentId,
+    expectedFilename: opts.fileName || target.expectedFilename,
+    vaultFileId: opts.vaultFileId || target.vaultFileId,
+    status: opts.vaultFileId ? 'pending' : target.status,
+    lastErrorAr: undefined,
+  })
+  return next ? [next] : []
 }
 
 export async function updateTelegramFileJob(

@@ -310,6 +310,7 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
 - أيقظ وكيل١ ثم وكيل٢…عند الانشغال. طلب ثقيل / «أبغا للجميع» / وضع فريق الغرفة → تشغيل متوازٍ للمقاعد المتفرّغة (حتى ٨). «يا وكيل١» / @وكيل٢ يوجّهان مقعداً بعينه.
+- ذاكرة الشات: عندك سجل محادثة المجموعة الكامل (مرآة الغرفة) + المهام المعلّقة — نفّذ على أساسه ولا تتجاهل طلباً سابقاً في نفس القروب.
 - نفّذ بكل الأدوات: ملفات تيليجرام/خزنة الغرفة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل. Drive اختياري.
 - بحث عام في «الموقع/الغرفة»: room_search أولاً ثم فصّل. إحاطة/ملخص اليوم: owner_morning_brief.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
@@ -1465,24 +1466,39 @@ async function runTelegramAgentTurn(opts: {
   const effortHint = effortToRunParams(powered.adapt.effort).systemHintAr
 
   const tPrep = Date.now()
-  const [normalized, requesterResolved, systemBase] = await Promise.all([
-    normalizeArabicPrompt(powered.prompt, {
-      skip: !needDialect,
-      modelSlug: needDialect
-        ? process.env.TELEGRAM_DIALECT_MODEL?.trim() || 'gemini-2.5-flash'
-        : undefined,
-    }),
-    resolveTelegramRequesterUserId(opts.userId),
-    buildScopedSystemPrompt(
-      `${TELEGRAM_AGENT_SYSTEM}\n\n${effortHint}`,
-      opts.scope
-    ),
-  ])
+  const [normalized, requesterResolved, systemBase, chatMemoryAr] =
+    await Promise.all([
+      normalizeArabicPrompt(powered.prompt, {
+        skip: !needDialect,
+        modelSlug: needDialect
+          ? process.env.TELEGRAM_DIALECT_MODEL?.trim() || 'gemini-2.5-flash'
+          : undefined,
+      }),
+      resolveTelegramRequesterUserId(opts.userId),
+      buildScopedSystemPrompt(
+        `${TELEGRAM_AGENT_SYSTEM}\n\n${effortHint}`,
+        opts.scope
+      ),
+      import('@/lib/telegram/chat-memory')
+        .then((m) =>
+          m.buildTelegramGroupChatMemoryAr({
+            scopeId,
+            chatId: opts.chatId,
+            feedLimit: 48,
+          })
+        )
+        .catch(() => ''),
+    ])
   const requesterId = requesterResolved.userId
   const driveHint = await telegramGoogleLinkedHintAr(requesterId)
-  const system = driveHint
-    ? `${systemBase}\n\n${driveHint}`
-    : systemBase
+  const system = [
+    systemBase,
+    driveHint,
+    chatMemoryAr,
+    'تذكّر: اعتمد ذاكرة المحادثة الكاملة أعلاه واستعن بمقاعد وكيل١…٨ (pool) — لا تنسَ الطلبات السابقة في نفس الشات.',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   const tools = await bindTelegramTools({
     requesterId,
     scopeId,
@@ -2878,6 +2894,18 @@ export function getTelegramBot() {
               dlErr instanceof Error ? dlErr.message : String(dlErr),
           })
           const dup = inferPdfDuplicateWorkParams(caption)
+          // Bind onto existing open job (e.g. نسخ ص48 بعد ص45) — never forget chat intent.
+          const { bindOpenJobsToIncomingTelegramFile } = await import(
+            '@/lib/telegram/file-jobs'
+          )
+          await bindOpenJobsToIncomingTelegramFile({
+            chatId,
+            scopeId: scope.scope.id,
+            fileName: declaredName,
+            telegramFileId,
+            attachmentId: persisted.id,
+            sizeBytes: declaredSize,
+          })
           const job = await enqueueTelegramFileJob({
             chatId,
             scopeId: scope.scope.id,
@@ -2890,27 +2918,28 @@ export function getTelegramBot() {
             workParams: dup || {},
             status: 'waiting_file',
           })
-          const msg = isTelegramDownloadLimitError(dlErr)
-            ? telegramLargeFileWorkingPathAr({
+          // One operational ack only — never «أعد الإرسال».
+          if (isTelegramDownloadLimitError(dlErr)) {
+            await ctx.reply(
+              telegramLargeFileWorkingPathAr({
                 fileName: declaredName,
                 sizeBytes: declaredSize,
               })
-            : formatTelegramErrorAr(dlErr, { inGroup, botUsername })
-          await ctx.reply(msg)
-          // Try room/Drive recovery immediately for this filename.
+            )
+          }
+          // Wake agent pool with full chat memory + job resume prompt when bytes ready.
           const resumes = await prepareTelegramFileJobResumes({
             chatId,
             scopeId: scope.scope.id,
-            limit: 4,
+            limit: 6,
           })
-          for (const note of resumes.notifiedWaiting) {
-            /* already notified via large-file message above */
-            void note
-          }
           for (const r of resumes.ready) {
-            if (r.job.id !== job.id && r.job.expectedFilename !== declaredName) {
-              continue
-            }
+            const sameJob = r.job.id === job.id
+            const sameName =
+              r.job.expectedFilename &&
+              declaredName &&
+              r.job.expectedFilename === declaredName
+            if (!sameJob && !sameName) continue
             await updateTelegramFileJob(r.job.id, { status: 'running' })
             try {
               await runTelegramAgentTurn({

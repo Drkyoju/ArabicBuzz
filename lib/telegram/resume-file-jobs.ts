@@ -32,6 +32,55 @@ export async function prepareTelegramFileJobResumes(opts: {
     await hydrateRecentMediaFromPersist(opts.chatId)
   }
 
+  // Reconcile: attach latest TG mirror file_ids onto open jobs that hold the real ask.
+  try {
+    const { bindOpenJobsToIncomingTelegramFile } = await import(
+      '@/lib/telegram/file-jobs'
+    )
+    const { listPersistedTelegramAttachments } = await import(
+      '@/lib/telegram/attachment-persist'
+    )
+    const { matchMuallimSeerahFile } = await import(
+      '@/lib/files/muallim-seerah-match'
+    )
+    const chats = opts.chatId
+      ? [opts.chatId]
+      : Array.from(
+          new Set(
+            (
+              await listOpenTelegramFileJobs({
+                scopeId: opts.scopeId,
+                limit: 40,
+              })
+            ).map((j) => j.chatId)
+          )
+        )
+    for (const chatId of chats) {
+      const atts = await listPersistedTelegramAttachments(chatId, 16)
+      for (const a of atts) {
+        if (/أحياء|احياء|biology/i.test(a.fileName)) continue
+        if (!a.telegramFileId && !a.vaultFileId) continue
+        if (
+          !matchMuallimSeerahFile(a.fileName) &&
+          !opts.chatId // only force-bind seerah globally; chat-scoped binds all names via open jobs
+        ) {
+          continue
+        }
+        await bindOpenJobsToIncomingTelegramFile({
+          chatId,
+          scopeId: opts.scopeId || a.scopeId,
+          fileName: a.fileName,
+          telegramFileId: a.telegramFileId,
+          attachmentId: a.id,
+          vaultFileId: a.vaultFileId,
+          sizeBytes: a.sizeBytes,
+        })
+      }
+    }
+  } catch (e) {
+    console.warn('[telegram] reconcile open jobs', e)
+  }
+
   const open = await listOpenTelegramFileJobs({
     chatId: opts.chatId,
     scopeId: opts.scopeId,
