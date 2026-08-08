@@ -509,12 +509,12 @@ function SidebarBody({
         </ul>
 
         {personalDesk && deskScopeId && (
-          <>
-            <p className="mb-1.5 flex items-center gap-1.5 px-2 text-[11px] font-semibold text-ab-muted-soft">
+          <div className="mb-2 rounded-xl border border-amber-200/90 bg-amber-50/60 p-1.5 shadow-sm">
+            <p className="mb-1 flex items-center gap-1.5 px-1.5 text-[11px] font-semibold text-amber-900/75">
               <User className="h-3 w-3" aria-hidden />
-              مساحة خاصة
+              مساحة خاصة · لك وحدك
             </p>
-            <ul className="mb-2 space-y-0.5">
+            <ul className="space-y-0.5">
               <li className="group relative">
                 <button
                   type="button"
@@ -524,14 +524,14 @@ function SidebarBody({
                     onNavigate?.()
                   }}
                   className={cn(
-                    'w-full rounded-lg px-2.5 py-1.5 text-right text-[13px] transition-colors',
+                    'w-full rounded-lg px-2.5 py-2 text-right text-[13px] transition-colors',
                     activeSection === 'chats' &&
                       activeScopeId === deskScopeId
-                      ? 'bg-ab-ink text-white shadow-ab-sm'
-                      : 'text-ab-ink hover:bg-ab-stage'
+                      ? 'bg-amber-900 text-amber-50 shadow-ab-sm'
+                      : 'bg-white/70 text-ab-ink hover:bg-white'
                   )}
                 >
-                  <span className="block font-medium">
+                  <span className="block font-semibold">
                     {personalDesk.nameAr || PERSONAL_DESK_COPY.nameAr}
                   </span>
                   <span
@@ -539,8 +539,8 @@ function SidebarBody({
                       'mt-0.5 block text-[10px] leading-snug',
                       activeSection === 'chats' &&
                         activeScopeId === deskScopeId
-                        ? 'text-white/70'
-                        : 'text-ab-muted-soft'
+                        ? 'text-amber-50/75'
+                        : 'text-amber-900/65'
                     )}
                   >
                     {PERSONAL_DESK_COPY.sidebarHintAr}
@@ -548,7 +548,7 @@ function SidebarBody({
                 </button>
                 <button
                   type="button"
-                  className="absolute start-1 top-1 rounded p-0.5 text-ab-muted-soft opacity-40 hover:bg-stone-200 hover:text-ab-ink hover:opacity-100 group-hover:opacity-100 md:opacity-0"
+                  className="absolute start-1 top-1 rounded p-0.5 text-amber-800/50 opacity-40 hover:bg-amber-100 hover:text-amber-950 hover:opacity-100 group-hover:opacity-100 md:opacity-0"
                   aria-label="خيارات المساحة الخاصة"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -563,7 +563,7 @@ function SidebarBody({
                 {menuId === deskScopeId && (
                   <div
                     ref={menuRef}
-                    className="absolute start-0 top-7 z-20 w-36 rounded-md border border-ab-border bg-white p-1 shadow-md"
+                    className="absolute start-0 top-7 z-20 w-36 rounded-md border border-amber-200 bg-white p-1 shadow-md"
                   >
                     <button
                       type="button"
@@ -583,7 +583,7 @@ function SidebarBody({
                 )}
               </li>
             </ul>
-          </>
+          </div>
         )}
 
         {otherRooms.length > 0 && (

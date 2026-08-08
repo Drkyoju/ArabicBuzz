@@ -87,7 +87,10 @@ export function FilesPanel() {
     setError('')
     try {
       const url = `/api/storage/upload?scopeId=${encodeURIComponent(scopeId)}&sync=1`
-      let res = await fetch(url, { headers: await authHeaders() })
+      // Wait for session restore so cold load does not flash an empty vault.
+      let res = await fetch(url, {
+        headers: await authHeaders(undefined, { waitMs: 4500 }),
+      })
       let data = (await res.json()) as {
         files?: ListedFile[]
         source?: string
@@ -96,12 +99,13 @@ export function FilesPanel() {
         noteAr?: string
         fromChat?: number
       }
-      // Session can still be hydrating right after a fresh page load
-      // (Supabase client restores the token asynchronously) — retry once
-      // rather than showing a falsely-empty archive.
-      if (res.status === 401 && data.code === 'AUTH_REQUIRED') {
-        await new Promise((r) => setTimeout(r, 900))
-        res = await fetch(url, { headers: await authHeaders() })
+      // Extra retries if the first token was still stale mid-hydrate.
+      for (let i = 0; i < 2; i++) {
+        if (!(res.status === 401 && data.code === 'AUTH_REQUIRED')) break
+        await new Promise((r) => setTimeout(r, 700 + i * 400))
+        res = await fetch(url, {
+          headers: await authHeaders(undefined, { waitMs: 2000 }),
+        })
         data = (await res.json()) as typeof data
       }
       setFiles(data.files || [])

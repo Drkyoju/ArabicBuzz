@@ -260,20 +260,32 @@ export async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null
 }
 
-/** Optional Bearer header — empty when auth is off / no session. */
+/**
+ * Optional Bearer header — empty when auth is off / no session.
+ * Pass `waitMs` on cold load so Supabase can finish restoring the token
+ * before callers treat a missing header as a hard guest/empty state.
+ */
 export async function authHeaders(
-  extra?: Record<string, string>
+  extra?: Record<string, string>,
+  opts?: { waitMs?: number }
 ): Promise<Record<string, string>> {
+  const waitMs = Math.max(0, opts?.waitMs ?? 0)
+  const deadline = Date.now() + waitMs
+  let token: string | null = null
   try {
-    const token = await Promise.race([
-      getAccessToken(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
-    ])
-    return {
-      ...(extra || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    }
+    do {
+      token = await Promise.race([
+        getAccessToken(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      ])
+      if (token || Date.now() >= deadline) break
+      await new Promise((r) => setTimeout(r, 280))
+    } while (!token)
   } catch {
-    return { ...(extra || {}) }
+    token = null
+  }
+  return {
+    ...(extra || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
 }

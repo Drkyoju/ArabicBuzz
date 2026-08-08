@@ -190,7 +190,18 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const dragChrome = useRef(false)
   const dragMembers = useRef(false)
   const [seatsMaxPx, setSeatsMaxPx] = useState(SEATS_DEFAULT)
-  const [seatsCollapsed, setSeatsCollapsed] = useState(false)
+  /** Chat-first: seats start collapsed; preference survives reloads. */
+  const [seatsCollapsed, setSeatsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      const v = localStorage.getItem('ab-room-seats-collapsed')
+      if (v === '0') return false
+      if (v === '1') return true
+    } catch {
+      /* ignore */
+    }
+    return true
+  })
   const [membersPanePx, setMembersPanePx] = useState(defaultMembersPanePx)
 
   const activeScopeId = useWorkspaceStore((s) => s.activeScopeId)
@@ -258,6 +269,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setComposerFiles((prev) => prev.filter((f) => f.fileId !== fileId))
   }
 
+  function persistSeatsCollapsed(next: boolean) {
+    setSeatsCollapsed(next)
+    try {
+      localStorage.setItem('ab-room-seats-collapsed', next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
+
   /** Clear header control — not buried only under «المزيد». */
   function toggleTelegramPane() {
     setShowTelegram((v) => {
@@ -269,7 +289,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
           typeof window !== 'undefined' &&
           window.matchMedia('(max-width: 767px)').matches
         ) {
-          setSeatsCollapsed(true)
+          persistSeatsCollapsed(true)
         }
       }
       return next
@@ -340,7 +360,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       typeof window !== 'undefined' &&
       window.matchMedia('(max-width: 767px)').matches
     ) {
-      setSeatsCollapsed(true)
+      persistSeatsCollapsed(true)
     }
   }, [activeScopeId])
 
@@ -348,7 +368,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     if (typeof window === 'undefined') return
     const mq = window.matchMedia('(max-width: 767px)')
     const onChange = () => {
-      if (mq.matches) setSeatsCollapsed(true)
+      if (mq.matches) persistSeatsCollapsed(true)
     }
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
@@ -1511,7 +1531,10 @@ export function RoomWorkspace({ className }: { className?: string }) {
         <section
           ref={chatColumnRef}
           className={cn(
-            'relative flex min-w-0 overflow-hidden rounded-xl border border-ab-border bg-ab-surface shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
+            'relative flex min-w-0 overflow-hidden rounded-xl border shadow-sm max-md:!w-full max-md:!flex-1 max-md:!basis-full',
+            shared
+              ? 'border-ab-border bg-ab-surface'
+              : 'border-amber-200/90 bg-ab-surface ring-1 ring-amber-100/80',
             showTelegram && shared ? 'flex-col md:flex-row' : 'flex-col',
             sidePanelOpen ? 'md:shrink-0' : 'w-full flex-1'
           )}
@@ -1542,7 +1565,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
             </div>
           )}
 
-          <header className="border-b border-ab-border/70 bg-ab-surface px-3 py-2.5 md:py-2">
+          <header
+            className={cn(
+              'border-b px-3 py-2.5 md:py-2',
+              shared
+                ? 'border-ab-border/70 bg-ab-surface'
+                : 'border-amber-200/80 bg-gradient-to-l from-amber-50/90 to-ab-surface'
+            )}
+          >
             <div className="flex flex-nowrap items-center justify-between gap-x-2 gap-y-1.5 md:flex-wrap">
               <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex min-w-0 items-baseline gap-x-2">
@@ -1594,7 +1624,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                             setShowHeaderMore(false)
                             const saved = readMembersPanePx(activeScopeId)
                             setMembersPanePx(saved)
-                            setSeatsCollapsed(false)
+                            persistSeatsCollapsed(false)
                           }
                           return next
                         })
@@ -1706,7 +1736,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                                     )
                                   : saved
                               )
-                              if (mobile) setSeatsCollapsed(true)
+                              if (mobile) persistSeatsCollapsed(true)
                             }
                             return next
                           })
@@ -2020,7 +2050,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <button
                     type="button"
                     className="ab-btn-ghost !px-2 !py-0.5 text-[10px]"
-                    onClick={() => setSeatsCollapsed(false)}
+                    onClick={() => persistSeatsCollapsed(false)}
                   >
                     توسيع
                   </button>
@@ -2035,7 +2065,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   <button
                     type="button"
                     className="ab-btn-ghost !px-2 !py-0.5 text-[10px]"
-                    onClick={() => setSeatsCollapsed(true)}
+                    onClick={() => persistSeatsCollapsed(true)}
                   >
                     طي
                   </button>

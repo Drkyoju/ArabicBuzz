@@ -87,21 +87,21 @@ export function TelegramMirrorChat({
     if (signedIn !== true) return
     setBusy(true)
     try {
-      const attempt = async () => {
-        const headers = await authHeaders()
+      const attempt = async (waitMs: number) => {
+        const headers = await authHeaders(undefined, { waitMs })
         return fetch(
           `/api/rooms/telegram-feed?scopeId=${encodeURIComponent(scopeId)}&limit=40`,
           { headers }
         )
       }
-      let res = await attempt()
+      let res = await attempt(4500)
       if (res.status === 401) {
-        await new Promise((r) => setTimeout(r, 400))
-        res = await attempt()
+        await new Promise((r) => setTimeout(r, 500))
+        res = await attempt(2000)
       }
       if (res.status === 401) {
-        await new Promise((r) => setTimeout(r, 700))
-        res = await attempt()
+        await new Promise((r) => setTimeout(r, 800))
+        res = await attempt(1500)
       }
       const json = (await res.json()) as {
         items?: TelegramFeedItem[]
