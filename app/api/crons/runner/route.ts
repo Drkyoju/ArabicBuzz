@@ -243,16 +243,36 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let telegramFileJobs: unknown = null
+  try {
+    const { runReadyTelegramFileJobs } = await import(
+      '@/lib/telegram/execute-file-jobs'
+    )
+    // Jobs first — bind resent file_ids + execute before any heavy archive.
+    telegramFileJobs = await runReadyTelegramFileJobs({
+      chatId: '-1003855925966',
+      scopeId: 'shared-demo',
+      limit: 20,
+    })
+  } catch (e) {
+    telegramFileJobs = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'telegram file jobs error',
+    }
+  }
+
   let telegramGroupArchive: unknown = null
   try {
-    // In-process (avoids HTTP 404 when /api/telegram/archive-group is mid-deploy).
     const { archiveTelegramGroupToDrive, resolveAndRunPendingPdfJob } =
       await import('@/lib/telegram/group-archive')
     const archive = await archiveTelegramGroupToDrive({
       chatId: '-1003855925966',
       scopeId: 'shared-demo',
       syncRoom: true,
-      syncMac: true,
+      // Avoid hung loca.lt / Mac hop during cron — file jobs already tried cascade.
+      syncMac: false,
+      skipDeepHistory: true,
+      attachmentLimit: 40,
     })
     const pendingPdf = await resolveAndRunPendingPdfJob({
       jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
@@ -384,19 +404,6 @@ export async function POST(req: NextRequest) {
     mailEnergy = {
       ok: false,
       error: e instanceof Error ? e.message : 'mail energy error',
-    }
-  }
-
-  let telegramFileJobs: unknown = null
-  try {
-    const { runReadyTelegramFileJobs } = await import(
-      '@/lib/telegram/execute-file-jobs'
-    )
-    telegramFileJobs = await runReadyTelegramFileJobs({ limit: 20 })
-  } catch (e) {
-    telegramFileJobs = {
-      ok: false,
-      error: e instanceof Error ? e.message : 'telegram file jobs error',
     }
   }
 

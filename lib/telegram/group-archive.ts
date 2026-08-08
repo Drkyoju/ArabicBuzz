@@ -70,6 +70,8 @@ export async function archiveTelegramGroupToDrive(opts?: {
   syncRoom?: boolean
   /** Also pull from Mac bridge */
   syncMac?: boolean
+  /** Skip MTProto deep scan (cron / tight timeouts) */
+  skipDeepHistory?: boolean
 }): Promise<ArchiveGroupResult> {
   const chatId = opts?.chatId?.trim() || DEFAULT_CHAT
   const scopeId =
@@ -84,29 +86,31 @@ export async function archiveTelegramGroupToDrive(opts?: {
   const deepHistoryStatus = getDeepHistoryStatus()
 
   let deepHistory: Awaited<ReturnType<typeof scanTelegramGroupDeepHistory>> | undefined
-  try {
-    deepHistory = await scanTelegramGroupDeepHistory({
-      chatId,
-      scopeId,
-      muallimOnly: true,
-      limit: 250,
-    })
-    if (deepHistory.downloaded) downloaded += deepHistory.downloaded
-    if (deepHistory.ingested) {
-      roomSynced += deepHistory.ingested
-      pushedToDrive += deepHistory.ingested
-    }
-    if (!deepHistory.ok && deepHistory.errorAr) {
+  if (!opts?.skipDeepHistory && deepHistoryStatus.credentialsReady) {
+    try {
+      deepHistory = await scanTelegramGroupDeepHistory({
+        chatId,
+        scopeId,
+        muallimOnly: true,
+        limit: 250,
+      })
+      if (deepHistory.downloaded) downloaded += deepHistory.downloaded
+      if (deepHistory.ingested) {
+        roomSynced += deepHistory.ingested
+        pushedToDrive += deepHistory.ingested
+      }
+      if (!deepHistory.ok && deepHistory.errorAr) {
+        failed.push({
+          name: 'deep-history',
+          error: deepHistory.errorAr.slice(0, 240),
+        })
+      }
+    } catch (e) {
       failed.push({
         name: 'deep-history',
-        error: deepHistory.errorAr.slice(0, 240),
+        error: e instanceof Error ? e.message : String(e),
       })
     }
-  } catch (e) {
-    failed.push({
-      name: 'deep-history',
-      error: e instanceof Error ? e.message : String(e),
-    })
   }
 
   const atts = await listPersistedTelegramAttachments(
@@ -128,6 +132,22 @@ export async function archiveTelegramGroupToDrive(opts?: {
         continue
       }
       if (a.telegramFileId) {
+        const tooBigForCloud =
+          typeof a.sizeBytes === 'number' && a.sizeBytes > 20 * 1024 * 1024
+        if (tooBigForCloud) {
+          const { telegramLargeFilePathStatus } = await import(
+            '@/lib/telegram/large-file-download'
+          )
+          const path = telegramLargeFilePathStatus()
+          if (!path.localBotApiConfigured && !path.mtprotoEnvPresent) {
+            failed.push({
+              name: a.fileName,
+              error:
+                'ملف كبير — يحتاج Bot API محلي أو جلسة MTProto على الماك (مهمة معلّقة صامتة)',
+            })
+            continue
+          }
+        }
         const buf = await tryDownloadTg(
           a.telegramFileId,
           a.fileName,
