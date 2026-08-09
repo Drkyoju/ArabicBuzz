@@ -1,5 +1,7 @@
 # Mac hop durability (laptop awake — not true 24/7)
 
+**OrbStack MUST stay on 1.5.1** on this Mac (`./scripts/pin-orbstack-1.5.1.sh` — never upgrade). The hop watchdog re-pins on each pass.
+
 While the Mac is awake and you are logged in, launchd keeps:
 
 1. Hop watchdog (`com.arabicbuzz.hop-watchdog`) — Local Bot API + `storage:sync` + cloudflared tunnels + CranL env PUT when trycloudflare URLs change

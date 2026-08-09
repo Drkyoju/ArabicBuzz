@@ -81,6 +81,30 @@
       "command": "npx",
       "args": ["-y", "@ericthered926/duckduckgo-mcp-server"]
     },
+    "wikipedia": {
+      "command": "npx",
+      "args": ["-y", "@shelm/wikipedia-mcp-server"]
+    },
+    "math": {
+      "command": "npx",
+      "args": ["-y", "math-mcp"]
+    },
+    "youtube-transcript": {
+      "command": "npx",
+      "args": ["-y", "@sinco-lab/mcp-youtube-transcript"]
+    },
+    "dns": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-dns"]
+    },
+    "arxiv": {
+      "command": "npx",
+      "args": ["-y", "@fre4x/arxiv"]
+    },
+    "public-apis": {
+      "command": "npx",
+      "args": ["-y", "mcp-public-apis"]
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]

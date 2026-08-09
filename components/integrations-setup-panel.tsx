@@ -13,7 +13,7 @@ import {
 type ZoomHint = { configured: boolean }
 
 /**
- * Compact checklist: Telegram / Zoom / Mac / free WhatsApp bridge.
+ * Compact checklist: Telegram / Zoom / Mac (WhatsApp belongs to Hermes — not this site).
  */
 export function IntegrationsSetupPanel() {
   const [zoom, setZoom] = useState<ZoomHint | null>(null)
@@ -38,8 +38,6 @@ export function IntegrationsSetupPanel() {
     null
   )
   const [tg, setTg] = useState<boolean | null>(null)
-  const [waStatusAr, setWaStatusAr] = useState<string | null>(null)
-  const [waBridge, setWaBridge] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -53,10 +51,6 @@ export function IntegrationsSetupPanel() {
         if (z) {
           setZoom({ configured: Boolean(z.zoomConfigured) })
           setTg(Boolean(z.telegramConfigured))
-          setWaStatusAr(
-            typeof z.whatsappStatusAr === 'string' ? z.whatsappStatusAr : null
-          )
-          setWaBridge(Boolean(z.whatsappBridgeConfigured))
           setCloudConvertConfigured(Boolean(z.cloudConvertConfigured))
           setCloudConvertStatusAr(
             typeof z.cloudConvertStatusAr === 'string'
@@ -109,7 +103,7 @@ export function IntegrationsSetupPanel() {
     <div dir="rtl" className="space-y-3 text-xs leading-relaxed text-stone-600">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-ab-ink">
         <Radio className="h-4 w-4 text-ab-accent" aria-hidden />
-        تكاملات اختيارية (Telegram · واتساب · Zoom · الماك · Cua · تحويل الملفات)
+        تكاملات اختيارية (Telegram · Zoom · الماك · Cua · تحويل الملفات)
       </h3>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">
@@ -270,51 +264,28 @@ export function IntegrationsSetupPanel() {
       <div className="rounded-lg border border-ab-border bg-white p-3">
         <p className="mb-1 flex items-center gap-1.5 font-semibold text-ab-ink">
           <MessageCircle className="h-3.5 w-3.5" />
-          واتساب (مجاني فقط){' '}
+          واتساب{' '}
           <span className="font-normal text-ab-muted-soft">
-            {waBridge ? '· جسر مضبوط' : '· يحتاج جسراً محلياً'}
+            · منفصل عن الموقع (هيرميس فقط)
           </span>
         </p>
-        <p className="mb-2 text-[11px] text-amber-900/90">
-          {waStatusAr ||
-            'لا يعمل على CranL وحده — جلسة واتساب ويب تحتاج عملية دائمة (VPS أو جهازك).'}
+        <p className="mb-1 text-[11px] text-ab-muted">
+          <strong className="font-semibold text-ab-ink">هيرميس</strong> = وقف
+          واتساب فقط على الماك. <strong className="font-semibold text-ab-ink">الجمعية</strong>{' '}
+          = تيليجرام (@alhuda14bot) + الموقع + الوكلاء. لا تربط رقم هيرميس ولا
+          جلسة Baileys بـ CranL / ويب هوك الموقع.
         </p>
-        <p className="mb-1 text-[11px]">
-          المسار المجاني الموصى به: Evolution API (مفتوح المصدر / Baileys) على
-          جهازك أو VPS → يرسل الأحداث إلى Arabic Buzz. بدون فوترة Meta Cloud أو
-          Twilio.
+        <p className="text-[11px] text-ab-muted-soft">
+          راجع{' '}
+          <code dir="ltr" className="text-[10px]">
+            docs/hermes-wa-drive.md
+          </code>{' '}
+          و{' '}
+          <code dir="ltr" className="text-[10px]">
+            docs/telegram-bot-ar.md
+          </code>
+          .
         </p>
-        <DevDisclosure summaryAr="خطوات الجسر المجاني (مسؤول تقني)">
-          <ol className="list-decimal space-y-1 pe-4">
-            <li>
-              شغّل Evolution API (Docker) أو عامل Baileys على جهاز دائم التشغيل
-            </li>
-            <li>اربط الرقم بمسح QR مرة واحدة — احفظ الجلسة على قرص/قاعدة</li>
-            <li>
-              وجّه Webhook الجسر إلى{' '}
-              <code dir="ltr" className="break-all text-[10px]">
-                https://arabicbuzz-fooc9h.cranl.net/api/webhooks/whatsapp
-              </code>
-            </li>
-            <li>
-              CranL env:{' '}
-              <code dir="ltr">WHATSAPP_BRIDGE_URL</code> = عنوان REST للجسر ·{' '}
-              <code dir="ltr">WHATSAPP_BRIDGE_SECRET</code> · اختياري{' '}
-              <code dir="ltr">WHATSAPP_BRIDGE_INSTANCE</code> ·{' '}
-              <code dir="ltr">WHATSAPP_OWNER_TO</code> لرقم المالك
-            </li>
-            <li>
-              فحص:{' '}
-              <code dir="ltr" className="break-all text-[10px]">
-                GET …/api/webhooks/whatsapp?bridge=1
-              </code>
-            </li>
-            <li>
-              تيليجرام يبقى القناة المجانية بلا بنية تحتية — واتساب اختياري عبر
-              الجسر فقط
-            </li>
-          </ol>
-        </DevDisclosure>
       </div>
 
       <div className="rounded-lg border border-ab-border bg-white p-3">

@@ -127,9 +127,17 @@ else
 fi
 
 echo -n "hermes-storage-mesh: "
-command -v hermes-storage-mesh >/dev/null && echo "نعم" || echo "لا (wrappers في ~/.hermes/bin)"
+if [[ -x "$HERMES_HOME/bin/hermes-storage-mesh" ]] || command -v hermes-storage-mesh >/dev/null 2>&1; then
+  echo "نعم"
+else
+  echo "لا (wrappers في ~/.hermes/bin)"
+fi
 echo -n "hermes-pdf-dup: "
-command -v hermes-pdf-dup >/dev/null && echo "نعم" || echo "لا"
+if [[ -x "$HERMES_HOME/bin/hermes-pdf-dup" ]] || command -v hermes-pdf-dup >/dev/null 2>&1; then
+  echo "نعم"
+else
+  echo "لا"
+fi
 echo "مهارات محلية: wa-archive, wa-file-read, wa-storage-mesh, wa-pdf-dup, waqf-drive, ar-help, wa-tools"
 echo "مهارات GitHub/رسمية إضافية: duckduckgo-search, domain-intel, scrapling, code-wiki, arxiv (+ pdf/docx/xlsx/ocr مدمجة)"
 echo "MCP مجاني: filesystem, memory, sequential-thinking, duckduckgo, fetch, wikipedia, math, youtube-transcript, dns, arxiv, context7, time"

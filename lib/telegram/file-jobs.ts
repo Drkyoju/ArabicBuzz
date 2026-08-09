@@ -494,7 +494,15 @@ export function inferPdfDuplicateWorkParams(
 
 export type ResolvedJobFile = {
   vaultFileId: string
-  source: 'job_vault' | 'attachment' | 'room_exact' | 'drive_exact'
+  source:
+    | 'job_vault'
+    | 'attachment'
+    | 'room_exact'
+    | 'drive_exact'
+    | 'telegram_mirror'
+    | 'room'
+    | 'drive'
+    | 'mac'
   fileName: string
 }
 

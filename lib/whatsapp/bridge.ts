@@ -61,7 +61,7 @@ export function whatsappTransportStatusAr(): {
     transport,
     ready: false,
     detailAr:
-      'واتساب غير مفعّل على CranL وحده — يحتاج جسرًا مجانيًا ذاتي الاستضافة (Evolution API أو Baileys)',
+      'واتساب الموقع معطّل بالسياسة — هيرميس (وقف واتساب) منفصل؛ الجمعية = تيليجرام + الموقع + الوكلاء',
   }
 }
 

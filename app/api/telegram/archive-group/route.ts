@@ -75,16 +75,16 @@ export async function POST(req: NextRequest) {
       'ok' in pendingPdf &&
       (pendingPdf as { ok: boolean }).ok
         ? `أُكملت مهمة نسخ صفحة فاضية وأُرسل الملف للمجموعة${
-            typeof (pendingPdf as { emptySourcePage?: number })
+            typeof (pendingPdf as unknown as { emptySourcePage?: number })
               .emptySourcePage === 'number'
-              ? ` (المصدر ص ${(pendingPdf as { emptySourcePage: number }).emptySourcePage}).`
+              ? ` (المصدر ص ${(pendingPdf as unknown as { emptySourcePage: number }).emptySourcePage}).`
               : '.'
           }`
         : typeof pendingPdf === 'object' &&
             pendingPdf &&
             'errorAr' in pendingPdf &&
-            String((pendingPdf as { errorAr?: string }).errorAr || '')
-          ? String((pendingPdf as { errorAr: string }).errorAr)
+            String((pendingPdf as unknown as { errorAr?: string }).errorAr || '')
+          ? String((pendingPdf as unknown as { errorAr: string }).errorAr)
           : 'مهمة المعلم الأول ما زالت معلّقة صامتة إن لم تُوجد البايتات بعد.',
       archive.deepHistory?.credentialsReady === false
         ? archive.deepHistoryStatus.setupAr

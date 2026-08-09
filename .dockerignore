@@ -13,8 +13,10 @@ tmp
 data
 ArabicBuzz
 coverage
+tests
 tests/evals
 scripts/pdf-tools-venv
+scripts/_*
 **/.env
 **/.env.*
 !.env.example

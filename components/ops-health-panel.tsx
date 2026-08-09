@@ -248,9 +248,10 @@ export function OpsHealthPanel() {
           soft: !snap.telegramConfigured,
         },
         {
-          label: 'واتساب (مجاني)',
-          ok: Boolean(snap.whatsappBridge),
-          detail: snap.whatsappStatusAr || 'يحتاج جسر Evolution/Baileys',
+          label: 'واتساب (هيرميس فقط)',
+          ok: true,
+          detail:
+            'منفصل عن الموقع — وقف واتساب عبر هيرميس؛ الجمعية = تيليجرام + الموقع + الوكلاء',
           soft: true,
         },
         {
