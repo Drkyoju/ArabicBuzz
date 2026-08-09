@@ -83,16 +83,21 @@ export async function archiveTelegramGroupToDrive(opts?: {
   let pushedToDrive = 0
   let roomSynced = 0
   let macSynced = 0
-  const deepHistoryStatus = getDeepHistoryStatus()
+  const { probeDeepHistoryCredentialsReady } = await import(
+    '@/lib/telegram/history-scan'
+  )
+  const deepProbe = await probeDeepHistoryCredentialsReady()
+  const deepHistoryStatus = deepProbe.status
 
   let deepHistory: Awaited<ReturnType<typeof scanTelegramGroupDeepHistory>> | undefined
-  if (!opts?.skipDeepHistory && deepHistoryStatus.credentialsReady) {
+  if (!opts?.skipDeepHistory && deepProbe.ready) {
     try {
       deepHistory = await scanTelegramGroupDeepHistory({
         chatId,
         scopeId,
         muallimOnly: true,
         limit: 250,
+        skipCredentialProbe: true,
       })
       if (deepHistory.downloaded) downloaded += deepHistory.downloaded
       if (deepHistory.ingested) {

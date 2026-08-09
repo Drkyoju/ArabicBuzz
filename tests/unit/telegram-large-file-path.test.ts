@@ -42,6 +42,11 @@ describe('telegram large-file free path', () => {
         new Error('سجّلت «x» — المهمة في انتظار صامت')
       )
     ).toBe(true)
+    expect(
+      isTelegramDownloadLimitError(
+        new Error('سجّلت «x» — المهمة في طابور انتظار صامت')
+      )
+    ).toBe(true)
   })
 })
 
@@ -55,10 +60,13 @@ describe('telegram hop status Arabic', () => {
       macSync: 'down',
       mtproto: 'unset',
     })
-    expect(lines.join('\n')).toMatch(/Local Bot API/)
-    expect(lines.join('\n')).toMatch(/جسر الماك/)
-    expect(lines.join('\n')).toMatch(/MTProto/)
-    expect(lines.join('\n')).toMatch(/غرفة|Drive/)
-    expect(lines.join('\n')).toMatch(/OrbStack|مستيقظ/)
+    const text = lines.join('\n')
+    expect(text).toMatch(/Local Bot API/)
+    expect(text).toMatch(/جسر الماك/)
+    expect(text).toMatch(/MTProto/)
+    expect(text).toMatch(/غرفة|Drive/)
+    expect(text).toMatch(/OrbStack|storage:sync/)
+    expect(text).toMatch(/انتظار صامت|معلّقة/)
+    expect(text).toMatch(/متوقف/)
   })
 })

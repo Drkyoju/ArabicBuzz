@@ -12,6 +12,15 @@ OrbStack (أو Docker Desktop) يشغّل `telegram-bot-api` **على الماك
 
 هذا **ليس** مساراً دائماً 24/7.
 
+### تثبيت OrbStack على 1.5.1 (هذا الماك)
+
+```bash
+npm run orbstack:pin
+# أو: ./scripts/pin-orbstack-1.5.1.sh
+```
+
+يعطّل فحوصات التحديث التلقائي لـ Sparkle (`SUEnableAutomaticChecks=0`). لا تعتمد على الترقية من واجهة OrbStack إن أردت البقاء على 1.5.1.
+
 ## ما الذي يبقى يعمل بدون الماك؟
 
 على CranL دائماً:
@@ -36,17 +45,17 @@ OrbStack (أو Docker Desktop) يشغّل `telegram-bot-api` **على الماك
 
 لا حاجة لمفاتيح VPS مدفوعة من المستودع — أي مضيف لديك يكفي.
 
-### Docker Compose (من المستودع)
+### أمر واحد (من المستودع)
 
 ```bash
-# على الجهاز الدائم (ليس بالضرورة الماك)
+# على الجهاز الدائم (أو الماك المستيقظ)
 export TELEGRAM_API_ID=…      # من https://my.telegram.org
 export TELEGRAM_API_HASH=…
-# نفس توكن البوت مفيد للفحص المحلي فقط؛ CranL يمرّر التوكن في الطلبات
+# أو انسخ deploy/telegram-bot-api/.env.example → .env
 
-cd deploy/telegram-bot-api
-docker compose up -d
-# يستمع على 127.0.0.1:8081
+npm run telegram:bot-api-setup
+# = ./scripts/setup-always-on-bot-api.sh
+# يستمع على 127.0.0.1:8081 + يثبت OrbStack إن وُجد
 ```
 
 ### تعريض HTTPS (مثال)
@@ -60,11 +69,24 @@ docker compose up -d
 curl -sS "http://127.0.0.1:8081/bot${TELEGRAM_BOT_TOKEN}/getMe"
 ```
 
+### جسر الماك (failover بينما الجهاز مستيقظ)
+
+```bash
+npm run storage:sync:up
+# يعيد تشغيل الوكيل + يطبع URL النفق لتحديث MAC_SYNC_URL على CranL
+```
+
+إن انقطع النفق السريع (trycloudflare) بعد نوم الماك أو تغيير الشبكة: أعد `storage:sync:up` وحدّث `MAC_SYNC_URL`.
+
 ### ترتيب failover في الكود
 
 1. `TELEGRAM_BOT_API_URL` (VPS دائماً أو OrbStack عندما الماك مستيقظ)
 2. `MAC_SYNC_URL` → `/telegram/fetch-file` (Bot API محلي ثم MTProto)
 3. سحابة `api.telegram.org` (~20 م.ب)
 4. غرفة الفريق / Drive → استئناف المهام
+
+### Drive / المالك
+
+`DRIVE_BRAIN_OWNER_USER_ID` / `TELEGRAM_OWNER_USER_ID` / `CHANNEL_OWNER_USER_ID` على CranL — إن غابت يُستنتج من صف Google OAuth لـ `ryodan71@gmail.com`.
 
 التفاصيل التقنية: [telegram-local-bot-api.md](./telegram-local-bot-api.md) · [deploy/telegram-bot-api/README.md](../deploy/telegram-bot-api/README.md)

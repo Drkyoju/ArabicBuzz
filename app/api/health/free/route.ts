@@ -128,6 +128,16 @@ export async function GET() {
     ),
     telegramLargeFilePathAr:
       'ملف كبير مجاني: Bot API محلي → جسر الماك → سحابة (~20م.ب) → خزنة/Drive ثم إكمال المهمة',
+    telegramAlwaysOnHintAr:
+      'للتشغيل 24/7: TELEGRAM_BOT_API_URL على VPS — انظر docs/telegram-always-on-bot-api.md',
+    driveBrainOwnerConfigured: Boolean(
+      (
+        process.env.DRIVE_BRAIN_OWNER_USER_ID ||
+        process.env.TELEGRAM_OWNER_USER_ID ||
+        process.env.CHANNEL_OWNER_USER_ID ||
+        ''
+      ).trim()
+    ),
     webSearchFreePath: true,
     webCrawlFreePath: true,
     officeConvertFreePath: true,

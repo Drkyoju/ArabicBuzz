@@ -35,7 +35,7 @@ export function buildTelegramHelpAr(opts?: {
     '👁 بعد /link + إيقاف Group Privacy: يسمع كل شيء (نص · صوت · ملف)',
     '• طلب («أبغى كذا» / صوت / ملف) → يُنفَّذ فوراً ويرد بالناتج — بدون منشن',
     '• الملفات والصوت تُؤرشف تلقائياً إلى Drive + غرفة الفريق عند الاستلام',
-    '• إن نقص الملف: انتظار صامت (بدون «أعد الإرسال») — البحث Drive→تيليجرام→غرفة→ماك',
+    '• إن نقص الملف أو توقف hop: طابور انتظار صامت (بدون «أعد الإرسال») — البحث Drive→تيليجرام→غرفة→ماك',
     '• الوكلاء: وكيل١…٨ — إنشغال الأول يوقظ التالي؛ طلب ثقيل أو «أبغا للجميع» يشغّل المتفرّغين معاً',
     '• دردشة بين الناس → صامت (استيراد الوسائط فقط)',
     '',
@@ -62,7 +62,7 @@ export function buildTelegramHelpAr(opts?: {
     'أوامر:',
     `${linkCmd} — ربط المجموعة`,
     '/help — هذه القائمة + أزرار',
-    '/status — حالة الربط · hops الملفات · Google (قراءة فقط)',
+    '/status — الربط · hops الحية (Local Bot API · جسر الماك · MTProto) · Google',
     '/rooms · /approve · /ping',
     'في الخاص: /link account <معرّف-حساب-الموقع> لربط Gmail/Drive الشخصي',
     '',
@@ -193,7 +193,9 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
       return [
         '⚙️ الحالة (قراءة فقط من تيليجرام)',
         '• /status — الربط · المساحة · موافقات · hops الملفات الكبيرة · Google',
-        '• hops: Local Bot API · جسر الماك · MTProto · ثم غرفة/Drive',
+        '• hops: Local Bot API (VPS أو OrbStack) · جسر الماك · MTProto · ثم غرفة/Drive',
+        '• إن ظهر hop متوقفاً: المهمة تبقى معلّقة صامتة — لا إعادة إرسال',
+        '• جسر الماك: npm run storage:sync:up على الجهاز المستيقظ + تحديث MAC_SYNC_URL إن تغيّر النفق',
         '• لا تغيير إعدادات الحساب أو مفاتيح النماذج من هنا',
         '• ربط Google وتفضيلات الحساب من الموقع فقط',
         '',
@@ -222,7 +224,7 @@ export function buildTelegramStatusLinesAr(opts: {
 }): string[] {
   const jobsLine =
     typeof opts.openFileJobsCount === 'number'
-      ? `مهام ملفات معلّقة: ${opts.openFileJobsCount} (انتظار صامت إن نقصت البايتات)`
+      ? `مهام ملفات معلّقة: ${opts.openFileJobsCount} (طابور صامت — تُستأنف عند توفر البايتات أو عودة hop)`
       : null
   return [
     'حالة Arabic Buzz عبر تيليجرام (قراءة فقط):',

@@ -298,20 +298,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Best-effort MTProto history → Drive/room when SESSION + MAC_SYNC are ready.
+  // Best-effort MTProto history → Drive/room when Mac hop + Telethon session ready.
+  // Session lives on Mac — probe /telegram/history-status (not CranL SESSION env).
   // Capped so cron does not 504; advances an in-memory cursor across runs.
   let telegramDeepHistory: unknown = null
   try {
     const {
-      getDeepHistoryStatus,
+      probeDeepHistoryCredentialsReady,
       scanTelegramGroupDeepHistory,
     } = await import('@/lib/telegram/history-scan')
-    const st = getDeepHistoryStatus()
-    if (!st.credentialsReady) {
+    const probe = await probeDeepHistoryCredentialsReady()
+    if (!probe.ready) {
       telegramDeepHistory = {
         skipped: true,
-        reason: 'credentials_not_ready',
-        setupAr: st.setupAr,
+        reason: !probe.status.macHopConfigured
+          ? 'mac_sync_unset'
+          : !probe.macReachable
+            ? 'mac_unreachable'
+            : 'credentials_not_ready',
+        macReachable: probe.macReachable,
+        mtprotoOnMac: probe.mtprotoOnMac,
+        setupAr: probe.status.setupAr,
       }
     } else {
       const scanPromise = scanTelegramGroupDeepHistory({
@@ -320,6 +327,7 @@ export async function POST(req: NextRequest) {
         muallimOnly: false,
         limit: 60,
         download: true,
+        skipCredentialProbe: true,
       })
       telegramDeepHistory = await Promise.race([
         scanPromise,

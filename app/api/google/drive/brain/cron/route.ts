@@ -25,27 +25,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let userId =
-    process.env.BRAIN_OWNER_USER_ID?.trim() ||
-    process.env.DRIVE_BRAIN_OWNER_USER_ID?.trim() ||
-    ''
-
-  if (!userId) {
-    const { getSupabaseAdmin } = await import('@/lib/supabase/server')
-    const sb = getSupabaseAdmin()
-    if (sb) {
-      const { data } = await sb
-        .from('google_oauth_tokens')
-        .select('user_id')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      userId = (data?.user_id as string) || ''
-    }
-  }
+  const { resolveDriveBrainOwnerUserId } = await import(
+    '@/lib/channels/owner-context'
+  )
+  const userId = (await resolveDriveBrainOwnerUserId()) || ''
   if (!userId) {
     return NextResponse.json(
-      { error: 'لا يوجد حساب Google مربوط للفهرسة' },
+      {
+        error:
+          'لا يوجد حساب Google مربوط للفهرسة — اربط ryodan71@gmail.com أو عيّن DRIVE_BRAIN_OWNER_USER_ID',
+      },
       { status: 400 }
     )
   }

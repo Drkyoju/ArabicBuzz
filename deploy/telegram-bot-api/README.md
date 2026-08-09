@@ -42,4 +42,15 @@ No paid VPS credentials are stored in this repo — use any always-on host you c
 
 Uses the official multi-arch build when available; pin/tag as needed for your host.
 
+## One-command
+
+```bash
+npm run telegram:bot-api-setup
+```
+
+Mac OrbStack pin (1.5.1): `npm run orbstack:pin`  
+Mac hop restart + tunnel tips: `npm run storage:sync:up`
+
+Env template: [`.env.example`](./.env.example)
+
 See also: [docs/telegram-local-bot-api.md](../../docs/telegram-local-bot-api.md)
