@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Portable Hermes skills + MCP wiring (secret-free).
+# Portable Hermes skills + MCP wiring (secret-free) + cloud Skill Sync try.
 #
-# Official Nous Skill Sync (`hermes sync push/pull`) is still pre-launch and
-# admin-gated — this account can opt-in locally but cannot push to the cloud.
-# Use this script to move user skills / SOUL / MCP list to another machine.
+# Official Nous Skill Sync (`hermes sync push/pull/now`) is account-gated
+# (`nous_admin`). Local prep (device label, sync.enabled, per-skill enable)
+# is ready; until Nous opens the gate this script refreshes the portable pack.
 #
 # NEVER packs: .env, auth.json, google_token*.json, google_client_secret.json,
 # WhatsApp Baileys session, API keys, or any env values.
+# Does NOT enable Telegram on Hermes. Does NOT restart the WA gateway.
 #
 # Usage:
 #   ./scripts/hermes-skills-sync.sh status
+#   ./scripts/hermes-skills-sync.sh cloud                # try hermes sync now → pack fallback
 #   ./scripts/hermes-skills-sync.sh pack                 # → ~/.hermes/backups/skills-portable/
 #   ./scripts/hermes-skills-sync.sh pack /path/out.tgz
 #   ./scripts/hermes-skills-sync.sh restore /path/in.tgz
 #   ./scripts/hermes-skills-sync.sh restore /path/in.tgz --dry-run
 #
+# لما يفتح Nous Skill Sync (أمر واحد):
+#   npm run hermes:skills:sync-cloud
+#
 # On PC2 after restore (dead-simple):
 #   npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
-#   # or: ./scripts/hermes-skills-sync.sh restore /path/to/….tgz
 # Prerequisites on PC2:
 #   1. Install Hermes Desktop / CLI
 #   2. hermes portal login   # same Nous account
@@ -37,8 +41,45 @@ PLACEHOLDER='__ARABICBUZZ_ROOT__'
 die() { echo "error: $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Prefer agent venv, then ~/.local/bin, then HERMES_HOME/bin — never require global PATH.
+ensure_hermes_path() {
+  export PATH="$HERMES_HOME/hermes-agent/venv/bin:$HOME/.local/bin:$HERMES_HOME/bin:$PATH"
+}
+
 require_hermes_home() {
   [[ -d "$HERMES_HOME" ]] || die "HERMES_HOME not found: $HERMES_HOME"
+}
+
+require_hermes_cli() {
+  ensure_hermes_path
+  have hermes || die "hermes CLI not found (expected $HERMES_HOME/hermes-agent/venv/bin/hermes)"
+}
+
+# Print hermes sync status JSON only (no stderr prose). Empty on failure.
+sync_status_json() {
+  require_hermes_cli
+  hermes sync status 2>/dev/null | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+start = raw.find("{")
+end = raw.rfind("}")
+if start < 0 or end < start:
+    sys.exit(1)
+print(raw[start : end + 1])
+' 2>/dev/null || true
+}
+
+prepare_local_cloud_opt_in() {
+  require_hermes_cli
+  # Device label for the sync console (idempotent; quiet).
+  hermes sync device --name "${HERMES_SYNC_DEVICE_NAME:-Mac-WA-gateway}" >/dev/null 2>&1 || true
+  # Opt-in every local custom skill (hub/bundled skills are rejected by CLI).
+  if [[ -d "$HERMES_HOME/skills/local" ]]; then
+    while IFS= read -r skill; do
+      [[ -n "$skill" ]] || continue
+      hermes sync enable "$skill" >/dev/null 2>&1 || true
+    done < <(find "$HERMES_HOME/skills/local" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+  fi
 }
 
 # Refuse if archive path looks like it would land in git or contain secrets by name.
@@ -53,9 +94,9 @@ assert_safe_archive_path() {
 
 cmd_status() {
   require_hermes_home
-  export PATH="$HERMES_HOME/hermes-agent/venv/bin:$HOME/.local/bin:$HERMES_HOME/bin:$PATH"
+  ensure_hermes_path
 
-  echo "=== Hermes portable skills sync ==="
+  echo "=== Hermes skills sync status ==="
   echo "HERMES_HOME: $HERMES_HOME"
   echo "ARABICBUZZ_ROOT: $ARABICBUZZ_ROOT"
   echo
@@ -71,6 +112,7 @@ cmd_status() {
   echo "-- SOUL.md --"
   if [[ -f "$HERMES_HOME/SOUL.md" ]]; then
     echo "  present ($(wc -c <"$HERMES_HOME/SOUL.md" | tr -d ' ') bytes)"
+    echo "  note: SOUL is NOT in official Skill Sync — portable pack only"
   else
     echo "  missing"
   fi
@@ -78,12 +120,15 @@ cmd_status() {
   echo
   echo "-- Official Skill Sync (Nous cloud) --"
   if have hermes; then
-    hermes sync status 2>/dev/null | head -40 || true
+    local device
+    device="$(hermes sync device 2>/dev/null || true)"
+    echo "  device: ${device:-unknown}"
+    hermes sync status 2>/dev/null | head -60 || true
     echo
-    echo "Note: push/pull require Nous admin entitlement (pre-launch gate)."
-    echo "Local opt-in via \`hermes sync enable <skill>\` is ready for when sync GA ships."
+    echo "بوابة الحساب: يحتاج nous_admin=true من نووس. المفتاح المحلي sync.enabled يعدّ feature_enabled."
+    echo "أمر واحد لما يفتح: npm run hermes:skills:sync-cloud"
   else
-    echo "  hermes CLI not on PATH (tried status skipped)"
+    echo "  hermes CLI not found (install Hermes / check $HERMES_HOME/hermes-agent/venv/bin)"
   fi
 
   echo
@@ -98,6 +143,69 @@ cmd_status() {
   else
     echo "  (no $PACK_DIR_DEFAULT yet — run: $0 pack)"
   fi
+}
+
+# Try official cloud Skill Sync; if still locked, refresh portable pack.
+# Exit 0 = cloud sync succeeded OR locked-but-pack-ok (always actionable).
+# Exit 1 = hard failure (no hermes / pack failed).
+cmd_cloud() {
+  require_hermes_home
+  require_hermes_cli
+  prepare_local_cloud_opt_in
+
+  local json logged feature admin
+  json="$(sync_status_json)"
+  if [[ -z "$json" ]]; then
+    die "could not read hermes sync status (are you logged into Nous Portal?)"
+  fi
+
+  logged="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("logged_in"))' <<<"$json")"
+  feature="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("feature_enabled"))' <<<"$json")"
+  admin="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("nous_admin"))' <<<"$json")"
+
+  echo "=== مزامنة مهارات هيرميس السحابية ==="
+  echo "logged_in=$logged  feature_enabled=$feature  nous_admin=$admin"
+  echo "device=$(hermes sync device 2>/dev/null || echo '?')"
+  echo "opted_in=$(python3 -c 'import json,sys; print(",".join(json.load(sys.stdin).get("opted_in_skills") or []))' <<<"$json")"
+  echo
+
+  if [[ "$logged" != "True" && "$logged" != "true" ]]; then
+    echo "❌ غير مسجّل في نووس — نفّذ: hermes portal login"
+    echo "ثم أعد: npm run hermes:skills:sync-cloud"
+    exit 1
+  fi
+
+  if [[ "$admin" == "True" || "$admin" == "true" ]]; then
+    echo "🔓 البوابة مفتوحة — تشغيل hermes sync now …"
+    if hermes sync now; then
+      echo
+      echo "✅ تمت المزامنة السحابية (pull ثم push)."
+      echo "ملاحظة: SOUL.md لا يمر عبر Skill Sync — حدّث الحزمة المحمولة إن لزم:"
+      echo "  npm run hermes:skills:pack"
+      exit 0
+    fi
+    echo "⚠️ فشل sync now رغم nous_admin — تحديث الحزمة المحمولة كاحتياط…"
+    cmd_pack
+    echo
+    echo "الحزمة المحمولة جاهزة تحت: $PACK_DIR_DEFAULT"
+    exit 1
+  fi
+
+  echo "🔒 المزامنة السحابية ما زالت مقفلة من نووس (nous_admin=false)."
+  echo "التحضير المحلي جاهز: device + sync.enabled + مهارات محلية معلّمة."
+  echo "تحديث الحزمة المحمولة (بديل حتى يفتح نووس)…"
+  cmd_pack
+  echo
+  echo "────────────────────────────────────────"
+  echo "لما يفتح Nous Skill Sync — أمر واحد:"
+  echo "  npm run hermes:skills:sync-cloud"
+  echo
+  echo "أو مباشرة:"
+  echo "  hermes sync now"
+  echo "────────────────────────────────────────"
+  echo "لا تشغّل كرون مزعج — أعد الأمر يدوياً بعد إعلان نووس / عند تغيير المهارات."
+  # Locked-but-prepared is success for operators; status is clear above.
+  exit 0
 }
 
 # Extract mcp_servers without env values / tokens (stdlib only).
@@ -355,11 +463,11 @@ npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
 
 واتساب يبقى على ماك البوابة الدائم — لا تنسخ جلسة Baileys إلا بهجرة مقصودة.
 
-## Official cloud Skill Sync (حالة 2026-08)
+## Official cloud Skill Sync
 
-`hermes sync status` → غالباً: `feature_enabled: false` / admin-gated.  
-عند فتح الميزة: `hermes sync enable <skill>` ثم `hermes sync now`.  
-حتى ذلك الحين: هذه الحزمة المحمولة فقط.
+`hermes sync status` → يحتاج `nous_admin: true` من نووس (المفتاح المحلي `sync.enabled` يعدّ `feature_enabled`).  
+لما يفتح: `npm run hermes:skills:sync-cloud` (يجرّب `hermes sync now` ثم يحدّث هذه الحزمة إن بقيت مقفلة).  
+SOUL.md ليس جزءاً من Skill Sync الرسمي — هذه الحزمة تحمله.
 
 ## Not included (by design)
 
@@ -517,13 +625,9 @@ PY
     echo "Wrote bin wrappers in $HERMES_HOME/bin → $ARABICBUZZ_ROOT/scripts/"
   fi
 
-  # Re-apply sync opt-in locally (cloud push still gated)
-  export PATH="$HERMES_HOME/hermes-agent/venv/bin:$HOME/.local/bin:$HERMES_HOME/bin:$PATH"
-  if have hermes; then
-    while IFS= read -r skill; do
-      [[ -n "$skill" ]] || continue
-      hermes sync enable "$skill" 2>/dev/null || true
-    done < <(find "$HERMES_HOME/skills/local" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+  # Re-apply sync opt-in locally (cloud push still gated until Nous opens)
+  if have hermes || [[ -x "$HERMES_HOME/hermes-agent/venv/bin/hermes" ]]; then
+    prepare_local_cloud_opt_in
   fi
 
   # Hub skill reinstall hints
@@ -545,7 +649,7 @@ PY
 }
 
 usage() {
-  sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 main() {
@@ -553,10 +657,11 @@ main() {
   shift || true
   case "$cmd" in
     status) cmd_status "$@" ;;
+    cloud|sync-cloud|now) cmd_cloud "$@" ;;
     pack) cmd_pack "$@" ;;
     restore) cmd_restore "$@" ;;
     -h|--help|help|"") usage ;;
-    *) die "unknown command: $cmd (try: status|pack|restore)" ;;
+    *) die "unknown command: $cmd (try: status|cloud|pack|restore)" ;;
   esac
 }
 

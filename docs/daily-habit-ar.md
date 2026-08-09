@@ -33,5 +33,6 @@
 ## مرجع
 
 - [docs/hermes-mac-always-on.md](./hermes-mac-always-on.md)  
+- مزامنة مهارات هيرميس السحابية (لما يفتح Nous): [docs/hermes-skills-cloud-sync-ar.md](./hermes-skills-cloud-sync-ar.md) — أمر واحد: `npm run hermes:skills:sync-cloud`  
 - [docs/telegram-bot-ar.md](./telegram-bot-ar.md)  
 - ICP outcomes (أرشيف · وضوح · HITL): [docs/research/startup-ops/01-icp-interview-ar.md](./research/startup-ops/01-icp-interview-ar.md)

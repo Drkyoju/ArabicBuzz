@@ -39,6 +39,7 @@
     "hermes:pdf:dup": "bash scripts/hermes-pdf-dup.sh",
     "hermes:tools:status": "bash scripts/hermes-tools-status.sh",
     "hermes:skills:sync": "bash scripts/hermes-skills-sync.sh",
+    "hermes:skills:sync-cloud": "bash scripts/hermes-skills-sync.sh cloud",
     "hermes:skills:pack": "bash scripts/hermes-skills-sync.sh pack",
     "hermes:skills:status": "bash scripts/hermes-skills-sync.sh status",
     "hermes:skills:restore": "bash scripts/hermes-skills-sync.sh restore",

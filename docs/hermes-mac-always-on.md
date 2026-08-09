@@ -125,17 +125,24 @@ Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the
 | What | Travels with Nous login? | Where it lives |
 |------|--------------------------|----------------|
 | Inference / Portal auth | **Yes** — `hermes portal login` on each machine | `auth.json` (per machine after login) |
-| Official **Skill Sync** (`hermes sync push/pull`) | **Not yet for this account** — CLI exists but is **admin-gated / pre-launch** | Cloud plane when entitlement opens |
-| Local skills (`wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`) | **No** — disk only until Skill Sync GA | `~/.hermes/skills/local/` |
-| `SOUL.md`, `config.yaml` MCP list | **No** | `~/.hermes/` |
+| Official **Skill Sync** (`hermes sync push/pull/now`) | **Not yet** — needs Nous `nous_admin` entitlement | Cloud plane when Nous opens the gate |
+| Local skills (`wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`, …) | Opted-in locally; cloud push locked until GA | `~/.hermes/skills/local/` |
+| `SOUL.md`, `config.yaml` MCP list | **No** (SOUL not in official Skill Sync) | portable pack / `~/.hermes/` |
 | Google Drive OAuth | **No** — re-auth on each machine | `google_token.json` (never git) |
 | WhatsApp Baileys session | **No** — keep on always-on Mac | `~/.hermes/platforms/whatsapp/` |
 
-**Ready on this Mac:** local skills are opted in (`hermes sync enable …`) and device label `Mac-WA-gateway` is set — when Nous opens Skill Sync for the account, run `hermes sync now`.
+**Ready on this Mac:** `sync.enabled: true` in `config.yaml`, device `Mac-WA-gateway`, all local skills `hermes sync enable`’d. Arabic runbook: [hermes-skills-cloud-sync-ar.md](./hermes-skills-cloud-sync-ar.md).
 
-**Official Skill Sync status (checked 2026-08-09):** `feature_enabled: false` — account logged in, local opt-in ready, **cloud push/pull still locked**. Use portable pack until Nous opens the gate.
+**Official Skill Sync status (checked 2026-08-10):** `logged_in: true`, `feature_enabled: true` (local), **`nous_admin: false`** → cloud push/pull still locked. Use portable pack until Nous opens the gate.
 
-**Until then — portable pack (secret-free):**
+**أمر واحد لما يفتح نووس (أو لتحديث البديل المحمول):**
+
+```bash
+npm run hermes:skills:sync-cloud
+# يجرّب hermes sync now؛ إن بقيت مقفلة يحدّث الحزمة المحمولة
+```
+
+**Portable pack فقط (secret-free):**
 
 ```bash
 npm run hermes:skills:status
