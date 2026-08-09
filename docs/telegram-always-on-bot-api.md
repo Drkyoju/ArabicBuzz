@@ -34,7 +34,7 @@ npm run orbstack:pin
 
 ## المسار الدائم المستحسن: Bot API على أي جهاز دائماً يعمل
 
-شغّل نفس الحاوية على **VPS / كمبيوتر مكتبي لا ينام / Raspberry Pi**، ثم اربط CranL مباشرة:
+شغّل نفس الحاوية على **VPS / Fly.io / كمبيوتر مكتبي لا ينام / Raspberry Pi**، ثم اربط CranL مباشرة:
 
 | متغير على CranL | القيمة |
 |-----------------|--------|
@@ -45,7 +45,19 @@ npm run orbstack:pin
 
 لا حاجة لمفاتيح VPS مدفوعة من المستودع — أي مضيف لديك يكفي.
 
-### أمر واحد (من المستودع)
+### Fly.io (24/7 حقيقي — يحتاج تسجيل دخول مرة)
+
+```bash
+# مرة واحدة على جهازك
+fly auth login          # أو: export FLY_API_TOKEN=…
+# TELEGRAM_API_ID + HASH موجودان في .env.local
+npm run telegram:bot-api:fly
+# ينشر ويضبط TELEGRAM_BOT_API_URL على CranL تلقائياً إن وُجد CRANL_API_KEY
+```
+
+بدون `fly auth login` لا يمكن النشر من هنا — استخدم مسار الماك أدناه كـ failover.
+
+### أمر واحد على الماك / VPS محلي
 
 ```bash
 # على الجهاز الدائم (أو الماك المستيقظ)
@@ -58,10 +70,21 @@ npm run telegram:bot-api-setup
 # يستمع على 127.0.0.1:8081 + يثبت OrbStack إن وُجد
 ```
 
+### متانة الماك (launchd — طالما الجهاز مستيقظ ومُسجَّل الدخول)
+
+```bash
+npm run mac-hop:install
+# يحافظ على storage:sync + cloudflared + يحدّث MAC_SYNC_URL و TELEGRAM_BOT_API_URL على CranL
+# عند تغيّر trycloudflare (كل ~90ث)
+```
+
+تفاصيل: [deploy/mac-hop/README.md](../deploy/mac-hop/README.md)
+
 ### تعريض HTTPS (مثال)
 
 - Cloudflare Tunnel / Caddy / nginx / Tailscale Funnel → `https://…` → `127.0.0.1:8081`
 - على CranL: `TELEGRAM_BOT_API_URL=https://…` (بدون شرطة مائلة أخيرة)
+- أو: `./scripts/cranl-put-env-keys.sh --restart TELEGRAM_BOT_API_URL=https://…`
 
 اختبار سريع من الجهاز الدائم:
 

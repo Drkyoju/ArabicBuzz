@@ -41,6 +41,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# generated Fly app config (secrets stay in `fly secrets`)
+/deploy/telegram-bot-api/fly.toml
+
 # local agent tooling / caches
 .agents/
 .claude/

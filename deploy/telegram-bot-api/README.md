@@ -8,9 +8,17 @@ OrbStack runs on the Mac — **the machine must stay awake**. Sleep / power-off 
 
 See [docs/telegram-always-on-bot-api.md](../../docs/telegram-always-on-bot-api.md).
 
-## Always-on VPS / second machine (permanent path)
+## Always-on VPS / Fly / second machine (permanent path)
 
-Same compose on any host that does not sleep:
+### Fly.io one-click (preferred when logged in)
+
+```bash
+fly auth login   # once — or FLY_API_TOKEN
+npm run telegram:bot-api:fly
+# → https://arabicbuzz-telegram-bot-api.fly.dev + CranL TELEGRAM_BOT_API_URL
+```
+
+### Any host with Docker
 
 ```bash
 # From https://my.telegram.org
@@ -30,7 +38,19 @@ Expose HTTPS to 8081 (Cloudflare Tunnel, Caddy, nginx, Tailscale Funnel, …), t
 | `MAC_SYNC_URL` | optional — Mac OCR / MTProto when Mac is on |
 | `MAC_SYNC_SECRET` | if using Mac hop |
 
+```bash
+./scripts/cranl-put-env-keys.sh --restart TELEGRAM_BOT_API_URL=https://…
+```
+
 No paid VPS credentials are stored in this repo — use any always-on host you control.
+
+### Mac awake failover (launchd)
+
+```bash
+npm run mac-hop:install
+```
+
+See [../mac-hop/README.md](../mac-hop/README.md).
 
 ## Mac-only wiring (laptop awake)
 
