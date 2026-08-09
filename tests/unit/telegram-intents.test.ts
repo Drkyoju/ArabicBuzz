@@ -9,6 +9,7 @@ import {
   buildTelegramHelpAr,
   buildTelegramHelpMenuKeyboard,
   buildTelegramHelpDomainAr,
+  buildTelegramStatusLinesAr,
   parseHelpMenuCallback,
   TELEGRAM_PING_OK_AR,
   TELEGRAM_SITE_URL,
@@ -150,6 +151,25 @@ describe('help copy', () => {
     expect(buildTelegramHelpDomainAr('docs')).toMatch(/letter_fill_template/)
     expect(TELEGRAM_GOOGLE_CONNECT_URL).toContain('section=settings')
     expect(buildTelegramHelpMenuKeyboard()).toBeTruthy()
+  })
+
+  it('builds status lines including hop block', () => {
+    const lines = buildTelegramStatusLinesAr({
+      chatId: '-1001',
+      inGroup: true,
+      scopeNameAr: 'تجريبي',
+      scopeId: 'shared-demo',
+      pendingCount: 0,
+      openFileJobsCount: 2,
+      hopStatusLinesAr: [
+        'مسار الملفات الكبيرة:',
+        '❌ جسر الماك: غير متاح الآن',
+      ],
+    })
+    const text = lines.join('\n')
+    expect(text).toMatch(/مهام ملفات معلّقة: 2/)
+    expect(text).toMatch(/جسر الماك/)
+    expect(text).toContain(TELEGRAM_SITE_URL)
   })
 })
 

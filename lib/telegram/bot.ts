@@ -2168,6 +2168,10 @@ export function getTelegramBot() {
         scopeId: scope.scope.id,
         limit: 20,
       }).catch(() => [])
+      const { probeTelegramLargeFileHops } = await import(
+        '@/lib/telegram/large-file-hops'
+      )
+      const hops = await probeTelegramLargeFileHops().catch(() => null)
       const personalLinkAr = personalId
         ? `ربط شخصي: نعم (${personalId.slice(0, 8)}…) — Gmail/Drive بهويتك`
         : inGroup
@@ -2180,6 +2184,7 @@ export function getTelegramBot() {
         scopeId: scope.scope.id,
         pendingCount: pending.length,
         openFileJobsCount: openJobs.length,
+        hopStatusLinesAr: hops?.linesAr,
         googleHintAr: googleHint,
         personalLinkAr,
         integrationsAr: [

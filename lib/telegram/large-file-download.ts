@@ -1,12 +1,17 @@
 /**
  * Free large-Telegram-file download cascade (no paid APIs).
  *
- * 1) Local Bot API (TELEGRAM_BOT_API_URL) — raises getFile beyond ~20MB
- * 2) Mac sync hop (/telegram/fetch-file) — Mac runs local Bot API / MTProto
- * 3) Cloud Bot API (api.telegram.org) — soft ~20MB cap
+ * Failover order:
+ * 1) Local Bot API via TELEGRAM_BOT_API_URL (VPS 24/7 or Mac OrbStack when awake)
+ * 2) Mac sync hop MAC_SYNC_URL → /telegram/fetch-file (local Bot API, then MTProto)
+ * 3) Cloud Bot API (api.telegram.org) — soft ~20MB cap (tried inside Bot API roots)
+ * 4) Room vault / Drive exact name — jobs resume without Mac (waiting_file → cron/mesh)
  *
- * CranL Basic cannot bake telegram-bot-api into the app image; configure an
- * external root or Mac tunnel (same pattern as PaddleOCR / MAC_SYNC_URL).
+ * OrbStack on a laptop needs the Mac awake — not always-on. For permanent large
+ * getFile, run deploy/telegram-bot-api on any always-on host and set
+ * TELEGRAM_BOT_API_URL on CranL (see docs/telegram-always-on-bot-api.md).
+ *
+ * CranL Basic cannot bake telegram-bot-api into the app image.
  */
 
 import {
@@ -162,7 +167,7 @@ export async function downloadTelegramFileCascaded(
   )
 }
 
-/** Status flags for health / ops. */
+/** Status flags for health / ops (config only — use probeTelegramLargeFileHops for live). */
 export function telegramLargeFilePathStatus(): {
   localBotApiConfigured: boolean
   macHopConfigured: boolean
@@ -182,6 +187,6 @@ export function telegramLargeFilePathStatus(): {
     macHopConfigured,
     mtprotoEnvPresent,
     freePathAr:
-      'ملف كبير: Bot API محلي → جسر الماك → سحابة (~20م.ب) → خزنة/Drive تلقائياً — بلا دفع',
+      'ملف كبير: Local Bot API → جسر الماك → MTProto → غرفة/Drive — بلا دفع وبلا إعادة إرسال',
   }
 }

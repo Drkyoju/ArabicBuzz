@@ -2,22 +2,41 @@
 
 Raises Bot API `getFile` beyond the ~20MB cloud limit. **Do not bake into the CranL app image.**
 
-## Run on Mac / VPS
+## Mac + OrbStack (not 24/7)
+
+OrbStack runs on the Mac — **the machine must stay awake**. Sleep / power-off / OrbStack down = this hop is down. Jobs queue silently and resume from room/Drive or when the hop returns.
+
+See [docs/telegram-always-on-bot-api.md](../../docs/telegram-always-on-bot-api.md).
+
+## Always-on VPS / second machine (permanent path)
+
+Same compose on any host that does not sleep:
 
 ```bash
 # From https://my.telegram.org
 export TELEGRAM_API_ID=12345
 export TELEGRAM_API_HASH=abcdef…
-export TELEGRAM_BOT_TOKEN=123456:ABC…   # same token as CranL
 
+cd deploy/telegram-bot-api
 docker compose up -d
 # listens on 127.0.0.1:8081
 ```
 
-Wire CranL:
+Expose HTTPS to 8081 (Cloudflare Tunnel, Caddy, nginx, Tailscale Funnel, …), then on CranL:
 
-- `TELEGRAM_BOT_API_URL=https://<tunnel-to-8081>`  
-  **or** leave local-only and set `MAC_SYNC_URL` so CranL calls Mac `/telegram/fetch-file`.
+| Env | Example |
+|-----|---------|
+| `TELEGRAM_BOT_API_URL` | `https://botapi.example.com` |
+| `MAC_SYNC_URL` | optional — Mac OCR / MTProto when Mac is on |
+| `MAC_SYNC_SECRET` | if using Mac hop |
+
+No paid VPS credentials are stored in this repo — use any always-on host you control.
+
+## Mac-only wiring (laptop awake)
+
+- Leave Bot API on `127.0.0.1:8081`
+- `npm run storage:sync` + tunnel → `MAC_SYNC_URL` so CranL calls `/telegram/fetch-file`
+- Or tunnel 8081 and set `TELEGRAM_BOT_API_URL` directly
 
 ## Image
 

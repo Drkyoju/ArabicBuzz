@@ -62,7 +62,7 @@ export function buildTelegramHelpAr(opts?: {
     'أوامر:',
     `${linkCmd} — ربط المجموعة`,
     '/help — هذه القائمة + أزرار',
-    '/status — حالة الربط وGoogle (قراءة فقط)',
+    '/status — حالة الربط · hops الملفات · Google (قراءة فقط)',
     '/rooms · /approve · /ping',
     'في الخاص: /link account <معرّف-حساب-الموقع> لربط Gmail/Drive الشخصي',
     '',
@@ -192,7 +192,8 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
     case 'settings':
       return [
         '⚙️ الحالة (قراءة فقط من تيليجرام)',
-        '• /status — الربط · المساحة · موافقات · Google',
+        '• /status — الربط · المساحة · موافقات · hops الملفات الكبيرة · Google',
+        '• hops: Local Bot API · جسر الماك · MTProto · ثم غرفة/Drive',
         '• لا تغيير إعدادات الحساب أو مفاتيح النماذج من هنا',
         '• ربط Google وتفضيلات الحساب من الموقع فقط',
         '',
@@ -216,6 +217,8 @@ export function buildTelegramStatusLinesAr(opts: {
   personalLinkAr?: string | null
   integrationsAr?: string[]
   openFileJobsCount?: number
+  /** Live large-file hop lines (Local Bot API / Mac / MTProto) */
+  hopStatusLinesAr?: string[]
 }): string[] {
   const jobsLine =
     typeof opts.openFileJobsCount === 'number'
@@ -227,6 +230,7 @@ export function buildTelegramStatusLinesAr(opts: {
     `المساحة: ${opts.scopeNameAr} (${opts.scopeId})`,
     `موافقات معلّقة: ${opts.pendingCount}`,
     jobsLine,
+    ...(opts.hopStatusLinesAr || []),
     opts.wakeHintAr ||
       'الوكلاء وكيل١…٨: نص · صوت · ملفات · أرشفة Drive · استئناف المهام — مثل غرفة الموقع',
     opts.personalLinkAr || null,

@@ -12,6 +12,7 @@
     "storage:open": "open \"$HOME/ArabicBuzz/data\"",
     "storage:sync": "tsx scripts/mac-sync-agent.ts",
     "storage:setup": "bash scripts/setup-mac-sync.sh",
+    "telegram:bot-api-setup": "bash scripts/setup-always-on-bot-api.sh",
     "telegram:mtproto-login": "python3 scripts/telegram-mtproto-login.py",
     "telegram:mtproto-scan": "python3 scripts/telegram-mtproto-history.py",
     "telegram:mtproto-download": "python3 scripts/telegram-mtproto-download.py",

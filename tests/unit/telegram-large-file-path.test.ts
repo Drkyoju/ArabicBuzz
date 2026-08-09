@@ -31,15 +31,34 @@ describe('telegram large-file free path', () => {
 
   it('status reports free path Arabic without paid gate', () => {
     const s = telegramLargeFilePathStatus()
-    expect(s.freePathAr).toMatch(/مجاني|بلا دفع|Bot API/)
+    expect(s.freePathAr).toMatch(/مجاني|بلا دفع|Bot API|Local/)
     expect(s.freePathAr).not.toMatch(/ادفع|اشتراك مدفوع/)
+    expect(s.freePathAr).toMatch(/غرفة|Drive/)
   })
 
   it('detects cascade limit errors', () => {
     expect(
       isTelegramDownloadLimitError(
-        new Error('سجّلت «x» — أتابع تلقائياً عبر مسار التنزيل الموسّع')
+        new Error('سجّلت «x» — المهمة في انتظار صامت')
       )
     ).toBe(true)
+  })
+})
+
+describe('telegram hop status Arabic', () => {
+  it('formats hop lines for /status', async () => {
+    const { formatTelegramHopStatusLinesAr } = await import(
+      '@/lib/telegram/large-file-hops'
+    )
+    const lines = formatTelegramHopStatusLinesAr({
+      localBotApi: 'unset',
+      macSync: 'down',
+      mtproto: 'unset',
+    })
+    expect(lines.join('\n')).toMatch(/Local Bot API/)
+    expect(lines.join('\n')).toMatch(/جسر الماك/)
+    expect(lines.join('\n')).toMatch(/MTProto/)
+    expect(lines.join('\n')).toMatch(/غرفة|Drive/)
+    expect(lines.join('\n')).toMatch(/OrbStack|مستيقظ/)
   })
 })

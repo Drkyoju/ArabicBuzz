@@ -1169,22 +1169,52 @@ const server = createServer(async (req, res) => {
     const sessionFile = existsSync(
       join(homedir(), '.arabicbuzz-telegram.session.txt')
     )
-    const localBot = Boolean(
+    const localBotConfigured = Boolean(
       (
         process.env.TELEGRAM_BOT_API_URL ||
         process.env.TELEGRAM_BOT_API_ROOT ||
         ''
       ).trim()
     )
+    let localBotApiReachable = false
+    try {
+      const {
+        DEFAULT_LOCAL_BOT_API,
+      } = await import('../lib/telegram/bot-api-download')
+      const root = (
+        process.env.TELEGRAM_BOT_API_URL ||
+        process.env.TELEGRAM_BOT_API_ROOT ||
+        DEFAULT_LOCAL_BOT_API
+      )
+        .trim()
+        .replace(/\/$/, '')
+      const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+      if (token && root) {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 2_500)
+        try {
+          const r = await fetch(`${root}/bot${token}/getMe`, {
+            signal: ctrl.signal,
+          })
+          localBotApiReachable = r.ok
+        } finally {
+          clearTimeout(t)
+        }
+      }
+    } catch {
+      localBotApiReachable = false
+    }
+    const mtprotoEnvPresent = apiId && apiHash && (session || sessionFile)
     json(res, 200, {
       ok: true,
-      localBotApiConfigured: localBot,
-      mtprotoEnvPresent: apiId && apiHash && (session || sessionFile),
-      credentialsReady: apiId && apiHash && (session || sessionFile),
+      localBotApiConfigured: localBotConfigured || localBotApiReachable,
+      localBotApiReachable,
+      mtprotoEnvPresent,
+      credentialsReady: mtprotoEnvPresent,
       setupAr:
-        'مرة واحدة: TELEGRAM_API_ID/HASH من my.telegram.org ثم npm run telegram:mtproto-login — بلا رسالة للمجموعة.',
+        'مرة واحدة: TELEGRAM_API_ID/HASH من my.telegram.org ثم npm run telegram:mtproto-login — بلا رسالة للمجموعة. OrbStack يحتاج الماك مستيقظاً.',
       limitationAr:
-        'البوت لا يقرأ التاريخ القديم؛ مسح المجموعة يحتاج جلسة مستخدم Telethon.',
+        'البوت لا يقرأ التاريخ القديم؛ مسح المجموعة يحتاج جلسة مستخدم Telethon. للتشغيل 24/7: VPS + TELEGRAM_BOT_API_URL.',
     })
     return
   }
@@ -1339,7 +1369,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /telegram/fetch-file — large TG download via local Bot API (free path)
+  // POST /telegram/fetch-file — large TG download: local Bot API → MTProto fallback
   if (req.method === 'POST' && url.pathname === '/telegram/fetch-file') {
     if (!checkAuth(req)) {
       json(res, 401, { error: 'unauthorized' })
@@ -1384,21 +1414,97 @@ const server = createServer(async (req, res) => {
         preferLocal: true,
         roots: [localRoot, 'https://api.telegram.org'],
       })
-      if (!hit) {
-        json(res, 404, {
-          ok: false,
-          error:
-            'تعذّر التنزيل عبر Bot API المحلي — شغّل deploy/telegram-bot-api على الماك (منفذ 8081).',
+      if (hit) {
+        json(res, 200, {
+          ok: true,
+          contentBase64: hit.buffer.toString('base64'),
+          filePath: hit.filePath,
+          source: hit.source,
+          remoteSize: hit.remoteSize ?? hit.buffer.byteLength,
+          fileName: body.fileName || hit.filePath,
         })
         return
       }
-      json(res, 200, {
-        ok: true,
-        contentBase64: hit.buffer.toString('base64'),
-        filePath: hit.filePath,
-        source: hit.source,
-        remoteSize: hit.remoteSize ?? hit.buffer.byteLength,
-        fileName: body.fileName || hit.filePath,
+
+      // Secondary hop: MTProto when chatId + messageId known (Mac awake + session)
+      const chatId = String(body.chatId || '').trim()
+      const messageIdRaw = body.messageId
+      const messageId =
+        typeof messageIdRaw === 'number'
+          ? messageIdRaw
+          : String(messageIdRaw || '').trim()
+      if (chatId && messageId) {
+        const { spawn } = await import('node:child_process')
+        const { existsSync, readFileSync } = await import('node:fs')
+        const { join } = await import('node:path')
+        const { homedir } = await import('node:os')
+        const { fileURLToPath } = await import('node:url')
+        const here = fileURLToPath(new URL('.', import.meta.url))
+        const root = join(here, '..')
+        const script = join(root, 'scripts/telegram-mtproto-download.py')
+        const pyCandidates = [
+          join(root, 'scripts/pdf-tools-venv/bin/python'),
+          '/tmp/tg-telethon-venv/bin/python',
+          'python3',
+        ]
+        const env = {
+          ...process.env,
+          TELEGRAM_DL_CHAT_ID: chatId,
+          TELEGRAM_DL_MESSAGE_ID: String(messageId),
+          TELEGRAM_DL_NAME_FILTER: body.fileName || '',
+          TELEGRAM_DL_MUALLIM_ONLY: '0',
+          TELEGRAM_DL_OUT: join(homedir(), 'ArabicBuzz/recovered/tg-fetch'),
+        }
+        for (const py of pyCandidates) {
+          if (py !== 'python3' && !existsSync(py)) continue
+          try {
+            const out: Buffer[] = []
+            const err: Buffer[] = []
+            const code: number = await new Promise((resolve) => {
+              const child = spawn(py, [script], {
+                env,
+                timeout: 120_000,
+              })
+              child.stdout.on('data', (c) => out.push(c))
+              child.stderr.on('data', (c) => err.push(c))
+              child.on('close', (c) => resolve(c ?? 1))
+              child.on('error', () => resolve(1))
+            })
+            const text = Buffer.concat(out).toString('utf8').trim()
+            const line = text.split('\n').filter(Boolean).pop() || '{}'
+            const parsed = JSON.parse(line) as {
+              ok?: boolean
+              path?: string
+              fileName?: string
+              sizeBytes?: number
+            }
+            const p = parsed.path ? String(parsed.path) : ''
+            if (parsed.ok && p && existsSync(p)) {
+              const buf = readFileSync(p)
+              if (buf.byteLength > 0 && buf.byteLength <= 80 * 1024 * 1024) {
+                json(res, 200, {
+                  ok: true,
+                  contentBase64: buf.toString('base64'),
+                  filePath: parsed.fileName || body.fileName || 'telegram.bin',
+                  source: 'mtproto',
+                  remoteSize: parsed.sizeBytes ?? buf.byteLength,
+                  fileName: parsed.fileName || body.fileName,
+                })
+                return
+              }
+            }
+            void code
+            void err
+          } catch {
+            /* try next python */
+          }
+        }
+      }
+
+      json(res, 404, {
+        ok: false,
+        error:
+          'تعذّر التنزيل عبر Bot API المحلي وMTProto — شغّل deploy/telegram-bot-api (8081) أو ارفع الملف للغرفة/Drive.',
       })
     } catch (e) {
       json(res, 500, {
