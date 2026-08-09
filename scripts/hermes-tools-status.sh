@@ -105,8 +105,18 @@ fi
 
 echo -n "STT local (faster-whisper): "
 STT_PY="$HERMES_HOME/hermes-agent/venv/bin/python"
+# Match nested `stt:` → `provider: local` (not tts.provider / other providers).
+stt_provider_local() {
+  [[ -f "$CFG" ]] || return 1
+  /usr/bin/awk '
+    /^stt:[[:space:]]*$/ { in_stt=1; next }
+    in_stt && /^[^[:space:]#]/ { in_stt=0 }
+    in_stt && /^[[:space:]]*provider:[[:space:]]*local[[:space:]]*$/ { found=1; exit }
+    END { exit found ? 0 : 1 }
+  ' "$CFG"
+}
 if [[ -x "$STT_PY" ]] && "$STT_PY" -c "import faster_whisper" 2>/dev/null; then
-  if [[ -f "$CFG" ]] && rg -q 'provider:\s*local' "$CFG" 2>/dev/null; then
+  if stt_provider_local; then
     echo "جاهز (config provider=local, language=ar)"
   else
     echo "الحزمة موجودة لكن config ليست local — راجع stt في config.yaml"
