@@ -115,7 +115,7 @@ export function formatTelegramHopStatusLinesAr(
   const lines = [
     'مسار الملفات الكبيرة (مجاني — بدون إعادة إرسال):',
     `${hopGlyph(probe.localBotApi)} Local Bot API (TELEGRAM_BOT_API_URL): ${hopLabelAr(probe.localBotApi, 'غير مضبوط — للتشغيل 24/7 ضع الخادم على VPS دائماً')}`,
-    `${hopGlyph(probe.macSync)} جسر الماك (MAC_SYNC_URL): ${hopLabelAr(probe.macSync, 'غير مضبوط')} — يحتاج الماك مستيقظاً + OrbStack + npm run storage:sync:up`,
+    `${hopGlyph(probe.macSync)} جسر الماك (MAC_SYNC_URL): ${hopLabelAr(probe.macSync, 'غير مضبوط')} — يحتاج الماك مستيقظاً + npm run mac-hop:watchdog:force`,
     `${hopGlyph(probe.mtproto)} MTProto على الماك: ${hopLabelAr(probe.mtproto, 'غير جاهز (جلسة مستخدم)')} — ثانوي عند توفر chat/message`,
     'دائم بلا ماك: خزنة الغرفة + Drive بنفس الاسم → المهام تُستأنف تلقائياً.',
   ]
@@ -124,14 +124,14 @@ export function formatTelegramHopStatusLinesAr(
       '⚠️ hop متوقف: المهام تبقى في انتظار صامت (لا تُلغى). عند عودة الجسر أو ظهور الملف في الغرفة/Drive أُكمل وأرسل الناتج.'
     )
   }
-  if (probe.macSync === 'down') {
+  if (probe.macSync === 'down' || probe.macSync === 'unset') {
     lines.push(
-      'إعادة جسر الماك: على الجهاز awaked شغّل npm run storage:sync:up ثم حدّث MAC_SYNC_URL إن تغيّر النفق.'
+      'إعادة جسر الماك: npm run mac-hop:watchdog:force (agent + cloudflared + تحديث CranL).'
     )
   }
   if (probe.localBotApi === 'unset' && probe.macSync !== 'up') {
     lines.push(
-      'للتشغيل 24/7 بلا ماك: npm run telegram:bot-api-setup على VPS + TELEGRAM_BOT_API_URL على CranL.'
+      'للتشغيل 24/7 بلا ماك: أعدّ Fly/VPS لاحقاً (انظر docs/telegram-always-on-bot-api.md) — لا تنشر مدفوعاً بدون طلب.'
     )
   }
   return lines

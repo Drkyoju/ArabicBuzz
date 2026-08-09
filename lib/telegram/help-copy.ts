@@ -195,7 +195,7 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
         '• /status — الربط · المساحة · موافقات · hops الملفات الكبيرة · Google',
         '• hops: Local Bot API (VPS أو OrbStack) · جسر الماك · MTProto · ثم غرفة/Drive',
         '• إن ظهر hop متوقفاً: المهمة تبقى معلّقة صامتة — لا إعادة إرسال',
-        '• جسر الماك: npm run storage:sync:up على الجهاز المستيقظ + تحديث MAC_SYNC_URL إن تغيّر النفق',
+        '• جسر الماك: npm run mac-hop:watchdog:force على الجهاز المستيقظ (نفق + تحديث CranL)',
         '• لا تغيير إعدادات الحساب أو مفاتيح النماذج من هنا',
         '• ربط Google وتفضيلات الحساب من الموقع فقط',
         '',

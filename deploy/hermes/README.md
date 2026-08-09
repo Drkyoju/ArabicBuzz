@@ -7,11 +7,37 @@ Scripts and LaunchAgents for Hermes on this Mac. **Secrets stay in `~/.hermes/` 
 | [`scripts/hermes-wa-join-invite.mjs`](../../scripts/hermes-wa-join-invite.mjs) | Accept `chat.whatsapp.com` invite via Baileys (`groupAcceptInvite`) |
 | [`scripts/hermes-wa-allowlist-sync.sh`](../../scripts/hermes-wa-allowlist-sync.sh) | Merge `@g.us` into `WHATSAPP_GROUP_ALLOWED_USERS` + `config.yaml` |
 | [`scripts/hermes-wa-watchdog.sh`](../../scripts/hermes-wa-watchdog.sh) | Auto-allowlist from logs + restart on disconnect |
-| [`scripts/hermes-backup-wa-session.sh`](../../scripts/hermes-backup-wa-session.sh) | Backup session + `.env` → `~/Backups/hermes-wa/` |
+| [`scripts/hermes-backup-wa-session.sh`](../../scripts/hermes-backup-wa-session.sh) | Backup / verify / restore session → `~/Backups/hermes-wa/` |
 | [`scripts/install-hermes-wa-watchdog-launchd.sh`](../../scripts/install-hermes-wa-watchdog-launchd.sh) | Install WA watchdog LaunchAgent |
 | [`scripts/install-hermes-serve-launchd.sh`](../../scripts/install-hermes-serve-launchd.sh) | Optional `hermes serve` LaunchAgent (Desktop-safe) |
 
-Docs: [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md)
+Docs: [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md) · [docs/hermes-wa-dedicated-number.md](../../docs/hermes-wa-dedicated-number.md) (future safer number — optional) · [docs/hermes-wa-drive.md](../../docs/hermes-wa-drive.md) (Google Drive working folder)
+
+## Google Drive (working folder)
+
+Default WA Drive folder ID: `1zlsaktPbd0SpFXQNPD7-kT1ktj4jRNOw`  
+OAuth + probe (local secrets in `~/.hermes/` only):
+
+```bash
+npm run hermes:drive:status
+./scripts/hermes-drive-setup.sh --auth-url
+# … browser as ryodan71@gmail.com …
+./scripts/hermes-drive-setup.sh --auth-code 'PASTE'
+./scripts/hermes-drive-setup.sh --probe
+```
+
+Does **not** change ArabicBuzz `GOOGLE_DRIVE_BRAIN_FOLDER_ID` on CranL.
+
+## Session backup
+
+```bash
+npm run hermes:backup:wa              # create .tgz + sha256
+npm run hermes:backup:wa:list         # list archives
+./scripts/hermes-backup-wa-session.sh --verify ~/Backups/hermes-wa/hermes-wa-….tgz
+./scripts/hermes-backup-wa-session.sh --restore ~/Backups/hermes-wa/hermes-wa-….tgz
+```
+
+Never commit `~/Backups/hermes-wa/` or `~/.hermes/`.
 
 ## Install watchdogs
 
@@ -29,3 +55,5 @@ node scripts/hermes-wa-join-invite.mjs 'https://chat.whatsapp.com/EXhnU7Vlul7LIc
 ```
 
 Test in group **عمل الوقف**: `@` mention Hermes number, or write `هيرميس` / `Hermes`.
+
+**Anti-ban / وضع آمن:** keep `WHATSAPP_REQUIRE_MENTION=true`, ignore unauthorized DMs, slow chunk delay (`WHATSAPP_CHUNK_DELAY_MS=1800`), and do **not** ask Hermes to reply to every group message. Baileys is unofficial — residual ban risk remains. See [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md#anti-ban--وضع-آمن-configured-on-this-mac).

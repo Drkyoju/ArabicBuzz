@@ -34,6 +34,7 @@ import {
   setBridgeDragData,
 } from '@/lib/files/workspace-bridge'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
+import { mapChatErrorAr } from '@/lib/ai/user-error-ar'
 import {
   createBrowserSupabaseClient,
   getBrowserSession,
@@ -996,22 +997,32 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
     if (!res.ok || !res.body) {
       let detail = ''
+      let code = ''
       try {
         const raw = await res.text()
-        const parsed = JSON.parse(raw) as { error?: string; code?: string }
-        detail = parsed.error || raw.slice(0, 200)
-        if (parsed.code === 'AUTH_REQUIRED') {
-          detail = 'سجّل الدخول للإرسال، ثم أعد المحاولة.'
+        const parsed = JSON.parse(raw) as {
+          error?: string
+          errorAr?: string
+          messageAr?: string
+          code?: string
+        }
+        code = parsed.code || ''
+        detail =
+          parsed.errorAr ||
+          parsed.messageAr ||
+          mapChatErrorAr(parsed.error || raw.slice(0, 200), {
+            httpStatus: res.status,
+            code,
+          })
+        if (code === 'AUTH_REQUIRED') {
           setSendBlockedAr(
             'سجّل الدخول للإرسال — انتهت جلستك أو لم تُسجّل الدخول بعد.'
           )
         }
       } catch {
-        /* ignore */
+        detail = mapChatErrorAr(null, { httpStatus: res.status })
       }
-      const msg = detail
-        ? `تعذّر الرد: ${detail}`
-        : `تعذّر الرد (HTTP ${res.status}).`
+      const msg = detail.startsWith('تعذّر') ? detail : `تعذّر الرد: ${detail}`
       updatePost(activeScopeId, opts.postId, {
         content: msg,
         streaming: false,
@@ -1598,7 +1609,12 @@ export function RoomWorkspace({ className }: { className?: string }) {
                     entirely behind the overflow menu. */}
                 <p className="mt-0.5 truncate text-[11px] leading-snug text-ab-muted-soft sm:hidden">
                   {streaming
-                    ? 'الوكيل يكتب الآن…'
+                    ? `${
+                        answeringAgentId
+                          ? roomAgents.find((a) => a.id === answeringAgentId)
+                              ?.nameAr || 'الوكيل'
+                          : 'الوكيل'
+                      } يكتب الآن…`
                     : shared
                       ? 'غرفة الفريق · اكتب @ لاستدعاء وكيل'
                       : PERSONAL_DESK_COPY.taglineAr}

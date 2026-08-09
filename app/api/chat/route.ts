@@ -456,10 +456,15 @@ export async function POST(req: Request) {
     scheduleOtelFlush()
     return result.toDataStreamResponse()
   } catch (e) {
+    const { mapChatErrorAr } = await import('@/lib/ai/user-error-ar')
     if (e instanceof UnknownModelError) {
-      return Response.json({ error: e.message }, { status: 400 })
+      const errorAr = mapChatErrorAr(e.message, { httpStatus: 400 })
+      console.error('[chat] UnknownModelError', e.modelId, e.message)
+      return Response.json({ error: errorAr, errorAr }, { status: 400 })
     }
-    const message = e instanceof Error ? e.message : 'تعذّر بث الرد'
-    return Response.json({ error: message }, { status: 500 })
+    const raw = e instanceof Error ? e.message : 'تعذّر بث الرد'
+    const errorAr = mapChatErrorAr(raw, { httpStatus: 500 })
+    console.error('[chat] stream error', raw)
+    return Response.json({ error: errorAr, errorAr }, { status: 500 })
   }
 }

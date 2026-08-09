@@ -99,7 +99,14 @@ npm run storage:sync:up
 # يعيد تشغيل الوكيل + يطبع URL النفق لتحديث MAC_SYNC_URL على CranL
 ```
 
-إن انقطع النفق السريع (trycloudflare) بعد نوم الماك أو تغيير الشبكة: أعد `storage:sync:up` وحدّث `MAC_SYNC_URL`.
+إن انقطع النفق السريع (trycloudflare) بعد نوم الماك أو تغيير الشبكة:
+
+```bash
+npm run mac-hop:watchdog:force
+# = agent + cloudflared + تحديث MAC_SYNC_URL / TELEGRAM_BOT_API_URL على CranL
+```
+
+**Fly (تحضير فقط — لا تنشر الآن):** [docs/fly-bot-api-prepare.md](./fly-bot-api-prepare.md) · `npm run fly:bot-api:prepare`
 
 ### ترتيب failover في الكود
 

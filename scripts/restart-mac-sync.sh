@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
-# Start / restart Mac sync agent + print tunnel reconnect steps.
+# Start / restart Mac sync agent + optional cloudflared tunnel + CranL URL PUT.
 # Usage:
 #   ./scripts/restart-mac-sync.sh
-#   ./scripts/restart-mac-sync.sh --with-tunnel   # also launch cloudflared quick tunnel if binary present
+#   ./scripts/restart-mac-sync.sh --with-tunnel          # tunnel + CranL PUT (default)
+#   ./scripts/restart-mac-sync.sh --with-tunnel --no-put # local tunnel only
+#   ./scripts/restart-mac-sync.sh --foreground
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+WITH_TUNNEL=0
+NO_PUT=0
+FOREGROUND=0
+for arg in "$@"; do
+  case "$arg" in
+    --with-tunnel) WITH_TUNNEL=1 ;;
+    --no-put) NO_PUT=1 ;;
+    --foreground) FOREGROUND=1 ;;
+  esac
+done
 
 PORT="${MAC_SYNC_PORT:-7420}"
 SECRET="${MAC_SYNC_SECRET:-}"
@@ -28,6 +41,13 @@ export MAC_SYNC_PORT="$PORT"
 export LOCAL_STORAGE_ROOT="${LOCAL_STORAGE_ROOT:-$HOME/ArabicBuzz/data}"
 mkdir -p "$LOCAL_STORAGE_ROOT"
 
+LOG_DIR="${HOME}/Library/Logs/ArabicBuzz"
+mkdir -p "$LOG_DIR"
+AGENT_LOG="/tmp/ab-mac-sync-agent.log"
+TUNNEL_LOG="$LOG_DIR/ab-cloudflared-mac-sync.log"
+# Keep /tmp symlink for older muscle-memory
+ln -sf "$TUNNEL_LOG" /tmp/ab-cloudflared-7420.log 2>/dev/null || true
+
 echo "════════════════════════════════════════"
 echo " Arabic Buzz · restart storage:sync"
 echo "════════════════════════════════════════"
@@ -47,9 +67,9 @@ sleep 0.5
 
 echo "Starting agent on 127.0.0.1:$PORT …"
 nohup env MAC_SYNC_SECRET="$SECRET" MAC_SYNC_PORT="$PORT" npm run storage:sync \
-  >/tmp/ab-mac-sync-agent.log 2>&1 &
+  >"$AGENT_LOG" 2>&1 &
 AGENT_PID=$!
-echo "agent pid=$AGENT_PID (log: /tmp/ab-mac-sync-agent.log)"
+echo "agent pid=$AGENT_PID (log: $AGENT_LOG)"
 
 # Health wait
 ok=0
@@ -63,45 +83,87 @@ done
 if [[ "$ok" -eq 1 ]]; then
   echo "✅ /health OK"
 else
-  echo "⚠️  /health not ready yet — see /tmp/ab-mac-sync-agent.log" >&2
+  echo "⚠️  /health not ready yet — see $AGENT_LOG" >&2
 fi
 
 TUNNEL_URL=""
-if [[ "${1:-}" == "--with-tunnel" ]]; then
+if [[ "$WITH_TUNNEL" -eq 1 ]]; then
   CF_BIN=""
-  for c in /tmp/cloudflared cloudflared "$(command -v cloudflared 2>/dev/null || true)"; do
-    if [[ -n "$c" && -x "$c" ]]; then CF_BIN="$c"; break; fi
-  done
+  if CF_BIN="$("$ROOT/scripts/ensure-cloudflared.sh" 2>/dev/null)"; then
+    :
+  else
+    CF_BIN=""
+  fi
+  if [[ -z "$CF_BIN" || ! -x "$CF_BIN" ]]; then
+    for c in "$HOME/bin/cloudflared" /usr/local/bin/cloudflared /opt/homebrew/bin/cloudflared /tmp/cloudflared "$(command -v cloudflared 2>/dev/null || true)"; do
+      if [[ -n "$c" && -x "$c" ]]; then CF_BIN="$c"; break; fi
+    done
+  fi
   if [[ -n "$CF_BIN" ]]; then
     pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null || true
     sleep 0.5
-    nohup "$CF_BIN" tunnel --url "http://127.0.0.1:$PORT" --no-autoupdate \
-      >/tmp/ab-cloudflared-7420.log 2>&1 &
-    echo "cloudflared pid=$! (log: /tmp/ab-cloudflared-7420.log)"
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-      TUNNEL_URL=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' /tmp/ab-cloudflared-7420.log 2>/dev/null | tail -1 || true)
+    : >"$TUNNEL_LOG"
+    # Prefer HTTP/2 first when QUIC is flaky on some networks; cloudflared falls back.
+    nohup "$CF_BIN" tunnel --url "http://127.0.0.1:$PORT" --protocol http2 --no-autoupdate \
+      >>"$TUNNEL_LOG" 2>&1 &
+    echo "cloudflared pid=$! (log: $TUNNEL_LOG)"
+    for i in $(seq 1 20); do
+      TUNNEL_URL=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -1 || true)
       if [[ -n "$TUNNEL_URL" ]]; then break; fi
       sleep 1
     done
+    # Retry once with default protocol if http2 never printed a URL
+    if [[ -z "$TUNNEL_URL" ]]; then
+      echo "http2 tunnel slow — retrying default protocol…" >&2
+      pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null || true
+      sleep 0.5
+      : >"$TUNNEL_LOG"
+      nohup "$CF_BIN" tunnel --url "http://127.0.0.1:$PORT" --no-autoupdate \
+        >>"$TUNNEL_LOG" 2>&1 &
+      for i in $(seq 1 20); do
+        TUNNEL_URL=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -1 || true)
+        if [[ -n "$TUNNEL_URL" ]]; then break; fi
+        sleep 1
+      done
+    fi
   else
-    echo "cloudflared not found — use: npx ngrok http $PORT"
+    echo "cloudflared not found — run: ./scripts/ensure-cloudflared.sh" >&2
+    echo "  or: npx ngrok http $PORT" >&2
   fi
 fi
 
 echo ""
-echo "CranL / Netlify (update when tunnel URL changes):"
+echo "CranL env (update when tunnel URL changes):"
 echo "  MAC_SYNC_URL=${TUNNEL_URL:-<https-tunnel>}"
 echo "  MAC_SYNC_SECRET=$SECRET"
 echo "  NEXT_PUBLIC_MAC_UPLOAD_URL=${TUNNEL_URL:-<https-tunnel>}"
 echo ""
+
+if [[ "$WITH_TUNNEL" -eq 1 && -n "$TUNNEL_URL" && "$NO_PUT" -eq 0 ]]; then
+  if [[ -x "$ROOT/scripts/cranl-put-env-keys.sh" ]]; then
+    echo "Updating CranL MAC_SYNC_URL…"
+    if "$ROOT/scripts/cranl-put-env-keys.sh" --restart \
+      "MAC_SYNC_URL=$TUNNEL_URL" \
+      "NEXT_PUBLIC_MAC_UPLOAD_URL=$TUNNEL_URL"; then
+      echo "✅ CranL MAC_SYNC_URL refreshed"
+    else
+      echo "⚠️  CranL PUT failed — tunnel is live locally; retry: npm run mac-hop:watchdog:force" >&2
+    fi
+  else
+    echo "⚠️  cranl-put-env-keys.sh missing — set MAC_SYNC_URL manually or: npm run mac-hop:watchdog:force" >&2
+  fi
+elif [[ "$WITH_TUNNEL" -eq 1 && -n "$TUNNEL_URL" && "$NO_PUT" -eq 1 ]]; then
+  echo "(--no-put) Skipped CranL update. When ready: npm run mac-hop:watchdog:force"
+fi
+
+echo ""
 echo "Reconnect notes:"
-echo "  • Quick tunnels (trycloudflare) die on Mac sleep / network change — re-run this script."
-echo "  • If QUIC blocked: try ngrok, or named Cloudflare tunnel, or set TELEGRAM_BOT_API_URL on a VPS."
+echo "  • Preferred always-on while Mac awake: npm run mac-hop:install"
+echo "  • Emergency heal: npm run mac-hop:watchdog:force  (agent + tunnel + CranL PUT)"
+echo "  • Quick tunnels die on sleep / network change — re-run this or the watchdog."
 echo "  • Bot /status shows جسر الماك hop live."
-echo "  • OrbStack pin: ./scripts/pin-orbstack-1.5.1.sh"
 echo "════════════════════════════════════════"
 
-# Keep foreground only if --foreground
-if [[ "${1:-}" == "--foreground" || "${2:-}" == "--foreground" ]]; then
+if [[ "$FOREGROUND" -eq 1 ]]; then
   wait "$AGENT_PID"
 fi

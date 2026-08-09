@@ -140,8 +140,8 @@ export function AgentSeatsPanel({
             : !online
               ? 'نائم'
               : answering
-                ? 'يعمل'
-                : 'شغال'
+                ? 'يكتب'
+                : 'جاهز'
           const tip = [agent.nameAr, model || 'Gemini Flash', `قوة ${power}`]
             .filter(Boolean)
             .join(' · ')
@@ -216,7 +216,7 @@ export function AgentSeatsPanel({
                 {agent.nameAr}
               </span>
               {answering ? (
-                <span className="shrink-0 text-[9px] text-ab-accent">يعمل</span>
+                <span className="shrink-0 text-[9px] text-ab-accent">يكتب</span>
               ) : !online ? (
                 <span className="shrink-0 text-[9px] text-ab-muted-soft">نائم</span>
               ) : null}
@@ -237,7 +237,7 @@ export function AgentSeatsPanel({
       {answeringAgentId && (
         <p className="text-[10px] font-medium text-ab-accent">
           {agents.find((a) => a.id === answeringAgentId)?.nameAr || 'وكيل'}{' '}
-          يعمل الآن…
+          يكتب الآن…
         </p>
       )}
       {!answeringAgentId && agents.length > 0 && agents.length <= ROOM_AGENT_SOFT_CAP && (
@@ -249,7 +249,7 @@ export function AgentSeatsPanel({
           <span className="mx-1 text-ab-border">·</span>
           <span className="inline-flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-ab-accent" aria-hidden />
-            يعمل
+            يكتب
           </span>
           <span className="mx-1 text-ab-border">·</span>
           <span className="inline-flex items-center gap-1">

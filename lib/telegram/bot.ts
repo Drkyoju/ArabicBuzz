@@ -49,6 +49,7 @@ import {
 import {
   extractAttachmentsFromToolOutput,
   extractAttachmentsFromAgentSteps,
+  downloadTelegramFileBuffer,
   ingestTelegramDocumentToWorkspace,
   ingestTelegramPhotoToWorkspace,
   ingestTelegramVideoToWorkspace,
@@ -2544,11 +2545,18 @@ export function getTelegramBot() {
         }
       }
 
-      const file = await ctx.getFile()
-      if (!file.file_path) throw new Error('مسار الملف الصوتي غير متوفر')
-      const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`
-      const res = await fetch(url)
-      const buffer = Buffer.from(await res.arrayBuffer())
+      const tgVoiceId =
+        ctx.message.voice?.file_id || ctx.message.audio?.file_id || ''
+      if (!tgVoiceId) throw new Error('معرّف الملف الصوتي غير متوفر')
+
+      const declaredSize =
+        ctx.message.voice?.file_size || ctx.message.audio?.file_size || undefined
+      const { buffer } = await downloadTelegramFileBuffer(ctx, tgVoiceId, {
+        fileName: ctx.message.audio?.file_name || 'voice.ogg',
+        declaredSizeBytes: declaredSize,
+        chatId,
+        messageId: ctx.message.message_id,
+      })
       const mime =
         ctx.message.voice || ctx.message.audio?.mime_type?.includes('ogg')
           ? 'audio/ogg'
@@ -2585,16 +2593,78 @@ export function getTelegramBot() {
         username: ctx.from?.username,
       })
 
+      // Archive voice to vault (+ Drive best-effort) BEFORE STT so a failed
+      // transcript never drops the audio from the archive.
+      const stamp = new Date()
+        .toISOString()
+        .replace(/[-:TZ.]/g, '')
+        .slice(0, 12)
+      const chatShort = chatId.replace(/^-100/, '').slice(-6)
+      const fromShort = (userId || 'u').slice(-4)
+      const voiceName = `tg-voice-${stamp}-${chatShort}-${fromShort}.ogg`
+      let voiceMarker = ''
+      let voiceSavedId = ''
+      try {
+        const saved = await saveWorkspaceFile({
+          scopeId: scope.scope.id,
+          buffer,
+          originalName: voiceName,
+          mimeType: mime,
+        })
+        voiceSavedId = saved.file.id
+        await persistTelegramAttachment({
+          chatId,
+          scopeId: scope.scope.id,
+          telegramFileId: tgVoiceId || undefined,
+          fileUniqueId:
+            ctx.message.voice?.file_unique_id ||
+            ctx.message.audio?.file_unique_id ||
+            undefined,
+          messageId: ctx.message.message_id,
+          fileName: saved.file.originalName,
+          mimeType: mime,
+          sizeBytes: buffer.length,
+          vaultFileId: saved.file.id,
+          hasBytes: true,
+        })
+        voiceMarker = formatDownloadMarker({
+          name: saved.file.originalName,
+          fileId: saved.file.id,
+          kind: 'voice',
+        })
+        const driveResult = await afterTelegramMediaSaved({
+          scopeId: scope.scope.id,
+          fileId: saved.file.id,
+          name: saved.file.originalName,
+          mimeType: mime,
+        })
+        if (!driveResult.driveSynced) {
+          console.warn(
+            '[telegram] voice drive sync skipped/failed',
+            saved.file.id,
+            driveResult.messageAr
+          )
+        }
+      } catch (saveErr) {
+        console.error('[telegram] voice archive', saveErr)
+      }
+
       await ctx.replyWithChatAction('typing')
       const stt = await transcribeArabicSpeech(buffer, mime)
       const transcript = stt.text
       if (!transcript?.trim()) {
         // Voice always expects a response when STT fails — never silent.
+        // Audio is already archived above when vault save succeeded.
         await ctx.reply(
-          formatTelegramErrorAr('تعذّر تفريغ الصوت', {
-            inGroup,
-            botUsername,
-          })
+          formatTelegramErrorAr(
+            voiceSavedId
+              ? 'تعذّر تفريغ الصوت — الملف محفوظ في أرشيف الغرفة'
+              : 'تعذّر تفريغ الصوت',
+            {
+              inGroup,
+              botUsername,
+            }
+          )
         )
         return
       }
@@ -2614,34 +2684,8 @@ export function getTelegramBot() {
       const needsTranslate =
         latinChars > 12 && latinChars > arabicChars * 2
 
-      const voiceName = `telegram-voice-${Date.now()}.ogg`
-      let voiceMarker = ''
-      try {
-        const saved = await saveWorkspaceFile({
-          scopeId: scope.scope.id,
-          buffer,
-          originalName: voiceName,
-          mimeType: mime,
-        })
-        const tgVoiceId =
-          ctx.message.voice?.file_id || ctx.message.audio?.file_id || ''
-        const persistedVoice = await persistTelegramAttachment({
-          chatId,
-          scopeId: scope.scope.id,
-          telegramFileId: tgVoiceId || undefined,
-          fileUniqueId:
-            ctx.message.voice?.file_unique_id ||
-            ctx.message.audio?.file_unique_id ||
-            undefined,
-          messageId: ctx.message.message_id,
-          fileName: saved.file.originalName,
-          mimeType: mime,
-          sizeBytes: buffer.length,
-          vaultFileId: saved.file.id,
-          hasBytes: true,
-        })
-        void persistedVoice
-        // Also store transcript sidecar for Drive archive search.
+      // Transcript sidecar for Drive search (best-effort).
+      if (voiceSavedId) {
         try {
           const side = await saveWorkspaceFile({
             scopeId: scope.scope.id,
@@ -2658,19 +2702,6 @@ export function getTelegramBot() {
         } catch {
           /* non-fatal */
         }
-        voiceMarker = formatDownloadMarker({
-          name: saved.file.originalName,
-          fileId: saved.file.id,
-          kind: 'voice',
-        })
-        void afterTelegramMediaSaved({
-          scopeId: scope.scope.id,
-          fileId: saved.file.id,
-          name: saved.file.originalName,
-          mimeType: mime,
-        })
-      } catch (saveErr) {
-        console.error('[telegram] voice save', saveErr)
       }
 
       rememberVoiceTranscript({

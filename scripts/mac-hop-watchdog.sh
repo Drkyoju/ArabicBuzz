@@ -130,7 +130,8 @@ start_tunnel() {
   # Already have a live tunnel process? Prefer its log URL.
   if ! pgrep -f "$marker" >/dev/null 2>&1; then
     : >"$log"
-    nohup "$CF_BIN" tunnel --url "http://127.0.0.1:${port}" --no-autoupdate \
+    # Prefer http2 first (QUIC/7844 often blocked); fall back below.
+    nohup "$CF_BIN" tunnel --url "http://127.0.0.1:${port}" --protocol http2 --no-autoupdate \
       >>"$log" 2>&1 &
     sleep 2
   fi
@@ -147,7 +148,7 @@ start_tunnel() {
     sleep 1
   done
 
-  # Stale process / dead quick tunnel — restart once
+  # Stale process / dead quick tunnel — restart once (default protocol)
   pkill -f "$marker" 2>/dev/null || true
   sleep 1
   : >"$log"
@@ -161,6 +162,21 @@ start_tunnel() {
     fi
     sleep 1
   done
+  # Last attempt: http2 again after clean kill
+  pkill -f "$marker" 2>/dev/null || true
+  sleep 1
+  : >"$log"
+  nohup "$CF_BIN" tunnel --url "http://127.0.0.1:${port}" --protocol http2 --no-autoupdate \
+    >>"$log" 2>&1 &
+  for _ in $(seq 1 20); do
+    url=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$log" 2>/dev/null | tail -1 || true)
+    if tunnel_url_ok "$name" "$url"; then
+      echo "$url"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "⚠️  ${name} tunnel URL not ready — try: npm run mac-hop:watchdog:force" >&2
   echo ""
   return 1
 }

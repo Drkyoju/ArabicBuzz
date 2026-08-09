@@ -110,6 +110,6 @@ export async function afterTelegramMediaSaved(opts: {
     driveSynced,
     messageAr: driveSynced
       ? `وسائط محفوظة في أرشيف الغرفة ومزامَنة مع عقل الشركة: «${opts.name}».`
-      : `وسائط محفوظة في أرشيف الغرفة: «${opts.name}» (جاهزة للتنفيذ من تيليجرام دون انتظار Drive).`,
+      : `وسائط محفوظة في أرشيف الغرفة: «${opts.name}» (خزنة الغرفة جاهزة؛ مزامنة Drive اختيارية عند توفر Google للمالك).`,
   }
 }

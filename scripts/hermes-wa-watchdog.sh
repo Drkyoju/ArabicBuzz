@@ -68,11 +68,8 @@ except Exception:
     hermes gateway restart >>"$LOG_DIR/hermes-wa-watchdog.log" 2>&1 || true
     write_state fail_count 0
     write_state last_restart "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    # Best-effort Telegram alert to owner (ignore failures)
-    if command -v hermes >/dev/null 2>&1; then
-      hermes send --to telegram "⚠️ واتساب: انقطع جسر Hermes وأُعيد تشغيل البوابة ($(date '+%H:%M'))" \
-        >>"$LOG_DIR/hermes-wa-watchdog.log" 2>&1 || true
-    fi
+    # Hermes is WhatsApp-only — no Telegram alerts
+    log "Alert: WA bridge restarted (Hermes has no Telegram platform)"
   fi
 }
 
@@ -113,11 +110,7 @@ auto_allowlist() {
   done
   bash "$ROOT/scripts/hermes-wa-allowlist-sync.sh" "${args[@]}" >>"$LOG_DIR/hermes-wa-watchdog.log" 2>&1 || true
   hermes gateway restart >>"$LOG_DIR/hermes-wa-watchdog.log" 2>&1 || true
-  log "Allowlist updated + gateway restarted"
-  if command -v hermes >/dev/null 2>&1; then
-    hermes send --to telegram "✅ واتساب: أُضيفت مجموعات جديدة للقائمة: ${missing[*]}" \
-      >>"$LOG_DIR/hermes-wa-watchdog.log" 2>&1 || true
-  fi
+  log "Allowlist updated + gateway restarted (JIDs: ${missing[*]})"
 }
 
 one_pass() {

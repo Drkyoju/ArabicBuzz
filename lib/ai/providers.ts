@@ -199,9 +199,12 @@ const OPENAI_IDS: Record<string, string> = {
 }
 
 export class UnknownModelError extends Error {
+  readonly modelId: string
   constructor(modelId: string) {
-    super(`Unknown model id: ${modelId}`)
+    // Arabic for UI; keep modelId for logs / mapping.
+    super(`النموذج «${modelId}» غير معروف — اختر نموذجاً من قائمة الوكلاء.`)
     this.name = 'UnknownModelError'
+    this.modelId = modelId
   }
 }
 

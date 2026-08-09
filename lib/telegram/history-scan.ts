@@ -53,7 +53,7 @@ const SETUP_AR = [
   'لاستعادة ملفات المجموعة القديمة (قبل وصول البوت): مرة واحدة على الماك',
   '1) https://my.telegram.org → TELEGRAM_API_ID + TELEGRAM_API_HASH',
   '2) npm run telegram:mtproto-login (حساب عضو في «عمل الجمعية» — بلا رسالة للمجموعة)',
-  '3) أبقِ npm run storage:sync:up + نفقاً → MAC_SYNC_URL على CranL',
+  '3) أبقِ npm run mac-hop:watchdog:force (يحدّث MAC_SYNC_URL على CranL تلقائياً)',
   'الكرون يعيد المحاولة صامتاً حتى تظهر البايتات ثم يكمل المهام.',
 ].join(' ')
 
@@ -202,7 +202,7 @@ export async function scanTelegramGroupDeepHistory(opts?: {
         skipped: true,
         reason: 'mac_unreachable',
         errorAr:
-          'جسر الماك غير متاح — أعد النفق: npm run storage:sync:up ثم حدّث MAC_SYNC_URL',
+          'جسر الماك غير متاح — أعد: npm run mac-hop:watchdog:force (يحدّث CranL تلقائياً)',
         setupAr: baseStatus.setupAr,
       }
     }
