@@ -3,6 +3,7 @@
 While the Mac is awake and you are logged in, launchd keeps:
 
 1. Hop watchdog (`com.arabicbuzz.hop-watchdog`) — Local Bot API + `storage:sync` + cloudflared tunnels + CranL env PUT when trycloudflare URLs change
+2. Optional nosleep (`com.arabicbuzz.nosleep` → `caffeinate -dims`) — [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md)
 
 Optional separate agent plist: `com.arabicbuzz.mac-sync.plist` (usually unused — watchdog already starts the agent to avoid port conflicts).
 
@@ -11,12 +12,16 @@ Optional separate agent plist: `com.arabicbuzz.mac-sync.plist` (usually unused �
 ```bash
 npm run mac-hop:install
 # = ./scripts/install-mac-hop-launchd.sh
+
+npm run mac-nosleep:install
+# = ./scripts/install-mac-nosleep-launchd.sh
 ```
 
 Unload:
 
 ```bash
 ./scripts/install-mac-hop-launchd.sh --unload
+./scripts/install-mac-nosleep-launchd.sh --unload
 ```
 
 ## Manual one-shot

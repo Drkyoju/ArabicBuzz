@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keep Mac awake while logged in (AC power: -s also applies).
+  Flags: -d display, -i idle system, -m disk, -s system sleep on AC.
+  Lid closed on battery still sleeps — keep lid open or use clamshell + AC + external display.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.arabicbuzz.nosleep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-dims</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/nosleep.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/nosleep.err.log</string>
+</dict>
+</plist>
