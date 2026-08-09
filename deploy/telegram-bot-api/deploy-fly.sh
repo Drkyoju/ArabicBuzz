@@ -30,10 +30,15 @@ fi
 load_dotenv() {
   local f="$1"
   [[ -f "$f" ]] || return 0
+  # macOS bash: process-substitution fds are not reliably source-able — use a temp file.
+  local tmp
+  tmp="$(mktemp)"
+  grep -E '^(TELEGRAM_API_ID|TELEGRAM_API_HASH)=' "$f" | sed 's/\r$//' >"$tmp" || true
   set -a
   # shellcheck disable=SC1090
-  source <(grep -E '^(TELEGRAM_API_ID|TELEGRAM_API_HASH)=' "$f" | sed 's/\r$//' || true)
+  source "$tmp"
   set +a
+  rm -f "$tmp"
 }
 
 load_dotenv "$ROOT/.env.local"

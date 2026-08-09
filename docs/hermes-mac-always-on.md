@@ -94,7 +94,8 @@ Configured in `~/.hermes/config.yaml` under `mcp_servers` (local only — never 
 | sequential-thinking | `@modelcontextprotocol/server-sequential-thinking` | no |
 | duckduckgo | `@ericthered926/duckduckgo-mcp-server` | no |
 | context7 | `@upstash/context7-mcp` | no |
-| time / git / markitdown | official / markitdown-mcp (npx) | **disabled on Monterey** (probe hang); keep entries for later |
+| time | `@guanxiong/mcp-server-time` (npx) | **enabled** — official `@modelcontextprotocol/server-time` is npm 404 |
+| git / markitdown | official / markitdown-mcp | **keep disabled** — packages 404 / fragile on Monterey; GitHub MCP covers git ops |
 | github | `@modelcontextprotocol/server-github` | optional `GITHUB_PERSONAL_ACCESS_TOKEN` in `~/.hermes/.env` |
 
 Skill: `~/.hermes/skills/research/duckduckgo-search` — free web fallback when Firecrawl key is absent.
@@ -169,6 +170,30 @@ WHATSAPP_ALLOWED_USERS=*   # or your number e.g. 9665xxxxxxxx
 ```bash
 hermes gateway restart
 ```
+
+### WhatsApp allowlist how-to / قائمة السماح
+
+Hermes only answers WhatsApp senders listed in `WHATSAPP_ALLOWED_USERS` (gateway env — **not** ArabicBuzz CranL vars).
+
+| Value | Meaning |
+|-------|---------|
+| `*` | Allow anyone who can message the linked WA account (dev only — avoid on a personal number) |
+| `9665xxxxxxxx` | One Saudi mobile in **international digits**, no `+`, no spaces |
+| `9665…,1555…` | Comma-separated list of several numbers |
+
+**Steps**
+
+1. Link the device first (`hermes whatsapp` → scan QR).
+2. Edit `~/.hermes/.env` only (mode `600`). Set `WHATSAPP_ENABLED=true` and `WHATSAPP_MODE=bot` (or `self-chat` for your own chats).
+3. Set `WHATSAPP_ALLOWED_USERS` to your number(s) — prefer explicit IDs over `*` on a personal phone.
+4. `hermes gateway restart` then DM the linked WhatsApp from an allowlisted number.
+5. Confirm in `~/.hermes/logs/gateway.log` (ignored / unauthorized vs handled).
+
+**Do not**
+
+- Put WhatsApp session folders or tokens in git.
+- Reuse ArabicBuzz CranL `WHATSAPP_TOKEN` / bridge secrets as Hermes Baileys config (separate stacks).
+- Touch `TELEGRAM_BOT_TOKEN` for `@alhuda14bot` while configuring WA.
 
 Safer business path: [WhatsApp Cloud API](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) via `hermes whatsapp-cloud` (Meta Business + public webhook) — separate from Baileys.
 

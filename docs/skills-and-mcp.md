@@ -211,7 +211,7 @@ FIRECRAWL_API_KEY=
 | توسيع `free-execute-map` | `lib/agents/tools/free-execute-map.ts` | web_search / web_fetch / Drive / Gmail / GitHub → builtins |
 | كتالوج `duckduckgo` | `lib/mcp/catalog.ts` | موثّق كمسار مجاني محلي |
 | مهارة Cursor | `.cursor/skills/arabicbuzz-free-mcp` | تفضيل المسار المجاني على Firecrawl المدفوع |
-| Hermes MCP | `~/.hermes/config.yaml` (محلي — لا يُرفع) | مفعّل: filesystem, memory, sequential-thinking, duckduckgo, context7, github — معطّل على Monterey: time/git/markitdown |
+| Hermes MCP | `~/.hermes/config.yaml` (محلي — لا يُرفع) | مفعّل: filesystem, memory, sequential-thinking, duckduckgo, context7, github, time (`@guanxiong/mcp-server-time`) — معطّل: git/markitdown (حزم npm 404 / هشة على Monterey) |
 | Hermes skill | `~/.hermes/skills/research/duckduckgo-search` | احتياطي عند غياب `FIRECRAWL_API_KEY` |
 
 بوت تيليجرام: عجز القدرة → `research_task_tools` → إن `canExecuteFree` نفّذ `executeNext` ثم `return_file`.
