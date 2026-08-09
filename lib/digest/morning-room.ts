@@ -1,5 +1,7 @@
 /**
- * Daily Arabic morning digest per room (Telegram) — skip when nothing to report.
+ * Daily Arabic morning digest per Telegram chat — once per Riyadh day.
+ * Skips when nothing to report. Dedupes by chat_id so multi-scope fan-out
+ * cannot spam the same group.
  */
 import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { appBaseUrl } from '@/lib/app-url'
@@ -7,19 +9,25 @@ import { emitNotification } from '@/lib/notifications/emit'
 import { listRoomCalendarEvents } from '@/lib/rooms/room-calendar'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
 import { isHitlDisabled } from '@/lib/security/posture'
-import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
+import {
+  hasTelegramOwnerTarget,
+  listUniqueTelegramDigestTargets,
+} from '@/lib/channels/bindings'
+import { claimDigestDayKey } from '@/lib/digest/day-claim'
 
 const TZ = 'Asia/Riyadh'
 
-function riyadhYmd(offsetDays: number): { ymd: string; start: Date; end: Date } {
+function riyadhYmd(offsetDays: number, now = new Date()): {
+  ymd: string
+  start: Date
+  end: Date
+} {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   })
-  const now = new Date()
   const base = new Date(now.getTime() + offsetDays * 86400_000)
   const ymd = fmt.format(base)
   const start = new Date(`${ymd}T00:00:00+03:00`)
@@ -40,7 +48,7 @@ function fmtWhen(iso: string) {
   }
 }
 
-/** True during morning window Asia/Riyadh (06:00–10:59) so hourly cron sends once. */
+/** True during morning window Asia/Riyadh (06:00–10:59). */
 export function isMorningDigestWindow(now = new Date()): boolean {
   try {
     const hour = Number(
@@ -56,51 +64,24 @@ export function isMorningDigestWindow(now = new Date()): boolean {
   }
 }
 
-async function listScopedRoomsWithTelegram(): Promise<string[]> {
-  const scopes = new Set<string>([
-    process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo',
-    'shared-demo',
-    'shared-ops',
-  ])
-  const sb = getSupabaseAdmin()
-  if (sb) {
-    const { data } = await sb
-      .from('channel_bindings')
-      .select('scope_id')
-      .eq('channel', 'telegram')
-      .limit(40)
-    for (const row of data || []) {
-      if (row.scope_id) scopes.add(String(row.scope_id))
-    }
-    try {
-      const { data: committees } = await sb
-        .from('room_committee_channels')
-        .select('scope_id')
-        .limit(40)
-      for (const row of committees || []) {
-        if (row.scope_id) scopes.add(String(row.scope_id))
-      }
-    } catch {
-      /* table may not exist */
-    }
-  }
-  return [...scopes].filter((s) => !s.startsWith('personal'))
-}
-
 export type MorningDigestResult = {
   scopeId: string
+  chatId?: string
   sent: boolean
   skipped?: boolean
   reason?: string
 }
 
-export async function buildMorningDigestAr(scopeId: string): Promise<{
+export async function buildMorningDigestAr(
+  scopeId: string,
+  now = new Date()
+): Promise<{
   textAr: string
   hasContent: boolean
 }> {
-  const today = riyadhYmd(0)
-  const tomorrow = riyadhYmd(1)
-  const now = Date.now()
+  const today = riyadhYmd(0, now)
+  const tomorrow = riyadhYmd(1, now)
+  const nowMs = now.getTime()
 
   const [tasks, events, pending] = await Promise.all([
     listRoomTasks(scopeId).catch(() => []),
@@ -118,7 +99,7 @@ export async function buildMorningDigestAr(scopeId: string): Promise<{
     (t) => t.status === 'open' || t.status === 'in_progress'
   )
   const overdue = open.filter(
-    (t) => t.dueAt && new Date(t.dueAt).getTime() < now
+    (t) => t.dueAt && new Date(t.dueAt).getTime() < nowMs
   )
   const todayEvents = events.filter((e) => {
     const t = new Date(e.startsAt).getTime()
@@ -220,33 +201,56 @@ export async function sendMorningRoomDigests(opts?: {
   const hasTg = await hasTelegramOwnerTarget().catch(() => false)
   if (!hasTg && !process.env.TELEGRAM_BOT_TOKEN) {
     return {
-      results: [{ scopeId: '*', sent: false, skipped: true, reason: 'no_telegram' }],
+      results: [
+        { scopeId: '*', sent: false, skipped: true, reason: 'no_telegram' },
+      ],
       windowOk: true,
     }
   }
 
-  const scopes = await listScopedRoomsWithTelegram()
+  const targets = await listUniqueTelegramDigestTargets()
+  const ymd = riyadhYmd(0, now).ymd
   const results: MorningDigestResult[] = []
 
-  for (const scopeId of scopes) {
+  for (const { scopeId, chatId } of targets) {
+    const claimKey = `morning:${ymd}:${chatId}`
     try {
-      const { textAr, hasContent } = await buildMorningDigestAr(scopeId)
+      const { textAr, hasContent } = await buildMorningDigestAr(scopeId, now)
       if (!hasContent) {
         results.push({
           scopeId,
+          chatId,
           sent: false,
           skipped: true,
           reason: 'empty',
         })
         continue
       }
+
+      // Claim after content check so empty mornings do not burn the day lock.
+      if (!opts?.force) {
+        const claimed = await claimDigestDayKey(claimKey)
+        if (!claimed) {
+          results.push({
+            scopeId,
+            chatId,
+            sent: false,
+            skipped: true,
+            reason: 'already_sent_today',
+          })
+          continue
+        }
+      }
+
       const r = await emitNotification({
         channel: 'telegram',
         textAr,
-        meta: { scopeId },
+        to: chatId,
+        meta: { scopeId, kind: 'morning_digest', dayKey: claimKey },
       })
       results.push({
         scopeId,
+        chatId,
         sent: r.ok,
         skipped: !r.ok,
         reason: r.ok ? undefined : 'send_failed',
@@ -254,6 +258,7 @@ export async function sendMorningRoomDigests(opts?: {
     } catch (e) {
       results.push({
         scopeId,
+        chatId,
         sent: false,
         skipped: true,
         reason: e instanceof Error ? e.message : 'error',

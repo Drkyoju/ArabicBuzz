@@ -1,15 +1,17 @@
 /**
- * Quiet overdue-task nudge — only when overdue exists; once per Riyadh morning window.
+ * Quiet overdue-task nudge — only when overdue exists; once per Riyadh day per chat.
  */
 import { appBaseUrl } from '@/lib/app-url'
 import { emitNotification } from '@/lib/notifications/emit'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
-import { hasTelegramOwnerTarget } from '@/lib/channels/bindings'
-import { getSupabaseAdmin } from '@/lib/supabase/server'
+import {
+  hasTelegramOwnerTarget,
+  listUniqueTelegramDigestTargets,
+} from '@/lib/channels/bindings'
 import { isMorningDigestWindow } from '@/lib/digest/morning-room'
+import { claimDigestDayKey } from '@/lib/digest/day-claim'
 
 const TZ = 'Asia/Riyadh'
-const sentToday = new Set<string>()
 
 function riyadhYmd(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -20,28 +22,9 @@ function riyadhYmd(now = new Date()): string {
   }).format(now)
 }
 
-async function listScopes(): Promise<string[]> {
-  const scopes = new Set<string>([
-    process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo',
-    'shared-demo',
-    'shared-ops',
-  ])
-  const sb = getSupabaseAdmin()
-  if (sb) {
-    const { data } = await sb
-      .from('channel_bindings')
-      .select('scope_id')
-      .eq('channel', 'telegram')
-      .limit(40)
-    for (const row of data || []) {
-      if (row.scope_id) scopes.add(String(row.scope_id))
-    }
-  }
-  return [...scopes].filter((s) => !s.startsWith('personal'))
-}
-
 export type OverdueNudgeResult = {
   scopeId: string
+  chatId?: string
   sent: boolean
   skipped?: boolean
   reason?: string
@@ -91,7 +74,9 @@ export async function sendOverdueNudges(opts?: {
   const hasTg = await hasTelegramOwnerTarget().catch(() => false)
   if (!hasTg && !process.env.TELEGRAM_BOT_TOKEN) {
     return {
-      results: [{ scopeId: '*', sent: false, skipped: true, reason: 'no_telegram' }],
+      results: [
+        { scopeId: '*', sent: false, skipped: true, reason: 'no_telegram' },
+      ],
       windowOk: true,
     }
   }
@@ -99,22 +84,14 @@ export async function sendOverdueNudges(opts?: {
   const ymd = riyadhYmd(now)
   const results: OverdueNudgeResult[] = []
 
-  for (const scopeId of await listScopes()) {
-    const dedupeKey = `${ymd}:${scopeId}:overdue`
-    if (!opts?.force && sentToday.has(dedupeKey)) {
-      results.push({
-        scopeId,
-        sent: false,
-        skipped: true,
-        reason: 'already_sent_today',
-      })
-      continue
-    }
+  for (const { scopeId, chatId } of await listUniqueTelegramDigestTargets()) {
+    const claimKey = `overdue:${ymd}:${chatId}`
     try {
       const { textAr, overdueCount } = await buildOverdueNudgeAr(scopeId)
       if (!overdueCount) {
         results.push({
           scopeId,
+          chatId,
           sent: false,
           skipped: true,
           reason: 'empty',
@@ -122,14 +99,31 @@ export async function sendOverdueNudges(opts?: {
         })
         continue
       }
+
+      if (!opts?.force) {
+        const claimed = await claimDigestDayKey(claimKey)
+        if (!claimed) {
+          results.push({
+            scopeId,
+            chatId,
+            sent: false,
+            skipped: true,
+            reason: 'already_sent_today',
+            overdueCount,
+          })
+          continue
+        }
+      }
+
       const r = await emitNotification({
         channel: 'telegram',
         textAr,
-        meta: { scopeId, kind: 'overdue_nudge' },
+        to: chatId,
+        meta: { scopeId, kind: 'overdue_nudge', dayKey: claimKey },
       })
-      if (r.ok) sentToday.add(dedupeKey)
       results.push({
         scopeId,
+        chatId,
         sent: r.ok,
         skipped: !r.ok,
         reason: r.ok ? undefined : 'send_failed',
@@ -138,6 +132,7 @@ export async function sendOverdueNudges(opts?: {
     } catch (e) {
       results.push({
         scopeId,
+        chatId,
         sent: false,
         skipped: true,
         reason: e instanceof Error ? e.message : 'error',

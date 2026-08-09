@@ -184,6 +184,81 @@ export async function findLatestTelegramChatId(): Promise<string> {
   }
 }
 
+export type TelegramDigestTarget = {
+  scopeId: string
+  chatId: string
+}
+
+/**
+ * Unique Telegram chats for room digests — one entry per chat_id.
+ * Avoids multi-scope fan-out to the same group via TELEGRAM_OWNER_CHAT_ID fallback.
+ * User DM bindings (`u:…`) are skipped. If no room bindings exist, falls back to
+ * TELEGRAM_OWNER_CHAT_ID / TELEGRAM_TEST_CHAT_ID once.
+ */
+export async function listUniqueTelegramDigestTargets(): Promise<
+  TelegramDigestTarget[]
+> {
+  const byChat = new Map<string, string>()
+
+  try {
+    const sb = getSupabaseAdmin()
+    if (sb) {
+      const { data } = await sb
+        .from('channel_bindings')
+        .select('scope_id, external_id')
+        .eq('channel', 'telegram')
+        .limit(80)
+      for (const row of data || []) {
+        const chatId = String(row.external_id || '').trim()
+        const scopeId = String(row.scope_id || '').trim()
+        if (!chatId || !scopeId || scopeId.startsWith('personal')) continue
+        if (chatId.startsWith('u:')) continue
+        if (!byChat.has(chatId)) byChat.set(chatId, scopeId)
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
+  if (byChat.size === 0) {
+    const rows = await withPrismaFallback(
+      () =>
+        prisma.channelBinding.findMany({
+          where: { channel: 'telegram' },
+          take: 80,
+          orderBy: { createdAt: 'desc' },
+        }),
+      [] as Array<{ scopeId: string; externalId: string }>
+    )
+    for (const row of rows) {
+      const chatId = String(row.externalId || '').trim()
+      const scopeId = String(row.scopeId || '').trim()
+      if (!chatId || !scopeId || scopeId.startsWith('personal')) continue
+      if (chatId.startsWith('u:')) continue
+      if (!byChat.has(chatId)) byChat.set(chatId, scopeId)
+    }
+  }
+
+  if (byChat.size === 0) {
+    const envChat = (
+      process.env.TELEGRAM_OWNER_CHAT_ID ||
+      process.env.TELEGRAM_TEST_CHAT_ID ||
+      ''
+    ).trim()
+    if (envChat) {
+      byChat.set(
+        envChat,
+        process.env.TELEGRAM_DEFAULT_SCOPE_ID?.trim() || 'shared-demo'
+      )
+    }
+  }
+
+  return [...byChat.entries()].map(([chatId, scopeId]) => ({
+    chatId,
+    scopeId,
+  }))
+}
+
 export async function hasTelegramOwnerTarget(): Promise<boolean> {
   if (
     process.env.TELEGRAM_OWNER_CHAT_ID?.trim() ||
