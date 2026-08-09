@@ -20,6 +20,31 @@ export async function persistGoogleProviderTokens(
     session as Session & { provider_refresh_token?: string }
   ).provider_refresh_token
 
+  // Prefer scopes Google actually put on the provider access token.
+  let scopesToStore = scopes
+  try {
+    const infoRes = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(providerToken)}`
+    )
+    const info = (await infoRes.json()) as { scope?: string }
+    if (info.scope) {
+      const tags = info.scope
+        .split(/\s+/)
+        .map((s) =>
+          s
+            .replace('https://www.googleapis.com/auth/', '')
+            .replace('https://www.googleapis.com/userinfo.', 'userinfo.')
+        )
+        .filter((s) => s && s !== 'openid' && !s.startsWith('userinfo.'))
+      // Keep known workspace tags only (stable DB format)
+      const wanted = new Set(scopes.split(',').map((s) => s.trim()))
+      const hit = tags.filter((t) => wanted.has(t) || t === 'drive' || t === 'documents' || t === 'contacts.readonly')
+      if (hit.length) scopesToStore = [...new Set(hit)].join(',')
+    }
+  } catch {
+    /* keep aspirational tags */
+  }
+
   try {
     const res = await fetch('/api/google/calendar', {
       method: 'POST',
@@ -33,7 +58,7 @@ export async function persistGoogleProviderTokens(
         refreshToken: refresh || null,
         email: session.user.email,
         expiresAt: new Date(Date.now() + 3500_000).toISOString(),
-        scopes,
+        scopes: scopesToStore,
       }),
     })
     const data = (await res.json().catch(() => ({}))) as { error?: string }

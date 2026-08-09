@@ -153,10 +153,12 @@ async function main() {
       refreshToken: row.refresh_token,
     })
 
-    let scopes = expandScopes(row.scopes)
-    if (refreshed.scope) {
-      scopes = [...new Set([...scopes, ...refreshed.scope.split(/\s+/).filter(Boolean)])]
-    }
+    // Prefer scopes Google actually granted on refresh — DB tags can be aspirational
+    // (client stores GOOGLE_WORKSPACE_SCOPE_TAGS even when refresh_token was not rotated).
+    let scopes = refreshed.scope
+      ? refreshed.scope.split(/\s+/).filter(Boolean)
+      : expandScopes(row.scopes)
+    scopes = [...new Set(scopes)]
     if (!scopes.some((s) => s.includes('drive'))) {
       console.warn(
         'WARNING: token has no Drive scope — list/get may fail. Re-link Google in ArabicBuzz first.'
@@ -169,6 +171,8 @@ async function main() {
       token_uri: 'https://oauth2.googleapis.com/token',
       client_id: clientId,
       client_secret: clientSecret,
+      // Omit scopes that were not actually granted — google-auth sends scopes on
+      // refresh and Google returns invalid_scope for undelivered ones (e.g. drive).
       scopes,
       type: 'authorized_user',
       universe_domain: 'googleapis.com',
