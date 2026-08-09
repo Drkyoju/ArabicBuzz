@@ -153,10 +153,11 @@ PY
         TX_TMP="$(mktemp -t hermes-wa-tx.XXXXXX).txt"
         # Write UTF-8 transcript with small Arabic header for searchability
         {
-          printf 'تفريغ صوتي (هيرميس / أرشفة واتساب)\n'
+          # Use -- and %s so macOS printf never treats "---" / leading dashes as options.
+          printf '%s\n' 'تفريغ صوتي (هيرميس / أرشفة واتساب)'
           printf 'المصدر: %s\n' "$base"
-          printf '---\n'
-          printf '%s\n' "$tx_text"
+          printf '%s\n' '---'
+          printf '%s\n' -- "$tx_text"
         } > "$TX_TMP"
         # Sidecar name mirrors archive name
         if [[ "$NAME" == *.* ]]; then
