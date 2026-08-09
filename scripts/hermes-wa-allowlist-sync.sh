@@ -207,34 +207,38 @@ write_yaml() {
   local joined="$1"
   python3 - "$CFG_FILE" "$joined" <<'PY'
 import sys, re
-path, joined = sys.argv[1], sys.argv[2]
+from pathlib import Path
+path, joined = Path(sys.argv[1]), sys.argv[2]
 jids = [j.strip() for j in joined.split(",") if j.strip()]
-text = open(path, encoding="utf-8").read()
-block = "  group_allow_from:\n" + "".join(f'    - "{j}"\n' for j in jids)
-# Replace existing group_allow_from list under whatsapp:
-pat = re.compile(
-    r"(?m)^whatsapp:\n(?:.*\n)*?^  group_allow_from:\n(?:^    - .*\n)*",
+text = path.read_text(encoding="utf-8")
+block_lines = "\n".join(f'        - "{j}"' for j in jids) + "\n"
+# Update platforms.whatsapp.extra.group_allow_from if present
+pat_extra = re.compile(
+    r"(?m)^(\s*group_allow_from:\n)(?:^\s+- .*\n)*",
 )
-if "group_allow_from:" in text:
-    # More precise: only the list lines
-    text2, n = re.subn(
-        r"(?m)^(  group_allow_from:\n)(?:^    - .*\n)*",
-        block,
-        text,
-        count=1,
-    )
-    if n == 0:
-        # insert after group_policy
+# Prefer replacing every group_allow_from list (top-level whatsapp + platforms.extra)
+def repl(m):
+    indent = m.group(1)
+    # Detect indent of list items from the key line
+    key_indent = len(indent) - len(indent.lstrip(" "))
+    item_indent = " " * (key_indent + 2)
+    items = "".join(f'{item_indent}- "{j}"\n' for j in jids)
+    return indent + items
+
+text2, n = pat_extra.subn(repl, text)
+if n == 0:
+    # insert under platforms.whatsapp.extra
+    if "platforms:\n" in text2 and "whatsapp:\n" in text2:
         text2 = re.sub(
-            r"(?m)^(  group_policy:.*\n)",
-            r"\1" + block,
-            text,
+            r"(?m)^(  whatsapp:\n    extra:\n)",
+            r"\1      group_allow_from:\n" + "".join(f'        - "{j}"\n' for j in jids),
+            text2,
             count=1,
         )
-else:
-    text2 = text.rstrip() + "\nwhatsapp:\n" + block
-open(path, "w", encoding="utf-8").write(text2)
-print(f"Updated {path}")
+    else:
+        text2 = text.rstrip() + "\nwhatsapp:\n  group_allow_from:\n" + "".join(f'    - "{j}"\n' for j in jids)
+path.write_text(text2, encoding="utf-8")
+print(f"Updated {path} ({n} group_allow_from block(s))")
 PY
 }
 
