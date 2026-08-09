@@ -79,6 +79,7 @@ import {
   enqueueTelegramFileJob,
   formatPdfDuplicateToolHintAr,
   inferPdfDuplicateWorkParams,
+  listOpenTelegramFileJobs,
   updateTelegramFileJob,
 } from '@/lib/telegram/file-jobs'
 import {
@@ -2162,6 +2163,11 @@ export function getTelegramBot() {
       const personalId = await lookupTelegramWorkspaceUserId(userId).catch(
         () => null
       )
+      const openJobs = await listOpenTelegramFileJobs({
+        chatId,
+        scopeId: scope.scope.id,
+        limit: 20,
+      }).catch(() => [])
       const personalLinkAr = personalId
         ? `ربط شخصي: نعم (${personalId.slice(0, 8)}…) — Gmail/Drive بهويتك`
         : inGroup
@@ -2173,11 +2179,13 @@ export function getTelegramBot() {
         scopeNameAr: scope.scope.nameAr,
         scopeId: scope.scope.id,
         pendingCount: pending.length,
+        openFileJobsCount: openJobs.length,
         googleHintAr: googleHint,
         personalLinkAr,
         integrationsAr: [
           `هوية الأدوات: ${requester.source === 'personal' || requester.source === 'env_map' ? 'شخصية' : 'مالك القناة'}`,
           'الإعدادات من تيليجرام: قراءة فقط (/status) — التعديل من الموقع',
+          'أرشفة تلقائية: ملفات وصوت → غرفة الفريق + Drive عند الاستلام',
         ],
       })
       if (inGroup) {

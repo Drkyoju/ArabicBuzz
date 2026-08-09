@@ -14,6 +14,7 @@
     "storage:setup": "bash scripts/setup-mac-sync.sh",
     "telegram:mtproto-login": "python3 scripts/telegram-mtproto-login.py",
     "telegram:mtproto-scan": "python3 scripts/telegram-mtproto-history.py",
+    "telegram:mtproto-download": "python3 scripts/telegram-mtproto-download.py",
     "cua:bridge": "tsx scripts/cua-bridge-agent.ts",
     "ocr:qari": "python3 scripts/qari-ocr-bridge.py",
     "brain:migrate": "npx prisma db execute --file supabase/migrations/007_company_brain.sql --schema prisma/schema.prisma",

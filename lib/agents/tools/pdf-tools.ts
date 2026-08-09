@@ -143,8 +143,8 @@ export async function executePdfMerge(
 
 /**
  * Duplicate a PDF page (full content) and insert the copy after another page.
- * findEmptyPage=true: locate an existing page with no writing at all («صفحة فاضية»)
- * and copy it — never invent a white blank, never treat بسم الله/headers as empty,
+ * findEmptyPage=true: locate an existing body-empty leaf («صفحة فاضية», like ص49 —
+ * header/logo OK) and copy it — never invent a white blank, never pick بسم الله,
  * never default to page 48. If none exists, throw so callers report honestly.
  * mode=blank only when the user explicitly asked for a fabricated white page.
  */
@@ -198,7 +198,7 @@ export async function executePdfDuplicatePage(
       const found = await findEmptyContentPage({ pdf: hit.buffer })
       if (found == null) {
         throw new Error(
-          'لم أجد صفحة فاضية بلا أي كتابة إطلاقاً في الملف (كل الصفحات فيها نص/كتابة بما فيها البسملة أو الترويسة) — لن أخترع صفحة بيضاء ولن أنسخ صفحة فيها كتابة. حدّد رقم الصفحة صراحة إن أردت نسخ صفحة معيّنة.'
+          'لم أجد صفحة فاضية (متن فارغ؛ ترويسة/شعار أعلى الصفحة مقبول) في الملف — لن أخترع صفحة بيضاء ولن أنسخ صفحة فيها متن أو بسملة. حدّد رقم الصفحة صراحة إن أردت نسخ صفحة معيّنة.'
         )
       }
       copyPage = found

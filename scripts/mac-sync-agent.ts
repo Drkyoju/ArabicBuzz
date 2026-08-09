@@ -34,6 +34,9 @@ import {
 config({ path: '.env.local' })
 config({ path: '.env' })
 
+/** Prevent CranL↔Mac hop loops when this process runs pending PDF jobs. */
+process.env.ARABIC_BUZZ_MAC_SYNC_AGENT = '1'
+
 const PORT = Number(process.env.MAC_SYNC_PORT || 7420)
 const SECRET =
   process.env.MAC_SYNC_SECRET?.trim() ||
@@ -1292,6 +1295,50 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // POST /telegram/run-pending-pdf — heavy PDF job on Mac (avoids CranL 504)
+  if (req.method === 'POST' && url.pathname === '/telegram/run-pending-pdf') {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        jobId?: string
+        chatId?: string
+        scopeId?: string
+        findEmptyPage?: boolean
+        afterPage?: number
+        copyPage?: number
+        queryNames?: string[]
+      }
+      const { resolveAndRunPendingPdfJob } = await import(
+        '../lib/telegram/group-archive'
+      )
+      const result = await resolveAndRunPendingPdfJob({
+        jobId:
+          body.jobId || '96dee180-e828-49db-a2df-0d3a411e90a6',
+        chatId: body.chatId || '-1003855925966',
+        scopeId: body.scopeId || 'shared-demo',
+        findEmptyPage:
+          body.findEmptyPage === true ||
+          (body.findEmptyPage !== false && body.copyPage == null),
+        afterPage:
+          typeof body.afterPage === 'number' ? body.afterPage : 45,
+        copyPage:
+          typeof body.copyPage === 'number' ? body.copyPage : undefined,
+        queryNames: body.queryNames,
+      })
+      json(res, result.ok ? 200 : 422, result)
+    } catch (e) {
+      json(res, 500, {
+        ok: false,
+        errorAr: e instanceof Error ? e.message : 'run-pending-pdf failed',
+      })
+    }
+    return
+  }
+
   // POST /telegram/fetch-file — large TG download via local Bot API (free path)
   if (req.method === 'POST' && url.pathname === '/telegram/fetch-file') {
     if (!checkAuth(req)) {
@@ -1379,6 +1426,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  POST /telegram/fetch-file (large TG via local Bot API)`)
+  console.log(`  POST /telegram/run-pending-pdf (empty-page / dup on Mac)`)
   console.log(`  GET  /telegram/history-status`)
   console.log(`  POST /telegram/scan-history (MTProto user deep archive)`)
   console.log(`  vault: ${status.root}`)

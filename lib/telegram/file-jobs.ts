@@ -445,9 +445,8 @@ export type PdfDuplicateWorkParams =
 /**
  * Infer structured PDF page-duplicate intent from Arabic/English requests.
  *
- * «صفحة فاضية/فارغة» = copy an existing page with NO writing at all
- * (not “mostly blank”, not بسم الله / headers / title leaves;
- * NOT invent a white blank; NOT default to page 48).
+ * «صفحة فاضية/فارغة» = body-text empty leaf (header/logo/top-left OK, like ص49);
+ * never بسم الله (e.g. ص2); NOT invent a white blank; NOT default to page 48.
  * «صفحة بيضاء» is handled elsewhere (pdf_insert_blank_page).
  */
 export function inferPdfDuplicateWorkParams(
@@ -629,7 +628,7 @@ export function formatPdfDuplicateToolHintAr(
 ): string {
   const fid = fileId ? ` fileId=${fileId}` : ''
   if (dup.findEmptyPage) {
-    return `استدعِ pdf_duplicate_page: findEmptyPage=true afterPage=${dup.afterPage}${fid} ثم return_file. صفحة فاضية = بلا أي كتابة إطلاقاً (ليست بسم الله/ترويسة/عنوان) — إن لم توجد أبلغ بذلك. ممنوع mode=blank وممنوع افتراض copyPage=48.`
+    return `استدعِ pdf_duplicate_page: findEmptyPage=true afterPage=${dup.afterPage}${fid} ثم return_file. صفحة فاضية = متن فارغ (ترويسة/شعار أعلى الصفحة مقبول مثل ص49) — ممنوع بسم الله/ص2 وممنوع mode=blank وممنوع افتراض copyPage=48. إن لم توجد أبلغ صادقاً.`
   }
   return `استدعِ pdf_duplicate_page: copyPage=${dup.copyPage} afterPage=${dup.afterPage}${fid} ثم return_file.`
 }
@@ -667,7 +666,7 @@ export function buildResumePromptForJob(
   if (params?.findEmptyPage) {
     lines.push(
       `استدعِ pdf_duplicate_page فوراً: findEmptyPage=true afterPage=${params.afterPage} fileId=${resolved.vaultFileId} ثم return_file.`,
-      'صفحة فاضية = انسخ صفحة موجودة بلا أي كتابة إطلاقاً من الملف نفسه (ليست بسم الله الرحمن الرحيم ولا ترويسة ولا صفحة عنوان). إن لم توجد صفحة بلا كتابة أبلغ المجموعة صادقاً — ممنوع اختراع صفحة بيضاء (mode=blank). ممنوع copyPage=48 إلا إن طُلب رقم الصفحة صراحة.'
+      'صفحة فاضية = صفحة موجودة متنها فارغ (ترويسة/شعار أعلى الصفحة مقبول مثل ص49). ممنوع اختيار صفحة البسملة (مثل ص2). إن وُجدت انسخها — ممنوع اختراع صفحة بيضاء (mode=blank). ممنوع copyPage=48 إلا إن طُلب رقم الصفحة صراحة. إن لم توجد أبلغ المجموعة صادقاً.'
     )
   } else if (params && 'copyPage' in params && params.copyPage != null) {
     lines.push(

@@ -34,6 +34,8 @@ export function buildTelegramHelpAr(opts?: {
     '',
     '👁 بعد /link + إيقاف Group Privacy: يسمع كل شيء (نص · صوت · ملف)',
     '• طلب («أبغى كذا» / صوت / ملف) → يُنفَّذ فوراً ويرد بالناتج — بدون منشن',
+    '• الملفات والصوت تُؤرشف تلقائياً إلى Drive + غرفة الفريق عند الاستلام',
+    '• إن نقص الملف: انتظار صامت (بدون «أعد الإرسال») — البحث Drive→تيليجرام→غرفة→ماك',
     '• الوكلاء: وكيل١…٨ — إنشغال الأول يوقظ التالي؛ طلب ثقيل أو «أبغا للجميع» يشغّل المتفرّغين معاً',
     '• دردشة بين الناس → صامت (استيراد الوسائط فقط)',
     '',
@@ -213,14 +215,20 @@ export function buildTelegramStatusLinesAr(opts: {
   wakeHintAr?: string
   personalLinkAr?: string | null
   integrationsAr?: string[]
+  openFileJobsCount?: number
 }): string[] {
+  const jobsLine =
+    typeof opts.openFileJobsCount === 'number'
+      ? `مهام ملفات معلّقة: ${opts.openFileJobsCount} (انتظار صامت إن نقصت البايتات)`
+      : null
   return [
     'حالة Arabic Buzz عبر تيليجرام (قراءة فقط):',
     `المحادثة: ${opts.chatId}${opts.inGroup ? ' (مجموعة مربوطة)' : ' (خاص)'}`,
     `المساحة: ${opts.scopeNameAr} (${opts.scopeId})`,
     `موافقات معلّقة: ${opts.pendingCount}`,
+    jobsLine,
     opts.wakeHintAr ||
-      'الوكيل: نص · صوت · ملفات · Drive · بريد · تقويم · خطابات · محاضر — مثل غرفة الموقع',
+      'الوكلاء وكيل١…٨: نص · صوت · ملفات · أرشفة Drive · استئناف المهام — مثل غرفة الموقع',
     opts.personalLinkAr || null,
     ...(opts.integrationsAr || []),
     opts.googleHintAr || null,

@@ -271,6 +271,7 @@ export async function POST(req: NextRequest) {
       syncRoom: true,
       // Avoid hung loca.lt / Mac hop during cron — file jobs already tried cascade.
       syncMac: false,
+      // Keep attachment archive snappy; deep MTProto runs in a separate best-effort step.
       skipDeepHistory: true,
       attachmentLimit: 40,
     })
@@ -294,6 +295,52 @@ export async function POST(req: NextRequest) {
     telegramGroupArchive = {
       ok: false,
       error: e instanceof Error ? e.message : 'telegram archive error',
+    }
+  }
+
+  // Best-effort MTProto history → Drive/room when SESSION + MAC_SYNC are ready.
+  // Capped so cron does not 504; advances an in-memory cursor across runs.
+  let telegramDeepHistory: unknown = null
+  try {
+    const {
+      getDeepHistoryStatus,
+      scanTelegramGroupDeepHistory,
+    } = await import('@/lib/telegram/history-scan')
+    const st = getDeepHistoryStatus()
+    if (!st.credentialsReady) {
+      telegramDeepHistory = {
+        skipped: true,
+        reason: 'credentials_not_ready',
+        setupAr: st.setupAr,
+      }
+    } else {
+      const scanPromise = scanTelegramGroupDeepHistory({
+        chatId: '-1003855925966',
+        scopeId: 'shared-demo',
+        muallimOnly: false,
+        limit: 60,
+        download: true,
+      })
+      telegramDeepHistory = await Promise.race([
+        scanPromise,
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: false,
+                timedOut: true,
+                credentialsReady: true,
+                errorAr: 'انتهت مهلة مسح التاريخ — يُعاد في الكرون التالي',
+              }),
+            40_000
+          )
+        ),
+      ])
+    }
+  } catch (e) {
+    telegramDeepHistory = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'telegram deep history error',
     }
   }
 
@@ -415,6 +462,7 @@ export async function POST(req: NextRequest) {
     directorDigest,
     driveBrainSync,
     telegramGroupArchive,
+    telegramDeepHistory,
     morningDigest,
     overdueNudge,
     googleRoomCalendarSync,

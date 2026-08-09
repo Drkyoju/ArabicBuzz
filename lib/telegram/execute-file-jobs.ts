@@ -67,7 +67,12 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
     const { readWorkspaceFile } = await import('@/lib/documents/workspace')
     const file = await readWorkspaceFile(job.scopeId, resultFileId)
 
-    if (file.buffer.byteLength > TELEGRAM_MAX_UPLOAD_BYTES) {
+    const { isLocalTelegramBotApiConfigured } = await import(
+      '@/lib/telegram/bot-api-root'
+    )
+    const localBot = isLocalTelegramBotApiConfigured()
+    // Cloud Bot API ~50MB; Local Bot API raises sendDocument well past that.
+    if (file.buffer.byteLength > TELEGRAM_MAX_UPLOAD_BYTES && !localBot) {
       const mb = (file.buffer.byteLength / (1024 * 1024)).toFixed(1)
       const { emitNotification } = await import('@/lib/notifications/emit')
       await emitNotification({
@@ -84,6 +89,18 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
         resultVaultFileId: resultFileId,
         resultName: file.meta.originalName,
       })
+      try {
+        const { pushVaultToDriveBestEffort } = await import(
+          '@/lib/telegram/storage-mesh'
+        )
+        void pushVaultToDriveBestEffort({
+          scopeId: job.scopeId,
+          vaultFileId: resultFileId,
+          fileName: file.meta.originalName || resultName,
+        })
+      } catch {
+        /* non-fatal */
+      }
       return { ok: true, sentName: file.meta.originalName }
     }
 
@@ -110,6 +127,21 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
       resultVaultFileId: resultFileId,
       resultName: file.meta.originalName,
     })
+
+    // Best-effort Drive brain archive of the job result (same path as group-archive).
+    try {
+      const { pushVaultToDriveBestEffort } = await import(
+        '@/lib/telegram/storage-mesh'
+      )
+      void pushVaultToDriveBestEffort({
+        scopeId: job.scopeId,
+        vaultFileId: resultFileId,
+        fileName: file.meta.originalName || resultName,
+      })
+    } catch {
+      /* non-fatal */
+    }
+
     return { ok: true, sentName: file.meta.originalName }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

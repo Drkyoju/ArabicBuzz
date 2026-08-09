@@ -77,7 +77,7 @@ describe('findEmptyContentPage', () => {
     expect(found).toBe(7)
   })
 
-  it('never treats basmala / short header as empty', async () => {
+  it('never treats basmala page as empty; prefers true empty leaf', async () => {
     const src = await PDFDocument.create()
     const font = await src.embedFont(StandardFonts.Helvetica)
     // Page 1: content
@@ -91,7 +91,7 @@ describe('findEmptyContentPage', () => {
         color: rgb(0, 0, 0),
       })
     }
-    // Page 2: «بسم الله» style short writing — MUST NOT count as empty
+    // Page 2: «بسم الله» style — MUST NOT count as empty
     {
       const page = src.addPage([400, 600])
       page.drawText('Bismillah short title', {
@@ -116,24 +116,70 @@ describe('findEmptyContentPage', () => {
     // Page 6: truly empty (no text)
     src.addPage([400, 600])
     const bytes = Buffer.from(await src.save())
-    const { findEmptyContentPage, pdfPageHasWriting } = await import(
-      '@/lib/documents/pdf'
-    )
+    const {
+      findEmptyContentPage,
+      pdfPageHasWriting,
+      pdfTextLooksLikeBasmala,
+    } = await import('@/lib/documents/pdf')
     expect(pdfPageHasWriting('بسم الله الرحمن الرحيم')).toBe(true)
+    expect(pdfTextLooksLikeBasmala('بسم الله الرحمن الرحيم')).toBe(true)
     expect(pdfPageHasWriting('   ')).toBe(false)
     const found = await findEmptyContentPage({ pdf: bytes, searchFromPage: 1 })
     expect(found).toBe(6)
     expect(found).not.toBe(2)
   })
 
-  it('returns null when every page has writing', async () => {
+  it('accepts body-empty page with top header/logo (ص49 style)', async () => {
+    const src = await PDFDocument.create()
+    const font = await src.embedFont(StandardFonts.Helvetica)
+    // Body pages
+    for (let i = 0; i < 4; i++) {
+      const page = src.addPage([400, 600])
+      page.drawText(`Body paragraph content on page ${i + 1}`, {
+        x: 40,
+        y: 320,
+        size: 14,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    // Page 5: header/logo only near top — body empty (like ص49)
+    {
+      const page = src.addPage([400, 600])
+      page.drawText('LOGO', {
+        x: 20,
+        y: 560,
+        size: 10,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    // Page 6: basmala in body zone — must not win
+    {
+      const page = src.addPage([400, 600])
+      page.drawText('Bismillah basmala center', {
+        x: 80,
+        y: 300,
+        size: 16,
+        font,
+        color: rgb(0, 0, 0),
+      })
+    }
+    const bytes = Buffer.from(await src.save())
+    const { findEmptyContentPage } = await import('@/lib/documents/pdf')
+    const found = await findEmptyContentPage({ pdf: bytes })
+    expect(found).toBe(5)
+    expect(found).not.toBe(6)
+  })
+
+  it('returns null when every page has body writing', async () => {
     const src = await PDFDocument.create()
     const font = await src.embedFont(StandardFonts.Helvetica)
     for (let i = 0; i < 5; i++) {
       const page = src.addPage([400, 600])
-      page.drawText(i === 1 ? 'Bismillah' : `PAGE-${i + 1}`, {
+      page.drawText(i === 1 ? 'Bismillah' : `PAGE-${i + 1} body writing here`, {
         x: 40,
-        y: 500,
+        y: 320,
         size: 16,
         font,
         color: rgb(0, 0, 0),

@@ -325,6 +325,60 @@ export async function macPageOcr(opts: {
 }
 
 /**
+ * Run a heavy Telegram PDF job on the Mac (Local Bot API + local vault).
+ * CranL cron 504s on ~160MB files — hop here instead of pdf-lib in the thin image.
+ */
+export async function macRunPendingPdfJob(opts: {
+  jobId: string
+  chatId: string
+  scopeId: string
+  findEmptyPage?: boolean
+  afterPage?: number
+  copyPage?: number
+  queryNames?: string[]
+}): Promise<{
+  ok: boolean
+  source?: string
+  resultName?: string
+  pages?: string
+  emptySourcePage?: number
+  errorAr?: string
+}> {
+  const res = await macFetch('/telegram/run-pending-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+    timeoutMs: 600_000,
+  })
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean
+    source?: string
+    resultName?: string
+    pages?: string
+    emptySourcePage?: number
+    errorAr?: string
+    error?: string
+  }
+  if (!res.ok && data.ok !== true) {
+    return {
+      ok: false,
+      errorAr:
+        data.errorAr ||
+        data.error ||
+        `فشل Hop الماك لمهمة PDF (HTTP ${res.status})`,
+    }
+  }
+  return {
+    ok: Boolean(data.ok),
+    source: data.source,
+    resultName: data.resultName,
+    pages: data.pages,
+    emptySourcePage: data.emptySourcePage,
+    errorAr: data.errorAr || data.error,
+  }
+}
+
+/**
  * PDF↔DOCX via Mac agent (LibreOffice / pdf2docx / visual page images).
  * Prefer mode=visual when Arabic ToUnicode is broken.
  */

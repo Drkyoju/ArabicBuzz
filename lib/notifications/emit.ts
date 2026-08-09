@@ -168,22 +168,31 @@ export async function emitTelegramDocument(opts: {
     return { ok: false, error: 'تيليجرام غير مضبوط أو لا محادثة مربوطة' }
   }
   try {
-    const form = new FormData()
-    form.append('chat_id', chatId)
-    if (opts.captionAr) form.append('caption', opts.captionAr.slice(0, 1000))
-    const blob = new Blob([new Uint8Array(opts.buffer)], {
-      type: 'application/octet-stream',
-    })
-    form.append('document', blob, opts.filename || 'file.bin')
-    const res = await telegramBotApiFetch(
-      `https://api.telegram.org/bot${token}/sendDocument`,
-      { method: 'POST', body: form }
-    )
-    if (!res.ok) {
-      const t = await res.text().catch(() => '')
-      return { ok: false, error: `Telegram HTTP ${res.status}: ${t.slice(0, 200)}` }
+    const { telegramBotApiRootsForDownload, telegramBotApiMethodUrl } =
+      await import('@/lib/telegram/bot-api-root')
+    const roots = telegramBotApiRootsForDownload({ preferLocal: true })
+    let lastErr = ''
+    for (const root of roots) {
+      const form = new FormData()
+      form.append('chat_id', chatId)
+      if (opts.captionAr) form.append('caption', opts.captionAr.slice(0, 1000))
+      const blob = new Blob([new Uint8Array(opts.buffer)], {
+        type: 'application/octet-stream',
+      })
+      form.append('document', blob, opts.filename || 'file.bin')
+      const res = await telegramBotApiFetch(
+        telegramBotApiMethodUrl(root, token, 'sendDocument'),
+        { method: 'POST', body: form }
+      )
+      if (res.ok) return { ok: true }
+      lastErr = await res.text().catch(() => '')
+      // Cloud ~50MB cap — try next root (local) if present.
+      if (roots.length === 1) break
     }
-    return { ok: true }
+    return {
+      ok: false,
+      error: `Telegram sendDocument failed: ${lastErr.slice(0, 200)}`,
+    }
   } catch (e) {
     return {
       ok: false,

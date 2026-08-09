@@ -436,9 +436,8 @@ export async function resolveAndRunPendingPdfJob(opts: {
     const found = await findEmptyContentPage({ pdf: hit.buffer })
     if (found == null) {
       const honestAr =
-        `تعذّر إكمال المهمة: لم أجد صفحة فاضية بلا أي كتابة إطلاقاً في «${hit.fileName}».` +
-        ' (صفحة فاضية ≠ شبه فاضية ≠ صفحة فيها بسم الله الرحمن الرحيم أو ترويسة.)' +
-        ' لن أخترع صفحة بيضاء ولن أنسخ صفحة فيها كتابة. حدّدوا رقم صفحة للنسخ إن رغبتم.'
+        `تعذّر إكمال المهمة: لم أجد صفحة فاضية (متن فارغ؛ ترويسة/شعار أعلى الصفحة مقبول مثل ص49) في «${hit.fileName}».` +
+        ' ممنوع اختيار صفحة البسملة، ولن أخترع صفحة بيضاء ولن أنسخ صفحة فيها متن. حدّدوا رقم صفحة للنسخ إن رغبتم.'
       const tokenMissing = !process.env.TELEGRAM_BOT_TOKEN
       if (!tokenMissing) {
         try {

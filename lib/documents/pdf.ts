@@ -241,7 +241,6 @@ export async function rotatePdfPages(opts: {
 
 /**
  * Normalize extractable PDF text for emptiness checks.
- * Any remaining character counts as writing (headers, basmala, titles…).
  */
 export function normalizePdfPageText(raw: string): string {
   return String(raw || '')
@@ -250,25 +249,104 @@ export function normalizePdfPageText(raw: string): string {
     .trim()
 }
 
+/** بسم الله / basmala — never treat as «صفحة فاضية». */
+export function pdfTextLooksLikeBasmala(text: string): boolean {
+  const t = normalizePdfPageText(text)
+  if (!t) return false
+  return /بسم\s*الله|الرحمن\s*الرحيم|bismillah|basmala/iu.test(t)
+}
+
 /**
- * True when extractable text contains any writing.
- * «صفحة فاضية» = no writing at all — not “mostly blank”, not بسم الله /
- * running headers / title leaves.
+ * True when extractable text contains any writing (incl. headers/basmala).
  */
 export function pdfPageHasWriting(text: string): boolean {
   return normalizePdfPageText(text).length > 0
 }
 
+/** Top strip + top-left logo are allowed on an empty leaf (like ص49). */
+const EMPTY_PAGE_HEADER_TOP_FRAC = 0.12
+const EMPTY_PAGE_LOGO_TOP_FRAC = 0.18
+const EMPTY_PAGE_LOGO_LEFT_FRAC = 0.32
+const EMPTY_PAGE_FOOTER_BOTTOM_FRAC = 0.1
+
+type PdfTextItemPos = {
+  str: string
+  x: number
+  y: number
+}
+
+function isHeaderOrLogoZone(
+  item: PdfTextItemPos,
+  pageWidth: number,
+  pageHeight: number
+): boolean {
+  const headerY = pageHeight * (1 - EMPTY_PAGE_HEADER_TOP_FRAC)
+  if (item.y >= headerY) return true
+  const logoY = pageHeight * (1 - EMPTY_PAGE_LOGO_TOP_FRAC)
+  const logoX = pageWidth * EMPTY_PAGE_LOGO_LEFT_FRAC
+  // Top-left logo/stamp (PDF origin bottom-left).
+  if (item.y >= logoY && item.x <= logoX) return true
+  return false
+}
+
+function isFooterZone(item: PdfTextItemPos, pageHeight: number): boolean {
+  return item.y <= pageHeight * EMPTY_PAGE_FOOTER_BOTTOM_FRAC
+}
+
 /**
- * Find an existing content-less page («صفحة فاضية» = no writing at all).
+ * Split page text into body vs chrome (header/logo/footer).
+ * «صفحة فاضية» = body empty; header/logo/top-left OK; basmala never OK.
+ */
+export function classifyPdfPageTextZones(opts: {
+  items: PdfTextItemPos[]
+  pageWidth: number
+  pageHeight: number
+}): {
+  fullText: string
+  bodyText: string
+  chromeText: string
+  hasBasmala: boolean
+  bodyEmpty: boolean
+} {
+  const w = Math.max(1, opts.pageWidth)
+  const h = Math.max(1, opts.pageHeight)
+  const bodyParts: string[] = []
+  const chromeParts: string[] = []
+  for (const it of opts.items) {
+    const s = String(it.str || '')
+    if (!s.trim()) continue
+    if (isHeaderOrLogoZone(it, w, h) || isFooterZone(it, h)) {
+      chromeParts.push(s)
+    } else {
+      bodyParts.push(s)
+    }
+  }
+  const fullText = normalizePdfPageText(
+    opts.items.map((i) => i.str).join(' ')
+  )
+  const bodyText = normalizePdfPageText(bodyParts.join(' '))
+  const chromeText = normalizePdfPageText(chromeParts.join(' '))
+  const hasBasmala =
+    pdfTextLooksLikeBasmala(fullText) || pdfTextLooksLikeBasmala(chromeText)
+  return {
+    fullText,
+    bodyText,
+    chromeText,
+    hasBasmala,
+    bodyEmpty: bodyText.length === 0 && !hasBasmala,
+  }
+}
+
+/**
+ * Find an existing empty leaf («صفحة فاضية»).
  * Does NOT invent a white blank page.
  *
- * Rules:
- * - Any extractable text (including بسم الله الرحمن الرحيم, headers) ⇒ NOT empty
- * - Prefer pages with no extractable text AND low drawn-operator count
- * - If every page has writing, return null (caller must report honestly)
- * - Ops/footprint heuristics only apply among pages with zero extractable text
- *   (typical blank leaf in scanned books with no OCR layer)
+ * Rules (aligned with ص49-style leaves):
+ * - Body text empty ⇒ candidate (header / logo / top-left / footer OK)
+ * - بسم الله / basmala anywhere ⇒ never empty (e.g. page 2)
+ * - Prefer fully text-empty pages, then body-empty chrome-only pages
+ * - Prefer lower drawn-operator count among peers
+ * - If none qualify, return null (caller reports honestly — never invent blank)
  *
  * Returns 1-based page number, or null if none found.
  */
@@ -292,16 +370,31 @@ export async function findEmptyContentPage(opts: {
     const n = doc.numPages
     if (n < 1) return null
 
-    type Hint = { page: number; textLen: number; ops: number }
+    type Hint = {
+      page: number
+      textLen: number
+      bodyLen: number
+      ops: number
+      bodyEmpty: boolean
+      hasBasmala: boolean
+    }
     const hints: Hint[] = []
     for (let i = from; i <= n; i++) {
       const page = await doc.getPage(i)
+      const viewport = page.getViewport({ scale: 1 })
       const content = await page.getTextContent()
-      const text = normalizePdfPageText(
-        (content.items as Array<{ str?: string }>)
-          .map((it) => it.str || '')
-          .join(' ')
-      )
+      const items: PdfTextItemPos[] = (
+        content.items as Array<{ str?: string; transform?: number[] }>
+      ).map((it) => ({
+        str: it.str || '',
+        x: Array.isArray(it.transform) ? Number(it.transform[4]) || 0 : 0,
+        y: Array.isArray(it.transform) ? Number(it.transform[5]) || 0 : 0,
+      }))
+      const zones = classifyPdfPageTextZones({
+        items,
+        pageWidth: viewport.width,
+        pageHeight: viewport.height,
+      })
       let ops = 0
       try {
         const list = await page.getOperatorList()
@@ -309,38 +402,49 @@ export async function findEmptyContentPage(opts: {
       } catch {
         ops = 0
       }
-      hints.push({ page: i, textLen: text.length, ops })
+      hints.push({
+        page: i,
+        textLen: zones.fullText.length,
+        bodyLen: zones.bodyText.length,
+        ops,
+        bodyEmpty: zones.bodyEmpty,
+        hasBasmala: zones.hasBasmala,
+      })
     }
 
-    // Strict: any extractable writing ⇒ not empty (basmala, headers, titles…).
-    const textEmpty = hints.filter((h) => h.textLen === 0)
-    if (textEmpty.length === 0) return null
+    const candidates = hints.filter((h) => h.bodyEmpty && !h.hasBasmala)
+    if (candidates.length === 0) return null
 
-    // Prefer the lowest-ops text-empty page (least drawn content).
-    const byOps = [...textEmpty].sort((a, b) => a.ops - b.ops)
-    const smallest = byOps[0]!
+    // Tier A: zero extractable text. Tier B: body-empty with header/logo chrome.
+    const textEmpty = candidates.filter((h) => h.textLen === 0)
+    const pool = textEmpty.length > 0 ? textEmpty : candidates
+    const byScore = [...pool].sort((a, b) => {
+      if (a.textLen !== b.textLen) return a.textLen - b.textLen
+      if (a.bodyLen !== b.bodyLen) return a.bodyLen - b.bodyLen
+      return a.ops - b.ops
+    })
+    const best = byScore[0]!
 
-    // Mixed text layer: any zero-text page is a real empty leaf.
-    const withWriting = hints.filter((h) => h.textLen > 0)
-    if (withWriting.length > 0) {
-      return smallest.page
+    // Mixed document with some written pages: any body-empty leaf is valid.
+    const withBodyWriting = hints.filter((h) => h.bodyLen > 0 && !h.hasBasmala)
+    if (withBodyWriting.length > 0 || textEmpty.length > 0) {
+      return best.page
     }
 
-    // Fully scanned / no OCR: require ops outlier vs peers (still text-empty only).
-    if (hints.length < 3) return smallest.page
+    // Fully scanned / no OCR text on any page: require ops outlier.
+    if (hints.length < 3) return best.page
     const allByOps = [...hints].sort((a, b) => a.ops - b.ops)
     const median = allByOps[Math.floor(allByOps.length / 2)]!.ops
-    if (median > 0 && smallest.ops <= median * 0.5) {
-      return smallest.page
+    if (median > 0 && best.ops <= median * 0.5) {
+      return best.page
     }
     const upper = allByOps.slice(Math.floor(allByOps.length / 2))
     const upperMean =
       upper.reduce((s, x) => s + x.ops, 0) / Math.max(1, upper.length)
-    if (upperMean > 0 && smallest.ops <= upperMean * 0.4) {
-      return smallest.page
+    if (upperMean > 0 && best.ops <= upperMean * 0.4) {
+      return best.page
     }
-    // Absolute near-blank operator list (no peers to compare).
-    if (smallest.ops > 0 && smallest.ops <= 40) return smallest.page
+    if (best.ops > 0 && best.ops <= 40) return best.page
     return null
   } catch {
     // Last resort: single-page footprint sample (cap pages to avoid OOM/timeout).
