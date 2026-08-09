@@ -15,7 +15,7 @@ description: Verify ArabicBuzz only on the live CranL site. Use when QA, smoke t
 
 ## Checklist
 
-1. Confirm deploy finished on CranL (`cranl apps deployments list bf8cff03-49ac-4a80-bb93-298305e6617e`).
+1. Confirm deploy finished on CranL (`npm run cranl:deployments` — not `cranl apps deployments list`, which crashes on CLI v1.7.0; see `docs/cranl-deploy.md`).
 2. Hard-refresh the live URL.
 3. Check ~375px (drawer closed) and ~1280px (sidebar + content both readable).
 4. Smoke: `GET /api/health/free` and `GET /api/webhooks/telegram`.

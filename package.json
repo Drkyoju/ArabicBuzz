@@ -41,6 +41,7 @@
     "hermes:skills:status": "bash scripts/hermes-skills-sync.sh status",
     "fly:bot-api:prepare": "bash scripts/fly-bot-api-prepare.sh",
     "cranl:put-env": "bash scripts/cranl-put-env-keys.sh",
+    "cranl:deployments": "bash scripts/cranl-deployments-list.sh",
     "telegram:mtproto-login": "python3 scripts/telegram-mtproto-login.py",
     "telegram:mtproto-scan": "python3 scripts/telegram-mtproto-history.py",
     "telegram:mtproto-download": "python3 scripts/telegram-mtproto-download.py",

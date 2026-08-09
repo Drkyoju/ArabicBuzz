@@ -51,6 +51,36 @@ cranl apps env set <app-id> KEY=VALUE   # may also 405; prefer dashboard/API PUT
 
 Then redeploy: `cranl apps deploy <app-id>` (or push to `main`).
 
+## List deployments (CLI bug workaround)
+
+CranL CLI **v1.7.0** breaks on deployment history:
+
+```text
+cranl apps deployments list <app-id>
+# → Error: deployments.map is not a function
+```
+
+**Cause:** `GET /api/applications/<id>/deployments` returns `{ "deployments": [ … ] }` with camelCase fields (`deploymentId`, `createdAt`, `title`, …). The CLI assumes a bare array with snake_case fields and calls `.map` on the object.
+
+**Reliable workaround** (repo wrapper, no secrets printed):
+
+```bash
+npm run cranl:deployments
+# or:
+./scripts/cranl-deployments-list.sh
+./scripts/cranl-deployments-list.sh --limit 5
+./scripts/cranl-deployments-list.sh --json
+```
+
+Requires `CRANL_API_KEY` in the environment, `.env.local`, or `~/.cranl/config.json` (same as `cranl:put-env`).
+
+Raw API (shape only — do not paste keys into chat/logs):
+
+```bash
+curl -sS -H "Authorization: Bearer $CRANL_API_KEY" -H "Accept: application/json" \
+  "https://app.cranl.com/api/applications/bf8cff03-49ac-4a80-bb93-298305e6617e/deployments"
+```
+
 ## After go-live
 
 1. Point Telegram webhook:
