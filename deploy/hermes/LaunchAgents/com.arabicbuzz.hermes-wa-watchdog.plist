@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hermes WA: auto-allowlist new @g.us + restart on disconnect. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.arabicbuzz.hermes-wa-watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__AB_ROOT__/scripts/hermes-wa-watchdog.sh</string>
+    <string>--loop</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__AB_ROOT__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/hermes-wa-watchdog.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/hermes-wa-watchdog.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__AB_HOME__/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__AB_HOME__</string>
+    <key>HERMES_HOME</key>
+    <string>__AB_HOME__/.hermes</string>
+    <key>HERMES_WA_WATCH_INTERVAL</key>
+    <string>120</string>
+  </dict>
+</dict>
+</plist>

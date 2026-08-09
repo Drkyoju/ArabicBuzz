@@ -242,7 +242,22 @@ export function AgentSeatsPanel({
       )}
       {!answeringAgentId && agents.length > 0 && agents.length <= ROOM_AGENT_SOFT_CAP && (
         <p className="truncate text-[10px] text-ab-muted-soft">
-          شغال / نائم · الرسالة توقظ وكيل١ · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
+          <span className="ms-1 inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+            جاهز
+          </span>
+          <span className="mx-1 text-ab-border">·</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-ab-accent" aria-hidden />
+            يعمل
+          </span>
+          <span className="mx-1 text-ab-border">·</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-stone-400" aria-hidden />
+            نائم
+          </span>
+          <span className="mx-1 text-ab-border">·</span>
+          الرسالة توقظ وكيل١ · {collabMode === 'team' ? 'تعاون' : 'منفصل'}
         </p>
       )}
 

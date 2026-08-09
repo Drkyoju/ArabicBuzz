@@ -25,6 +25,7 @@ import {
   type SecurityPostureMode,
 } from '@/lib/security/posture'
 import { getNativeAiTools } from '@/lib/agents/engine'
+import { filterToolsForActor } from '@/lib/agents/tools-by-role'
 import { connectEnvMcpServers } from '@/lib/mcp/host-client'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
 import { scheduleOtelFlush } from '@/lib/observability/langfuse'
@@ -49,8 +50,9 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
 - مصادر الملفات:
   أ) ملف مرفوع من جهاز المستخدم إلى الغرفة (سحابة الغرفة / خزنة) — list_workspace_files / fileId المرفق في الرسالة. الرفع يزامن تلقائياً مع عقل الشركة (Drive) عند ربط Google.
   ب) مرفق ظاهر في الشات أو المعاينة — استخدم fileId مباشرة.
-  ج) عقل الشركة = Google Drive (إلزامي للمعرفة المشتركة): search_knowledge_base أو brain_open_document → عدّل → brain_save_document.
+  ج) عقل الشركة = Google Drive: drive_search_files / drive_list_files / search_knowledge_base أو brain_open_document → عدّل → brain_save_document.
   اعمل على ملف الغرفة أولاً إن وُجد؛ ثم احفظ إلى Drive عبر brain_save_document عند الحاجة.
+- بحث ويب مجاني: web_search ثم web_fetch. بريد قراءة: mail_* / gmail_*. تقويم الفريق: room_calendar_*.
 - عند إرفاق ملف أو ذكر fileId أو طلب «عدّل / غيّر / صحّح / استبدل» — نفّذ الأدوات فوراً وأعد نسخة قابلة للتنزيل. ممنوع الاكتفاء بوصف التعديل دون ملف.
 - حلقة العمل الإلزامية للملفات:
   1) Word موجود: read_document → edit_document(replacements=[{find,replace}]) للحفاظ على التنسيق/الصور، أو templateData لـ {placeholders}. إعادة بناء كاملة فقط عند الحاجة: body/paragraphs.
@@ -412,15 +414,18 @@ export async function POST(req: Request) {
     const systemWithEffort = `${system}\n\n${effortParams.systemHintAr}${noticeBlock}`
 
     const tools = enableTools
-      ? {
-          ...getNativeAiTools({
-            mode: posture,
-            requesterId: auth.user.id,
-            scopeId,
-            scopeMemory: body.scopeMemory,
-          }),
-          ...(await mcpToolsPromise),
-        }
+      ? filterToolsForActor(
+          {
+            ...getNativeAiTools({
+              mode: posture,
+              requesterId: auth.user.id,
+              scopeId,
+              scopeMemory: body.scopeMemory,
+            }),
+            ...(await mcpToolsPromise),
+          },
+          { email: auth.user.email, userId: auth.user.id }
+        )
       : undefined
 
     const result = withDataStreamResponse(

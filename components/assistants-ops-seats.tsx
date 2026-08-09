@@ -104,6 +104,7 @@ export function AssistantsOpsSeatsStrip({
   )
   const working = seats.filter((s) => s.status === 'working')
   const waiting = jobs.filter((j) => j.status === 'waiting').length
+  const readyCount = seats.filter((s) => s.status === 'ready').length
   const drainCap = Math.min(maxPerUser ?? maxParallel, maxParallel)
 
   return (
@@ -130,8 +131,12 @@ export function AssistantsOpsSeatsStrip({
               ? ` · لكل موظف ${maxPerUser}`
               : ''}
           </span>
-          <span className="text-[10px] text-stone-500">
-            يعمل الآن: {working.length}/{drainCap}
+          <span className="text-[10px] font-medium text-stone-600">
+            {working.length > 0
+              ? `${working.length}/${drainCap} يعمل · ${readyCount} جاهز`
+              : poolOnline
+                ? `كل المقاعد جاهزة (${seats.length})`
+                : 'المجمّع طافي'}
             {waiting > 0 ? ` · انتظار ${waiting}` : ''}
           </span>
         </div>

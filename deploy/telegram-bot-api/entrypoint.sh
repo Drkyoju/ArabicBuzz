@@ -6,10 +6,12 @@ if [ -z "${TELEGRAM_API_ID:-}" ] || [ -z "${TELEGRAM_API_HASH:-}" ]; then
   echo "TELEGRAM_API_ID and TELEGRAM_API_HASH are required" >&2
   exit 1
 fi
+# Railway/Fly/Docker: prefer PORT when the host injects it (default 8081).
+HTTP_PORT="${PORT:-${HTTP_PORT:-8081}}"
 exec telegram-bot-api \
   --api-id="${TELEGRAM_API_ID}" \
   --api-hash="${TELEGRAM_API_HASH}" \
   --local \
-  --http-port=8081 \
+  --http-port="${HTTP_PORT}" \
   --dir=/var/lib/telegram-bot-api \
   "$@"

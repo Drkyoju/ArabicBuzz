@@ -68,6 +68,13 @@ const TOOL_LABEL_AR: Record<string, string> = {
   web_search: 'بحث ويب',
   web_fetch: 'جلب صفحة',
   research_task_tools: 'بحث أدوات/مهارات',
+  drive_search_files: 'بحث Drive',
+  drive_list_files: 'قائمة Drive',
+  drive_get_link: 'رابط Drive',
+  room_search: 'بحث الغرفة',
+  pdf_annotate: 'تعليق PDF',
+  pdf_merge: 'دمج PDF',
+  arabic_ocr: 'OCR عربي',
 }
 
 function summarizeToolOutput(name: string, out: unknown): string {

@@ -67,6 +67,11 @@ const LOW_RISK_TOOLS = new Set([
   'pdf_list_fields',
   'read_excel',
   'return_file',
+  // Drive / vault reads — employees need these without STRICT HITL
+  'drive_list_files',
+  'drive_search_files',
+  'drive_get_link',
+  'sheets_read',
 ])
 
 const HIGH_RISK_TOOLS = new Set([

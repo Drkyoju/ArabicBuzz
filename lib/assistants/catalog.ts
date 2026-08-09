@@ -167,13 +167,16 @@ export const ASSISTANTS: readonly AssistantDef[] = [
 
 دورك: «بحث الملفات».
 يجب:
-1) search_knowledge_base أولاً؛ ثم list_workspace_files / list_files عند الحاجة.
+1) search_knowledge_base أولاً؛ ثم drive_search_files إن لم يظهر في الخزنة؛ ثم list_workspace_files / list_files عند الحاجة.
 2) read_document / brain_open_document للمقاطع ذات الصلة.
 3) اذكر المصادر بصيغة [مصدر N]. لا تختلق محتوى ملف غير موجود.
 4) لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح.
 5) إن لم تجد شيئاً: قل ذلك صراحة مع ما بحثت فيه.`,
     allowedTools: [
       'search_knowledge_base',
+      'drive_search_files',
+      'drive_list_files',
+      'drive_get_link',
       'list_workspace_files',
       'list_files',
       'read_file',
@@ -183,6 +186,9 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'convert_document',
       'convert_file',
       'memory_search',
+      'web_search',
+      'web_fetch',
+      'room_search',
     ],
     requires: 'none',
     emptyStateAr: '',
@@ -229,13 +235,19 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'return_file',
       'pdf_create',
       'pdf_stamp',
+      'pdf_annotate',
       'pdf_merge',
+      'pdf_duplicate_page',
       'pdf_list_fields',
       'pdf_fill_form',
+      'pdf_replace_text',
       'arabic_ocr',
       'brain_open_document',
       'brain_save_document',
       'search_knowledge_base',
+      'drive_search_files',
+      'drive_list_files',
+      'drive_get_link',
     ],
     requires: 'none',
     emptyStateAr: '',
@@ -309,6 +321,7 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'web_search',
       'web_fetch',
       'search_knowledge_base',
+      'room_search',
       'list_workspace_files',
       'list_files',
       'read_file',
@@ -320,6 +333,14 @@ export const ASSISTANTS: readonly AssistantDef[] = [
       'convert_file',
       'return_file',
       'brain_open_document',
+      'drive_search_files',
+      'drive_list_files',
+      'drive_get_link',
+      'pdf_annotate',
+      'pdf_merge',
+      'pdf_duplicate_page',
+      'pdf_list_fields',
+      'arabic_ocr',
       'room_calendar_list',
       'room_calendar_create',
       'room_tasks_list',

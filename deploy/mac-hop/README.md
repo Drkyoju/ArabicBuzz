@@ -4,6 +4,9 @@ While the Mac is awake and you are logged in, launchd keeps:
 
 1. Hop watchdog (`com.arabicbuzz.hop-watchdog`) — Local Bot API + `storage:sync` + cloudflared tunnels + CranL env PUT when trycloudflare URLs change
 2. Optional nosleep (`com.arabicbuzz.nosleep` → `caffeinate -dims`) — [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md)
+3. Optional Hermes WA watchdog — [deploy/hermes/README.md](../hermes/README.md)
+
+Cloudflared quick-tunnel logs default to `~/Library/Logs/ArabicBuzz/ab-cloudflared-*.log` (symlinked from `/tmp` for older greps). When `MAC_SYNC_URL` changes, the watchdog updates CranL **and** rewrites `MAC_SYNC_URL` / `NEXT_PUBLIC_MAC_UPLOAD_URL` in local `.env.local`.
 
 Optional separate agent plist: `com.arabicbuzz.mac-sync.plist` (usually unused — watchdog already starts the agent to avoid port conflicts).
 

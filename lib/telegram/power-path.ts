@@ -144,6 +144,16 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'mail_search',
   'mail_read',
   'mail_sync',
+  // Drive + PDF reads for association work (light turns)
+  'drive_list_files',
+  'drive_search_files',
+  'drive_get_link',
+  'pdf_list_fields',
+  'pdf_annotate',
+  'pdf_duplicate_page',
+  'pdf_merge',
+  'arabic_ocr',
+  'sheets_read',
 ] as const
 
 /** Heavy / file / OCR / mail send / Drive — still used when fullRoom=false. */

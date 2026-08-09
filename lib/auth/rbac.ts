@@ -311,4 +311,11 @@ export const SENSITIVE_ACTION_ROLES = {
   installSkill: 'OWNER' as Role,
   /** Any signed-in org member may resolve HITL (director email still elevates). */
   approveHighRisk: 'MEMBER' as Role,
+  /**
+   * Floor for room agent work tools (Drive search, mail read, calendar, PDF, vault, web).
+   * Actual binding: see `lib/agents/tools-by-role.ts` — OWNER keeps admin tools.
+   */
+  useRoomAgentTools: 'MEMBER' as Role,
+  /** Drive sync / upload, desktop RPA, director digest, deletes — owner/admin only. */
+  useOwnerOnlyTools: 'ADMIN' as Role,
 } as const

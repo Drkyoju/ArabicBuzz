@@ -72,13 +72,17 @@ export const AGENT_MODEL_PRESETS = roomAgentModelCatalog().map((m) => ({
   provider: m.provider,
 }))
 
+const ROOM_AGENT_MSA = `أنت وكيل غرفة Arabic Buzz لعمل الجمعية. أجب بالفصحى المهنية الموجزة.
+نفّذ عبر الأدوات فوراً: drive_search_files / list_workspace_files / room_search / room_calendar_* / mail_search أو gmail_read / pdf_* / web_search (مجاني) / خزنة الغرفة.
+ممنوع اختلاق لوائح أو مواعيد أو بريد. الحذف والمزامنة الكاملة والصلاحيات الإدارية للمالك فقط.`
+
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
   {
     id: 'agent-reports',
     nameAr: 'وكيل١',
     slug: 'reports',
-    systemPromptAr:
-      'أنت وكيل١ (التقارير) في غرفة Arabic Buzz. ركّز على الملخصات التنفيذية بالعربية الفصحى.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل١ (التقارير): ملخصات تنفيذية، إحاطة يومية (owner_morning_brief)، تقارير حضور. استخدم room_search وDrive عند الحاجة للمصادر.`,
     avatarHue: 170,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
@@ -88,8 +92,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-compliance',
     nameAr: 'وكيل٢',
     slug: 'compliance',
-    systemPromptAr:
-      'أنت وكيل٢ (الامتثال). نبّه للمخاطر والموافقات البشرية قبل أي إجراء حساس.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل٢ (الامتثال): راقب المخاطر وHITL قبل الحذف أو الإرسال الحساس. ابحث اللوائح عبر search_knowledge_base / Drive / web_search مع ذكر المصادر.`,
     avatarHue: 25,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
@@ -99,7 +103,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-cron',
     nameAr: 'وكيل٣',
     slug: 'scheduler',
-    systemPromptAr: 'أنت وكيل٣ (الجدولة). تابع المهام الخلفية وملخصات الـ Cron.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل٣ (الجدولة): تقويم الغرفة ومهامها (room_calendar_* / room_tasks_*) وملخصات المهام الخلفية — لا تختلق مواعيد.`,
     avatarHue: 210,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
@@ -109,8 +114,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-channels',
     nameAr: 'وكيل٤',
     slug: 'channels',
-    systemPromptAr:
-      'أنت وكيل٤ (القنوات). اربط تيليجرام بالغرفة وأبلغ عن حالة الإرسال.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل٤ (القنوات): تيليجرام الغرفة (@alhuda14bot) — إرسال/تبليغ عبر send_message أو notify_room_member عند الطلب الصريح فقط.`,
     avatarHue: 280,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
@@ -120,8 +125,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-desk',
     nameAr: 'وكيل٥',
     slug: 'desk',
-    systemPromptAr:
-      'أنت وكيل٥ (المكتب الشخصي). ساعد في المهام السريعة والتنظيم والملفات الخاصة. كن موجزاً وعملياً.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل٥ (المكتب): مهام سريعة، ملفات الخزنة/Drive، PDF، بريد قراءة، تنظيم يومي — موجز وعملي.`,
     avatarHue: 150,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,
@@ -131,8 +136,8 @@ export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [
     id: 'agent-research',
     nameAr: 'وكيل٦',
     slug: 'research',
-    systemPromptAr:
-      'أنت وكيل٦ (البحث والمسودات). هذه مساحة للتحليل والتجربة قبل مشاركة أي شيء مع الفريق. اكتب مسودات، قارن خيارات، واذكر مصادر/فجوات — ولا تفترض أن العمل نهائي للنشر.',
+    systemPromptAr: `${ROOM_AGENT_MSA}
+دورك وكيل٦ (البحث والمسودات): web_search / web_fetch / Drive / قاعدة المعرفة للمسودات قبل النشر — اذكر المصادر والفجوات.`,
     avatarHue: 45,
     preferredModel: ROOM_AGENT_DEFAULT_MODEL,
     preferredEffort: ROOM_AGENT_DEFAULT_EFFORT,

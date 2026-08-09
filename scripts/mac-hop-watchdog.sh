@@ -21,7 +21,7 @@ cd "$ROOT"
 PORT_SYNC="${MAC_SYNC_PORT:-7420}"
 PORT_BOTAPI="${TELEGRAM_BOT_API_PORT:-8081}"
 STATE_DIR="${AB_HOP_STATE_DIR:-$HOME/Library/Application Support/ArabicBuzz/hop}"
-LOG_DIR="${AB_HOP_LOG_DIR:-/tmp}"
+LOG_DIR="${AB_HOP_LOG_DIR:-$HOME/Library/Logs/ArabicBuzz}"
 LOOP=0
 FORCE_PUT=0
 
@@ -32,7 +32,11 @@ for arg in "$@"; do
   esac
 done
 
-mkdir -p "$STATE_DIR" "$HOME/bin"
+mkdir -p "$STATE_DIR" "$HOME/bin" "$LOG_DIR"
+# Keep /tmp aliases for older docs / greps
+mkdir -p /tmp
+ln -sfn "$LOG_DIR/ab-cloudflared-mac-sync.log" /tmp/ab-cloudflared-mac-sync.log 2>/dev/null || true
+ln -sfn "$LOG_DIR/ab-cloudflared-botapi.log" /tmp/ab-cloudflared-botapi.log 2>/dev/null || true
 
 load_dotenv_key() {
   local key="$1" file="$2"
@@ -190,6 +194,33 @@ one_pass() {
   if [[ -n "$sync_url" ]]; then
     echo "mac_sync_tunnel=$sync_url"
     write_state mac_sync_url "$sync_url"
+    # Keep local .env.local in sync so restarts / other tools see the live URL
+    if [[ -f "$ROOT/.env.local" ]] && [[ "$sync_url" != "$prev_sync" || "$FORCE_PUT" -eq 1 ]]; then
+      if grep -qE '^MAC_SYNC_URL=' "$ROOT/.env.local"; then
+        local tmp
+        tmp="$(mktemp)"
+        awk -v v="$sync_url" '
+          BEGIN { done=0 }
+          /^MAC_SYNC_URL=/ { print "MAC_SYNC_URL=" v; done=1; next }
+          { print }
+          END { if (!done) print "MAC_SYNC_URL=" v }
+        ' "$ROOT/.env.local" >"$tmp"
+        mv "$tmp" "$ROOT/.env.local"
+      else
+        printf '\nMAC_SYNC_URL=%s\n' "$sync_url" >>"$ROOT/.env.local"
+      fi
+      if grep -qE '^NEXT_PUBLIC_MAC_UPLOAD_URL=' "$ROOT/.env.local"; then
+        local tmp2
+        tmp2="$(mktemp)"
+        awk -v v="$sync_url" '
+          BEGIN { done=0 }
+          /^NEXT_PUBLIC_MAC_UPLOAD_URL=/ { print "NEXT_PUBLIC_MAC_UPLOAD_URL=" v; done=1; next }
+          { print }
+          END { if (!done) print "NEXT_PUBLIC_MAC_UPLOAD_URL=" v }
+        ' "$ROOT/.env.local" >"$tmp2"
+        mv "$tmp2" "$ROOT/.env.local"
+      fi
+    fi
     if [[ "$FORCE_PUT" -eq 1 || "$sync_url" != "$prev_sync" ]]; then
       need_put=1
       args+=("MAC_SYNC_URL=$sync_url" "NEXT_PUBLIC_MAC_UPLOAD_URL=$sync_url")

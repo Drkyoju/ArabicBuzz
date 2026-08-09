@@ -72,16 +72,21 @@ hermes gateway restart   # after editing ~/.hermes/.env
 
 | Process | Role | On this Mac |
 |---------|------|-------------|
-| `hermes serve` | Desktop / JSON-RPC backend (port 9119) | Already running via **Hermes.app** — do not start a second copy on the same port |
-| `hermes gateway` | Telegram / WhatsApp / Discord / … messaging | launchd `ai.hermes.gateway` ✅ |
+| `hermes serve` | Desktop / JSON-RPC backend (port 9119) | Prefer **Hermes.app**. Optional LaunchAgent below only fills the gap when Desktop is quit. |
+| `hermes gateway` | Telegram / WhatsApp messaging | launchd `ai.hermes.gateway` ✅ |
 
-If you quit Hermes Desktop and still want the API server:
+Optional LaunchAgent (idles while Desktop already runs serve — no port fight):
+
+```bash
+./scripts/install-hermes-serve-launchd.sh
+# Unload: ./scripts/install-hermes-serve-launchd.sh --unload
+```
+
+Manual:
 
 ```bash
 hermes serve --host 127.0.0.1 --port 9119 --skip-build
 ```
-
-Prefer leaving **Hermes.app** open, or use Desktop’s own restart — avoid fighting two supervisors on `:9119`.
 
 ### Free MCP / skills on this Mac (Track C)
 
@@ -111,6 +116,13 @@ Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the
 ---
 
 ## C) Telegram — separate bot required / تيليجرام — بوت منفصل
+
+### أي بوت لأي شيء؟
+
+| البوت | الدور |
+|--------|--------|
+| **`@waqfBbot`** | هيرميس (Hermes) على الماك — مساعد شخصي عبر تيليجرام + واتساب. **ليس** بوت جمعية ArabicBuzz. |
+| **`@alhuda14bot`** | بوت ArabicBuzz «عمل الجمعية» على الموقع (CranL) + وكلاء الغرفة وكيل١–٨. |
 
 ### Why not reuse ArabicBuzz token?
 
@@ -163,17 +175,101 @@ Then in `~/.hermes/.env` uncomment / set:
 
 ```bash
 WHATSAPP_ENABLED=true
-WHATSAPP_MODE=bot          # or self-chat
-WHATSAPP_ALLOWED_USERS=*   # or your number e.g. 9665xxxxxxxx
+WHATSAPP_MODE=bot          # required for group @mentions from other people
+WHATSAPP_ALLOWED_USERS=966550514658
+WHATSAPP_DM_POLICY=pairing
+WHATSAPP_GROUP_POLICY=allowlist
+WHATSAPP_GROUP_ALLOWED_USERS=120363303131762131@g.us   # add more @g.us JIDs comma-separated
+WHATSAPP_REQUIRE_MENTION=true
+WHATSAPP_MENTION_PATTERNS=["(?i)\\bhermes\\b","(?i)هيرميس","(?i)هيرمز"]
 ```
 
 ```bash
 hermes gateway restart
 ```
 
-### WhatsApp allowlist how-to / قائمة السماح
+### Honest limit — not a Telegram-style bot / حد صادق
 
-Hermes only answers WhatsApp senders listed in `WHATSAPP_ALLOWED_USERS` (gateway env — **not** ArabicBuzz CranL vars).
+Baileys links a **personal WhatsApp account**. Hermes replies **as that phone number** in the group (same bubble as a human member). There is **no** Meta bot badge / Bot API identity. Closest behavior: reply when someone **@mentions the number**, replies to Hermes, uses `/command`, or writes wake words (`Hermes` / `هيرميس`).
+
+| Mode | What it does |
+|------|----------------|
+| `self-chat` | Only your messages to yourself. **Drops** other people’s DMs and **all group pings**. |
+| `bot` | Processes messages from others (DMs + groups). Needed for group mention replies. |
+
+### Groups — add number + how to ping / المجموعات
+
+1. **Join the group with the linked number** (`+966 55 051 4658`):
+   - Prefer invite link → script (Baileys `groupAcceptInvite`):
+     ```bash
+     node scripts/hermes-wa-join-invite.mjs 'https://chat.whatsapp.com/CODE'
+     # or: node scripts/hermes-wa-join-invite.mjs CODE
+     ```
+     If WhatsApp returns **409 conflict**, the number is **already a member** — the script resolves the `@g.us` JID from invite info.
+   - Or open the invite on the phone linked as Hermes and join there.
+2. **Allowlist the group JID** (required when `WHATSAPP_GROUP_POLICY=allowlist`):
+   ```bash
+   ./scripts/hermes-wa-allowlist-sync.sh --add '120363…@g.us'
+   # or scrape logs / scan participating groups:
+   ./scripts/hermes-wa-allowlist-sync.sh --from-logs
+   ./scripts/hermes-wa-allowlist-sync.sh   # full participating scan (brief gateway stop)
+   ```
+3. **Members ping Hermes** by any of:
+   - WhatsApp **@mention** of that contact (type `@` → choose the number / name)
+   - Writing **`Hermes`** or **`هيرميس`** / **`هيرمز`** (wake-word patterns)
+   - **Reply** to a previous Hermes message in the group
+   - A slash command like `/status` or Arabic **`مساعدة`** / `/help`
+4. Hermes answers **in the same group**, as the linked account (not a separate bot user).
+
+**Known group (عمل الوقف):** `120363429457422075@g.us` (joined + allowlisted).
+
+### Auto-allowlist + disconnect watchdog
+
+```bash
+./scripts/install-hermes-wa-watchdog-launchd.sh
+# Unload: ./scripts/install-hermes-wa-watchdog-launchd.sh --unload
+```
+
+LaunchAgent `com.arabicbuzz.hermes-wa-watchdog` every ~2 min:
+- scrapes bridge/gateway logs for new `@g.us` and merges into allowlist
+- restarts gateway if WA `/health` stays disconnected
+- optional Telegram alert via `hermes send --to telegram`
+
+### Backup WhatsApp session (local only — never git)
+
+```bash
+./scripts/hermes-backup-wa-session.sh
+# → ~/Backups/hermes-wa/YYYYMMDD-HHMMSS/ + .tgz (mode 600)
+```
+
+### Arabic commands (@waqfBbot + WA)
+
+| User types | Effect |
+|------------|--------|
+| `/help` · `مساعدة` · `/مساعدة` | Short Arabic command list (`~/.hermes/SOUL.md` + skill `ar-help`) |
+| `/status` · `حالة` | Session/status |
+| `/new` · `جديد` | New chat |
+| Telegram `/` menu | Prioritizes help/status/new/stop/whoami via `platforms.telegram.extra.command_menu` |
+
+Do **not** point Hermes at ArabicBuzz `@alhuda14bot`. Do **not** enable Discord here unless explicitly requested.
+
+### Allowlist so OTHER people can trigger / قائمة السماح للآخرين
+
+| Setting | Role |
+|---------|------|
+| `WHATSAPP_MODE=bot` | Without this, group mentions from others never reach Hermes. |
+| `WHATSAPP_GROUP_POLICY=allowlist` | Only listed group JIDs (`…@g.us`). Default `pairing` **blocks all groups**. (`open` needs `WHATSAPP_ALLOW_ALL_USERS=true` or Hermes refuses to start.) |
+| `WHATSAPP_GROUP_ALLOWED_USERS` / `whatsapp.group_allow_from` | Comma-separated / YAML list of group JIDs. Seeded with `120363303131762131@g.us` from bridge logs — add others after joining new groups (`WHATSAPP_DEBUG=true` to discover). |
+| `WHATSAPP_REQUIRE_MENTION=true` | Do not reply to ordinary group chatter — only mention / wake-word / reply-to-bot / `/cmd`. |
+| `WHATSAPP_DM_POLICY=pairing` | Bridge must not apply the DM phone allowlist to group senders (allowlist at bridge would block non-owner members). |
+| `WHATSAPP_ALLOWED_USERS=9665…` | Owner phone for DM context; **group** triggers are gated by group policy + mention, not by listing every member. |
+| `whatsapp.unauthorized_dm_behavior: ignore` in `config.yaml` | Strangers DMing the number stay silent (no pairing spam). |
+
+**Trade-off:** leaving `self-chat` breaks “message yourself”; use a normal DM to the linked number from another phone, or keep notes separate.
+
+### WhatsApp allowlist how-to / قائمة السماح (DMs)
+
+Hermes DM access uses `WHATSAPP_ALLOWED_USERS` / pairing (gateway env — **not** ArabicBuzz CranL vars).
 
 | Value | Meaning |
 |-------|---------|
@@ -184,16 +280,16 @@ Hermes only answers WhatsApp senders listed in `WHATSAPP_ALLOWED_USERS` (gateway
 **Steps**
 
 1. Link the device first (`hermes whatsapp` → scan QR).
-2. Edit `~/.hermes/.env` only (mode `600`). Set `WHATSAPP_ENABLED=true` and `WHATSAPP_MODE=bot` (or `self-chat` for your own chats).
-3. Set `WHATSAPP_ALLOWED_USERS` to your number(s) — prefer explicit IDs over `*` on a personal phone.
-4. `hermes gateway restart` then DM the linked WhatsApp from an allowlisted number.
-5. Confirm in `~/.hermes/logs/gateway.log` (ignored / unauthorized vs handled).
+2. Edit `~/.hermes/.env` only (mode `600`). Set `WHATSAPP_ENABLED=true` and `WHATSAPP_MODE=bot` for groups / multi-user.
+3. Set group/mention vars as above; keep owner in `WHATSAPP_ALLOWED_USERS`.
+4. `hermes gateway restart` then @mention the number in a WA group.
+5. Confirm in `~/.hermes/logs/gateway.log` / `platforms/whatsapp/bridge.log` (ignored vs handled).
 
 **Do not**
 
 - Put WhatsApp session folders or tokens in git.
 - Reuse ArabicBuzz CranL `WHATSAPP_TOKEN` / bridge secrets as Hermes Baileys config (separate stacks).
-- Touch `TELEGRAM_BOT_TOKEN` for `@alhuda14bot` while configuring WA.
+- Touch `TELEGRAM_BOT_TOKEN` for `@waqfBbot` while configuring WA.
 
 Safer business path: [WhatsApp Cloud API](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) via `hermes whatsapp-cloud` (Meta Business + public webhook) — separate from Baileys.
 
@@ -203,11 +299,14 @@ ArabicBuzz already has Cloud API vars in `.env.local` (`WHATSAPP_TOKEN`, …) fo
 
 ## E) Discord / other platforms
 
+**Out of scope for ArabicBuzz Mac ops unless explicitly requested.** Do not enable Discord/Slack from these scripts.
+
 ```bash
-hermes gateway setup
+# Interactive only if you truly need it:
+# hermes gateway setup
 ```
 
-Pick Discord (bot token + intents), Slack, Signal, etc. Tokens go in `~/.hermes/.env` only — never into the ArabicBuzz repo.
+Tokens would go in `~/.hermes/.env` only — never into the ArabicBuzz repo.
 
 ---
 
@@ -223,9 +322,13 @@ export PATH="$HOME/.local/bin:$PATH"
 hermes gateway status
 tail -20 ~/.hermes/logs/gateway.log
 
-# Hermes serve (Desktop)
+# Hermes serve (Desktop preferred; LaunchAgent idles if Desktop owns serve)
+./scripts/install-hermes-serve-launchd.sh
 hermes serve --status
-pgrep -lf 'hermes serve'
+
+# WA allowlist + disconnect watchdog
+./scripts/install-hermes-wa-watchdog-launchd.sh
+curl -sf http://127.0.0.1:3000/health
 
 # Mac hop (ArabicBuzz tunnels) — separate
 npm run mac-hop:install
@@ -239,8 +342,11 @@ npm run mac-hop:install
 |----------------|--------------|
 | `caffeinate -dims` LaunchAgent | Keep Mac on AC; avoid lid+battery sleep |
 | `hermes gateway` launchd + Hermes-only Telegram (`@waqfBbot`) | Scan WhatsApp QR (`hermes whatsapp`) if you accept Baileys risk |
-| `TELEGRAM_ALLOWED_USERS` | Discord/Slack / Meta Cloud if needed |
-| Docs + install scripts in repo | Discord/Slack tokens, passwords, Meta Cloud verification |
-| **Did not** touch ArabicBuzz webhook bot | Leave Hermes.app open for `hermes serve` (or run serve manually) |
+| WA group join/allowlist scripts + `hermes-wa-watchdog` | Share invite links / confirm @mention in group |
+| Session backup → `~/Backups/hermes-wa/` | Offsite copy of `.tgz` if desired (never git) |
+| Optional `hermes-serve` LaunchAgent (Desktop-safe) | Leave Hermes.app open when using Desktop UI |
+| `TELEGRAM_ALLOWED_USERS` | — |
+| Docs + install scripts in repo | **Not** Discord/Slack unless asked |
+| **Did not** touch ArabicBuzz webhook bot | — |
 
 Refs: [Hermes messaging overview](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) · [deploy/mac-hop](../deploy/mac-hop/README.md)
