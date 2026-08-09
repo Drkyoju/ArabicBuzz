@@ -148,6 +148,7 @@ import {
   installTelegramNeverDeleteGuard,
   TelegramNeverDeleteError,
 } from '@/lib/telegram/never-delete'
+import { omitTelegramPersonalCalendarTools } from '@/lib/telegram/tools-policy'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -310,24 +311,25 @@ let botInitPromise: Promise<void> | null = null
 let commandsRegistered = false
 
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام (@alhuda14bot) — بوت «عمل الجمعية» + مقاعد وكيل١–٨ (ليس هيرميس/@waqfBbot).
-- أقصى قوة أدواتية: نفس غرفة الموقع. نفّذ فوراً: Drive (drive_search_files / drive_list_files / drive_get_link)، خزنة الغرفة، بريد الجمعية (mail_*)، تقويم الغرفة، PDF، web_search المجاني، room_search.
+- أقصى قوة أدواتية: نفس غرفة الموقع. نفّذ فوراً: Drive (drive_search_files / drive_list_files / drive_get_link)، find_storage_mesh، خزنة الغرفة، بريد الجمعية (mail_*)، تقويم الغرفة، PDF، web_search المجاني (DDG)، room_search، archive_telegram_group عند طلب أرشفة.
 - افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
 - لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
 - أيقظ وكيل١ ثم وكيل٢…عند الانشغال. طلب ثقيل / «أبغا للجميع» / وضع فريق الغرفة → تشغيل متوازٍ للمقاعد المتفرّغة (حتى ٨). «يا وكيل١» / @وكيل٢ يوجّهان مقعداً بعينه.
 - ذاكرة الشات: عندك سجل محادثة المجموعة الكامل (مرآة الغرفة) + المهام المعلّقة — نفّذ على أساسه ولا تتجاهل طلباً سابقاً في نفس القروب.
 - نفّذ بكل الأدوات: ملفات تيليجرام/خزنة الغرفة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل. Drive للقراءة/البحث دائماً؛ المزامنة الكاملة فقط عند طلب صريح.
+- بحث ملف مفقود/ناقص: find_storage_mesh أولاً بالترتيب Drive→مرآة تيليجرام→غرفة→ماك — ممنوع «أعد الإرسال». أرشفة المجموعة: archive_telegram_group.
 - بحث عام في «الموقع/الغرفة»: room_search أولاً ثم فصّل. ملف في Drive بالاسم: drive_search_files. إحاطة/ملخص اليوم: owner_morning_brief.
 - التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
 - موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
 - مهام: room_tasks_create / update فوراً.
 - ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل الوحيدة. اقرأ/عدّل/حوّل/OCR/pdf_duplicate_page ثم return_file (مرفق تيليجرام). ممنوع brain_open/drive_search أو أي تطابق تقريبي بالاسم كبديل. ممنوع طلب إعادة الإرسال إن وُجدت بايتات/خزنة/مهمة معلّقة — استأنف. إن انعدمت كل المسارات: رسالة عربية واحدة تطلب الرفع للموقع/Drive بنفس الاسم.
 - ملف كبير: أكمل عبر غرفة الفريق أو Drive ثم أرسل الناتج هنا (sendDocument/ضغط). رابط Drive وحده ليس إكمالاً إن طلب المستخدم ملف تيليجرام.
-- بدون مرفق صريح: list_workspace_files بالاسم/المعرّف المطابق حرفياً فقط. Drive/brain_open_document فقط عند طلب صريح لاسم أو معرّف Drive كامل.
+- بدون مرفق صريح: list_workspace_files بالاسم/المعرّف المطابق حرفياً فقط. Drive/brain_open_document فقط عند طلب صريح لاسم أو معرّف Drive كامل. إن تعذّر: find_storage_mesh.
 - تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document ثم return_file. حفظ Drive بـ brain_save_document اختياري بعد النجاح إن طُلب.
 - حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
 - صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
 - بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
-- بحث ويب: web_search / web_fetch عند طلب بحث أو معلومة خارجية.
+- بحث ويب: web_search (DuckDuckGo+ويكيبيديا+gov.sa) / web_fetch (Jina) عند طلب بحث أو معلومة خارجية — بلا مفتاح مدفوع أولاً.
 - تشغيل تلقائي مطلق: ممنوع «هل تريد؟» للعمل الروتيني. ممنوع طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم — استأنف ونفّذ.
 - إن عجزت الأدوات (أو «ما عرفت»): استدعِ research_task_tools → إن canExecuteFree/executeNext نفّذ الأدوات المجانية المدمجة فوراً (pdf-lib…) وreturn_file للمجموعة. لا تشغّل كود MCP بعيداً غير موثوق.
 - فقط إن blocked بعد استنفاد المجاني: انشر messageAr (بدائل مدفوعة الأرخص) وانتظر المفتاح/الموافقة — هذه المقاطعة الوحيدة للمستخدم بسبب المال.
@@ -617,12 +619,15 @@ async function bindTelegramTools(opts: {
     mode: parsePosture('DANGEROUS'),
   })
   // Max power: full native toolset for work turns; light subset only for greetings.
-  const subset = opts.fullRoom
-    ? native
-    : pickToolSubset(
-        native,
-        opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
-      )
+  // Omit personal Google calendar_* so team agenda stays room_calendar_* only.
+  const subset = omitTelegramPersonalCalendarTools(
+    opts.fullRoom
+      ? native
+      : pickToolSubset(
+          native,
+          opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
+        )
+  )
 
   // MCP: on by default for full-room turns (parity with /api/chat). Opt-out: TELEGRAM_INCLUDE_MCP=0
   const mcpFlag = process.env.TELEGRAM_INCLUDE_MCP?.trim()
@@ -632,7 +637,7 @@ async function bindTelegramTools(opts: {
     try {
       await connectEnvMcpServers()
       const mcpTools = await getMCPHostManager().getCombinedToolSet()
-      return { ...subset, ...mcpTools }
+      return omitTelegramPersonalCalendarTools({ ...subset, ...mcpTools })
     } catch {
       /* optional — native tools still run */
     }

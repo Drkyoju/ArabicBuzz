@@ -71,9 +71,12 @@ const TOOL_LABEL_AR: Record<string, string> = {
   drive_search_files: 'بحث Drive',
   drive_list_files: 'قائمة Drive',
   drive_get_link: 'رابط Drive',
+  find_storage_mesh: 'بحث شبكة التخزين',
+  archive_telegram_group: 'أرشفة تيليجرام→Drive',
   room_search: 'بحث الغرفة',
   pdf_annotate: 'تعليق PDF',
   pdf_merge: 'دمج PDF',
+  pdf_duplicate_page: 'نسخ صفحة PDF',
   arabic_ocr: 'OCR عربي',
 }
 

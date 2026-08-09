@@ -51,7 +51,7 @@ export function formatTelegramErrorAr(
   }
 
   if (/timeout|etimedout|aborted|deadline/i.test(lower)) {
-    return '⏱️ انتهت مهلة المعالجة. أعد الطلب بجملة أقصر أو قسّمه إلى خطوتين.'
+    return '⏱️ انتهت مهلة المعالجة. اختصر الطلب أو قسّمه — إن وُجد ملف/مهمة معلّقة تُستأنف تلقائياً بدون إعادة إرسال.'
   }
 
   if (

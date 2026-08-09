@@ -536,7 +536,7 @@ export async function resolveTelegramJobFile(
       : []),
   ].filter((q, i, arr) => q && arr.indexOf(q) === i)
 
-  // Full mesh: TG mirror → room → Drive → Mac (aliases; never biology).
+  // Full mesh: Drive → TG mirror → room → Mac (aliases; never biology).
   try {
     const { findAcrossStorageMesh } = await import(
       '@/lib/telegram/storage-mesh'

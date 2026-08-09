@@ -10,6 +10,11 @@ describe('mapChatErrorAr', () => {
     expect(mapChatErrorAr('Rate limit exceeded')).toMatch(/حد الطلبات/)
   })
 
+  it('maps timeout without أعد الإرسال', () => {
+    expect(mapChatErrorAr('Request timed out')).toMatch(/مهلة/)
+    expect(mapChatErrorAr('Request timed out')).not.toMatch(/أعد الإرسال/)
+  })
+
   it('keeps Arabic errors', () => {
     expect(mapChatErrorAr('تعذّر ربط المحادثة')).toBe('تعذّر ربط المحادثة')
   })

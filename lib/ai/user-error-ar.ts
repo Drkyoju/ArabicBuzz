@@ -47,7 +47,7 @@ export function mapChatErrorAr(
     /timeout|etimedout|aborted|deadline|timed out/i.test(lower) ||
     opts?.httpStatus === 504
   ) {
-    return 'انتهت مهلة الرد — أعد الإرسال أو اختصر الطلب.'
+    return 'انتهت مهلة الرد — اختصر الطلب أو قسّمه؛ إن كان ملفاً معلّقاً سيُستأنف تلقائياً دون إعادة إرسال.'
   }
   if (
     /unauthorized|invalid.?api.?key|authentication|401|403|forbidden/i.test(

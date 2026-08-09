@@ -88,6 +88,10 @@ import {
   executeDriveUploadFile,
   executeDriveGetLink,
 } from '@/lib/agents/tools/drive-ops-tools'
+import {
+  executeArchiveTelegramGroup,
+  executeFindStorageMesh,
+} from '@/lib/agents/tools/telegram-mesh-tools'
 import { syncDriveFolderToBrain } from '@/lib/google/drive-brain'
 import {
   emitNotification,
@@ -283,6 +287,8 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   drive_search_files: executeDriveSearchFiles,
   drive_upload_file: executeDriveUploadFile,
   drive_get_link: executeDriveGetLink,
+  find_storage_mesh: executeFindStorageMesh,
+  archive_telegram_group: executeArchiveTelegramGroup,
   search_knowledge_base: executeSearchKnowledgeBase,
   calendar_list_events: executeCalendarList,
   calendar_create_event: executeCalendarCreate,

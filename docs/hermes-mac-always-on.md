@@ -100,15 +100,20 @@ Configured in `~/.hermes/config.yaml` under `mcp_servers` (local only — never 
 | duckduckgo | `@ericthered926/duckduckgo-mcp-server` | no |
 | context7 | `@upstash/context7-mcp` | no |
 | time | `@guanxiong/mcp-server-time` (npx) | **enabled** — official `@modelcontextprotocol/server-time` is npm 404 |
-| git / markitdown | official / markitdown-mcp | **keep disabled** — packages 404 / fragile on Monterey; GitHub MCP covers git ops |
-| github | `@modelcontextprotocol/server-github` | optional `GITHUB_PERSONAL_ACCESS_TOKEN` in `~/.hermes/.env` |
+| fetch | `@tokenizin/mcp-npx-fetch` (npx) | **enabled** — official `@modelcontextprotocol/server-fetch` is npm 404; also `scripts/hermes-jina-fetch.sh` |
+| wikipedia | `mcp-server-wikipedia` (npx) | no |
+| git / markitdown | official / markitdown-mcp | **keep disabled** — packages 404 / fragile on Monterey |
+| github | `@modelcontextprotocol/server-github` | **disabled** until `GITHUB_PERSONAL_ACCESS_TOKEN` in `~/.hermes/.env` |
 
-Skill: `~/.hermes/skills/research/duckduckgo-search` — free web fallback when Firecrawl key is absent.
+Local skills: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`.  
+Bundled free path: `duckduckgo-search`, `pdf`, `ocr-and-documents` (pymupdf via `~/.hermes/docs-venv`), `google-workspace`.  
+Light OCR: system `tesseract` (ara+eng) + `pillow`/`pytesseract` in docs-venv via `scripts/hermes-file-read.sh`.  
+Skipped paid/heavy: Firecrawl/Brave (unless keyed), Google Drive HTTP MCP, Hermes catalog (Figma/Linear/Blender/…), marker-pdf (~5GB), Playwright/Chrome MCP on Monterey.
 
 ```bash
 export PATH="$HOME/.hermes/bin:$HOME/.local/bin:$PATH"
 hermes mcp list
-hermes skills list | grep -i duck
+hermes skills list | grep -E 'wa-|duck|pdf'
 ```
 
 Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the `~/.hermes/bin/realpath` shim.

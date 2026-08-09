@@ -133,6 +133,7 @@ describe('help copy', () => {
     expect(help).toMatch(/بريد/)
     expect(help).toMatch(/خطابات|محاضر/)
     expect(help).toMatch(/نستغني/)
+    expect(help).toMatch(/شبكة التخزين|أرشفة|DDG|صفحة فاضية/)
     expect(help).toContain('/ping')
     expect(help).toContain('section=settings')
     expect(TELEGRAM_PING_OK_AR).toMatch(/يعمل/)
@@ -148,6 +149,10 @@ describe('help copy', () => {
       action: 'brief',
     })
     expect(buildTelegramHelpDomainAr('drive')).toMatch(/drive_list_files/)
+    expect(buildTelegramHelpDomainAr('drive')).toMatch(/find_storage_mesh/)
+    expect(buildTelegramHelpDomainAr('drive')).toMatch(/archive_telegram_group/)
+    expect(buildTelegramHelpDomainAr('search')).toMatch(/DuckDuckGo|web_search/)
+    expect(buildTelegramHelpDomainAr('convert')).toMatch(/pdf_duplicate_page/)
     expect(buildTelegramHelpDomainAr('docs')).toMatch(/letter_fill_template/)
     expect(TELEGRAM_GOOGLE_CONNECT_URL).toContain('section=settings')
     expect(buildTelegramHelpMenuKeyboard()).toBeTruthy()

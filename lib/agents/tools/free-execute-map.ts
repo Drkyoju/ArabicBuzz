@@ -181,6 +181,30 @@ const RULES: Rule[] = [
     ],
   },
   {
+    re: /(?:find_storage_mesh|شبكة\s*التخزين|دور\s*في\s*الشبكة|ملف\s*مفقود|وين\s*الملف|استأنف\s*الملف)/iu,
+    hints: [
+      {
+        toolName: 'find_storage_mesh',
+        libAr: 'شبكة التخزين المدمجة (Drive→TG→غرفة→ماك)',
+        whyAr: 'بحث مجاني عبر كل المخازن بدون إعادة إرسال',
+        instructionAr:
+          'نفّذ find_storage_mesh فوراً. ممنوع «أعد الإرسال» إن وُجدت نسخة أو مهمة معلّقة.',
+      },
+    ],
+  },
+  {
+    re: /(?:أرشف|ارشف|archive).{0,40}(?:مجموع|قروب|تيليجرام|telegram|مجموعة)|archive_telegram/iu,
+    hints: [
+      {
+        toolName: 'archive_telegram_group',
+        libAr: 'أرشفة تيليجرام→Drive المدمجة',
+        whyAr: 'أرشفة مجانية لوسائط المجموعة إلى Drive والخزنة',
+        instructionAr:
+          'نفّذ archive_telegram_group فوراً ثم لخّص النتيجة للمجموعة. لا تطلب إعادة إرسال الملفات.',
+      },
+    ],
+  },
+  {
     re: /(?:بريد|gmail|إيميل|mail_search|gmail_search)/iu,
     hints: [
       {

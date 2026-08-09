@@ -28,11 +28,13 @@ Stubs (copy when needed): `.cursor/mcp.stubs.example.json` — Google Workspace,
 
 ## Hermes (`~/.hermes`) — do not commit secrets
 
-Free MCP in `config.yaml` `mcp_servers`: filesystem, memory, sequential-thinking, duckduckgo, context7, time, git, markitdown, github (PAT via `.env` only).
+Free MCP in `config.yaml` `mcp_servers`: filesystem, memory, sequential-thinking, duckduckgo, context7, time, fetch (`@tokenizin/mcp-npx-fetch`), wikipedia (`mcp-server-wikipedia`). github only when PAT in `.env`. git/markitdown stay disabled on Monterey.
 
 Free skill: `research/duckduckgo-search` (`hermes skills install official/research/duckduckgo-search -y`) — fallback when Firecrawl key missing.
 
-Monterey note: prefer **npx** MCP packages; `uvx` Python MCP wrappers need `~/.hermes/bin/realpath` shim.
+Local WA/Drive skills: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help` + scripts `hermes-wa-drive-archive.sh`, `hermes-file-read.sh` (OCR via system tesseract ara+eng), `hermes-jina-fetch.sh`, `hermes-tools-status.sh`.
+
+Monterey note: prefer **npx** MCP packages; `uvx` Python MCP wrappers need `~/.hermes/bin/realpath` shim. PDF/OCR via `~/.hermes/docs-venv` (pymupdf/pypdf/pillow/pytesseract) — not marker-pdf (~5GB) / pdfplumber / pypdfium2.
 
 ## Agent rule
 

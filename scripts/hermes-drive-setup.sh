@@ -2,12 +2,16 @@
 # Hermes WhatsApp ↔ Google Drive working folder helper (no secrets printed).
 # Usage:
 #   ./scripts/hermes-drive-setup.sh --status
-#   ./scripts/hermes-drive-setup.sh --auth-url
+#   ./scripts/hermes-drive-setup.sh --from-arabicbuzz   # preferred (no Console URI)
+#   ./scripts/hermes-drive-setup.sh --auth-url          # only works with a Desktop client
 #   ./scripts/hermes-drive-setup.sh --auth-code 'URL_OR_CODE'
 #   ./scripts/hermes-drive-setup.sh --probe
+# Archive / search (see also scripts/hermes-wa-drive-archive.sh):
+#   npm run hermes:drive:archive:status
 
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 FOLDER_ID="${HERMES_DRIVE_FOLDER_ID:-1zlsaktPbd0SpFXQNPD7-kT1ktj4jRNOw}"
 FOLDER_URL="https://drive.google.com/drive/folders/${FOLDER_ID}"
@@ -19,6 +23,7 @@ GAPI_WRAP="$HERMES_HOME/bin/hermes-gapi"
 MODE="${1:---status}"
 case "$MODE" in
   --status|-s) MODE=status ;;
+  --from-arabicbuzz|--bootstrap) MODE=from-arabicbuzz ;;
   --auth-url) MODE=auth-url ;;
   --auth-code) MODE=auth-code; CODE="${2:-}" ;;
   --probe) MODE=probe ;;
@@ -27,7 +32,7 @@ case "$MODE" in
     exit 0
     ;;
   *)
-    echo "Unknown: $1 (try --status | --auth-url | --auth-code CODE | --probe)" >&2
+    echo "Unknown: $1 (try --status | --from-arabicbuzz | --auth-url | --auth-code CODE | --probe)" >&2
     exit 1
     ;;
 esac
@@ -69,13 +74,31 @@ if [[ "$MODE" == "status" ]]; then
   if [[ "$ec" -eq 0 ]]; then
     echo "Link status: AUTHENTICATED (token ok) — run --probe to test folder access"
   else
-    echo "Link status: NOT LINKED YET — run --auth-url, approve as $ACCOUNT_HINT, then --auth-code"
-    echo "Google Cloud: add redirect URI http://localhost:1 to the OAuth client (or use a Desktop client)."
+    echo "Link status: NOT LINKED YET — prefer: $0 --from-arabicbuzz"
+    echo "Note: Potato App is a Web OAuth client; Hermes localhost:1 auth-url hits redirect_uri_mismatch."
   fi
   exit 0
 fi
 
+if [[ "$MODE" == "from-arabicbuzz" ]]; then
+  echo "Bootstrapping Hermes token from ArabicBuzz DB (same account, no redirect)…"
+  (cd "$ROOT" && npx --yes tsx scripts/hermes-drive-bootstrap-from-ab.ts)
+  echo ""
+  set +e
+  out="$("$PY" "$GSETUP" --check 2>&1)"
+  ec=$?
+  set -e
+  echo "setup --check: $out"
+  if [[ "$ec" -ne 0 ]]; then
+    echo "⚠️ check reported issues (partial scopes are OK for Drive list/get)" >&2
+  fi
+  echo "Next: $0 --probe"
+  exit 0
+fi
+
 if [[ "$MODE" == "auth-url" ]]; then
+  echo "⚠️ Potato App (Web client) rejects http://localhost:1 — use --from-arabicbuzz instead." >&2
+  echo "   auth-url only works after you create a *Desktop* OAuth client and replace google_client_secret.json." >&2
   url="$("$PY" "$GSETUP" --auth-url 2>/dev/null | tail -1)"
   echo "$url" >"$HERMES_HOME/google_oauth_last_url.txt"
   chmod 600 "$HERMES_HOME/google_oauth_last_url.txt"

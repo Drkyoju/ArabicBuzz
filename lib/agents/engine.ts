@@ -1914,6 +1914,56 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('trigger_workflow'),
         }),
     }),
+    find_storage_mesh: tool({
+      description:
+        'ابحث عن ملف بالاسم عبر شبكة التخزين المجانية بالترتيب الإلزامي: Drive → مرآة تيليجرام → غرفة الفريق → جسر الماك. ممنوع طلب «أعد الإرسال» إن وُجدت نسخة أو مهمة معلّقة — استأنف ونفّذ.',
+      inputSchema: z.object({
+        queryName: z.string().describe('اسم الملف أو الاسم المستعار العربي'),
+        chatId: z.string().optional().describe('معرّف مجموعة تيليجرام إن عُرف'),
+        hydrateBytes: z
+          .boolean()
+          .optional()
+          .describe('true (افتراضي) لتحميل البايتات إلى الخزنة عند الإمكان'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'find_storage_mesh',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('find_storage_mesh'),
+        }),
+    }),
+    archive_telegram_group: tool({
+      description:
+        'أرشفة وسائط مجموعة تيليجرام المربوطة إلى Drive + خزنة الغرفة (مجاني). استخدم عند «أرشف المجموعة» أو استعادة ملفات قديمة. لا تطلب إعادة إرسال — الشبكة تستأنف تلقائياً.',
+      inputSchema: z.object({
+        chatId: z.string().optional().describe('معرّف المجموعة؛ الافتراضي المجموعة المربوطة'),
+        syncRoom: z.boolean().optional().describe('مزامنة خزنة الغرفة إلى Drive (افتراضي true)'),
+        syncMac: z.boolean().optional().describe('سحب من جسر الماك إن وُجد (افتراضي true)'),
+        skipDeepHistory: z
+          .boolean()
+          .optional()
+          .describe('true (افتراضي على تيليجرام) لتخطي المسح العميق MTProto عند ضيق المهلة'),
+        attachmentLimit: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'archive_telegram_group',
+          params: {
+            ...params,
+            scopeId: scopeId || 'shared-demo',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('archive_telegram_group'),
+        }),
+    }),
   }
 
   // Ensure registry stays the source of truth for known local names

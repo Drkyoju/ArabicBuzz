@@ -148,6 +148,7 @@ export const TELEGRAM_SITE_CHAT_TOOLS = [
   'drive_list_files',
   'drive_search_files',
   'drive_get_link',
+  'find_storage_mesh',
   'pdf_list_fields',
   'pdf_annotate',
   'pdf_duplicate_page',
@@ -179,6 +180,8 @@ export const TELEGRAM_SITE_HEAVY_TOOLS = [
   'drive_search_files',
   'drive_upload_file',
   'drive_get_link',
+  'find_storage_mesh',
+  'archive_telegram_group',
   'gmail_send',
   'mail_send',
   'sheets_read',
@@ -384,11 +387,11 @@ function workKindNudge(kind: TelegramWorkKind): string {
         '[قصد تيليجرام: ملف — تيليجرام أولاً — تلقائي بلا سؤال]',
         'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل الوحيدة — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
         'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف أحياء) / أي بديل من Drive أو الويب.',
-        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في Drive أو مرآة تيليجرام أو غرفة الفريق أو الماك أو مهمة معلّقة — ابحث بالترتيب (Drive→TG→غرفة→ماك) ونفّذ.',
+        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في Drive أو مرآة تيليجرام أو غرفة الفريق أو الماك أو مهمة معلّقة — استدعِ find_storage_mesh بالترتيب (Drive→TG→غرفة→ماك) ونفّذ.',
         'ممنوع «هل تريد؟» — نفّذ فوراً. إن انعدمت كل المخازن: طابور waiting_file صامت بلا إزعاج المستخدم.',
-        'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
+        'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط؛ وإلا find_storage_mesh. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
         'ملف كبير (>حد تنزيل البوت): خزّن → غرفة/Drive → عدّل → أعد بـ return_file/sendDocument تلقائياً.',
-        'مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
+        'أرشفة المجموعة: archive_telegram_group. مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
         'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
         'OCR: arabic_ocr. تعليق: pdf_annotate/pdf_stamp. نسخ صفحة: pdf_duplicate_page (pdf-lib مجاني) ثم return_file.',
         'PDF عربي: pdf_replace_text (HarfBuzz/PyMuPDF). عجز → research_task_tools ثم نفّذ المجاني المدمج؛ مدفوع فقط بعد الاستنفاد.',
@@ -596,4 +599,5 @@ export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كا�
 - خطابات: list_letter_templates / letter_fill_template. محاضر: minutes_from_thread.
 - في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
 - لست نسخة بصرية من الموقع: لا لوحة TipTap ولا سبورة tldraw ولا أداة رسم PDF بالقلم — نفّذ المكافئ عبر الأدوات (pdf_annotate / edit_document / draft HTML في البريد).
-- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ نسخ صفحة عبر pdf_duplicate_page (pdf-lib مجاني).`
+- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ نسخ صفحة عبر pdf_duplicate_page (pdf-lib مجاني).
+- ملف مفقود: find_storage_mesh (Drive→تيليجرام→غرفة→ماك). أرشفة المجموعة: archive_telegram_group.`
