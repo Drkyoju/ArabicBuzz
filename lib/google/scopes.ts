@@ -28,15 +28,20 @@ export const GOOGLE_CALENDAR_SCOPES = [
   // modify: mark read/unread, star, labels (needed for full personal mail client)
   'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/documents',
+  // Full Drive (Hermes الوقف + company brain) + narrower aliases kept for clarity
+  'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/drive.file',
+  // Hermes google-workspace skill expects contacts.readonly
+  'https://www.googleapis.com/auth/contacts.readonly',
 ].join(' ')
 
 export const GOOGLE_CALENDAR_SCOPE_LIST = GOOGLE_CALENDAR_SCOPES.split(' ')
 
-/** Alias — same consent covers Calendar + Gmail + Sheets + Drive brain. */
+/** Alias — same consent covers Calendar + Gmail + Sheets + Docs + Drive. */
 export const GOOGLE_WORKSPACE_SCOPES = GOOGLE_CALENDAR_SCOPES
 
 /** Short tags stored on google_oauth_tokens.scopes after calendar link. */
 export const GOOGLE_WORKSPACE_SCOPE_TAGS =
-  'calendar,gmail.readonly,gmail.send,gmail.modify,spreadsheets,drive.readonly,drive.file'
+  'calendar,gmail.readonly,gmail.send,gmail.modify,spreadsheets,documents,drive,drive.readonly,drive.file,contacts.readonly'
