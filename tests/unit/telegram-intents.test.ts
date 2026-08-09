@@ -134,6 +134,8 @@ describe('help copy', () => {
     expect(help).toMatch(/خطابات|محاضر/)
     expect(help).toMatch(/نستغني/)
     expect(help).toMatch(/شبكة التخزين|أرشفة|DDG|صفحة فاضية/)
+    expect(help).toMatch(/التدفقات اليومية/)
+    expect(help).toMatch(/إحاطة الصباح/)
     expect(help).toContain('/ping')
     expect(help).toContain('section=settings')
     expect(TELEGRAM_PING_OK_AR).toMatch(/يعمل/)

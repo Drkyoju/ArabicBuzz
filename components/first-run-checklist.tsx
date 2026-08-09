@@ -226,14 +226,14 @@ export function FirstRunChecklist({
     () => [
       {
         id: 'chat',
-        labelAr: 'أرسل أول رسالة في غرفة الفريق',
+        labelAr: 'أرسل أول طلب في الغرفة (بحث أو تلخيص)',
         done: chatted,
         action: () => onNavigate?.('chats'),
         actionLabelAr: 'الغرف',
       },
       {
         id: 'room-calendar',
-        labelAr: 'أضف موعداً على تقويم الفريق',
+        labelAr: 'أضف موعداً أو اطلب إحاطة الصباح',
         done: roomCollabOk,
         action: () => {
           try {
@@ -249,21 +249,21 @@ export function FirstRunChecklist({
       },
       {
         id: 'drive',
-        labelAr: 'ارفع ملفاً لعقل الشركة (Drive)',
+        labelAr: 'ارفع مستنداً للأرشيف (Drive / الملفات)',
         done: driveCount > 0 || keysOk,
         action: () => onNavigate?.('files'),
         actionLabelAr: 'الملفات',
       },
       {
         id: 'google',
-        labelAr: 'اربط Google للدعوات الخارجية (اختياري)',
+        labelAr: 'اربط Google (اختياري — للدعوات وDrive)',
         done: googleOk,
         action: () => onNavigate?.('settings'),
         actionLabelAr: 'الربط',
       },
       {
         id: 'telegram',
-        labelAr: 'اربط تيليجرام للجوال (اختياري)',
+        labelAr: 'اربط تيليجرام لأرشفة الجوال (اختياري)',
         done: telegramOk,
         action: () => onNavigate?.('settings'),
         actionLabelAr: 'الربط',
@@ -307,7 +307,7 @@ export function FirstRunChecklist({
           <p className="mt-0.5 text-[11px] text-stone-500">
             {loading
               ? 'جاري فحص الحالة…'
-              : `ثلاث دقائق للبدء — (${doneCount}/${steps.length}) مكتمل`}
+              : `ثلاث دقائق: أرشيف · غرفة · إحاطة — (${doneCount}/${steps.length})`}
           </p>
         </div>
         {onDismiss && (

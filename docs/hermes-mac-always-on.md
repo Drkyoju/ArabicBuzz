@@ -133,23 +133,27 @@ Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the
 
 **Ready on this Mac:** local skills are opted in (`hermes sync enable …`) and device label `Mac-WA-gateway` is set — when Nous opens Skill Sync for the account, run `hermes sync now`.
 
+**Official Skill Sync status (checked 2026-08-09):** `feature_enabled: false` — account logged in, local opt-in ready, **cloud push/pull still locked**. Use portable pack until Nous opens the gate.
+
 **Until then — portable pack (secret-free):**
 
 ```bash
-./scripts/hermes-skills-sync.sh status
-./scripts/hermes-skills-sync.sh pack
+npm run hermes:skills:status
+npm run hermes:skills:pack
 # → ~/.hermes/backups/skills-portable/hermes-skills-portable-….tgz (+ .sha256)
 # Do NOT commit the .tgz. Copy via encrypted USB / private channel only.
 ```
 
-**On PC2:**
+**On PC2 (ثلاث أوامر):**
 
-1. Install Hermes Desktop/CLI.
-2. `hermes portal login` — same Nous account (`ryodan71@gmail.com`).
-3. Clone ArabicBuzz; then:
-   `./scripts/hermes-skills-sync.sh restore /path/to/hermes-skills-portable-….tgz`
-4. Drive: `./scripts/hermes-drive-setup.sh --from-arabicbuzz` (then `--probe`).
-5. Leave WhatsApp gateway on the always-on Mac (do **not** copy Baileys session unless you intentionally move the link).
+```bash
+hermes portal login
+cd /path/to/ArabicBuzz
+npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
+./scripts/hermes-drive-setup.sh --from-arabicbuzz && ./scripts/hermes-drive-setup.sh --probe
+```
+
+Leave WhatsApp gateway on the always-on Mac (do **not** copy Baileys session unless you intentionally move the link). See [daily-habit-ar.md](./daily-habit-ar.md) for light daily flows without spam.
 
 Full `hermes backup` / `hermes import` zips **include secrets** (`.env`, `auth.json`) — use only for encrypted offline disaster recovery under `~/.hermes/backups/`, never git.
 

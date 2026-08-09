@@ -15,12 +15,15 @@
 #   ./scripts/hermes-skills-sync.sh restore /path/in.tgz
 #   ./scripts/hermes-skills-sync.sh restore /path/in.tgz --dry-run
 #
-# On PC2 after restore:
+# On PC2 after restore (dead-simple):
+#   npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
+#   # or: ./scripts/hermes-skills-sync.sh restore /path/to/….tgz
+# Prerequisites on PC2:
 #   1. Install Hermes Desktop / CLI
-#   2. hermes portal login   # same Nous account (e.g. ryodan71@gmail.com)
-#   3. Clone ArabicBuzz (or set ARABICBUZZ_ROOT) then restore
-#   4. Drive: ./scripts/hermes-drive-setup.sh --from-arabicbuzz   # re-auth if needed
-#   5. WhatsApp gateway stays on the always-on Mac unless you re-link WA here
+#   2. hermes portal login   # same Nous account
+#   3. Clone ArabicBuzz (ARABICBUZZ_ROOT)
+#   4. Drive: ./scripts/hermes-drive-setup.sh --from-arabicbuzz
+#   5. WhatsApp gateway stays on the always-on Mac (do not copy Baileys)
 
 set -euo pipefail
 
@@ -319,12 +322,15 @@ PY
     "scripts/hermes-wa-drive-archive.sh",
     "scripts/hermes-file-read.sh",
     "scripts/hermes-jina-fetch.sh",
+    "scripts/hermes-storage-mesh.sh",
+    "scripts/hermes-pdf-dup.sh",
     "scripts/hermes-drive-setup.sh",
-    "scripts/hermes-tools-status.sh"
+    "scripts/hermes-tools-status.sh",
+    "scripts/hermes-wa-prepare-dedicated.sh"
   ],
   "restore_notes": [
     "hermes portal login (same Nous account)",
-    "restore this archive",
+    "npm run hermes:skills:restore -- /path/to/archive.tgz",
     "clone ArabicBuzz and set ARABICBUZZ_ROOT if needed",
     "Drive OAuth: hermes-drive-setup.sh --from-arabicbuzz",
     "WA Baileys session is NOT transferred — keep gateway on always-on Mac or re-link"
@@ -337,37 +343,30 @@ EOF
 
 Secret-free bundle of local skills + SOUL + MCP server list.
 
-## Restore on another machine
+## PC2 — أسرع استعادة (ثلاث أوامر)
 
 ```bash
-# 1) Install Hermes, then log in with the SAME Nous account
+# على الجهاز الجديد بعد تثبيت Hermes + clone ArabicBuzz:
 hermes portal login
-
-# 2) Clone ArabicBuzz (needed for companion scripts / bin wrappers)
-git clone <your-arabicbuzz-remote> ~/ArabicBuzz
-cd ~/ArabicBuzz
-
-# 3) Restore
-./scripts/hermes-skills-sync.sh restore /path/to/hermes-skills-portable-….tgz
-
-# 4) Google Drive (tokens are machine-local — re-auth)
-./scripts/hermes-drive-setup.sh --from-arabicbuzz
-./scripts/hermes-drive-setup.sh --probe
-
-# 5) Optional: re-install hub skills from snapshot
-#    hermes skills snapshot import meta/skills-snapshot.json   # if supported after extract
+cd ~/ArabicBuzz   # أو ARABICBUZZ_ROOT
+npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
+./scripts/hermes-drive-setup.sh --from-arabicbuzz && ./scripts/hermes-drive-setup.sh --probe
 ```
+
+واتساب يبقى على ماك البوابة الدائم — لا تنسخ جلسة Baileys إلا بهجرة مقصودة.
+
+## Official cloud Skill Sync (حالة 2026-08)
+
+`hermes sync status` → غالباً: `feature_enabled: false` / admin-gated.  
+عند فتح الميزة: `hermes sync enable <skill>` ثم `hermes sync now`.  
+حتى ذلك الحين: هذه الحزمة المحمولة فقط.
 
 ## Not included (by design)
 
 - `~/.hermes/.env`, `auth.json`
 - Google OAuth tokens / client secret
 - WhatsApp Baileys session (`platforms/whatsapp`)
-- Full `hermes backup` zip (that one *does* include secrets — keep offline only)
-
-## Official cloud Skill Sync
-
-`hermes sync` exists but is **admin-gated / pre-launch**. Local `hermes sync enable` marks skills for when Nous opens the feature. Until then, use this portable pack.
+- Full `hermes backup` zip (includes secrets — offline only)
 EOF
 
   # Normalize absolute repo paths inside packed skills/SOUL

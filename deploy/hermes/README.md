@@ -14,6 +14,9 @@ Scripts and LaunchAgents for Hermes on this Mac. **WhatsApp only** — never rec
 | [`scripts/hermes-jina-fetch.sh`](../../scripts/hermes-jina-fetch.sh) | Free URL→text via Jina Reader (no key) |
 | [`scripts/hermes-tools-status.sh`](../../scripts/hermes-tools-status.sh) | MCP/Drive/OCR health summary (no secrets) |
 | [`scripts/hermes-skills-sync.sh`](../../scripts/hermes-skills-sync.sh) | Pack/restore local skills + SOUL + MCP list (no secrets); Nous Skill Sync still admin-gated |
+| [`scripts/hermes-wa-prepare-dedicated.sh`](../../scripts/hermes-wa-prepare-dedicated.sh) | Optional dedicated WA number prep (backup / isolate session) — no Meta Cloud |
+| [`docs/hermes-wa-dedicated-number.md`](../../docs/hermes-wa-dedicated-number.md) | Guide: keep current number or migrate later |
+| [`docs/daily-habit-ar.md`](../../docs/daily-habit-ar.md) | Light daily flows without spam |
 | [`scripts/install-hermes-wa-watchdog-launchd.sh`](../../scripts/install-hermes-wa-watchdog-launchd.sh) | Install WA watchdog LaunchAgent |
 | [`scripts/install-hermes-serve-launchd.sh`](../../scripts/install-hermes-serve-launchd.sh) | Optional `hermes serve` LaunchAgent (Desktop-safe) |
 

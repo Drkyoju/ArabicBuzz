@@ -4,11 +4,27 @@ import {
   CalendarDays,
   FileText,
   FolderSearch,
+  Archive,
+  Sunrise,
 } from 'lucide-react'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 
 const RECIPES = [
+  {
+    id: 'brief',
+    titleAr: 'إحاطة الصباح',
+    detailAr: 'ملخص يوم واحد: بريد · مواعيد · مهام معلّقة — بدون سبام تذكيرات.',
+    section: 'chats',
+    icon: Sunrise,
+  },
+  {
+    id: 'archive',
+    titleAr: 'أرشفة المستندات',
+    detailAr: 'من تيليجرام أو الملفات: احفظ الفواتير/المحاضر في Drive + الغرفة.',
+    section: 'files',
+    icon: Archive,
+  },
   {
     id: 'knowledge',
     titleAr: 'اسأل ملفات الفريق',
@@ -53,7 +69,7 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        ملفات · مواعيد · خطابات — غرفة الفريق من الشريط الجانبي.
+        إحاطة · أرشفة · بحث · مواعيد · خطابات — نتائج يومية بلا فوضى مستندات.
       </p>
 
       <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

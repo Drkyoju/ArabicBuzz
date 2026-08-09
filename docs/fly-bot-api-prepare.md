@@ -12,7 +12,7 @@
 
 | اليوم (مجاني / ماك) | لاحقاً (Fly — مدفوع تقريباً) |
 |---------------------|------------------------------|
-| `npm run mac-hop:install` | حاوية `deploy/telegram-bot-api` على Fly |
+| `npm run mac-hop:install` ثم `npm run mac-hop:health` | حاوية `deploy/telegram-bot-api` على Fly |
 | نفق trycloudflare يتغيّر | `TELEGRAM_BOT_API_URL=https://…fly.dev` ثابت |
 | الماك نائم = hop متوقف | الملفات الكبيرة تُحمَّل بدون الماك |
 
@@ -20,9 +20,10 @@
 
 ```bash
 # 1) تحقق من المتطلبات محلياً (لا ينشر)
-./scripts/fly-bot-api-prepare.sh
+npm run fly:bot-api:prepare
+# = ./scripts/fly-bot-api-prepare.sh
 
-# 2) اقرأ قائمة التحقق أدناه واملأ الأسرار عند القرار بالنشر فقط
+# 2) اقرأ «متى تقلب» أدناه — لا تنشر حتى تتوفر البطاقة + القرار
 ```
 
 ### قائمة تحقق قبل أي نشر مستقبلي
@@ -34,11 +35,36 @@
 5. بعد النشر: ضع `TELEGRAM_BOT_API_URL` على CranL عبر `npm run cranl:put-env`
 6. أبقِ `MAC_SYNC_URL` اختيارياً لـ OCR / MTProto / خزنة الماك
 
+## متى تقلب إلى Fly؟ (flip criteria)
+
+اقلب **فقط** عندما يتحقق واحد على الأقل:
+
+| إشارة | معنى |
+|--------|------|
+| بطاقة Fly + موافقة صريحة على الإنفاق | شرط مالي — بدونه يبقى التحضير فقط |
+| الماك ينام/يسافر وملفات >20MB تفشل مراراً | hop الماك لم يعد يكفي للتشغيل |
+| تحتاج `TELEGRAM_BOT_API_URL` ثابتاً بلا نفق trycloudflare | استقرار تشغيل |
+
+**لا تقلب** من أجل Hermes WhatsApp — Baileys يبقى على الماك. Fly هنا لـ **تيليجرام Bot API فقط**.
+
+### خطوات القلب (بعد الموافقة الصريحة)
+
+```bash
+npm run fly:bot-api:prepare          # تأكيد الجاهزية
+fly auth login                       # إن لم تكن مسجّلاً
+npm run telegram:bot-api:fly         # نشر — بطلب صريح فقط
+# ثم على CranL:
+npm run cranl:put-env TELEGRAM_BOT_API_URL=https://<app>.fly.dev
+```
+
+تحقق: `/status` في تيليجرام يظهر hop Local Bot API حياً حتى لو الماك نائماً.
+
 ## ما لا يفعله هذا المسار
 
 - **لا** ينشر Hermes WhatsApp على Fly (Baileys + جلسة QR — مسار منفصل ومؤجّل)
 - **لا** يستبدل `@alhuda14bot`
 - **لا** يشغّل واتساب داخل ArabicBuzz
+- **لا** يستخدم Meta WhatsApp Cloud
 
 ## أوامر النشر (محظورة حتى يُطلب صراحةً)
 
@@ -48,4 +74,4 @@
 # ./deploy/telegram-bot-api/deploy-fly.sh
 ```
 
-Failover الحالي: `npm run mac-hop:watchdog:force` + `docs/telegram-always-on-bot-api.md`.
+Failover الحالي: `npm run mac-hop:install` · `npm run mac-hop:health` · `docs/telegram-always-on-bot-api.md`.

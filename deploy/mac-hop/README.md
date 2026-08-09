@@ -12,15 +12,20 @@ Cloudflared quick-tunnel logs default to `~/Library/Logs/ArabicBuzz/ab-cloudflar
 
 Optional separate agent plist: `com.arabicbuzz.mac-sync.plist` (usually unused — watchdog already starts the agent to avoid port conflicts).
 
-## Install (once)
+## Install (once) — أمر واحد
 
 ```bash
 npm run mac-hop:install
 # = ./scripts/install-mac-hop-launchd.sh
-# installs hop-watchdog + nosleep (skip nosleep: --no-nosleep)
+# installs hop-watchdog + nosleep, pins OrbStack 1.5.1, then verifies hop_health
+# skip nosleep: ./scripts/install-mac-hop-launchd.sh --no-nosleep
+```
 
-npm run mac-nosleep:install
-# = ./scripts/install-mac-nosleep-launchd.sh  (if installed separately)
+Verify anytime:
+
+```bash
+npm run mac-hop:health            # one pass → hop_health=ok|degraded
+npm run mac-hop:health -- --quick # ports only
 ```
 
 Unload:
@@ -37,6 +42,7 @@ npm run mac-hop:watchdog          # ensure hops + PUT if URL changed
 npm run mac-hop:watchdog:force    # force CranL PUT + restart
 ```
 
+Fly Bot API (prepare only — when to flip): [docs/fly-bot-api-prepare.md](../../docs/fly-bot-api-prepare.md)
 ## Logs
 
 - `~/Library/Logs/ArabicBuzz/mac-sync.*.log`
