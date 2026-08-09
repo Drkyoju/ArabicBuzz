@@ -203,3 +203,15 @@ FIRECRAWL_API_KEY=
 ```
 
 المسار المجاني للبحث داخل المنتج يبقى بدون مفاتيح: DuckDuckGo + Wikipedia + gov.sa + Jina Reader.
+
+### موجة 7 / Track C (أغسطس 2026) — مجاني أولاً
+
+| ماذا | أين | ملاحظات |
+|------|-----|---------|
+| توسيع `free-execute-map` | `lib/agents/tools/free-execute-map.ts` | web_search / web_fetch / Drive / Gmail / GitHub → builtins |
+| كتالوج `duckduckgo` | `lib/mcp/catalog.ts` | موثّق كمسار مجاني محلي |
+| مهارة Cursor | `.cursor/skills/arabicbuzz-free-mcp` | تفضيل المسار المجاني على Firecrawl المدفوع |
+| Hermes MCP | `~/.hermes/config.yaml` (محلي — لا يُرفع) | filesystem, memory, sequential-thinking, duckduckgo, context7, time, git, markitdown, github |
+| Hermes skill | `~/.hermes/skills/research/duckduckgo-search` | احتياطي عند غياب `FIRECRAWL_API_KEY` |
+
+بوت تيليجرام: عجز القدرة → `research_task_tools` → إن `canExecuteFree` نفّذ `executeNext` ثم `return_file`.

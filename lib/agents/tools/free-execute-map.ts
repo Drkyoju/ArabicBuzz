@@ -144,6 +144,65 @@ const RULES: Rule[] = [
       },
     ],
   },
+  {
+    re: /(?:بحث\s*(?:ويب|انترنت|google|جوجل)|web[\s_-]?search|duckduckgo|ويكيبيديا|wikipedia|site:\s*gov\.sa|مصادر?\s*رسمي)/iu,
+    hints: [
+      {
+        toolName: 'web_search',
+        libAr: 'DuckDuckGo + Wikipedia + gov.sa (مدمج بلا مفتاح)',
+        whyAr: 'بحث ويب مجاني مدمج — لا Firecrawl/Brave مطلوب',
+        instructionAr:
+          'نفّذ web_search فوراً. إن احتجت نص الصفحة: web_fetch أو ingest_url_to_brain (Jina Reader مجاني). لا تطلب مفتاحاً مدفوعاً.',
+      },
+    ],
+  },
+  {
+    re: /(?:جلب|افتح|اقرأ).{0,40}(?:رابط|url|صفحة|موقع)|web[\s_-]?fetch|ingest_url|jina/iu,
+    hints: [
+      {
+        toolName: 'web_fetch',
+        libAr: 'جلب مباشر + Jina Reader (مجاني)',
+        whyAr: 'قراءة صفحات عامة بلا مفتاح',
+        instructionAr:
+          'نفّذ web_fetch ثم إن لزم ingest_url_to_brain. لا تستخدم Firecrawl إلا إن وُجد مفتاح صراحة.',
+      },
+    ],
+  },
+  {
+    re: /(?:drive|درايف|جوجل\s*درايف|google\s*drive|مجلد\s*الجمعية|drive_search|drive_sync)/iu,
+    hints: [
+      {
+        toolName: 'drive_search_files',
+        libAr: 'Google Drive الأصلي (OAuth المنتج)',
+        whyAr: 'بحث Drive مجاني عبر الربط الموجود — بدون MCP Workspace منفصل',
+        instructionAr:
+          'نفّذ drive_search_files أو drive_sync_brain ثم search_knowledge_base. لا تثبّت MCP Drive بعيداً غير موثوق.',
+      },
+    ],
+  },
+  {
+    re: /(?:بريد|gmail|إيميل|mail_search|gmail_search)/iu,
+    hints: [
+      {
+        toolName: 'mail_search',
+        libAr: 'Gmail / mail المدمج',
+        whyAr: 'بحث البريد عبر أدوات المنتج المجانية',
+        instructionAr: 'نفّذ mail_search أو gmail_search (حسب نطاق الغرفة) فوراً.',
+      },
+    ],
+  },
+  {
+    re: /(?:github|غيتهب|مستودع|pull\s*request|\bpr\b|issue|ci\b)/iu,
+    hints: [
+      {
+        toolName: 'web_search',
+        libAr: 'بحث GitHub العام + أدوات المنتج',
+        whyAr: 'قراءة عامة عبر الويب بلا مفتاح؛ MCP GitHub اختياري بـ PAT',
+        instructionAr:
+          'ابحث عبر web_search (site:github.com …). لا تفترض وجود GITHUB_PERSONAL_ACCESS_TOKEN.',
+      },
+    ],
+  },
 ]
 
 /** Builtin free tools that can run the task without user payment. */
@@ -202,6 +261,31 @@ export function mapSuggestionsToBuiltinFreeTools(
       },
     ]
   }
+
+  // Web / research MCP docs → free product path
+  if (/web|search|duckduckgo|fetch|firecrawl|jina|brave/.test(blob)) {
+    return [
+      {
+        toolName: 'web_search',
+        libAr: 'DuckDuckGo + Wikipedia + gov.sa',
+        whyAr: 'مسار بحث مجاني مدمج بدل MCP مدفوع',
+        instructionAr: 'نفّذ web_search ثم web_fetch/ingest_url_to_brain عند الحاجة.',
+      },
+    ]
+  }
+
+  // Drive / workspace MCP docs → native tools
+  if (/drive|workspace|gmail|calendar/.test(blob)) {
+    return [
+      {
+        toolName: 'drive_search_files',
+        libAr: 'أدوات Google الأصلية',
+        whyAr: 'المنتج يغطي Drive/Gmail دون MCP خارجي',
+        instructionAr: 'استخدم drive_search_files / mail_search / أدوات التقويم المدمجة.',
+      },
+    ]
+  }
+
   return []
 }
 

@@ -37,6 +37,7 @@
 
 | الاسم | ليش مفيدة لـ ArabicBuzz | رابط | مثبت؟ | أولوية |
 |-------|-------------------------|------|-------|--------|
+| **duckduckgo** | بحث بلا مفتاح | npm `@ericthered926/...` | **نعم** (Cursor + Hermes + catalog) | P0 |
 | **playwright** | متصفح/تحقق UI | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | نعم (Cursor) | P0 |
 | **context7** | وثائق مكتبات محدّثة | [upstash/context7](https://github.com/upstash/context7) | نعم | P0 |
 | **supabase** | استعلام الجداول (قراءة) | [docs](https://supabase.com/docs/guides/getting-started/mcp) | نعم (OAuth remote) | P0 |

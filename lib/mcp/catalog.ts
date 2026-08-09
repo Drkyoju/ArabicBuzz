@@ -156,6 +156,21 @@ export const MCP_CATALOG: McpCatalogItem[] = [
     docsUrl: 'https://github.com/modelcontextprotocol/servers',
   },
   {
+    id: 'duckduckgo',
+    nameAr: 'بحث DuckDuckGo (مجاني)',
+    nameEn: 'DuckDuckGo (free, no key)',
+    descriptionAr:
+      'بحث ويب بلا مفتاح عبر MCP محلي — مكمّل لمسار web_search المدمج (DDG + ويكيبيديا + gov.sa).',
+    benefitsAr: 'طبقة بحث مجانية للوكيل المحلي/Cursor/Hermes دون Brave أو Firecrawl.',
+    categoryAr: 'ويب وبحث',
+    runtime: 'local',
+    transport: 'stdio',
+    setupHintAr:
+      'مضمّن في .cursor/mcp.json و~/.hermes/config.yaml: npx -y @ericthered926/duckduckgo-mcp-server. المنتج على CranL يستخدم web_search المدمج مباشرة.',
+    docsUrl: 'https://www.npmjs.com/package/@ericthered926/duckduckgo-mcp-server',
+    recommended: true,
+  },
+  {
     id: 'brave-search',
     nameAr: 'بحث Brave — اختياري',
     nameEn: 'Brave Search (optional upgrade)',

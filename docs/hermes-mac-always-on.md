@@ -55,8 +55,9 @@ Official docs: [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/us
 |------|--------|
 | `hermes` CLI (`~/.local/bin/hermes`) | Present |
 | `hermes gateway install` → `~/Library/LaunchAgents/ai.hermes.gateway.plist` | Installed, KeepAlive |
-| `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env` (owner chat id from ArabicBuzz) | Set |
-| **Did not** copy `TELEGRAM_BOT_TOKEN` from ArabicBuzz `.env.local` | Safe — no webhook conflict |
+| `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env` (owner chat id) | Set |
+| Hermes-only `TELEGRAM_BOT_TOKEN` in `~/.hermes/.env` (`@waqfBbot`) | Set — **not** ArabicBuzz `@alhuda14bot` |
+| Gateway Telegram adapter | Connected (long polling) |
 
 Commands:
 
@@ -82,6 +83,30 @@ hermes serve --host 127.0.0.1 --port 9119 --skip-build
 
 Prefer leaving **Hermes.app** open, or use Desktop’s own restart — avoid fighting two supervisors on `:9119`.
 
+### Free MCP / skills on this Mac (Track C)
+
+Configured in `~/.hermes/config.yaml` under `mcp_servers` (local only — never commit secrets):
+
+| Server | Package | Key? |
+|--------|---------|------|
+| filesystem | `@modelcontextprotocol/server-filesystem` | no |
+| memory | `@modelcontextprotocol/server-memory` | no |
+| sequential-thinking | `@modelcontextprotocol/server-sequential-thinking` | no |
+| duckduckgo | `@ericthered926/duckduckgo-mcp-server` | no |
+| context7 | `@upstash/context7-mcp` | no |
+| time / git / markitdown | official / markitdown-mcp (npx) | **disabled on Monterey** (probe hang); keep entries for later |
+| github | `@modelcontextprotocol/server-github` | optional `GITHUB_PERSONAL_ACCESS_TOKEN` in `~/.hermes/.env` |
+
+Skill: `~/.hermes/skills/research/duckduckgo-search` — free web fallback when Firecrawl key is absent.
+
+```bash
+export PATH="$HOME/.hermes/bin:$HOME/.local/bin:$PATH"
+hermes mcp list
+hermes skills list | grep -i duck
+```
+
+Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the `~/.hermes/bin/realpath` shim.
+
 ---
 
 ## C) Telegram — separate bot required / تيليجرام — بوت منفصل
@@ -95,23 +120,17 @@ ArabicBuzz `@alhuda14bot` uses a **webhook** on CranL (`TELEGRAM_BOT_TOKEN` in `
 | Create a **new** bot with [@BotFather](https://t.me/BotFather) for Hermes only | Paste ArabicBuzz `TELEGRAM_BOT_TOKEN` into `~/.hermes/.env` |
 | Put the new token only in `~/.hermes/.env` | Point Hermes at the CranL webhook bot |
 
-### You still must do (Telegram)
+### Telegram on this Mac (done)
 
-1. Message `@BotFather` → `/newbot` → copy the new token.
-2. Edit `~/.hermes/.env`:
+- Token lives only in `~/.hermes/.env` (mode `600`) — never in ArabicBuzz `.env.local` / CranL.
+- Bot: **`@waqfBbot`** — DM it from the account matching `TELEGRAM_ALLOWED_USERS`.
+- After token changes: `hermes gateway restart`
 
-```bash
-TELEGRAM_BOT_TOKEN=123456:ABC...   # Hermes-only bot — NOT ArabicBuzz
-# TELEGRAM_ALLOWED_USERS already set to your numeric user id
-```
+If you need a **replacement** bot later:
 
-3. Restart gateway:
-
-```bash
-hermes gateway restart
-```
-
-4. DM the new bot from your Telegram account (must match `TELEGRAM_ALLOWED_USERS`).
+1. `@BotFather` → `/newbot` (or `/revoke` on the old one) → new token.
+2. Set `TELEGRAM_BOT_TOKEN=...` in `~/.hermes/.env` only.
+3. `hermes gateway restart`
 
 Optional wizard: `hermes gateway setup` (interactive).
 
@@ -194,8 +213,8 @@ npm run mac-hop:install
 | Automated here | You still do |
 |----------------|--------------|
 | `caffeinate -dims` LaunchAgent | Keep Mac on AC; avoid lid+battery sleep |
-| `hermes gateway` launchd service | Create **separate** Telegram bot + paste token |
-| `TELEGRAM_ALLOWED_USERS` stub | Scan WhatsApp QR (`hermes whatsapp`) if you accept Baileys risk |
+| `hermes gateway` launchd + Hermes-only Telegram (`@waqfBbot`) | Scan WhatsApp QR (`hermes whatsapp`) if you accept Baileys risk |
+| `TELEGRAM_ALLOWED_USERS` | Discord/Slack / Meta Cloud if needed |
 | Docs + install scripts in repo | Discord/Slack tokens, passwords, Meta Cloud verification |
 | **Did not** touch ArabicBuzz webhook bot | Leave Hermes.app open for `hermes serve` (or run serve manually) |
 
