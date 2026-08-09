@@ -1,5 +1,14 @@
 # هيرميس ↔ Google Drive (واتساب فقط)
 
+## فصل القنوات (إلزامي)
+
+| | ماذا | أين |
+|---|---|---|
+| **هيرميس** | وقف واتساب فقط (`+966550514658`) | `~/.hermes` + بوابة الماك — **لا** تيليجرام، **لا** موقع CranL |
+| **الجمعية (ArabicBuzz)** | تيليجرام `@alhuda14bot` + الموقع + الوكلاء ١–٨ | CranL / Next.js — **لا** جلسة واتساب هيرميس |
+
+لا تشارك `TELEGRAM_BOT_TOKEN` مع هيرميس، ولا توجّه ويب هوك واتساب الموقع إلى رقم/جلسة هيرميس، ولا تربط `@alhuda14bot` ببوابة Hermes.
+
 هيرميس على الماك = **واتساب فقط** (`+966550514658`). لا تيليجرام. بوت الجمعية `@alhuda14bot` منفصل (ArabicBuzz / CranL).
 
 ## مجلد العمل
@@ -36,8 +45,12 @@
 | حالة الأرشيف | سرد أحدث الملفات في المجلد |
 | بحث … / ابحث في الدرايف | `fullText` داخل مجلد الوقف فقط |
 | لخّص / اقرأ المرفق / OCR | استخراج نص PDF/DOCX/نص أو OCR خفيف ثم تلخيص عربي |
+| دور في الشبكة / وين الملف | `hermes-storage-mesh` — Drive الوقف ثم كاش محلي (موازٍ لـ find_storage_mesh بلا ربط) |
+| انسخ الصفحة / صفحة فاضية | `hermes-pdf-dup` (موازٍ لـ pdf_duplicate_page) |
 | حالة الأدوات | صحة MCP/Drive/OCR بلا أسرار |
-| اقرأ الرابط … / ويكيبيديا … | Jina/fetch أو MCP wikipedia |
+| اقرأ الرابط … / ويكيبيديا … / يوتيوب / احسب / نطاق / arXiv | Jina/fetch · wikipedia · youtube-transcript · math · dns · arxiv |
+
+**نفس القدرات تقريباً، أنظمة منفصلة:** مجموعة الأدوات المجانية ممتازة على الطرفين — بدون runtime مشترك ولا webhook بين واتساب هيرميس وتيليجرام `@alhuda14bot`.
 
 محلياً:
 
@@ -50,18 +63,25 @@ npm run hermes:tools:status
 ./scripts/hermes-jina-fetch.sh 'https://example.com'   # قراءة صفحة مجاناً عبر Jina
 ```
 
-## قراءة الملفات (مجاني)
+## قراءة الملفات (مجاني — عربي أولاً)
 
 | النوع | المسار |
 |------|--------|
 | PDF نصّي / DOCX / نص | `scripts/hermes-file-read.sh` عبر `~/.hermes/docs-venv` (pymupdf + pypdf + python-docx) |
-| PDF ممسوح بلا نص | OCR خفيف: tesseract + pillow/pytesseract (أول 3 صفحات افتراضياً) — **لا** marker-pdf (~5GB) |
-| صور | نفس السكربت (OCR) أو vision المدمج إن فشل OCR |
-| صوت | STT Hermes (`language: ar`) إن مضبوط — لا اختلاق نص |
-| روابط ويب | Jina Reader أو MCP `fetch` / `wikipedia` / `duckduckgo` — فضّل المجاني على Firecrawl/Brave |
+| PDF ممسوح بلا نص | OCR خفيف: **tesseract ara+eng** + pillow/pytesseract (أول 3 صفحات) — **لا** marker-pdf |
+| صور | نفس السكربت (OCR ara+eng) أو vision إن فشل OCR |
+| رسالة صوتية VOICE (ptt) | STT محلي في البوابة: `stt.provider: local` + **faster-whisper** + **ffmpeg** (`language: ar`) — عند منشن/طلب |
+| مرفق صوتي AUDIO (ملف) | **ليس** تلقائياً في البوابة — عند «فرّغ / لخّص / اقرأ»: `hermes-file-read /path/to/audio.ogg` (نفس faster-whisper عربي) |
+| أرشفة صوت | `hermes-wa-archive --archive` يرفع الملف + تفريغ `.txt` بجانبه (قابل لـ fullText) إن نجح STT |
+| روابط ويب | Jina / MCP `fetch` / `wikipedia` / `duckduckgo`؛ مهارة `scrapling` اختيارية — فضّل المجاني على Firecrawl/Brave |
 
-مهارات Hermes المحلية: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`.  
-مهارات مدمجة مفيدة: `pdf`, `ocr-and-documents`, `docx`, `google-workspace`, `duckduckgo-search`.
+مهارات محلية: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`.  
+مهارات من GitHub/الرسمي: `duckduckgo-search`, `domain-intel`, `scrapling`, `code-wiki`, `arxiv` + مدمج: `pdf`, `docx`, `xlsx`, `ocr-and-documents`, `nano-pdf`, `youtube-content`.  
+MCP مجاني: filesystem, memory, sequential-thinking, duckduckgo, fetch, wikipedia, math, youtube-transcript, dns, arxiv, public-apis, context7, time.
+
+**ffmpeg:** ثنائي ثابت في `~/.hermes/bin/ffmpeg` (رابط في `/usr/local/bin`) — لا يعتمد على بناء Homebrew على Monterey ولا يمس OrbStack.
+
+تحقق سريع: `npm run hermes:tools:status`
 
 ## كيف يتصل هيرميس بـ Drive؟
 
@@ -133,5 +153,5 @@ npm run hermes:drive:archive:status
 
 | مفعّل | معطّل / متجنَّب |
 |--------|------------------|
-| filesystem, memory, sequential-thinking, duckduckgo, context7, time, **fetch**, **wikipedia** (`mcp-server-wikipedia`) | git / markitdown (هش على Monterey)؛ github بدون PAT |
-| مهارات: wa-archive, wa-file-read, waqf-drive, ar-help, pdf, duckduckgo-search, google-workspace | Firecrawl/Brave ما لم يكن المفتاح موجوداً؛ Drive HTTP MCP الرسمي؛ marker-pdf الضخم؛ كتالوج Hermes المدفوع (Figma/Linear/…)؛ Playwright/Chrome الثقيل على Monterey |
+| filesystem, memory, sequential-thinking, duckduckgo, context7, time, **fetch**, **wikipedia** (`@shelm`), **math**, **youtube-transcript** | git / markitdown؛ github بدون PAT؛ `mcp-server-wikipedia` (مكسور)؛ `youtube-transcript-mcp` (bun) |
+| مهارات: wa-archive, wa-file-read, waqf-drive, ar-help, wa-tools, pdf, docx, ocr-and-documents, duckduckgo-search, domain-intel, scrapling, code-wiki, google-workspace | Firecrawl/Brave/Parallel؛ Drive HTTP MCP الرسمي؛ marker-pdf؛ كتالوج Hermes المدفوع (Figma/Linear/…)؛ Playwright/Chrome الثقيل |

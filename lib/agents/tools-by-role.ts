@@ -17,6 +17,15 @@ export const EMPLOYEE_SAFE_TOOLS = [
   // Web (free)
   'web_search',
   'web_fetch',
+  'wikipedia_lookup',
+  'youtube_transcript',
+  'math_eval',
+  'domain_intel',
+  'arxiv_search',
+  'fx_rate',
+  'geocode',
+  'dictionary_lookup',
+  'hn_search',
   'research_task_tools',
   'ingest_url_to_brain',
   // Vault / knowledge
@@ -39,6 +48,8 @@ export const EMPLOYEE_SAFE_TOOLS = [
   'drive_list_files',
   'drive_search_files',
   'drive_get_link',
+  'find_storage_mesh',
+  'archive_telegram_group',
   // PDF
   'pdf_list_fields',
   'pdf_create',

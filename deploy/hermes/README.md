@@ -1,6 +1,6 @@
 # Hermes Mac helpers (WhatsApp Baileys)
 
-Scripts and LaunchAgents for Hermes on this Mac. **Secrets stay in `~/.hermes/` — never commit `.env` or WhatsApp session files.**
+Scripts and LaunchAgents for Hermes on this Mac. **WhatsApp only** — never reconnect Telegram / `@waqfBbot`. **Secrets stay in `~/.hermes/` — never commit `.env` or WhatsApp session files.** ArabicBuzz Telegram (`@alhuda14bot`) and site agents live in this repo (`lib/telegram`, `lib/agents`) — parallel free capabilities, not one merged bot.
 
 | Script | Purpose |
 |--------|---------|
@@ -13,6 +13,7 @@ Scripts and LaunchAgents for Hermes on this Mac. **Secrets stay in `~/.hermes/` 
 | [`scripts/hermes-file-read.sh`](../../scripts/hermes-file-read.sh) | Free PDF/DOCX/text + light OCR (tesseract ara+eng) via `~/.hermes/docs-venv` |
 | [`scripts/hermes-jina-fetch.sh`](../../scripts/hermes-jina-fetch.sh) | Free URL→text via Jina Reader (no key) |
 | [`scripts/hermes-tools-status.sh`](../../scripts/hermes-tools-status.sh) | MCP/Drive/OCR health summary (no secrets) |
+| [`scripts/hermes-skills-sync.sh`](../../scripts/hermes-skills-sync.sh) | Pack/restore local skills + SOUL + MCP list (no secrets); Nous Skill Sync still admin-gated |
 | [`scripts/install-hermes-wa-watchdog-launchd.sh`](../../scripts/install-hermes-wa-watchdog-launchd.sh) | Install WA watchdog LaunchAgent |
 | [`scripts/install-hermes-serve-launchd.sh`](../../scripts/install-hermes-serve-launchd.sh) | Optional `hermes serve` LaunchAgent (Desktop-safe) |
 
@@ -37,9 +38,13 @@ WhatsApp → Drive archive (mention-gated in group; not silent auto-archive):
 ./scripts/hermes-wa-drive-archive.sh --search 'كلمة'
 ./scripts/hermes-file-read.sh /path/to/file.pdf
 ./scripts/hermes-tools-status.sh
+./scripts/hermes-skills-sync.sh status
+./scripts/hermes-skills-sync.sh pack    # → ~/.hermes/backups/skills-portable/ (never git)
 ```
 
 Does **not** change ArabicBuzz `GOOGLE_DRIVE_BRAIN_FOLDER_ID` on CranL.
+
+Multi-device: Nous login follows the account; custom skills / SOUL / MCP / Drive tokens / WA session do **not** until Skill Sync GA — see [docs/hermes-mac-always-on.md](../../docs/hermes-mac-always-on.md#multi-device--حساب-نووس-vs-قرص-محلي).
 
 ## Session backup
 

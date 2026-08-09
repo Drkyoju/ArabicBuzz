@@ -40,8 +40,8 @@ describe('tools-by-role', () => {
     expect(toolAccessSummaryAr('employee')).toMatch(/موظف/)
   })
 
-  it('lists drive/mail/calendar/pdf/web in employee-safe set', () => {
-    const set = new Set(EMPLOYEE_SAFE_TOOLS)
+  it('lists drive/mail/calendar/pdf/web/knowledge in employee-safe set', () => {
+    const set = new Set<string>(EMPLOYEE_SAFE_TOOLS)
     for (const t of [
       'drive_search_files',
       'mail_read',
@@ -49,6 +49,15 @@ describe('tools-by-role', () => {
       'pdf_annotate',
       'web_search',
       'list_workspace_files',
+      'wikipedia_lookup',
+      'youtube_transcript',
+      'math_eval',
+      'domain_intel',
+      'arxiv_search',
+      'fx_rate',
+      'geocode',
+      'dictionary_lookup',
+      'hn_search',
     ]) {
       expect(set.has(t)).toBe(true)
     }

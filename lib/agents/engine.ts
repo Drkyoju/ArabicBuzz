@@ -69,6 +69,159 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('web_fetch'),
         }),
     }),
+    wikipedia_lookup: tool({
+      description:
+        'جلب ملخص مقال ويكيبيديا (عربي أولاً ثم إنجليزي) بلا مفتاح — للتوضيح الموسوعي.',
+      inputSchema: z.object({
+        query: z.string().describe('عنوان أو استعلام المقال'),
+        lang: z.string().optional().describe('رمز لغة مثل ar أو en'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'wikipedia_lookup',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('wikipedia_lookup'),
+        }),
+    }),
+    youtube_transcript: tool({
+      description:
+        'تفريغ ترجمة/كابشن يوتيوب مجاناً من رابط أو معرّف فيديو (بدون مفتاح API).',
+      inputSchema: z.object({
+        url: z.string().optional().describe('رابط يوتيوب'),
+        videoId: z.string().optional().describe('معرّف الفيديو 11 حرفاً'),
+        lang: z.string().optional().describe('تفضيل لغة الكابشن: ar أو en'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'youtube_transcript',
+          params: {
+            ...params,
+            url: params.url || params.videoId || '',
+          },
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('youtube_transcript'),
+        }),
+    }),
+    math_eval: tool({
+      description:
+        'حساب تعبير رياضي آمن محلياً (+ − × ÷ ^ وجذور ودوال شائعة) بلا مفتاح.',
+      inputSchema: z.object({
+        expression: z.string().describe('التعبير مثل 2*(3+4) أو sqrt(16)+pi'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'math_eval',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('math_eval'),
+        }),
+    }),
+    domain_intel: tool({
+      description:
+        'استعلام نطاق مجاني: DNS (A/AAAA/MX/TXT/NS عبر dns.google) + RDAP عند التوفر.',
+      inputSchema: z.object({
+        domain: z.string().describe('اسم النطاق مثل example.com'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'domain_intel',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('domain_intel'),
+        }),
+    }),
+    arxiv_search: tool({
+      description:
+        'بحث أوراق علمية على arXiv مجاناً (عنوان/ملخص/مؤلفون/رابط PDF).',
+      inputSchema: z.object({
+        query: z.string().describe('استعلام البحث'),
+        maxResults: z.number().optional().describe('حد أقصى 1–10'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'arxiv_search',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('arxiv_search'),
+        }),
+    }),
+    fx_rate: tool({
+      description:
+        'سعر صرف عملات مجاني (يشمل SAR) عبر open.er-api — بلا مفتاح.',
+      inputSchema: z.object({
+        from: z.string().describe('من العملة مثل USD'),
+        to: z.string().describe('إلى العملة مثل SAR'),
+        amount: z.number().optional().describe('المبلغ (افتراضي 1)'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'fx_rate',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('fx_rate'),
+        }),
+    }),
+    geocode: tool({
+      description:
+        'ترميز جغرافي مجاني لاسم مكان → إحداثيات عبر Nominatim/OSM.',
+      inputSchema: z.object({
+        query: z.string().describe('اسم المكان مثل الرياض'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'geocode',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('geocode'),
+        }),
+    }),
+    dictionary_lookup: tool({
+      description:
+        'تعريف قاموس إنجليزي مجاني (Free Dictionary API). للعربية فضّل wikipedia_lookup.',
+      inputSchema: z.object({
+        word: z.string().describe('الكلمة الإنجليزية'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'dictionary_lookup',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('dictionary_lookup'),
+        }),
+    }),
+    hn_search: tool({
+      description: 'بحث Hacker News مجاناً عبر Algolia (عناوين وروابط).',
+      inputSchema: z.object({
+        query: z.string().describe('استعلام البحث'),
+        limit: z.number().optional(),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'hn_search',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('hn_search'),
+        }),
+    }),
     research_task_tools: tool({
       description:
         'عجز القدرة: ابحث مجاناً (ويب+GitHub) واربط بقدرات مدمجة (pdf-lib/convert/OCR…). إن canExecuteFree=true نفّذ executeNext فوراً وreturn_file — لا تقترح فقط. فقط إن blocked انشر messageAr (بوابة دفع بعد استنفاد المجاني). ممنوع تشغيل كود MCP بعيد غير موثوق. ممنوع ادّعاء النجاح أو الصمت أو «هل تريد؟».',

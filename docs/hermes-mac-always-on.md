@@ -57,7 +57,7 @@ Official docs: [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/us
 | `hermes gateway install` → `~/Library/LaunchAgents/ai.hermes.gateway.plist` | Installed, KeepAlive |
 | Platforms | **WhatsApp only** — Telegram disabled |
 | `TELEGRAM_BOT_TOKEN` / `@waqfBbot` | Commented out + `platforms.telegram.enabled: false` — **not** connected |
-| WhatsApp (`+966550514658`, group allowlist, mention replies) | Connected |
+| WhatsApp (`+966550514658`, group **عمل الوقف** `120363429457422075@g.us`, mention-required) | Connected — anti-ban |
 
 Commands:
 
@@ -101,14 +101,16 @@ Configured in `~/.hermes/config.yaml` under `mcp_servers` (local only — never 
 | context7 | `@upstash/context7-mcp` | no |
 | time | `@guanxiong/mcp-server-time` (npx) | **enabled** — official `@modelcontextprotocol/server-time` is npm 404 |
 | fetch | `@tokenizin/mcp-npx-fetch` (npx) | **enabled** — official `@modelcontextprotocol/server-fetch` is npm 404; also `scripts/hermes-jina-fetch.sh` |
-| wikipedia | `mcp-server-wikipedia` (npx) | no |
+| wikipedia | `@shelm/wikipedia-mcp-server` (npx) | no — replaces broken `mcp-server-wikipedia` |
+| math | `math-mcp` (npx) | no |
+| youtube-transcript | `@sinco-lab/mcp-youtube-transcript` (npx) | no |
 | git / markitdown | official / markitdown-mcp | **keep disabled** — packages 404 / fragile on Monterey |
 | github | `@modelcontextprotocol/server-github` | **disabled** until `GITHUB_PERSONAL_ACCESS_TOKEN` in `~/.hermes/.env` |
 
-Local skills: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`.  
-Bundled free path: `duckduckgo-search`, `pdf`, `ocr-and-documents` (pymupdf via `~/.hermes/docs-venv`), `google-workspace`.  
-Light OCR: system `tesseract` (ara+eng) + `pillow`/`pytesseract` in docs-venv via `scripts/hermes-file-read.sh`.  
-Skipped paid/heavy: Firecrawl/Brave (unless keyed), Google Drive HTTP MCP, Hermes catalog (Figma/Linear/Blender/…), marker-pdf (~5GB), Playwright/Chrome MCP on Monterey.
+Local skills: `wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`.  
+Bundled free path: `duckduckgo-search`, `pdf`, `ocr-and-documents`, `google-workspace`, `domain-intel`, `arxiv`.  
+Light OCR / voice: sibling path — system `tesseract` + local STT; see `scripts/hermes-file-read.sh`.  
+Skipped paid/heavy: Firecrawl/Brave/Parallel (unless keyed), Google Drive HTTP MCP, Hermes catalog (Figma/Linear/Blender/…), marker-pdf (~5GB), Playwright/Chrome MCP, `youtube-transcript-mcp` (needs bun).
 
 ```bash
 export PATH="$HOME/.hermes/bin:$HOME/.local/bin:$PATH"
@@ -117,6 +119,39 @@ hermes skills list | grep -E 'wa-|duck|pdf'
 ```
 
 Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the `~/.hermes/bin/realpath` shim.
+
+### Multi-device / حساب نووس vs قرص محلي
+
+| What | Travels with Nous login? | Where it lives |
+|------|--------------------------|----------------|
+| Inference / Portal auth | **Yes** — `hermes portal login` on each machine | `auth.json` (per machine after login) |
+| Official **Skill Sync** (`hermes sync push/pull`) | **Not yet for this account** — CLI exists but is **admin-gated / pre-launch** | Cloud plane when entitlement opens |
+| Local skills (`wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`) | **No** — disk only until Skill Sync GA | `~/.hermes/skills/local/` |
+| `SOUL.md`, `config.yaml` MCP list | **No** | `~/.hermes/` |
+| Google Drive OAuth | **No** — re-auth on each machine | `google_token.json` (never git) |
+| WhatsApp Baileys session | **No** — keep on always-on Mac | `~/.hermes/platforms/whatsapp/` |
+
+**Ready on this Mac:** local skills are opted in (`hermes sync enable …`) and device label `Mac-WA-gateway` is set — when Nous opens Skill Sync for the account, run `hermes sync now`.
+
+**Until then — portable pack (secret-free):**
+
+```bash
+./scripts/hermes-skills-sync.sh status
+./scripts/hermes-skills-sync.sh pack
+# → ~/.hermes/backups/skills-portable/hermes-skills-portable-….tgz (+ .sha256)
+# Do NOT commit the .tgz. Copy via encrypted USB / private channel only.
+```
+
+**On PC2:**
+
+1. Install Hermes Desktop/CLI.
+2. `hermes portal login` — same Nous account (`ryodan71@gmail.com`).
+3. Clone ArabicBuzz; then:
+   `./scripts/hermes-skills-sync.sh restore /path/to/hermes-skills-portable-….tgz`
+4. Drive: `./scripts/hermes-drive-setup.sh --from-arabicbuzz` (then `--probe`).
+5. Leave WhatsApp gateway on the always-on Mac (do **not** copy Baileys session unless you intentionally move the link).
+
+Full `hermes backup` / `hermes import` zips **include secrets** (`.env`, `auth.json`) — use only for encrypted offline disaster recovery under `~/.hermes/backups/`, never git.
 
 ---
 

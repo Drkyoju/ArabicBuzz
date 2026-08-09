@@ -2,6 +2,19 @@
 
 دليل سريع لما أُضيف وكيف يُفعَّل. المسار الحي للتحقق: https://arabicbuzz-fooc9h.cranl.net/
 
+## فصل هيرميس ↔ ArabicBuzz (إلزامي)
+
+القدرات المجانية (بحث DDG، ويكيبيديا، يوتيوب، حساب، DNS، arXiv، Drive، OCR…) قد تتوازى في الطبقتين — **تنفيذان منفصلان، ليس بوتاً واحداً مدموجاً**:
+
+| | هيرميس | ArabicBuzz |
+|--|--------|------------|
+| القناة | واتساب فقط · قروب «عمل الوقف» | موقع CranL + وكلاء + تيليجرام `@alhuda14bot` |
+| الأدوات | `~/.hermes` (MCP/skills/سكربتات) | `lib/agents` + `lib/telegram` |
+| Drive | مجلد الوقف `1zlsaktPbd0SpFXQNPD7-kT1ktj4jRNOw` | عقل الشركة `GOOGLE_DRIVE_BRAIN_FOLDER_ID` |
+| ممنوع | تيليجرام / `@waqfBbot` / توكن الجمعية | واتساب هيرميس داخل واجهة الموقع |
+
+انظر [docs/hermes-mac-always-on.md](./hermes-mac-always-on.md) و [docs/telegram-bot-ar.md](./telegram-bot-ar.md).
+
 ## طبقات المهارات
 
 | الطبقة | المسار | لمن؟ |
@@ -211,7 +224,10 @@ FIRECRAWL_API_KEY=
 | توسيع `free-execute-map` | `lib/agents/tools/free-execute-map.ts` | web_search / web_fetch / Drive / Gmail / GitHub → builtins |
 | كتالوج `duckduckgo` | `lib/mcp/catalog.ts` | موثّق كمسار مجاني محلي |
 | مهارة Cursor | `.cursor/skills/arabicbuzz-free-mcp` | تفضيل المسار المجاني على Firecrawl المدفوع |
-| Hermes MCP | `~/.hermes/config.yaml` (محلي — لا يُرفع) | مفعّل: filesystem, memory, sequential-thinking, duckduckgo, context7, github, time (`@guanxiong/mcp-server-time`) — معطّل: git/markitdown (حزم npm 404 / هشة على Monterey) |
-| Hermes skill | `~/.hermes/skills/research/duckduckgo-search` | احتياطي عند غياب `FIRECRAWL_API_KEY` |
+| Hermes MCP | `~/.hermes/config.yaml` (محلي — لا يُرفع) | مفعّل: filesystem, memory, sequential-thinking, duckduckgo, context7, time, fetch, wikipedia, math, youtube-transcript, dns, arxiv, public-apis — معطّل: git/markitdown/github (بدون PAT) |
+| Hermes skill | `~/.hermes/skills/research/duckduckgo-search` + `domain-intel` + `arxiv` + محلي `wa-*` | احتياطي عند غياب `FIRECRAWL_API_KEY` |
+| منتج CranL (مستقل) | `wikipedia_lookup`, `youtube_transcript`, `math_eval`, `domain_intel`, `arxiv_search`, `fx_rate`, `geocode`, `dictionary_lookup`, `hn_search` | أدوات أصلية مجانية في `lib/agents/tools/knowledge-tools.ts` — تيليجرام + وكلاء الغرفة (غير مربوطة بهيرميس) |
+| قائمة التكافؤ | `lib/agents/free-toolkit.ts` + اختبار `tests/unit/free-toolkit.test.ts` | ✓ بوت / ✓ هيرميس — أنظمة منفصلة |
+| Hermes mesh/PDF | `scripts/hermes-storage-mesh.sh` · `scripts/hermes-pdf-dup.sh` + مهارات `wa-storage-mesh` / `wa-pdf-dup` | موازٍ لـ find_storage_mesh / pdf_duplicate_page بلا HTTP للمنتج |
 
 بوت تيليجرام: عجز القدرة → `research_task_tools` → إن `canExecuteFree` نفّذ `executeNext` ثم `return_file`.

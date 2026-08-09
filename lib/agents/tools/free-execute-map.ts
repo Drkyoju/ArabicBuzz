@@ -145,7 +145,7 @@ const RULES: Rule[] = [
     ],
   },
   {
-    re: /(?:بحث\s*(?:ويب|انترنت|google|جوجل)|web[\s_-]?search|duckduckgo|ويكيبيديا|wikipedia|site:\s*gov\.sa|مصادر?\s*رسمي)/iu,
+    re: /(?:بحث\s*(?:ويب|انترنت|google|جوجل)|web[\s_-]?search|duckduckgo|site:\s*gov\.sa|مصادر?\s*رسمي)/iu,
     hints: [
       {
         toolName: 'web_search',
@@ -153,6 +153,108 @@ const RULES: Rule[] = [
         whyAr: 'بحث ويب مجاني مدمج — لا Firecrawl/Brave مطلوب',
         instructionAr:
           'نفّذ web_search فوراً. إن احتجت نص الصفحة: web_fetch أو ingest_url_to_brain (Jina Reader مجاني). لا تطلب مفتاحاً مدفوعاً.',
+      },
+    ],
+  },
+  {
+    re: /(?:ويكيبيديا|wikipedia|ملخص\s*مقال)/iu,
+    hints: [
+      {
+        toolName: 'wikipedia_lookup',
+        libAr: 'MediaWiki REST (مجاني)',
+        whyAr: 'ملخص ويكيبيديا مخصص بلا مفتاح — مطابق Hermes wikipedia MCP',
+        instructionAr:
+          'نفّذ wikipedia_lookup فوراً (lang=ar افتراضي). إن احتجت بحثاً أوسع: web_search.',
+      },
+    ],
+  },
+  {
+    re: /(?:يوتيوب|youtube|تفريغ\s*(?:فيديو|يوتيوب)|transcript|كابشن|ترجمة\s*الفيديو)/iu,
+    hints: [
+      {
+        toolName: 'youtube_transcript',
+        libAr: 'YouTube timedtext / captions (مجاني)',
+        whyAr: 'تفريغ كابشن يوتيوب بلا مفتاح — مطابق Hermes youtube-transcript',
+        instructionAr:
+          'نفّذ youtube_transcript مع الرابط أو videoId ثم لخّص بالعربية.',
+      },
+    ],
+  },
+  {
+    re: /(?:احسب|حساب|math[\s_-]?eval|معادل[ةه]|sqrt|جذر|\d+\s*[+\-×x*/÷^]\s*\d+)/iu,
+    hints: [
+      {
+        toolName: 'math_eval',
+        libAr: 'حاسبة تعبيرات مدمجة (آمنة)',
+        whyAr: 'حساب محلي بلا مفتاح — مطابق Hermes math MCP',
+        instructionAr: 'نفّذ math_eval مع expression فوراً وأعد الرقم.',
+      },
+    ],
+  },
+  {
+    re: /(?:whois|rdap|dns|استعلام\s*نطاق|domain[\s_-]?intel|معلومات\s*(?:النطاق|الدومين)|nslookup)/iu,
+    hints: [
+      {
+        toolName: 'domain_intel',
+        libAr: 'dns.google + RDAP (مجاني)',
+        whyAr: 'استعلام DNS/RDAP بلا مفتاح — مطابق Hermes domain-intel / dns MCP',
+        instructionAr: 'نفّذ domain_intel مع اسم النطاق فوراً.',
+      },
+    ],
+  },
+  {
+    re: /(?:arxiv|أركسيف|ورقة\s*علمي|بحث\s*علمي|preprint)/iu,
+    hints: [
+      {
+        toolName: 'arxiv_search',
+        libAr: 'arXiv Atom API (مجاني)',
+        whyAr: 'بحث أوراق علمية بلا مفتاح',
+        instructionAr: 'نفّذ arxiv_search فوراً وأعد العناوين + روابط PDF.',
+      },
+    ],
+  },
+  {
+    re: /(?:سعر\s*صرف|حو[ّ]?ل.{0,24}(?:دولار|ريال|يورو|USD|SAR|EUR)|fx[\s_-]?rate|exchange\s*rate|\bUSD\b|\bSAR\b|\bEUR\b)/iu,
+    hints: [
+      {
+        toolName: 'fx_rate',
+        libAr: 'open.er-api (مجاني، يشمل SAR)',
+        whyAr: 'أسعار صرف بلا مفتاح',
+        instructionAr: 'نفّذ fx_rate مع from/to/amount.',
+      },
+    ],
+  },
+  {
+    re: /(?:إحداثي|ترميز\s*جغراف|geocode|أين\s*(?:تقع|موقع)|إحداثيات|nominatim|خريط[ةه]\s*لـ)/iu,
+    hints: [
+      {
+        toolName: 'geocode',
+        libAr: 'Nominatim/OSM (مجاني)',
+        whyAr: 'ترميز جغرافي بلا مفتاح',
+        instructionAr: 'نفّذ geocode باسم المكان.',
+      },
+    ],
+  },
+  {
+    re: /(?:تعريف|معنى|قاموس|dictionary|define\s+)/iu,
+    hints: [
+      {
+        toolName: 'dictionary_lookup',
+        libAr: 'Free Dictionary API (إنجليزي)',
+        whyAr: 'تعريفات إنجليزية مجانية؛ للعربية wikipedia_lookup',
+        instructionAr:
+          'إن كانت الكلمة إنجليزية: dictionary_lookup. إن عربية: wikipedia_lookup.',
+      },
+    ],
+  },
+  {
+    re: /(?:hacker\s*news|\bhn\b|هاكر\s*نيوز)/iu,
+    hints: [
+      {
+        toolName: 'hn_search',
+        libAr: 'HN Algolia (مجاني)',
+        whyAr: 'بحث تقني مجاني على HN',
+        instructionAr: 'نفّذ hn_search فوراً.',
       },
     ],
   },
@@ -294,6 +396,61 @@ export function mapSuggestionsToBuiltinFreeTools(
         libAr: 'DuckDuckGo + Wikipedia + gov.sa',
         whyAr: 'مسار بحث مجاني مدمج بدل MCP مدفوع',
         instructionAr: 'نفّذ web_search ثم web_fetch/ingest_url_to_brain عند الحاجة.',
+      },
+    ]
+  }
+
+  if (/wikipedia|wiki/.test(blob)) {
+    return [
+      {
+        toolName: 'wikipedia_lookup',
+        libAr: 'MediaWiki REST',
+        whyAr: 'ويكيبيديا مدمجة بلا مفتاح',
+        instructionAr: 'نفّذ wikipedia_lookup.',
+      },
+    ]
+  }
+
+  if (/youtube|transcript|timedtext/.test(blob)) {
+    return [
+      {
+        toolName: 'youtube_transcript',
+        libAr: 'YouTube captions',
+        whyAr: 'تفريغ يوتيوب مدمج',
+        instructionAr: 'نفّذ youtube_transcript.',
+      },
+    ]
+  }
+
+  if (/math|calculator|expression/.test(blob)) {
+    return [
+      {
+        toolName: 'math_eval',
+        libAr: 'حاسبة مدمجة',
+        whyAr: 'حساب محلي بلا مفتاح',
+        instructionAr: 'نفّذ math_eval.',
+      },
+    ]
+  }
+
+  if (/whois|rdap|dns|domain/.test(blob)) {
+    return [
+      {
+        toolName: 'domain_intel',
+        libAr: 'dns.google + RDAP',
+        whyAr: 'استعلام نطاق مجاني',
+        instructionAr: 'نفّذ domain_intel.',
+      },
+    ]
+  }
+
+  if (/arxiv/.test(blob)) {
+    return [
+      {
+        toolName: 'arxiv_search',
+        libAr: 'arXiv API',
+        whyAr: 'بحث علمي مجاني',
+        instructionAr: 'نفّذ arxiv_search.',
       },
     ]
   }

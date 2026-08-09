@@ -110,6 +110,17 @@ import {
   executeWebFetch,
   executeWebSearch,
 } from '@/lib/agents/tools/web-tools'
+import {
+  executeArxivSearch,
+  executeDictionaryLookup,
+  executeDomainIntel,
+  executeFxRate,
+  executeGeocode,
+  executeHnSearch,
+  executeMathEval,
+  executeWikipediaLookup,
+  executeYoutubeTranscript,
+} from '@/lib/agents/tools/knowledge-tools'
 import { executeResearchTaskTools } from '@/lib/agents/tools/research-task-tools'
 import { sendResendEmail } from '@/lib/email/resend'
 import {
@@ -321,6 +332,15 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   notify_room_member: executeNotifyRoomMember,
   web_search: executeWebSearch,
   web_fetch: executeWebFetch,
+  wikipedia_lookup: executeWikipediaLookup,
+  youtube_transcript: executeYoutubeTranscript,
+  math_eval: executeMathEval,
+  domain_intel: executeDomainIntel,
+  arxiv_search: executeArxivSearch,
+  fx_rate: executeFxRate,
+  geocode: executeGeocode,
+  dictionary_lookup: executeDictionaryLookup,
+  hn_search: executeHnSearch,
   research_task_tools: executeResearchTaskTools,
   drive_sync_brain: async (_n, params) => {
     const userId = String(params.userId || '')

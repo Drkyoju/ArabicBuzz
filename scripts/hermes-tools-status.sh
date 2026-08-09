@@ -16,19 +16,34 @@ FOLDER_ID="${HERMES_DRIVE_FOLDER_ID:-1zlsaktPbd0SpFXQNPD7-kT1ktj4jRNOw}"
 echo "=== هيرميس — حالة الأدوات (بلا أسرار) ==="
 echo "المنزل: $HERMES_HOME"
 
-# Gateway / WA
+# Gateway / WA (prefer live bridge /health — gateway_state can lag mid-restart)
+WA_LIVE=""
+if command -v curl >/dev/null 2>&1; then
+  WA_LIVE="$(curl -sS -m 2 http://127.0.0.1:3000/health 2>/dev/null || true)"
+fi
+export WA_LIVE_JSON="$WA_LIVE"
 if [[ -f "$HERMES_HOME/gateway_state.json" ]]; then
   python3 - <<'PY' 2>/dev/null || true
-import json, os
+import json, os, re
 from pathlib import Path
 p = Path(os.path.expanduser("~/.hermes/gateway_state.json"))
 d = json.loads(p.read_text())
 wa = (d.get("platforms") or {}).get("whatsapp") or {}
+tg = (d.get("platforms") or {}).get("telegram") or {}
 print(f"البوابة: {d.get('gateway_state') or d.get('kind') or '?'}")
-print(f"واتساب: {wa.get('state') or '?'}")
+state = wa.get('state') or '?'
+live = os.environ.get("WA_LIVE_JSON", "")
+m = re.search(r'"status"\s*:\s*"([^"]+)"', live or "")
+if m:
+    state = m.group(1)
+print(f"واتساب: {state}")
+print(f"تيليجرام هيرميس: {tg.get('state') or 'disconnected'} (يجب أن يبقى مفصولاً)")
 PY
 else
   echo "البوابة: (لا يوجد gateway_state.json)"
+  if [[ -n "$WA_LIVE" ]]; then
+    echo "واتساب: $(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("status","?"))' "$WA_LIVE" 2>/dev/null || echo '?')"
+  fi
 fi
 
 # Anti-ban flags (names only)
@@ -67,6 +82,13 @@ PY
 fi
 
 # Local tools
+echo -n "ffmpeg: "
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "نعم ($(ffmpeg -version 2>&1 | head -1 | tr -d '\n' | cut -c1-60))"
+else
+  echo "لا — ضع ثنائياً في ~/.hermes/bin/ffmpeg"
+fi
+
 echo -n "tesseract: "
 if command -v tesseract >/dev/null 2>&1; then
   echo "نعم ($(tesseract --version 2>&1 | head -1 | tr -d '\n')) ara+eng"
@@ -81,6 +103,18 @@ else
   echo "ناقص — pip install pillow pytesseract داخل docs-venv"
 fi
 
+echo -n "STT local (faster-whisper): "
+STT_PY="$HERMES_HOME/hermes-agent/venv/bin/python"
+if [[ -x "$STT_PY" ]] && "$STT_PY" -c "import faster_whisper" 2>/dev/null; then
+  if [[ -f "$CFG" ]] && rg -q 'provider:\s*local' "$CFG" 2>/dev/null; then
+    echo "جاهز (config provider=local, language=ar)"
+  else
+    echo "الحزمة موجودة لكن config ليست local — راجع stt في config.yaml"
+  fi
+else
+  echo "ناقص في hermes-agent/venv"
+fi
+
 echo -n "Drive folder: $FOLDER_ID — "
 if [[ -x "$GAPI" ]]; then
   if "$GAPI" drive list-waqf 1 >/dev/null 2>&1; then
@@ -92,6 +126,13 @@ else
   echo "hermes-gapi مفقود"
 fi
 
-echo "مهارات محلية: wa-archive, wa-file-read, waqf-drive, ar-help"
-echo "سكربتات: hermes-wa-drive-archive / hermes-file-read / hermes-jina-fetch"
+echo -n "hermes-storage-mesh: "
+command -v hermes-storage-mesh >/dev/null && echo "نعم" || echo "لا (wrappers في ~/.hermes/bin)"
+echo -n "hermes-pdf-dup: "
+command -v hermes-pdf-dup >/dev/null && echo "نعم" || echo "لا"
+echo "مهارات محلية: wa-archive, wa-file-read, wa-storage-mesh, wa-pdf-dup, waqf-drive, ar-help, wa-tools"
+echo "مهارات GitHub/رسمية إضافية: duckduckgo-search, domain-intel, scrapling, code-wiki, arxiv (+ pdf/docx/xlsx/ocr مدمجة)"
+echo "MCP مجاني: filesystem, memory, sequential-thinking, duckduckgo, fetch, wikipedia, math, youtube-transcript, dns, arxiv, context7, time"
+echo "سكربتات: hermes-wa-drive-archive / hermes-file-read / hermes-jina-fetch / hermes-storage-mesh / hermes-pdf-dup"
+echo "فصل: هيرميس واتساب ≠ @alhuda14bot (نفس القدرات تقريباً — بلا ربط)"
 echo "=== نهاية ==="
