@@ -54,5 +54,8 @@ fi
 echo ""
 echo "✅ nosleep LaunchAgent installed (caffeinate -dims while logged in)."
 echo "⚠️  Lid closed + battery → Mac still sleeps. Prefer AC + lid open (or clamshell + external display)."
+echo "   System Settings → Battery → Options → Prevent automatic sleeping when display is off (on adapter)."
+echo "   Optional AC pmset: ./scripts/install-mac-nosleep-launchd.sh --pmset"
+echo "   Pair with hop: npm run mac-hop:install"
 echo "   Check: pmset -g assertions | grep -i caffeinate"
 echo "   Logs:  ~/Library/Logs/ArabicBuzz/nosleep.*.log"

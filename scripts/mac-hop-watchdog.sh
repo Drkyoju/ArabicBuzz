@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 # Keep Mac large-file hop alive while the laptop is awake:
-#   - OrbStack pin (1.5.1)
+#   - OrbStack pin (1.5.1 only — never upgrade)
+#   - caffeinate nosleep (launchd or ephemeral fallback)
 #   - Local Bot API docker :8081
 #   - storage:sync agent :7420
 #   - cloudflared quick tunnels for 7420 + 8081
 #   - PUT MAC_SYNC_URL + TELEGRAM_BOT_API_URL to CranL when URLs change
 #
-# NOT true 24/7 — Mac sleep still kills hops. For permanent path:
-#   fly auth login && npm run telegram:bot-api:fly
+# NOT true 24/7 — Mac sleep / lid+battery / logout still kills hops.
+# Sleep limits (human):
+#   • Keep AC power adapter plugged in
+#   • Keep lid open, OR clamshell + AC + external display
+#   • System Settings → Battery → Options → "Prevent automatic sleeping
+#     when the display is off" (on power adapter)
+#   • Stay logged in (user LaunchAgents stop on logout)
+# Permanent path: fly auth login && npm run telegram:bot-api:fly
 #
 # Usage:
 #   ./scripts/mac-hop-watchdog.sh           # one pass
-#   ./scripts/mac-hop-watchdog.sh --loop    # every 90s (launchd uses this)
+#   ./scripts/mac-hop-watchdog.sh --loop    # adaptive 25–90s (launchd)
 #   ./scripts/mac-hop-watchdog.sh --once-put  # force CranL PUT even if URLs unchanged
 
 set -euo pipefail
@@ -24,6 +31,9 @@ STATE_DIR="${AB_HOP_STATE_DIR:-$HOME/Library/Application Support/ArabicBuzz/hop}
 LOG_DIR="${AB_HOP_LOG_DIR:-$HOME/Library/Logs/ArabicBuzz}"
 LOOP=0
 FORCE_PUT=0
+# Adaptive loop: healthy → 90s; after heal/failure → 25s for faster wake recovery
+SLEEP_HEALTHY="${AB_HOP_SLEEP_HEALTHY:-90}"
+SLEEP_UNHEALTHY="${AB_HOP_SLEEP_UNHEALTHY:-25}"
 
 for arg in "$@"; do
   case "$arg" in
@@ -58,11 +68,63 @@ pin_orbstack() {
   bash "$ROOT/scripts/pin-orbstack-1.5.1.sh" >/dev/null 2>&1 || true
 }
 
+# Start OrbStack if docker daemon is down after sleep — never upgrade.
+ensure_orbstack() {
+  pin_orbstack
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -d /Applications/OrbStack.app ]]; then
+    echo "OrbStack/docker down — opening OrbStack (pin 1.5.1)…" >&2
+    open -a OrbStack 2>/dev/null || true
+    local i
+    for i in $(seq 1 40); do
+      if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep 1
+    done
+    echo "⚠️  docker still unavailable — hop Bot API may stay down until OrbStack is up" >&2
+    return 1
+  fi
+  return 1
+}
+
+# Keep Mac awake while logged in. Durable path: npm run mac-nosleep:install
+ensure_nosleep() {
+  if pgrep -x caffeinate >/dev/null 2>&1 && pgrep -f 'caffeinate -dims' >/dev/null 2>&1; then
+    return 0
+  fi
+  local uid
+  uid="$(id -u)"
+  if launchctl print "gui/${uid}/com.arabicbuzz.nosleep" >/dev/null 2>&1; then
+    launchctl kickstart -k "gui/${uid}/com.arabicbuzz.nosleep" 2>/dev/null || true
+    sleep 1
+  fi
+  if pgrep -f 'caffeinate -dims' >/dev/null 2>&1; then
+    return 0
+  fi
+  # Ephemeral fallback (survives until logout/kill) — install LaunchAgent for durability
+  nohup /usr/bin/caffeinate -dims >/dev/null 2>&1 &
+  echo "⚠️  ephemeral caffeinate -dims started — durable: npm run mac-nosleep:install" >&2
+}
+
+# Human tip when on battery — lid close will sleep despite caffeinate -s (AC-only).
+power_tip() {
+  command -v pmset >/dev/null 2>&1 || return 0
+  local line
+  line="$(pmset -g batt 2>/dev/null | head -1 || true)"
+  if echo "$line" | grep -qi 'Battery Power'; then
+    echo "⚠️  battery power: plug AC adapter; lid close still sleeps. Prefer AC + lid open (or clamshell+display)." >&2
+  fi
+}
+
 ensure_botapi() {
   if curl -sS -m 2 "http://127.0.0.1:$PORT_BOTAPI/" >/dev/null 2>&1 \
     || curl -sS -m 2 "http://127.0.0.1:$PORT_BOTAPI/" 2>/dev/null | grep -q 'error_code\|Not Found\|ok'; then
     return 0
   fi
+  ensure_orbstack || true
   if command -v docker >/dev/null 2>&1; then
     bash "$ROOT/scripts/setup-always-on-bot-api.sh" >/tmp/ab-botapi-setup.log 2>&1 || true
   fi
@@ -125,6 +187,20 @@ start_tunnel() {
         return 0
       fi
     done
+  fi
+
+  # Stale cloudflared after sleep/network change: process alive but URL dead → kill early
+  if pgrep -f "$marker" >/dev/null 2>&1; then
+    local stale_url=""
+    for lf in "${alt_logs[@]}"; do
+      stale_url=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$lf" 2>/dev/null | tail -1 || true)
+      [[ -n "$stale_url" ]] && break
+    done
+    if [[ -n "$stale_url" ]] && ! tunnel_url_ok "$name" "$stale_url"; then
+      echo "stale ${name} tunnel after sleep/network — restarting cloudflared" >&2
+      pkill -f "$marker" 2>/dev/null || true
+      sleep 1
+    fi
   fi
 
   # Already have a live tunnel process? Prefer its log URL.
@@ -191,8 +267,11 @@ write_state() {
 }
 
 one_pass() {
+  local hop_ok=1
   echo "── hop watchdog $(date -u +%Y-%m-%dT%H:%M:%SZ) ──"
-  pin_orbstack
+  ensure_nosleep || true
+  power_tip || true
+  ensure_orbstack || true
   ensure_botapi
   ensure_mac_sync || true
 
@@ -243,6 +322,7 @@ one_pass() {
     fi
   else
     echo "⚠️  mac-sync tunnel URL not ready" >&2
+    hop_ok=0
   fi
 
   if [[ -n "$bot_url" ]]; then
@@ -254,7 +334,18 @@ one_pass() {
     fi
   else
     echo "⚠️  botapi tunnel URL not ready" >&2
+    hop_ok=0
   fi
+
+  # Local listeners must also be up
+  if ! curl -sS -m 2 "http://127.0.0.1:$PORT_BOTAPI/" 2>/dev/null | grep -q 'error_code\|Not Found\|ok'; then
+    hop_ok=0
+  fi
+  if [[ -n "$SECRET" ]] && ! curl -sf -m 2 -H "Authorization: Bearer $SECRET" "http://127.0.0.1:$PORT_SYNC/health" >/dev/null 2>&1; then
+    hop_ok=0
+  fi
+
+  write_state last_healthy "$hop_ok"
 
   if [[ "$need_put" -eq 1 && ${#args[@]} -gt 0 ]]; then
     echo "Updating CranL env (tunnel URL changed or --force-put)…"
@@ -283,13 +374,23 @@ one_pass() {
   else
     echo "CranL URLs unchanged — no PUT"
   fi
+
+  if [[ "$hop_ok" -eq 1 ]]; then
+    echo "hop_health=ok"
+  else
+    echo "hop_health=degraded (next loop ${SLEEP_UNHEALTHY}s)" >&2
+  fi
 }
 
 if [[ "$LOOP" -eq 1 ]]; then
   while true; do
     one_pass || true
     FORCE_PUT=0
-    sleep 90
+    if [[ "$(read_state last_healthy)" == "1" ]]; then
+      sleep "$SLEEP_HEALTHY"
+    else
+      sleep "$SLEEP_UNHEALTHY"
+    fi
   done
 else
   one_pass

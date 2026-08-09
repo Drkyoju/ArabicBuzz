@@ -2,6 +2,9 @@
 # Install launchd agents so Mac hop auto-restarts while logged in / awake.
 # Templates live in deploy/mac-hop/LaunchAgents/ — copied to ~/Library/LaunchAgents.
 #
+# Also installs nosleep (caffeinate) by default so idle sleep is less likely.
+# Skip with: ./scripts/install-mac-hop-launchd.sh --no-nosleep
+#
 # Usage: ./scripts/install-mac-hop-launchd.sh
 # Unload: ./scripts/install-mac-hop-launchd.sh --unload
 
@@ -10,7 +13,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/deploy/mac-hop/LaunchAgents"
 DEST="$HOME/Library/LaunchAgents"
 UNLOAD=0
-[[ "${1:-}" == "--unload" ]] && UNLOAD=1
+WITH_NOSLEEP=1
+for arg in "$@"; do
+  case "$arg" in
+    --unload) UNLOAD=1 ;;
+    --no-nosleep) WITH_NOSLEEP=0 ;;
+  esac
+done
 
 mkdir -p "$DEST" "$HOME/bin" "$HOME/Library/Logs/ArabicBuzz"
 "$ROOT/scripts/ensure-cloudflared.sh" >/dev/null
@@ -47,10 +56,27 @@ for label in "${LABELS[@]}"; do
   echo "loaded $label → $plist"
 done
 
-if [[ "$UNLOAD" -eq 0 ]]; then
-  bash "$ROOT/scripts/pin-orbstack-1.5.1.sh" || true
-  echo ""
-  echo "✅ Mac hop launchd installed (runs while you are logged in / Mac awake)."
-  echo "   Watchdog refreshes trycloudflare URLs → CranL every ~90s."
-  echo "   True 24/7 still needs VPS: npm run telegram:bot-api:fly (after fly auth login)"
+if [[ "$UNLOAD" -eq 1 ]]; then
+  if [[ "$WITH_NOSLEEP" -eq 1 ]]; then
+    bash "$ROOT/scripts/install-mac-nosleep-launchd.sh" --unload || true
+  fi
+  exit 0
 fi
+
+bash "$ROOT/scripts/pin-orbstack-1.5.1.sh" || true
+
+if [[ "$WITH_NOSLEEP" -eq 1 ]]; then
+  bash "$ROOT/scripts/install-mac-nosleep-launchd.sh" || true
+fi
+
+echo ""
+echo "✅ Mac hop launchd installed (runs while you are logged in / Mac awake)."
+echo "   Watchdog refreshes trycloudflare URLs → CranL (~90s healthy / ~25s after wake fail)."
+echo "   OrbStack stays pinned to 1.5.1 — never upgrade from the OrbStack UI."
+echo ""
+echo "Sleep limits (hop is NOT 24/7):"
+echo "  • Plug in the power adapter (AC)."
+echo "  • Keep lid open, or clamshell + AC + external display."
+echo "  • Battery → Options → Prevent automatic sleeping when display is off (on adapter)."
+echo "  • Stay logged in — logout stops user LaunchAgents."
+echo "  • True 24/7 Bot API: npm run telegram:bot-api:fly (after fly auth login)"

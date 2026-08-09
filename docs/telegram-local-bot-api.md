@@ -15,6 +15,16 @@ ArabicBuzz يجرّب تلقائياً (بلا دفع وبلا طلب إعادة
 
 **نعم.** OrbStack يشغّل الحاوية على الماك المحلي. نوم الماك أو إغلاقه أو توقف OrbStack = توقف hop الماك.
 
+**ابقَ على OrbStack 1.5.1 فقط** (`./scripts/pin-orbstack-1.5.1.sh` — لا ترقِّ).
+
+### حدود النوم / نصائح بشرية
+
+- وصّل **شاحن الطاقة**؛ على البطارية إغلاق الغطاء ينوّم الجهاز رغم `caffeinate`.
+- ثبّت: `npm run mac-hop:install` (watchdog + nosleep).
+- إعداد macOS: البطارية → خيارات → منع النوم التلقائي عند إطفاء الشاشة (على المحول).
+- غطاء مفتوح، أو clamshell + شاحن + شاشة خارجية.
+- بعد الاستيقاظ: الـ watchdog يعيد الأنفاق؛ أو يدوياً `npm run mac-hop:watchdog:force`.
+
 للتشغيل **الثابت والمستمر 24/7**: شغّل `deploy/telegram-bot-api` على أي جهاز دائماً يعمل واضبط `TELEGRAM_BOT_API_URL` على CranL — انظر [telegram-always-on-bot-api.md](./telegram-always-on-bot-api.md).
 
 ## هل CranL يشغّل telegram-bot-api؟

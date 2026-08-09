@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Keep Mac awake while logged in (AC power: -s also applies).
-  Flags: -d display, -i idle system, -m disk, -s system sleep on AC.
-  Lid closed on battery still sleeps — keep lid open or use clamshell + AC + external display.
+  Keep Mac awake while logged in.
+  Flags: -d display, -i idle system, -m disk, -s system sleep on AC power only.
+  Limits (still sleep):
+    - Lid closed on battery
+    - Logout / Fast User Switching away from this session
+    - Forced sleep (menu / low battery)
+  Human tips: keep power adapter plugged; lid open OR clamshell+AC+external display;
+  System Settings → Battery → Prevent automatic sleeping when display is off (on adapter).
 -->
 <plist version="1.0">
 <dict>
