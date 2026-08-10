@@ -7,6 +7,7 @@
 import {
   createRoomCalendarEvent,
   listRoomCalendarEvents,
+  type RoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
 import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 import { formatZoomTopicAr } from '@/lib/zoom/topic-ar'
@@ -54,12 +55,12 @@ export async function syncZoomMeetingsToTeamCalendar(opts: {
     candidates = candidates.filter((m) => String(m.id) === String(opts.meetingId))
   }
 
-  const existing = await listRoomCalendarEvents({
+  const existing: RoomCalendarEvent[] = await listRoomCalendarEvents({
     scopeId,
     from: new Date(Date.now() - 60 * 60_000).toISOString(),
     to: new Date(Date.now() + 60 * 86400_000).toISOString(),
     hideTestTitles: false,
-  }).catch(() => [])
+  }).catch((): RoomCalendarEvent[] => [])
 
   let created = 0
   let skipped = 0
