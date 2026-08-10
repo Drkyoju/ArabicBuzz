@@ -248,10 +248,12 @@ Then in `~/.hermes/.env` uncomment / set:
 ```bash
 WHATSAPP_ENABLED=true
 WHATSAPP_MODE=bot          # required for group @mentions from other people
-WHATSAPP_ALLOWED_USERS=966550514658
+# Leave empty in bot+groups mode: phone-only ALLOWED_USERS rejects member @lid senders
+# ("Unauthorized user …@lid") even when the group JID is allowlisted.
+WHATSAPP_ALLOWED_USERS=
 WHATSAPP_DM_POLICY=pairing
 WHATSAPP_GROUP_POLICY=allowlist
-WHATSAPP_GROUP_ALLOWED_USERS=120363303131762131@g.us   # add more @g.us JIDs comma-separated
+WHATSAPP_GROUP_ALLOWED_USERS=120363429457422075@g.us,120363303131762131@g.us
 WHATSAPP_REQUIRE_MENTION=true
 WHATSAPP_MENTION_PATTERNS=["(?i)\\bhermes\\b","(?i)هيرميس","(?i)هيرمز"]
 ```
@@ -331,6 +333,7 @@ Google Drive working folder for WA: [hermes-wa-drive.md](./hermes-wa-drive.md) (
 - Help = **رسالة واحدة** من SOUL / مهارة `ar-help` — لا تتبّع بنصائح إضافية إلا إذا طُلب.
 - أبقِ `WHATSAPP_REQUIRE_MENTION=true` و`CHUNK_DELAY` — جودة العربية من الاختصار لا من كثرة الردود.
 - عند «مساعدة»: الصق كتلة الأوامر العربية الجاهزة فقط ثم اصمت.
+- **أسرع وأذكى (2026-08):** اختصارات كثيفة في SOUL/`wa-tools`/`ar-help` (أرشفة · لخّص · ابحث · وين · خريطة · أنشئ · عدّل · كم · تذكّر · حالة · مساعدة) → تنفيذ فوري بأدوات Drive/قراءة/بحث؛ سؤال توضيح واحد كحد أقصى؛ `reasoning_effort: low` + `max_tokens: 2048` + إطفاء tool_progress/busy_ack + batch أقصر للسرعة مع الإبقاء على anti-ban و`CHUNK_DELAY` وauth نووس.
 
 ### Arabic commands (WhatsApp)
 
@@ -351,8 +354,10 @@ Do **not** point Hermes at ArabicBuzz `@alhuda14bot`. Do **not** re-enable Herme
 | `WHATSAPP_GROUP_ALLOWED_USERS` / `whatsapp.group_allow_from` | Comma-separated / YAML list of group JIDs. Seeded with `120363303131762131@g.us` from bridge logs — add others after joining new groups (`WHATSAPP_DEBUG=true` to discover). |
 | `WHATSAPP_REQUIRE_MENTION=true` | Do not reply to ordinary group chatter — only mention / wake-word / reply-to-bot / `/cmd`. |
 | `WHATSAPP_DM_POLICY=pairing` | Bridge must not apply the DM phone allowlist to group senders (allowlist at bridge would block non-owner members). |
-| `WHATSAPP_ALLOWED_USERS=9665…` | Owner phone for DM context; **group** triggers are gated by group policy + mention, not by listing every member. |
+| `WHATSAPP_ALLOWED_USERS=` (empty) | **Required for bot+groups:** members often arrive as `@lid`, not phone JIDs. A phone-only allowlist causes `Unauthorized user …@lid` and drops the message after media download. Groups are gated by `GROUP_ALLOWED_USERS`; DMs by pairing. |
 | `whatsapp.unauthorized_dm_behavior: ignore` in `config.yaml` | Strangers DMing the number stay silent (no pairing spam). |
+
+**Memory:** Built-in `~/.hermes/memories/MEMORY.md` + `USER.md` + SOUL «ذاكرة الوقف» — remember group context, admit mistakes, fix from cached voice/transcript without forcing a resend. MCP `memory` enabled in `config.yaml`.
 
 **Trade-off:** leaving `self-chat` breaks “message yourself”; use a normal DM to the linked number from another phone, or keep notes separate.
 
@@ -370,7 +375,7 @@ Hermes DM access uses `WHATSAPP_ALLOWED_USERS` / pairing (gateway env — **not*
 
 1. Link the device first (`hermes whatsapp` → scan QR).
 2. Edit `~/.hermes/.env` only (mode `600`). Set `WHATSAPP_ENABLED=true` and `WHATSAPP_MODE=bot` for groups / multi-user.
-3. Set group/mention vars as above; keep owner in `WHATSAPP_ALLOWED_USERS`.
+3. Set group/mention vars as above; leave `WHATSAPP_ALLOWED_USERS` **empty** for bot+groups (phone-only list blocks `@lid` members).
 4. `hermes gateway restart` then @mention the number in a WA group.
 5. Confirm in `~/.hermes/logs/gateway.log` / `platforms/whatsapp/bridge.log` (ignored vs handled).
 
