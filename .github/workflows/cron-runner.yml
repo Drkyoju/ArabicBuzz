@@ -1,27 +1,31 @@
-# Ops heartbeat → CranL Next.js cron API.
-# Requires GitHub secret CRON_SECRET (same value as CranL CRON_SECRET).
+# Cron runner DISABLED — was posting digests/file-jobs to «عمل الجمعية».
+# Re-enable only after TELEGRAM_SILENCE_UNSOLICITED=0 AND TELEGRAM_GROUP_PUSH=1
+# are intentional on CranL, and telegramFileJobs cron path is verified silent.
 name: Cron runner
 
 on:
-  schedule:
-    # Every 15 minutes — aggressive auto-sync (mail · calendar · Drive · Telegram)
-    - cron: '3,18,33,48 * * * *'
+  # schedule: DISABLED (2026-08-10) — unsolicited Telegram spam kill-switch
+  # - cron: '3,18,33,48 * * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Set to yes to POST /api/crons/runner despite silence (ops only)'
+        required: false
+        default: 'no'
 
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require live Telegram group-push gate (no spam on stale deploys)
+      - name: Require live Telegram silence + group-push gate
         env:
           APP_URL: https://arabicbuzz-fooc9h.cranl.net
+          FORCE: ${{ github.event.inputs.force }}
         run: |
           set -euo pipefail
-          # Until CranL serves telegramGroupPush.masterEnabled=false, do NOT hit
-          # /api/crons/runner — old builds still auto-post digests/reminders.
           body=$(curl -sS --max-time 30 "${APP_URL}/api/health/free" || true)
-          echo "$body" | head -c 800
+          echo "$body" | head -c 1200
           echo
           if ! echo "$body" | grep -q '"telegramGroupPush"'; then
             echo "SKIP: live build lacks telegramGroupPush gate — refusing cron to protect group."
@@ -31,22 +35,39 @@ jobs:
             echo "SKIP: telegramGroupPush shape incomplete — refusing cron."
             exit 0
           fi
+          # Default: refuse when silenceUnsolicited is true (or missing = treat as on).
+          if echo "$body" | grep -q '"silenceUnsolicited":false'; then
+            echo "silence off — cron may POST"
+          else
+            if [ "${FORCE:-no}" = "yes" ]; then
+              echo "FORCE=yes — POST despite silence (ops override)"
+            else
+              echo "SKIP: TELEGRAM_SILENCE_UNSOLICITED active (or default) — no POST to protect group."
+              exit 0
+            fi
+          fi
 
       - name: POST /api/crons/runner
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: https://arabicbuzz-fooc9h.cranl.net
+          FORCE: ${{ github.event.inputs.force }}
         run: |
           set -euo pipefail
           if [ -z "${CRON_SECRET:-}" ]; then
             echo "CRON_SECRET secret is missing in this repo."
             exit 1
           fi
-          # Re-check gate immediately before POST (deploy can lag).
           health=$(curl -sS --max-time 30 "${APP_URL}/api/health/free" || true)
           if ! echo "$health" | grep -q '"masterEnabled"'; then
             echo "SKIP: gate not live — no POST."
             exit 0
+          fi
+          if ! echo "$health" | grep -q '"silenceUnsolicited":false'; then
+            if [ "${FORCE:-no}" != "yes" ]; then
+              echo "SKIP: silence still on — no POST."
+              exit 0
+            fi
           fi
           code=$(curl -sS -o /tmp/cron-body.json -w '%{http_code}' \
             -X POST "${APP_URL}/api/crons/runner" \

@@ -1,4 +1,5 @@
 import { telegramBotApiFetch } from '@/lib/telegram/never-delete'
+import { maySendTelegramToChat } from '@/lib/telegram/group-push-policy'
 
 export type ApprovalNotificationPayload = {
   approvalId: string
@@ -103,6 +104,11 @@ export async function emitNotification(opts: {
     const token = process.env.TELEGRAM_BOT_TOKEN
     const chatId = opts.to || (await resolveTelegramTarget(opts.meta))
     if (!token || !chatId) return { ok: false }
+    const gate = maySendTelegramToChat({ chatId, meta: opts.meta })
+    if (!gate.ok) {
+      console.warn('[telegram] silence blocked sendMessage', gate.reason, chatId)
+      return { ok: false }
+    }
     try {
       const res = await telegramBotApiFetch(
         `https://api.telegram.org/bot${token}/sendMessage`,
@@ -167,6 +173,11 @@ export async function emitTelegramDocument(opts: {
   if (!token || !chatId) {
     return { ok: false, error: 'تيليجرام غير مضبوط أو لا محادثة مربوطة' }
   }
+  const gate = maySendTelegramToChat({ chatId, meta: opts.meta })
+  if (!gate.ok) {
+    console.warn('[telegram] silence blocked sendDocument', gate.reason, chatId)
+    return { ok: false, error: `صمت المجموعة: ${gate.reason}` }
+  }
   try {
     const { telegramBotApiRootsForDownload, telegramBotApiMethodUrl } =
       await import('@/lib/telegram/bot-api-root')
@@ -208,6 +219,14 @@ async function sendTelegramApproval(payload: ApprovalNotificationPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = await resolveTelegramTarget({ scopeId: payload.scopeId })
   if (!token || !chatId) return
+  const gate = maySendTelegramToChat({
+    chatId,
+    meta: { scopeId: payload.scopeId },
+  })
+  if (!gate.ok) {
+    console.warn('[telegram] silence blocked approval', gate.reason, chatId)
+    return
+  }
   try {
     await telegramBotApiFetch(
       `https://api.telegram.org/bot${token}/sendMessage`,

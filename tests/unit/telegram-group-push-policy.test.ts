@@ -3,9 +3,15 @@ import {
   isEnvFlagOn,
   isTelegramGroupPushAllowed,
   isTelegramGroupPushMasterEnabled,
+  isTelegramSilenceUnsolicitedEnabled,
+  maySendTelegramToChat,
   telegramGroupPushDisabledReason,
   telegramGroupPushFlagsSnapshot,
 } from '@/lib/telegram/group-push-policy'
+import {
+  isInsideTelegramInbound,
+  runWithTelegramInbound,
+} from '@/lib/telegram/inbound-context'
 
 describe('isEnvFlagOn', () => {
   it('accepts only explicit truthy values', () => {
@@ -17,6 +23,57 @@ describe('isEnvFlagOn', () => {
     expect(isEnvFlagOn(undefined)).toBe(false)
     expect(isEnvFlagOn('0')).toBe(false)
     expect(isEnvFlagOn('false')).toBe(false)
+  })
+})
+
+describe('TELEGRAM_SILENCE_UNSOLICITED — default ON', () => {
+  it('is on when unset', () => {
+    expect(isTelegramSilenceUnsolicitedEnabled({})).toBe(true)
+  })
+
+  it('turns off only with explicit 0/false/off', () => {
+    expect(
+      isTelegramSilenceUnsolicitedEnabled({ TELEGRAM_SILENCE_UNSOLICITED: '0' })
+    ).toBe(false)
+    expect(
+      isTelegramSilenceUnsolicitedEnabled({
+        TELEGRAM_SILENCE_UNSOLICITED: 'false',
+      })
+    ).toBe(false)
+    expect(
+      isTelegramSilenceUnsolicitedEnabled({ TELEGRAM_SILENCE_UNSOLICITED: '1' })
+    ).toBe(true)
+  })
+
+  it('blocks group sends outside inbound context', () => {
+    const denied = maySendTelegramToChat({
+      chatId: '-1003855925966',
+      env: {},
+    })
+    expect(denied.ok).toBe(false)
+    expect(denied.reason).toBe('telegram_silence_unsolicited')
+
+    const allowedMeta = maySendTelegramToChat({
+      chatId: '-1003855925966',
+      meta: { inboundReply: true },
+      env: {},
+    })
+    expect(allowedMeta.ok).toBe(true)
+
+    const dm = maySendTelegramToChat({ chatId: '797686181', env: {} })
+    expect(dm.ok).toBe(true)
+  })
+
+  it('allows group send inside inbound ALS', async () => {
+    await runWithTelegramInbound('-1003855925966', async () => {
+      expect(isInsideTelegramInbound('-1003855925966')).toBe(true)
+      const gate = maySendTelegramToChat({
+        chatId: '-1003855925966',
+        env: {},
+      })
+      expect(gate.ok).toBe(true)
+      expect(gate.reason).toBe('inbound_context')
+    })
   })
 })
 
@@ -35,21 +92,25 @@ describe('telegram group push policy — default silence', () => {
     expect(isTelegramGroupPushAllowed('imap_notify', env)).toBe(false)
     expect(isTelegramGroupPushAllowed('mail_energy', env)).toBe(false)
     expect(telegramGroupPushDisabledReason('morning_digest', env)).toBe(
-      'telegram_group_push_disabled'
+      'telegram_silence_unsolicited'
     )
   })
 
-  it('requires master AND feature flag', () => {
-    const masterOnly = {
+  it('requires silence OFF + master AND feature flag', () => {
+    const silenceOff = {
+      TELEGRAM_SILENCE_UNSOLICITED: '0',
       TELEGRAM_GROUP_PUSH: '1',
     } as NodeJS.ProcessEnv
-    expect(isTelegramGroupPushMasterEnabled(masterOnly)).toBe(true)
-    expect(isTelegramGroupPushAllowed('morning_digest', masterOnly)).toBe(false)
-    expect(telegramGroupPushDisabledReason('morning_digest', masterOnly)).toBe(
+    expect(isTelegramGroupPushMasterEnabled(silenceOff)).toBe(true)
+    expect(isTelegramGroupPushAllowed('morning_digest', silenceOff)).toBe(
+      false
+    )
+    expect(telegramGroupPushDisabledReason('morning_digest', silenceOff)).toBe(
       'telegram_morning_digest_disabled'
     )
 
     const both = {
+      TELEGRAM_SILENCE_UNSOLICITED: '0',
       TELEGRAM_GROUP_PUSH: '1',
       TELEGRAM_MORNING_DIGEST: '1',
     } as NodeJS.ProcessEnv
@@ -57,9 +118,10 @@ describe('telegram group push policy — default silence', () => {
     expect(isTelegramGroupPushAllowed('weekly_group_digest', both)).toBe(false)
   })
 
-  it('snapshot reports every feature false by default', () => {
+  it('snapshot reports silence on and every feature false by default', () => {
     const snap = telegramGroupPushFlagsSnapshot({})
     expect(snap.masterEnabled).toBe(false)
+    expect(snap.silenceUnsolicited).toBe(true)
     expect(Object.values(snap.features).every((v) => v === false)).toBe(true)
   })
 })

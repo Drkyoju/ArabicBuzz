@@ -26,9 +26,12 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  const { isTelegramGroupPushAllowed } = await import(
+    '@/lib/telegram/group-push-policy'
+  )
   const result = await syncImapInbox({
     maxMessages: 50,
-    notifyTelegram: true,
+    notifyTelegram: isTelegramGroupPushAllowed('imap_notify'),
   })
   const unread = await countUnread().catch(() => 0)
   return NextResponse.json({ ...result, unread })

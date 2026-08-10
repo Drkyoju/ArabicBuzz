@@ -11,6 +11,7 @@ import { appBaseUrl } from '@/lib/app-url'
 import { runDeadlineTelegramReminders } from '@/lib/rooms/deadline-reminders'
 import {
   isTelegramGroupPushAllowed,
+  isTelegramSilenceUnsolicitedEnabled,
   telegramGroupPushDisabledReason,
   telegramGroupPushFlagsSnapshot,
 } from '@/lib/telegram/group-push-policy'
@@ -283,15 +284,23 @@ export async function POST(req: NextRequest) {
 
   let telegramFileJobs: unknown = null
   try {
-    const { runReadyTelegramFileJobs } = await import(
-      '@/lib/telegram/execute-file-jobs'
-    )
-    // Jobs first — bind resent file_ids + execute before any heavy archive.
-    telegramFileJobs = await runReadyTelegramFileJobs({
-      chatId: '-1003855925966',
-      scopeId: 'shared-demo',
-      limit: 20,
-    })
+    // Absolute silence: never resume/sendDocument to the group from cron.
+    // Inbound webhook path uses afterVaultFileMaybeRunTelegramJobs with ALS context.
+    if (isTelegramSilenceUnsolicitedEnabled()) {
+      telegramFileJobs = {
+        skipped: true,
+        reason: telegramGroupPushDisabledReason('scheduled_task'),
+      }
+    } else {
+      const { runReadyTelegramFileJobs } = await import(
+        '@/lib/telegram/execute-file-jobs'
+      )
+      telegramFileJobs = await runReadyTelegramFileJobs({
+        chatId: '-1003855925966',
+        scopeId: 'shared-demo',
+        limit: 20,
+      })
+    }
   } catch (e) {
     telegramFileJobs = {
       ok: false,
@@ -301,34 +310,42 @@ export async function POST(req: NextRequest) {
 
   let telegramGroupArchive: unknown = null
   try {
-    const { archiveTelegramGroupToDrive, resolveAndRunPendingPdfJob } =
-      await import('@/lib/telegram/group-archive')
-    const archive = await archiveTelegramGroupToDrive({
-      chatId: '-1003855925966',
-      scopeId: 'shared-demo',
-      syncRoom: true,
-      // Avoid hung loca.lt / Mac hop during cron — file jobs already tried cascade.
-      syncMac: false,
-      // Keep attachment archive snappy; deep MTProto runs in a separate best-effort step.
-      skipDeepHistory: true,
-      attachmentLimit: 40,
-    })
-    const pendingPdf = await resolveAndRunPendingPdfJob({
-      jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
-      chatId: '-1003855925966',
-      scopeId: 'shared-demo',
-      findEmptyPage: true,
-      afterPage: 45,
-      queryNames: [
-        'المعلم الاول',
-        'المعلم الأول',
-        'المعلم الأول من معالم من السيرة النبوية',
-        'المعلم الاول من معالم من السيرة النبوية',
-        'المعلم الأول.pdf',
-        'المعلم الاول.pdf',
-      ],
-    })
-    telegramGroupArchive = { ok: true, archive, pendingPdf }
+    if (isTelegramSilenceUnsolicitedEnabled()) {
+      telegramGroupArchive = {
+        skipped: true,
+        reason: 'telegram_silence_unsolicited',
+        noteAr: 'أرشيف صامت بدون sendDocument/sendMessage للمجموعة',
+      }
+    } else {
+      const { archiveTelegramGroupToDrive, resolveAndRunPendingPdfJob } =
+        await import('@/lib/telegram/group-archive')
+      const archive = await archiveTelegramGroupToDrive({
+        chatId: '-1003855925966',
+        scopeId: 'shared-demo',
+        syncRoom: true,
+        // Avoid hung loca.lt / Mac hop during cron — file jobs already tried cascade.
+        syncMac: false,
+        // Keep attachment archive snappy; deep MTProto runs in a separate best-effort step.
+        skipDeepHistory: true,
+        attachmentLimit: 40,
+      })
+      const pendingPdf = await resolveAndRunPendingPdfJob({
+        jobId: '96dee180-e828-49db-a2df-0d3a411e90a6',
+        chatId: '-1003855925966',
+        scopeId: 'shared-demo',
+        findEmptyPage: true,
+        afterPage: 45,
+        queryNames: [
+          'المعلم الاول',
+          'المعلم الأول',
+          'المعلم الأول من معالم من السيرة النبوية',
+          'المعلم الاول من معالم من السيرة النبوية',
+          'المعلم الأول.pdf',
+          'المعلم الاول.pdf',
+        ],
+      })
+      telegramGroupArchive = { ok: true, archive, pendingPdf }
+    }
   } catch (e) {
     telegramGroupArchive = {
       ok: false,

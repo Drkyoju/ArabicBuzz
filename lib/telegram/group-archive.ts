@@ -431,6 +431,12 @@ export async function resolveAndRunPendingPdfJob(opts: {
     }
   }
 
+  const { maySendTelegramToChat } = await import(
+    '@/lib/telegram/group-push-policy'
+  )
+  const sendGate = maySendTelegramToChat({ chatId: opts.chatId })
+  const allowTelegramSend = sendGate.ok
+
   const { duplicatePdfPageAfter, findEmptyContentPage } = await import(
     '@/lib/documents/pdf'
   )
@@ -444,7 +450,7 @@ export async function resolveAndRunPendingPdfJob(opts: {
         `تعذّر إكمال المهمة: لم أجد صفحة فاضية (متن فارغ؛ ترويسة/شعار أعلى الصفحة مقبول مثل ص49) في «${hit.fileName}».` +
         ' ممنوع اختيار صفحة البسملة، ولن أخترع صفحة بيضاء ولن أنسخ صفحة فيها متن. حدّدوا رقم صفحة للنسخ إن رغبتم.'
       const tokenMissing = !process.env.TELEGRAM_BOT_TOKEN
-      if (!tokenMissing) {
+      if (!tokenMissing && allowTelegramSend) {
         try {
           await fetch(
             `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -502,6 +508,28 @@ export async function resolveAndRunPendingPdfJob(opts: {
   const caption = findEmpty
     ? `تم: عُثر على صفحة فاضية (ص ${copyPage}) فنُسخت بعد الصفحة ${afterPage} في «${hit.fileName}». الصفحات: ${out.pageCountBefore} → ${out.pageCountAfter}. (مصدر: ${hit.source})`
     : `تم: نسخت الصفحة ${copyPage} بالكامل وأدرجتها بعد الصفحة ${afterPage} في «${hit.fileName}». الصفحات: ${out.pageCountBefore} → ${out.pageCountAfter}. (مصدر: ${hit.source})`
+
+  if (!allowTelegramSend) {
+    await updateTelegramFileJob(opts.jobId, {
+      status: 'done',
+      vaultFileId: saved.file.id,
+      resultVaultFileId: saved.file.id,
+      resultName: outName,
+      expectedFilename: hit.fileName,
+      workParams: findEmpty
+        ? { findEmptyPage: true, afterPage, copyPage }
+        : { copyPage, afterPage },
+    })
+    return {
+      ok: true,
+      source: hit.source,
+      resultName: outName,
+      pages: `${out.pageCountBefore}→${out.pageCountAfter}`,
+      emptySourcePage: findEmpty ? copyPage : undefined,
+      telegramSendSkipped: sendGate.reason,
+    }
+  }
+
   // Prefer Local Bot API for large PDFs when configured.
   const localRoot = (process.env.TELEGRAM_BOT_API_URL || '')
     .trim()

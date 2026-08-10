@@ -309,9 +309,12 @@ export async function runAutoSyncPass(opts?: {
     const { isImapConfigured } = await import('@/lib/email/imap-store')
     if (await isImapConfigured()) {
       const { syncImapInbox } = await import('@/lib/email/imap-sync')
+      const { isTelegramGroupPushAllowed } = await import(
+        '@/lib/telegram/group-push-policy'
+      )
       out.imap = await syncImapInbox({
         maxMessages: opts?.maxMail ?? 40,
-        notifyTelegram: true,
+        notifyTelegram: isTelegramGroupPushAllowed('imap_notify'),
       })
     } else {
       out.imap = { skipped: true, reason: 'imap_not_configured' }

@@ -92,18 +92,19 @@
 
 **القرار:** الصمت أفضل من السبام. كل ما سبق **معطّل افتراضياً** ولا يُرسل للمجموعة إلا بعد تفعيل صريح:
 
+0. **صمت مطلق (افتراضي):** `TELEGRAM_SILENCE_UNSOLICITED` = مفعّل عند عدم التعيين — يمنع أي `sendMessage`/`sendDocument` للمجموعة خارج سياق رد على تحديث وارد (ويب هوك). عطّله بـ `=0` فقط إن أردت الملخصات لاحقاً.
 1. المفتاح الرئيسي: `TELEGRAM_GROUP_PUSH=1`
 2. ومفتاح الميزة المطلوبة، مثلاً `TELEGRAM_MORNING_DIGEST=1`
 
-بدون المفتاحين معاً → لا إرسال. القفل اليومي/الأسبوعي (`claimDigestDayKey`) يبقى موجوداً عند التفعيل لاحقاً.
+بدون إيقاف الصمت + المفتاحين معاً → لا إرسال كرون. القفل اليومي/الأسبوعي (`claimDigestDayKey`) يبقى موجوداً عند التفعيل لاحقاً.
 
-فحص الحي: `GET /api/health/free` → حقل `telegramGroupPush` (كل `features` يجب أن تكون `false` ما لم تُفعَّل عمداً).
+فحص الحي: `GET /api/health/free` → حقل `telegramGroupPush` (`silenceUnsolicited: true`، وكل `features` = `false`).
 
-**حماية فورية أثناء تأخر نشر CranL:** سير عمل GitHub `Cron runner` يرفض استدعاء `/api/crons/runner` إذا كان الحقل `telegramGroupPush` غائباً عن الصحة الحيّة — حتى لا يستمر الإرسال من بناء قديم.
+**مسار كان يفلت من البوابة السابقة:** كرون GitHub يستدعي `runReadyTelegramFileJobs` + `resolveAndRunPendingPdfJob` فيرسل `sendDocument` للمجموعة بلا `TELEGRAM_GROUP_PUSH`. أُغلق: صمت في `emit*` + تخطي كرون + إيقاف جدول GitHub Actions.
+
+**حماية فورية:** سير عمل GitHub `Cron runner` **معطّل بالجدول**؛ `workflow_dispatch` يرفض POST طالما `silenceUnsolicited` ليس `false`.
 
 **ما بقي مسموحاً:** رد البوت **فقط** عندما يكتب مستخدم طلباً (رد واحد لكل رسالة — لا نسخة ثانية عند فشل `editMessageText`).
-
-لإعادة تفعيل لاحقاً (اختياري): عيّن في CranL Environment المتغيرات أعلاه، ثم أعد النشر.
 
 ## لماذا كانت الرسائل تتكرر؟ وكيف مُنعت (آب ٢٠٢٦)
 
