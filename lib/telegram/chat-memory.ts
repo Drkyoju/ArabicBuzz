@@ -23,7 +23,7 @@ export async function buildTelegramGroupChatMemoryAr(opts: {
 }
 
 const STABLE_FACT_RE =
-  /(?:اسمي|أنا|أنا اسمي|نفضّل|نفضل|دائماً|دائما|لا تنسَ|لا تنس|تذك[ّر]ر|العنوان|الجوال|الواتساب|البريد|اللجنة|المسؤول|التوقيت|توقيت\s*الرياض|مقر|الفرع|الموعد|الاجتماع|نلتقي|كل\s*(?:أسبوع|أحد|اثنين|ثلاثاء|أربعاء|خميس))/iu
+  /(?:اسمي|أنا\s*اسمي|أنا\s+[\u0600-\u06FF]{2,}|نفضّل|نفضل|دائماً|دائما|لا تنسَ|لا تنس|تذك[ّر]ر|العنوان|الجوال|الواتساب|البريد|اللجنة|المسؤول|التوقيت|توقيت\s*الرياض|مقر|الفرع|الموعد|الاجتماع|نلتقي|كل\s*(?:أسبوع|أحد|اثنين|ثلاثاء|أربعاء|خميس)|(?:\+?966|05)\d{8,}|\S+@\S+\.\S+)/iu
 
 function extractStableFactsFromFeed(
   items: Array<{ textAr?: string; senderAr?: string }>
@@ -31,13 +31,15 @@ function extractStableFactsFromFeed(
   const facts: string[] = []
   for (const item of items) {
     const text = String(item.textAr || '').trim()
-    if (!text || text.length < 8 || text.length > 220) continue
+    if (!text || text.length < 6 || text.length > 220) continue
     if (!STABLE_FACT_RE.test(text)) continue
+    // Skip bot ack noise
+    if (/^(?:تم|جاري|أهلاً|العفو)/u.test(text)) continue
     const line = `${item.senderAr || 'عضو'}: ${text.slice(0, 180)}`
     if (!facts.some((f) => f.includes(text.slice(0, 40)))) {
       facts.push(line)
     }
-    if (facts.length >= 12) break
+    if (facts.length >= 14) break
   }
   return facts
 }
@@ -83,7 +85,8 @@ export async function buildTelegramChatMemoryAr(opts: {
     '## ذاكرة محادثة تيليجرام (هذه المحادثة فقط — خاص أو مجموعة)',
     `معرّف الشات: ${opts.chatId}`,
     'إلزامي: اقرأ الحقائق الثابتة والملخص الأسبوعي ثم السياق الحديث قبل الرد. نفّذ الطلبات المعلّقة. لا تنسَ ما قيل سابقاً في نفس الشات.',
-    'رد موجز بعد التنفيذ — بلا شرح مطوّل وبلا طلب توضيح لطلب واضح/اختصار.',
+    'اختصارات: نفّذ فوراً ورد موجز — ممنوع شرح مطوّل أو سؤال توضيحي لطلب واضح.',
+    'في المجموعة: رد واحد بالنتيجة فقط (بلا محاضرة وبلا «هل تريد؟»).',
   ]
 
   if (weeklyLine) {

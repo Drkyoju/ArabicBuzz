@@ -105,6 +105,7 @@ describe('buildTelegramChatMemoryAr', () => {
     expect(ar).toMatch(/اللجنة تجتمع/)
     expect(ar).toMatch(/ملخص أسبوعي أخير/)
     expect(ar).toMatch(/2026-W32/)
+    expect(ar).toMatch(/اختصارات|رد موجز|رد واحد/)
     expect(ar).toMatch(/صوت → مستند/)
     expect(ar).toMatch(/write_file/)
     expect(ar).toMatch(/geocode/)

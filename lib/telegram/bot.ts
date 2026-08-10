@@ -96,6 +96,7 @@ import {
   resolveGroupReplyMode,
   type TelegramGroupReplyMode,
 } from '@/lib/telegram/group-reply-policy'
+import { compressTelegramReplyAr } from '@/lib/telegram/short-intent'
 import {
   resolveCapabilityGapReplyAr,
   resolveCapabilityGapResearch,
@@ -321,8 +322,9 @@ let botInitPromise: Promise<void> | null = null
 let commandsRegistered = false
 
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام (@alhuda14bot) — بوت «عمل الجمعية» + مقاعد وكيل١–٨ (ليس هيرميس/@waqfBbot).
-- نفّذ فوراً بعد فهم الاختصار/القصد. رد موجز (نتيجة + مرفق). ممنوع شرح مطوّل أو طلب توضيح لطلب واضح.
-- ذاكرة الشات إلزامية: عندك سجل هذه المحادثة (خاص أو مجموعة) + مهام معلّقة + مرفقات تيليجرام — لا تنسَ ولا تتجاهل طلباً سابقاً في نفس الشات.
+- نفّذ الاختصار فوراً بعد فهمه. رد موجز (نتيجة + مرفق). ممنوع شرح مطوّل أو «هل تريد؟» أو طلب توضيح لطلب واضح.
+- في المجموعة: رسالة نتيجة واحدة فقط — بلا محاضرة وبلا أسئلة زائدة.
+- ذاكرة الشات إلزامية: سجل هذه المحادثة + مهام معلّقة + مرفقات تيليجرام — لا تنسَ طلباً سابقاً في نفس الشات.
 - ملفات تيليجرام المرسلة هنا = نسخة العمل: عدّل/حوّل/OCR/pdf_* ثم return_file — ممنوع اشتراط Drive.
 - إنشاء ملف من الصفر (صوت أو نص): write_file / brain_create_document / pdf_create ثم return_file.
 - بحث جوجل/ويب: web_search (DDG مجاني). موقع/خريطة: geocode + روابط الخرائط. بحث غرفة: room_search. إحاطة: owner_morning_brief.
@@ -881,6 +883,9 @@ async function streamTelegramReply(opts: {
       task: opts.prompt,
       agentText: finalText || bodyBase,
     })
+  } else {
+    // اختصارات: اضغط الرد المطوّل / أسئلة التوضيح الغبية
+    body = compressTelegramReplyAr(body)
   }
 
   const firstApproval = pendingApprovalIds[0]
@@ -1804,9 +1809,14 @@ async function runTelegramAgentTurn(opts: {
       agentReplyAr: teamOut.text,
     })
     answered = true
-    if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, teamOut.text)
+    if (!inGroup) {
+      await maybeSendTelegramVoiceReply(
+        opts.ctx,
+        compressTelegramReplyAr(teamOut.text)
+      )
+    }
     return {
-      text: teamOut.text,
+      text: compressTelegramReplyAr(teamOut.text),
       citations: teamOut.citations,
       pendingApprovalIds: teamOut.pendingApprovalIds,
       attachmentsSent: [],
@@ -1840,18 +1850,22 @@ async function runTelegramAgentTurn(opts: {
     totalMs: Date.now() - t0,
   })
 
+  const compressedOut = {
+    ...out,
+    text: compressTelegramReplyAr(out.text),
+  }
   void mirrorChannelTurnToRoom({
     scopeId,
     channel: 'telegram',
     externalId: opts.chatId,
     userLabelAr: opts.ctx.from?.first_name || 'مستخدم تيليجرام',
     userMessageAr: opts.promptSource,
-    agentReplyAr: out.text,
+    agentReplyAr: compressedOut.text,
   })
 
   answered = true
-  if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, out.text)
-  return out
+  if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, compressedOut.text)
+  return compressedOut
   } finally {
     for (const id of seatIds) markTelegramSeatFree(scopeId, id)
     if (seatId && !seatIds.includes(seatId)) markTelegramSeatFree(scopeId, seatId)

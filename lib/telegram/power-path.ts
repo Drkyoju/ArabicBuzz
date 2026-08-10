@@ -28,6 +28,11 @@ import {
   capabilityCascadePromptNudgeAr,
   shouldEscalateCapabilityCascade,
 } from '@/lib/telegram/capability-cascade'
+import {
+  parseTelegramShortIntent,
+  shortIntentPromptBlockAr,
+  shortIntentToWorkKind,
+} from '@/lib/telegram/short-intent'
 
 export type TelegramWorkKind =
   | 'appointment'
@@ -57,7 +62,7 @@ const FILE_RE =
   /(?:ملف|ملفات|مستند|وثيق|لائح|عقد|نموذج|جدول|ورد|وورد|word|excel|xlsx|pdf|pptx|باور|حو[ّ]?ل|عد[ّ]?ل|نس[ّ]?ق|تنسيق|نظ[ّ]?م|تنظيم|رت[ّ]?ب|هي[ّ]?ئ|احذف|حذف|امسح|استخرج|ocr|درايف|drive|عقل\s*الشركة|قاعدة\s*المعرفة|ابحث\s*عن\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|زامن\s*(?:ال)?درايف|جيب\s*(?:لي\s*)?(?:ال)?(?:ملف|لائح|مستند|عقد)|هات\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|عطني\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|نز[ّ]?ل\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|ور[ّ]?ي?ني\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|أبغ[اى]\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|ابغى\s*(?:ال)?(?:ملف|لائح|مستند|عقد)|أرسل\s*(?:ال)?(?:ملف|لائح)|ارسل\s*(?:ال)?(?:ملف|لائح)|عل[ّ]?ق|تعليق|تمييز|ملاحظة\s*لاصق|pdf_annotate|امسح\s*ضوئي|قراءة\s*مسح)/iu
 
 const MAIL_RE =
-  /(?:بريد|إيميل|ايميل|إيميل|رسالة\s*إلكتروني|email|gmail|inbox|صندوق\s*(?:ال)?وارد|أرسل\s*(?:بريد|إيميل|ايميل)|رد\s*على\s*(?:ال)?بريد|mail_search|mail_send|ابحث\s*في\s*(?:ال)?بريد)/iu
+  /(?:بريد|إيميل|ايميل|إيميل|رسالة\s*إلكتروني|email|gmail|inbox|صندوق\s*(?:ال)?وارد|أرسل\s*(?:بريد|إيميل|ايميل)|رد\s*على\s*(?:ال)?بريد|mail_search|mail_send|ابحث\s*في\s*(?:ال)?بريد|(?:شو|وش|ماذا)\s*(?:في\s*)?(?:ال)?(?:بريد|وارد))/iu
 
 const QUESTION_RE =
   /(?:\?|؟|كم|متى|وين|أين|ماذا|ما\s+هو|وش|شو|هل|ليش|لماذا|كيف|لخ[ّ]?ص|ابحث|دور|وين\s+(?:ال)?(?:ملف|لائح|مستند|موعد|مهم))/u
@@ -76,7 +81,7 @@ const WEB_SEARCH_RE =
 
 /** Location / maps online. */
 const MAPS_RE =
-  /(?:أين\s*(?:تقع|موقع)|وين\s*(?:تقع|موقع)|موقع\s+(?:ال|على\s*)?(?:خريط|جوجل|maps)|خريط[ةه]|إحداثي|geocode|google\s*maps|openstreetmap|أعطني\s*(?:موقع|خريط)|أرسل\s*(?:موقع|خريط)|رابط\s*(?:ال)?(?:موقع|خريط))/iu
+  /(?:أين\s*(?:تقع|موقع)?|وين\s*(?:تقع|موقع)?|موقع\s+(?:ال|على\s*)?(?:خريط|جوجل|maps)|خريط[ةه]|إحداثي|geocode|google\s*maps|openstreetmap|أعطني\s*(?:موقع|خريط)|أرسل\s*(?:موقع|خريط)|رابط\s*(?:ال)?(?:موقع|خريط))/iu
 
 /**
  * Create a brand-new file from text/voice (not edit an existing TG attachment).
@@ -280,6 +285,18 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     }
   }
 
+  // Structured short shortcuts win early (اختصارات بدون شرح زائد).
+  const short = parseTelegramShortIntent(t)
+  if (short) {
+    const kind = shortIntentToWorkKind(short.kind)
+    return {
+      kind,
+      labelAr: short.labelAr,
+      forceHeavy: short.forceHeavy,
+      preferFullAgent: true,
+    }
+  }
+
   // Social chat between people — not for the bot (unless also a clear work ask).
   // Vocative + work verb («يا أحمد سوي / جيب / ابحث / حوّل») = work, not casual.
   const vocativeWork =
@@ -432,6 +449,8 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
 }
 
 function workKindNudge(kind: TelegramWorkKind, raw = ''): string {
+  const shortBlock = shortIntentPromptBlockAr(parseTelegramShortIntent(raw))
+  if (shortBlock) return shortBlock
   const createNew = looksLikeTelegramCreateFile(raw)
   const web = looksLikeTelegramWebSearch(raw)
   const maps = looksLikeTelegramMaps(raw)

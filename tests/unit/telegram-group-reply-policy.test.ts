@@ -112,6 +112,7 @@ describe('formatUnknownShortAr', () => {
     expect(formatUnknownShortAr('ما عرفت الموعد')).toBe('ما عرفت كذا.')
     expect(formatUnknownShortAr('الملف غير موجود')).toBe('ما حصلت هذا.')
     expect(formatUnknownShortAr('')).toBe('ما عرفت كذا.')
+    expect(formatUnknownShortAr('هل تريد أن أوضح؟')).toMatch(/أعد الطلب/)
   })
 
   it('keeps fuller blocked-task MSA reply', () => {

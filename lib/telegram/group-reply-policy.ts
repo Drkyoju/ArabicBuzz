@@ -63,10 +63,30 @@ export function looksLikeUnknownOrNotFound(text: string): boolean {
   if (!t) return false
   if (looksLikeBlockedTaskReply(t)) return true
   if (looksLikeFreeExecuteInstruction(t)) return true
+  if (looksLikeDumbGroupClarify(t)) return true
   return (
     /ما\s*عرف(?:ت|نا)?|ما\s*عرفت|لم\s*أعر[ف]|لا\s*أعرف|ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|تعذ[ّر]ر?\s*العثور|تعذ[ّر]ر?\s*التنفيذ|لا\s*أستطيع|غير\s*مدعوم|أدواتي\s*الحالية|لم\s*يُعثر|ما\s*لقيت|not\s*found|couldn'?t\s*find|i\s*don'?t\s*know|cannot\s*(complete|do)|unable\s*to|no\s*tool/i.test(
       t
     )
+  )
+}
+
+/**
+ * Dumb clarifying asks in a linked group — treat as failure-to-execute
+ * so we compress / free-retry instead of shipping a lecture.
+ */
+export function looksLikeDumbGroupClarify(text: string): boolean {
+  const t = String(text || '').trim()
+  if (!t || t.length > 900) return false
+  if (
+    /(?:تم\s*(?:ال|)|أُنشئ|أنشأت|أضفت|وجدت|الإحداثي|osm|maps\.google|مرفق)/iu.test(
+      t
+    )
+  ) {
+    return false
+  }
+  return /(?:هل\s*(?:تريد|تود|تحب|يمكنني|أقدر)|ماذا\s*(?:تريد|تقصد)|وض[ّ]?ح(?:\s*(?:لي|أكثر))?|اشرح(?:\s*(?:أكثر|المطلوب))?|أحتاج\s*(?:مزيد|تفاصيل|توضيح)|هل\s*تقصد)/iu.test(
+    t
   )
 }
 
@@ -78,6 +98,9 @@ export function formatUnknownShortAr(raw?: string): string {
   const t = String(raw || '').trim()
   if (looksLikeBlockedTaskReply(t)) {
     return t.slice(0, 3500)
+  }
+  if (looksLikeDumbGroupClarify(t)) {
+    return 'أعد الطلب باختصار (عنوان · وقت · اسم ملف) — أنفّذ مباشرة بدون أسئلة.'
   }
   if (/ما\s*حصلت|لم\s*أحص[ل]|لم\s*أجد|ما\s*لقيت|غير\s*موجود|لا\s*يوجد|not\s*found/i.test(t)) {
     return 'ما حصلت هذا.'
