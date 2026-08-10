@@ -68,6 +68,15 @@ vi.mock('@/lib/rooms/room-memory', () => ({
       createdByAr: null,
       createdAt: '2026-08-01T00:00:00.000Z',
     },
+    {
+      id: 'm2',
+      scopeId: 'scope-1',
+      content:
+        '[ملخص أسبوعي تيليجرام] · 2026-W32 · chat=chat-99 · أعضاء≈12 · موضوعات: اللجنة، التقرير',
+      createdBy: 'digest',
+      createdByAr: 'ملخص أسبوعي تيليجرام',
+      createdAt: '2026-08-06T12:00:00.000Z',
+    },
   ]),
 }))
 
@@ -94,6 +103,8 @@ describe('buildTelegramChatMemoryAr', () => {
     expect(ar).toMatch(/هذه المحادثة فقط/)
     expect(ar).toMatch(/حقائق ثابتة/)
     expect(ar).toMatch(/اللجنة تجتمع/)
+    expect(ar).toMatch(/ملخص أسبوعي أخير/)
+    expect(ar).toMatch(/2026-W32/)
     expect(ar).toMatch(/صوت → مستند/)
     expect(ar).toMatch(/write_file/)
     expect(ar).toMatch(/geocode/)

@@ -63,12 +63,29 @@ check "TELEGRAM_API_HASH في env محلي" "$has_hash"
 
 [[ -f deploy/telegram-bot-api/Dockerfile ]] && check "Dockerfile موجود" 1 || check "Dockerfile ناقص" 0
 [[ -f deploy/telegram-bot-api/deploy-fly.sh ]] && check "deploy-fly.sh موجود (لا تشغّله الآن)" 1 || check "deploy-fly.sh ناقص" 0
+[[ -f deploy/telegram-bot-api/fly.toml ]] && check "fly.toml موجود (إعداد بدون نشر)" 1 || check "fly.toml ناقص" 0
 [[ -f docs/fly-bot-api-prepare.md ]] && check "docs/fly-bot-api-prepare.md" 1 || true
 
+# Large-file backup readiness (docs + volume note) — still NO deploy.
+if [[ -f deploy/telegram-bot-api/fly.toml ]]; then
+  if grep -qE '^\s*\[\[mounts\]\]' deploy/telegram-bot-api/fly.toml 2>/dev/null; then
+    check "fly.toml يحتوي [[mounts]] لتخزين ملفات Bot API الكبيرة" 1
+  else
+    check "قرص دائم للملفات الكبيرة: أضف [[mounts]] عند النشر لاحقاً (انظر docs — تحضير فقط)" 0
+  fi
+fi
+
+echo ""
+echo "تحضير ملفات كبيرة (بدون فاتورة):"
+echo "  • اليوم: npm run mac-hop:install + mac-nosleep + OrbStack 1.5.1 فقط"
+echo "  • لاحقاً (بعد موافقة صريحة): volume على Fly لـ /var/lib/telegram-bot-api"
+echo "  • لا تشغّل fly deploy / telegram:bot-api:fly الآن"
 echo ""
 echo "الوضع الحالي (بدون Fly):"
 echo "  npm run mac-hop:install"
 echo "  npm run mac-hop:health"
+echo "  npm run mac-nosleep:install"
+echo "  npm run orbstack:pin"
 echo ""
 echo "متى تقلب لـ Fly؟ اقرأ «متى تقلب» في docs/fly-bot-api-prepare.md"
 echo "عند القرار بالنشر لاحقاً (بطاقة + طلب صريح):"

@@ -211,6 +211,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let weeklyGroupChat: unknown = null
+  try {
+    const { sendWeeklyGroupChatDigests } = await import(
+      '@/lib/digest/weekly-group-chat'
+    )
+    weeklyGroupChat = await sendWeeklyGroupChatDigests({ now })
+  } catch (e) {
+    weeklyGroupChat = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'weekly group chat digest error',
+    }
+  }
+
   let driveBrainSync: unknown = null
   try {
     const secret =
@@ -468,6 +481,7 @@ export async function POST(req: NextRequest) {
     deadlineReminders,
     appointmentReminders,
     directorDigest,
+    weeklyGroupChat,
     driveBrainSync,
     telegramGroupArchive,
     telegramDeepHistory,

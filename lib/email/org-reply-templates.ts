@@ -1,7 +1,10 @@
 /**
  * Ready reply templates for بريد الجمعية (MSA).
  * Inserted into the reply composer — user edits before SMTP send.
+ * Voice shared with mail-intel via association-tone.
  */
+
+import { ASSOCIATION_NAME_AR } from '@/lib/email/association-tone'
 
 export type OrgReplyTemplate = {
   id: string
@@ -17,7 +20,7 @@ export const ORG_REPLY_TEMPLATES: OrgReplyTemplate[] = [
     subjectHintAr: 'استلام رسالتكم',
     bodyAr: `السلام عليكم ورحمة الله وبركاته،
 
-نشكر تواصلكم مع جمعية الهدى والحكمة. نؤكّد استلام رسالتكم، وسنعاودكم بعد المراجعة خلال أقرب وقت ممكن.
+نشكر تواصلكم مع ${ASSOCIATION_NAME_AR}. نؤكّد استلام رسالتكم، وسنعاودكم بعد المراجعة خلال أقرب وقت ممكن.
 
 مع خالص التحية،
 إدارة الجمعية`,
@@ -28,7 +31,7 @@ export const ORG_REPLY_TEMPLATES: OrgReplyTemplate[] = [
     subjectHintAr: 'استكمال المستندات',
     bodyAr: `السلام عليكم ورحمة الله وبركاته،
 
-للإفادة، نرجو تزويدنا بالمستندات التالية لاستكمال الطلب:
+للإفادة، نرجو تزويدنا بالمستندات التالية لاستكمال الطلب لدى ${ASSOCIATION_NAME_AR}:
 ١) …
 ٢) …
 ٣) …
@@ -46,7 +49,7 @@ export const ORG_REPLY_TEMPLATES: OrgReplyTemplate[] = [
 
 نؤكّد موعد اللقاء/الاجتماع على النحو التالي:
 • التاريخ: …
-• الوقت: …
+• الوقت: … (توقيت السعودية)
 • المكان / الرابط: …
 
 إن تعذّر الحضور، نرجو إشعارنا قبل الموعد بوقت كافٍ.
@@ -60,7 +63,7 @@ export const ORG_REPLY_TEMPLATES: OrgReplyTemplate[] = [
     subjectHintAr: 'شكراً لتواصلكم',
     bodyAr: `السلام عليكم ورحمة الله وبركاته،
 
-نشكركم على تعاونكم. بهذا نعتبر الموضوع مكتملاً من طرفنا، ونبقى في الخدمة لأي استفسار لاحق.
+نشكركم على تعاونكم مع ${ASSOCIATION_NAME_AR}. بهذا نعتبر الموضوع مكتملاً من طرفنا، ونبقى في الخدمة لأي استفسار لاحق.
 
 مع خالص التحية،
 إدارة الجمعية`,
@@ -71,7 +74,21 @@ export const ORG_REPLY_TEMPLATES: OrgReplyTemplate[] = [
     subjectHintAr: 'إحالة لمتابعة داخلية',
     bodyAr: `السلام عليكم ورحمة الله وبركاته،
 
-أُحيل موضوعكم للجهة المختصة داخل الجمعية للمتابعة. سنوافيكم بالنتيجة أو بطلب توضيح إضافي إن لزم.
+أُحيل موضوعكم للجهة المختصة داخل ${ASSOCIATION_NAME_AR} للمتابعة. سنوافيكم بالنتيجة أو بطلب توضيح إضافي إن لزم.
+
+مع خالص التحية،
+إدارة الجمعية`,
+  },
+  {
+    id: 'decline-polite',
+    labelAr: 'اعتذار مهذب',
+    subjectHintAr: 'بخصوص طلبكم',
+    bodyAr: `السلام عليكم ورحمة الله وبركاته،
+
+نشكر تواصلكم مع ${ASSOCIATION_NAME_AR}. بعد المراجعة، يتعذّر علينا حالياً تلبية الطلب كما ورد، للأسباب التالية:
+• …
+
+إن رغبتم بصيغة بديلة أو استكمال لاحق، نرحّب بتوضيح إضافي.
 
 مع خالص التحية،
 إدارة الجمعية`,

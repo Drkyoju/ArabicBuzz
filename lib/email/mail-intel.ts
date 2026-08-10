@@ -14,6 +14,12 @@ import {
   type MailAttachmentMeta,
 } from '@/lib/email/mail-attachments'
 import { classifyMailTriage } from '@/lib/email/mail-triage'
+import {
+  ASSOCIATION_DRAFT_SYSTEM_AR,
+  ASSOCIATION_TONE_RULES_AR,
+  associationFallbackDraftBody,
+  ensureAssociationToneFraming,
+} from '@/lib/email/association-tone'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 
@@ -73,14 +79,6 @@ export function messageIntel(row: ImapMessageRow): MailIntelCache | null {
   return parseIntel(row)
 }
 
-const ASSOCIATION_TONE = `نبرة الجمعية (إلزامية للمسودة):
-- افتتاح: السلام عليكم ورحمة الله وبركاته
-- تمثيل: جمعية الهدى والحكمة — رسمي، مهذب، مختصر، بلا مبالغة تسويقية
-- لا تختلق موافقات/مبالغ/مواعيد غير موجودة في الرسالة أو المرفقات
-- إن وُجدت مرفقات: أشر لمحتواها باختصار واطلب استكمالاً إن لزم
-- ختام: مع خالص التحية، ثم إدارة الجمعية
-- لا تُكدّس قوالب جاهزة بلا صلة؛ خصّص الرد لموضوع الرسالة`
-
 export async function analyzeMailMessage(
   messageId: string,
   opts?: { force?: boolean }
@@ -129,11 +127,11 @@ ${(row.body_text || row.snippet || '').slice(0, 18_000)}
 
 ${attCtx ? `المرفقات المستخرجة (يجب مراعاتها في الملخص والمسودة):\n${attCtx.slice(0, 14_000)}` : 'لا مرفقات نصية.'}
 
-${ASSOCIATION_TONE}
+${ASSOCIATION_TONE_RULES_AR}
 
 قواعد الحقول:
 - summaryAr: ٢–٤ جمل فصحى — ماذا يطلب المرسل وما المرفقات إن وُجدت.
-- draftBody: رد كامل جاهز للإرسال بعد مراجعة بشرية؛ لا تترك نقاط «…» إلا إن كان النقص من الرسالة نفسها.
+- draftBody: رد كامل جاهز للإرسال بعد مراجعة بشرية؛ التزم بنبرة الجمعية أعلاه؛ لا تترك نقاط «…» إلا إن كان النقص من الرسالة نفسها.
 - إن كانت الرسالة إنجليزية يمكن الرد بالإنجليزية مع إبقاء summaryAr بالعربية.
 - priority/classify: واقعيان بلا تضخيم — النشرات = low/newsletter.
 - attachmentNoteAr: سطر واحد أو فارغ.`
@@ -142,8 +140,7 @@ ${ASSOCIATION_TONE}
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug()),
       schema: analyzeSchema,
-      system:
-        'أنت كاتب مراسلات جمعية الهدى والحكمة. تكتب فصحى مهنية، تراعي المرفقات، ولا تختلق حقائق.',
+      system: ASSOCIATION_DRAFT_SYSTEM_AR,
       prompt,
     })
 
@@ -161,7 +158,7 @@ ${ASSOCIATION_TONE}
     const intel: MailIntelCache = {
       summaryAr: object.summaryAr,
       draftSubject: object.draftSubject || `Re: ${row.subject || ''}`.trim(),
-      draftBody: object.draftBody,
+      draftBody: ensureAssociationToneFraming(object.draftBody),
       extract: {
         dates: object.dates || [],
         times: object.times || [],
@@ -195,12 +192,10 @@ ${ASSOCIATION_TONE}
       draftSubject: /^(re|رد)\s*:/i.test(row.subject || '')
         ? row.subject
         : `Re: ${row.subject || '(بدون موضوع)'}`,
-      draftBody: `السلام عليكم ورحمة الله وبركاته،
-
-نشكر تواصلكم مع جمعية الهدى والحكمة. تلقّينا رسالتكم بخصوص «${row.subject || '—'}»${attNote ? ` والمرفقات المشار إليها (${attNote})` : ''}، وسنراجعها ونعود إليكم في أقرب وقت مناسب.
-
-مع خالص التحية،
-إدارة الجمعية`,
+      draftBody: associationFallbackDraftBody({
+        subject: row.subject || '—',
+        attachmentNote: attNote || undefined,
+      }),
       extract: heuristicExtract(row.body_text || row.snippet || ''),
       analyzedAt: new Date().toISOString(),
       priority: triage.priority,

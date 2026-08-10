@@ -8,6 +8,10 @@ import { listRoomMemories } from '@/lib/rooms/room-memory'
 import { listPersistedTelegramAttachments } from '@/lib/telegram/attachment-persist'
 import { listOpenTelegramFileJobs } from '@/lib/telegram/file-jobs'
 import { getRecentTelegramMedia } from '@/lib/telegram/recent-media'
+import {
+  WEEKLY_CHAT_MEMORY_PREFIX,
+  loadLatestWeeklyChatMemoryLine,
+} from '@/lib/digest/weekly-group-chat'
 
 /** @deprecated use buildTelegramChatMemoryAr — kept for call-site compatibility */
 export async function buildTelegramGroupChatMemoryAr(opts: {
@@ -19,7 +23,7 @@ export async function buildTelegramGroupChatMemoryAr(opts: {
 }
 
 const STABLE_FACT_RE =
-  /(?:اسمي|أنا|أنا اسمي|نفضّل|نفضل|دائماً|دائما|لا تنسَ|لا تنس|تذك[ّر]ر|العنوان|الجوال|الواتساب|البريد|اللجنة|المسؤول|التوقيت|توقيت\s*الرياض|مقر|الفرع)/iu
+  /(?:اسمي|أنا|أنا اسمي|نفضّل|نفضل|دائماً|دائما|لا تنسَ|لا تنس|تذك[ّر]ر|العنوان|الجوال|الواتساب|البريد|اللجنة|المسؤول|التوقيت|توقيت\s*الرياض|مقر|الفرع|الموعد|الاجتماع|نلتقي|كل\s*(?:أسبوع|أحد|اثنين|ثلاثاء|أربعاء|خميس))/iu
 
 function extractStableFactsFromFeed(
   items: Array<{ textAr?: string; senderAr?: string }>
@@ -45,7 +49,7 @@ export async function buildTelegramChatMemoryAr(opts: {
   feedLimit?: number
 }): Promise<string> {
   const feedLimit = Math.min(Math.max(opts.feedLimit ?? 64, 12), 100)
-  const [feed, openJobs, atts, roomMem] = await Promise.all([
+  const [feed, openJobs, atts, roomMem, weeklyLine] = await Promise.all([
     listTelegramFeed(opts.scopeId, feedLimit, {
       externalId: opts.chatId,
     }).catch(() => ({
@@ -59,6 +63,7 @@ export async function buildTelegramChatMemoryAr(opts: {
     }).catch(() => []),
     listPersistedTelegramAttachments(opts.chatId, 12).catch(() => []),
     listRoomMemories(opts.scopeId).catch(() => []),
+    loadLatestWeeklyChatMemoryLine(opts.scopeId).catch(() => null),
   ])
 
   const recentMem = getRecentTelegramMedia(opts.chatId, 4)
@@ -67,14 +72,23 @@ export async function buildTelegramChatMemoryAr(opts: {
   const roomFacts = roomMem
     .slice(0, 16)
     .map((m) => m.content.trim())
-    .filter((c) => c.length >= 4 && c.length <= 280)
+    .filter(
+      (c) =>
+        c.length >= 4 &&
+        c.length <= 280 &&
+        !c.startsWith(WEEKLY_CHAT_MEMORY_PREFIX)
+    )
 
   const lines: string[] = [
     '## ذاكرة محادثة تيليجرام (هذه المحادثة فقط — خاص أو مجموعة)',
     `معرّف الشات: ${opts.chatId}`,
-    'إلزامي: اقرأ الحقائق الثابتة ثم السياق الحديث قبل الرد. نفّذ الطلبات المعلّقة. لا تنسَ ما قيل سابقاً في نفس الشات.',
+    'إلزامي: اقرأ الحقائق الثابتة والملخص الأسبوعي ثم السياق الحديث قبل الرد. نفّذ الطلبات المعلّقة. لا تنسَ ما قيل سابقاً في نفس الشات.',
     'رد موجز بعد التنفيذ — بلا شرح مطوّل وبلا طلب توضيح لطلب واضح/اختصار.',
   ]
+
+  if (weeklyLine) {
+    lines.push('', '### ملخص أسبوعي أخير (بلا إعادة إرسال للمجموعة)', `- ${weeklyLine}`)
+  }
 
   lines.push('', '### حقائق ثابتة (غرفة + إشارات من هذا الشات)')
   if (roomFacts.length || chatFacts.length) {

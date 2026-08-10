@@ -13,7 +13,8 @@
 | اليوم (مجاني / ماك) | لاحقاً (Fly — مدفوع تقريباً) |
 |---------------------|------------------------------|
 | `npm run mac-hop:install` ثم `npm run mac-hop:health` | حاوية `deploy/telegram-bot-api` على Fly |
-| نفق trycloudflare يتغيّر | `TELEGRAM_BOT_API_URL=https://…fly.dev` ثابت |
+| `npm run mac-nosleep:install` + OrbStack **1.5.1 فقط** | `TELEGRAM_BOT_API_URL=https://…fly.dev` ثابت |
+| نفق trycloudflare يتغيّر | قرص دائم (volume) لملفات Bot API الكبيرة — معلّق في `fly.toml` حتى النشر |
 | الماك نائم = hop متوقف | الملفات الكبيرة تُحمَّل بدون الماك |
 
 ## تحضير بدون نشر
@@ -23,7 +24,12 @@
 npm run fly:bot-api:prepare
 # = ./scripts/fly-bot-api-prepare.sh
 
-# 2) اقرأ «متى تقلب» أدناه — لا تنشر حتى تتوفر البطاقة + القرار
+# 2) أبقِ الماك مستيقظاً للملفات الكبيرة الآن
+npm run mac-nosleep:install
+npm run orbstack:pin
+npm run mac-hop:install
+
+# 3) اقرأ «متى تقلب» أدناه — لا تنشر حتى تتوفر البطاقة + القرار
 ```
 
 ### قائمة تحقق قبل أي نشر مستقبلي

@@ -1,6 +1,6 @@
 /**
  * ~1 hour before room calendar appointments → Telegram (linked group).
- * Also surfaces a short dashboard-friendly detail list (no extra spam).
+ * Clear MSA copy; single send per event (claim + meta) — no spam.
  * Runs inside /api/crons/runner (GitHub Actions every ~15 min).
  */
 import { listRoomCalendarEvents, updateRoomCalendarEvent } from '@/lib/rooms/room-calendar'
@@ -9,15 +9,20 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { appBaseUrl } from '@/lib/app-url'
 
 const TZ = 'Asia/Riyadh'
-/** Catch window so a 15-min cron fires once per appointment. */
-const WINDOW_MIN_MS = 50 * 60_000
-const WINDOW_MAX_MS = 75 * 60_000
+/**
+ * Catch window for a ~15-min cron: ~55–70 min before start.
+ * Narrower than 50–75 to cut edge double-hits across skewed clocks.
+ */
+const WINDOW_MIN_MS = 55 * 60_000
+const WINDOW_MAX_MS = 70 * 60_000
 
 function fmtWhen(iso: string) {
   try {
     return new Intl.DateTimeFormat('ar-SA', {
       timeZone: TZ,
-      weekday: 'short',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
       hour: '2-digit',
       minute: '2-digit',
     }).format(new Date(iso))
@@ -43,6 +48,30 @@ async function scopesWithTelegram(): Promise<string[]> {
     }
   }
   return [...scopes].filter((s) => !s.startsWith('personal'))
+}
+
+/** Build reminder body (exported for unit tests). */
+export function buildAppointmentReminderTextAr(opts: {
+  titleAr: string
+  startsAt: string
+  locationAr?: string | null
+  mins: number
+  calendarUrl: string
+}): string {
+  const mins = Math.max(1, opts.mins)
+  const when = fmtWhen(opts.startsAt)
+  return [
+    'تذكير موعد (مرة واحدة)',
+    `«${opts.titleAr}»`,
+    `الوقت: ${when}`,
+    'المنطقة الزمنية: توقيت السعودية',
+    opts.locationAr ? `المكان: ${opts.locationAr}` : '',
+    `يتبقى حوالي ${mins} دقيقة`,
+    'لن نعيد هذا التذكير لنفس الموعد.',
+    `التقويم: ${opts.calendarUrl}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** Upcoming appointments in the reminder window — for لوحة اليوم (read-only). */
@@ -124,16 +153,13 @@ export async function runAppointmentTelegramReminders(opts?: {
       }
 
       const mins = Math.max(1, Math.round(delta / 60_000))
-      const textAr = [
-        '⏰ تذكير موعد — بعد حوالي ساعة',
-        `«${ev.titleAr}»`,
-        `الوقت: ${fmtWhen(ev.startsAt)} (توقيت السعودية)`,
-        ev.locationAr ? `المكان: ${ev.locationAr}` : '',
-        `≈ ${mins} دقيقة`,
-        `التقويم: ${base}/?section=calendar`,
-      ]
-        .filter(Boolean)
-        .join('\n')
+      const textAr = buildAppointmentReminderTextAr({
+        titleAr: ev.titleAr,
+        startsAt: ev.startsAt,
+        locationAr: ev.locationAr,
+        mins,
+        calendarUrl: `${base}/?section=calendar`,
+      })
 
       const res = await emitNotification({
         channel: 'telegram',

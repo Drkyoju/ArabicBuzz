@@ -14,7 +14,9 @@
 #   • System Settings → Battery → Options → "Prevent automatic sleeping
 #     when the display is off" (on power adapter)
 #   • Stay logged in (user LaunchAgents stop on logout)
-# Permanent path: fly auth login && npm run telegram:bot-api:fly
+#   • OrbStack MUST stay 1.5.1 (pin script — never upgrade)
+# Large files today: Local Bot API :8081 + MAC_SYNC + caffeinate.
+# Permanent Fly backup: prepare only → npm run fly:bot-api:prepare (NO paid deploy yet).
 #
 # Usage:
 #   ./scripts/mac-hop-watchdog.sh           # one pass
