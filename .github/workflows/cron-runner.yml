@@ -13,6 +13,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require live Telegram group-push gate (no spam on stale deploys)
+        env:
+          APP_URL: https://arabicbuzz-fooc9h.cranl.net
+        run: |
+          set -euo pipefail
+          # Until CranL serves telegramGroupPush.masterEnabled=false, do NOT hit
+          # /api/crons/runner — old builds still auto-post digests/reminders.
+          body=$(curl -sS --max-time 30 "${APP_URL}/api/health/free" || true)
+          echo "$body" | head -c 800
+          echo
+          if ! echo "$body" | grep -q '"telegramGroupPush"'; then
+            echo "SKIP: live build lacks telegramGroupPush gate — refusing cron to protect group."
+            exit 0
+          fi
+          if ! echo "$body" | grep -q '"masterEnabled"'; then
+            echo "SKIP: telegramGroupPush shape incomplete — refusing cron."
+            exit 0
+          fi
+
       - name: POST /api/crons/runner
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -22,6 +41,12 @@ jobs:
           if [ -z "${CRON_SECRET:-}" ]; then
             echo "CRON_SECRET secret is missing in this repo."
             exit 1
+          fi
+          # Re-check gate immediately before POST (deploy can lag).
+          health=$(curl -sS --max-time 30 "${APP_URL}/api/health/free" || true)
+          if ! echo "$health" | grep -q '"masterEnabled"'; then
+            echo "SKIP: gate not live — no POST."
+            exit 0
           fi
           code=$(curl -sS -o /tmp/cron-body.json -w '%{http_code}' \
             -X POST "${APP_URL}/api/crons/runner" \
