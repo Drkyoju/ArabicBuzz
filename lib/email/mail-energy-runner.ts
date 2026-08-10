@@ -13,6 +13,16 @@ import {
   unsnoozeGmailMessage,
 } from '@/lib/google/gmail'
 import { emitNotification } from '@/lib/notifications/emit'
+import { isTelegramGroupPushAllowed } from '@/lib/telegram/group-push-policy'
+
+async function maybeNotifyTelegram(textAr: string, meta?: Record<string, unknown>) {
+  if (!isTelegramGroupPushAllowed('mail_energy')) return
+  await emitNotification({
+    channel: 'telegram',
+    textAr,
+    meta,
+  }).catch(() => null)
+}
 
 async function runOne(job: MailEnergyJob): Promise<{
   id: string
@@ -28,17 +38,16 @@ async function runOne(job: MailEnergyJob): Promise<{
         accountEmail: job.accountEmail,
         snoozeLabelId: String(job.payload.snoozeLabelId || '') || undefined,
       })
-      await emitNotification({
-        channel: 'telegram',
-        textAr: [
+      await maybeNotifyTelegram(
+        [
           '⏰ انتهى التأجيل — عادت الرسالة للوارد',
           job.subject ? `الموضوع: ${job.subject}` : '',
           'افتح بريدي الشخصي في Arabic Buzz.',
         ]
           .filter(Boolean)
           .join('\n'),
-        meta: { userId: job.userId },
-      }).catch(() => null)
+        { userId: job.userId }
+      )
     } else if (job.kind === 'schedule_send') {
       const to = String(job.payload.to || '').trim()
       const subject = String(job.payload.subject || '').trim()
@@ -56,16 +65,14 @@ async function runOne(job: MailEnergyJob): Promise<{
         bcc: job.payload.bcc ? String(job.payload.bcc) : undefined,
         accountEmail: job.accountEmail,
       })
-      await emitNotification({
-        channel: 'telegram',
-        textAr: `✅ أُرسل البريد المجدول إلى ${to}\nالموضوع: ${subject}`,
-        meta: { userId: job.userId },
-      }).catch(() => null)
+      await maybeNotifyTelegram(
+        `✅ أُرسل البريد المجدول إلى ${to}\nالموضوع: ${subject}`,
+        { userId: job.userId }
+      )
     } else if (job.kind === 'reminder') {
       const note = String(job.payload.noteAr || '').trim()
-      await emitNotification({
-        channel: 'telegram',
-        textAr: [
+      await maybeNotifyTelegram(
+        [
           '🔔 تذكير بريد',
           job.subject ? `الموضوع: ${job.subject}` : '',
           note || 'حان وقت متابعة هذه الرسالة.',
@@ -73,8 +80,8 @@ async function runOne(job: MailEnergyJob): Promise<{
         ]
           .filter(Boolean)
           .join('\n'),
-        meta: { userId: job.userId },
-      }).catch(() => null)
+        { userId: job.userId }
+      )
     } else {
       throw new Error(`نوع غير معروف: ${job.kind}`)
     }

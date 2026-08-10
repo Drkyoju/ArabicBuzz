@@ -14,6 +14,10 @@ import {
   listUniqueTelegramDigestTargets,
 } from '@/lib/channels/bindings'
 import { claimDigestDayKey } from '@/lib/digest/day-claim'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+} from '@/lib/telegram/group-push-policy'
 
 const TZ = 'Asia/Riyadh'
 
@@ -189,6 +193,20 @@ export async function sendMorningRoomDigests(opts?: {
   force?: boolean
   now?: Date
 }): Promise<{ results: MorningDigestResult[]; windowOk: boolean }> {
+  if (!isTelegramGroupPushAllowed('morning_digest')) {
+    return {
+      results: [
+        {
+          scopeId: '*',
+          sent: false,
+          skipped: true,
+          reason: telegramGroupPushDisabledReason('morning_digest'),
+        },
+      ],
+      windowOk: false,
+    }
+  }
+
   const now = opts?.now || new Date()
   const windowOk = opts?.force || isMorningDigestWindow(now)
   if (!windowOk) {

@@ -8,6 +8,7 @@ import {
   type ImapMailboxCreds,
 } from '@/lib/email/imap-store'
 import { emitNotification } from '@/lib/notifications/emit'
+import { isTelegramGroupPushAllowed } from '@/lib/telegram/group-push-policy'
 import {
   extractAttachmentTexts,
   parseMimeMessage,
@@ -406,6 +407,7 @@ export async function syncImapInbox(opts?: {
 }
 
 async function notifyNewMailTelegram(): Promise<number> {
+  if (!isTelegramGroupPushAllowed('imap_notify')) return 0
   const rows = await listUnnotified(8)
   if (!rows.length) return 0
   const lines = ['📬 بريد جديد — Arabic Buzz', '']

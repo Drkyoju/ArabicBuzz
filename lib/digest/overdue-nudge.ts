@@ -10,6 +10,10 @@ import {
 } from '@/lib/channels/bindings'
 import { isMorningDigestWindow } from '@/lib/digest/morning-room'
 import { claimDigestDayKey } from '@/lib/digest/day-claim'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+} from '@/lib/telegram/group-push-policy'
 
 const TZ = 'Asia/Riyadh'
 
@@ -65,6 +69,20 @@ export async function sendOverdueNudges(opts?: {
   force?: boolean
   now?: Date
 }): Promise<{ results: OverdueNudgeResult[]; windowOk: boolean }> {
+  if (!isTelegramGroupPushAllowed('overdue_nudge')) {
+    return {
+      results: [
+        {
+          scopeId: '*',
+          sent: false,
+          skipped: true,
+          reason: telegramGroupPushDisabledReason('overdue_nudge'),
+        },
+      ],
+      windowOk: false,
+    }
+  }
+
   const now = opts?.now || new Date()
   const windowOk = opts?.force || isMorningDigestWindow(now)
   if (!windowOk) {

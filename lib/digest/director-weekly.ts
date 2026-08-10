@@ -7,6 +7,7 @@ import { sendResendEmail } from '@/lib/email/resend'
 import { emitNotification } from '@/lib/notifications/emit'
 import { upcomingSystemDeadlines } from '@/lib/rooms/system-deadlines'
 import { listRoomTasks } from '@/lib/rooms/room-tasks'
+import { isTelegramGroupPushAllowed } from '@/lib/telegram/group-push-policy'
 
 export type DirectorDigestResult = {
   ok: boolean
@@ -160,14 +161,22 @@ export async function sendDirectorWeeklyDigest(opts?: {
   }
 
   if (channels.includes('telegram')) {
-    const tg = await emitNotification({
-      channel: 'telegram',
-      textAr: previewAr.slice(0, 3500),
-      meta: { kind: 'director_digest', scopeId: opts?.scopeId || 'shared-demo' },
-    })
-    telegramSent = tg.ok
-    if (!tg.ok && !error) {
-      error = 'تعذّر إرسال تيليجرام (تحقق من TELEGRAM_BOT_TOKEN وCHAT_ID)'
+    if (!isTelegramGroupPushAllowed('director_digest')) {
+      // Email may still send; Telegram group push stays silent by default.
+      telegramSent = false
+      if (!error && !emailSent) {
+        error = 'telegram_director_digest_disabled'
+      }
+    } else {
+      const tg = await emitNotification({
+        channel: 'telegram',
+        textAr: previewAr.slice(0, 3500),
+        meta: { kind: 'director_digest', scopeId: opts?.scopeId || 'shared-demo' },
+      })
+      telegramSent = tg.ok
+      if (!tg.ok && !error) {
+        error = 'تعذّر إرسال تيليجرام (تحقق من TELEGRAM_BOT_TOKEN وCHAT_ID)'
+      }
     }
   }
 

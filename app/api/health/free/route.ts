@@ -2,6 +2,7 @@ import { ensurePooledDatabaseUrl } from '@/lib/db-url'
 import { buildArabicQualitySignal } from '@/lib/evals/arabic-quality-signal'
 import { getActiveEmbeddingProvider } from '@/lib/rag/embeddings'
 import { isHitlDisabled } from '@/lib/security/posture'
+import { telegramGroupPushFlagsSnapshot } from '@/lib/telegram/group-push-policy'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import {
   resolveWhatsAppTransport,
@@ -116,6 +117,7 @@ export async function GET() {
     supabaseError,
     prismaError,
     telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
+    telegramGroupPush: telegramGroupPushFlagsSnapshot(),
     telegramLocalBotApiConfigured: Boolean(
       (
         process.env.TELEGRAM_BOT_API_URL ||

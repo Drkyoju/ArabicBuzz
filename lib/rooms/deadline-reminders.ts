@@ -12,6 +12,10 @@ import { updateRoomCalendarEvent } from '@/lib/rooms/room-calendar'
 import { emitNotification } from '@/lib/notifications/emit'
 import { DEMO_SCOPES, isSharedScope } from '@/lib/scopes/manager'
 import { appBaseUrl } from '@/lib/app-url'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+} from '@/lib/telegram/group-push-policy'
 
 const DEFAULT_REMINDER_DAYS = [30, 14, 7, 1, 0]
 
@@ -37,6 +41,14 @@ export async function runDeadlineTelegramReminders(): Promise<{
   skipped: number
   details: string[]
 }> {
+  if (!isTelegramGroupPushAllowed('deadline_reminder')) {
+    return {
+      sent: 0,
+      skipped: 0,
+      details: [telegramGroupPushDisabledReason('deadline_reminder')],
+    }
+  }
+
   const details: string[] = []
   let sent = 0
   let skipped = 0

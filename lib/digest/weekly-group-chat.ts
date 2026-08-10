@@ -10,6 +10,10 @@ import { emitNotification } from '@/lib/notifications/emit'
 import { addRoomMemory, listRoomMemories } from '@/lib/rooms/room-memory'
 import { listTelegramFeed } from '@/lib/rooms/telegram-feed'
 import { listOpenTelegramFileJobs } from '@/lib/telegram/file-jobs'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+} from '@/lib/telegram/group-push-policy'
 
 const TZ = 'Asia/Riyadh'
 
@@ -248,6 +252,21 @@ export async function sendWeeklyGroupChatDigests(opts?: {
   force?: boolean
   now?: Date
 }): Promise<{ results: WeeklyGroupDigestResult[]; windowOk: boolean }> {
+  if (!isTelegramGroupPushAllowed('weekly_group_digest')) {
+    return {
+      results: [
+        {
+          scopeId: '*',
+          chatId: '*',
+          sent: false,
+          skipped: true,
+          reason: telegramGroupPushDisabledReason('weekly_group_digest'),
+        },
+      ],
+      windowOk: false,
+    }
+  }
+
   const now = opts?.now || new Date()
   const windowOk = opts?.force || isWeeklyGroupDigestWindow(now)
   if (!windowOk) {

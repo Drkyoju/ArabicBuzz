@@ -7,6 +7,10 @@ import { listRoomCalendarEvents, updateRoomCalendarEvent } from '@/lib/rooms/roo
 import { emitNotification } from '@/lib/notifications/emit'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { appBaseUrl } from '@/lib/app-url'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+} from '@/lib/telegram/group-push-policy'
 
 const TZ = 'Asia/Riyadh'
 /**
@@ -109,6 +113,14 @@ export async function listSoonAppointmentRemindersAr(opts?: {
 export async function runAppointmentTelegramReminders(opts?: {
   now?: Date
 }): Promise<{ sent: number; skipped: number; details: string[] }> {
+  if (!isTelegramGroupPushAllowed('appointment_reminder')) {
+    return {
+      sent: 0,
+      skipped: 0,
+      details: [telegramGroupPushDisabledReason('appointment_reminder')],
+    }
+  }
+
   const now = opts?.now || new Date()
   const t0 = now.getTime()
   const from = new Date(t0 + WINDOW_MIN_MS).toISOString()

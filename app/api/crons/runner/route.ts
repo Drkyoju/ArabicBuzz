@@ -9,6 +9,11 @@ import { IS_AIR_GAPPED_MODE } from '@/lib/security/airgap'
 import { listPendingApprovals } from '@/lib/agents/resolve-approval'
 import { appBaseUrl } from '@/lib/app-url'
 import { runDeadlineTelegramReminders } from '@/lib/rooms/deadline-reminders'
+import {
+  isTelegramGroupPushAllowed,
+  telegramGroupPushDisabledReason,
+  telegramGroupPushFlagsSnapshot,
+} from '@/lib/telegram/group-push-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,9 +99,18 @@ async function runOne(opts: {
       scopeId: opts.scopeId,
     })
     for (const ch of opts.channels) {
-      if (ch === 'telegram' || ch === 'whatsapp') {
+      if (ch === 'telegram') {
+        if (!isTelegramGroupPushAllowed('scheduled_task')) {
+          continue
+        }
         await emitNotification({
-          channel: ch,
+          channel: 'telegram',
+          textAr: text,
+          meta: { scopeId: opts.scopeId },
+        })
+      } else if (ch === 'whatsapp') {
+        await emitNotification({
+          channel: 'whatsapp',
           textAr: text,
           meta: { scopeId: opts.scopeId },
         })
@@ -134,6 +148,17 @@ export async function POST(req: NextRequest) {
   const ran: Array<{ id: string; status: string; details?: string }> = []
 
   for (const task of getDueHeartbeatTasks(now)) {
+    if (
+      task.channel === 'telegram' &&
+      !isTelegramGroupPushAllowed('heartbeat')
+    ) {
+      ran.push({
+        id: task.id,
+        status: 'skipped',
+        details: telegramGroupPushDisabledReason('heartbeat'),
+      })
+      continue
+    }
     ran.push(
       await runOne({
         id: task.id,
@@ -409,7 +434,7 @@ export async function POST(req: NextRequest) {
       const { syncImapInbox } = await import('@/lib/email/imap-sync')
       imapMailSync = await syncImapInbox({
         maxMessages: 50,
-        notifyTelegram: true,
+        notifyTelegram: isTelegramGroupPushAllowed('imap_notify'),
       })
     } else {
       imapMailSync = { skipped: true, reason: 'imap_not_configured' }
@@ -494,5 +519,6 @@ export async function POST(req: NextRequest) {
     vaultBackup,
     mailEnergy,
     telegramFileJobs,
+    telegramGroupPush: telegramGroupPushFlagsSnapshot(),
   })
 }
