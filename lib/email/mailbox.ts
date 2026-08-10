@@ -28,6 +28,9 @@ export type UnifiedMailSummary = {
   to: string
   date?: string
   snippet: string
+  /** Longer body preview so agents can search/skim without mail_read every hit. */
+  bodyPreview?: string
+  folder?: string
   seen?: boolean
   source: 'imap' | 'gmail'
   messageIdHeader?: string | null
@@ -115,8 +118,8 @@ export async function searchMail(opts: {
 }> {
   const status = await mailBackendStatus({ userId: opts.userId })
   if (status.preferred === 'imap') {
-    // Ensure local cache is reasonably fresh for assistant runs.
-    await syncImapInbox({ maxMessages: 25, notifyTelegram: false }).catch(
+    // Ensure local cache is reasonably fresh for assistant runs (inbox+sent).
+    await syncImapInbox({ maxMessages: 60, notifyTelegram: false }).catch(
       () => null
     )
     const q = (opts.query || '').trim()
@@ -125,16 +128,21 @@ export async function searchMail(opts: {
       /unread|غير\s*مقرو|is:unread|label:unread/i.test(q)
     const queryClean = q
       .replace(/is:unread|label:unread|غير\s*مقروء[ة]?/gi, '')
+      .replace(/in:all|in:anywhere|الكل/gi, '')
       .replace(/newer_than:\S+/gi, '')
       .trim()
     const rows = await listMessages({
       unreadOnly,
       query: queryClean || undefined,
-      limit: opts.maxResults || 20,
+      limit: opts.maxResults || 40,
       folder: 'all',
     })
     const messages = rows.map((r) => {
       const d = fromImapRow(r)
+      const bodyPreview = (r.body_text || r.snippet || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 600)
       return {
         id: d.id,
         subject: d.subject,
@@ -142,6 +150,8 @@ export async function searchMail(opts: {
         to: d.to,
         date: d.date,
         snippet: d.snippet,
+        bodyPreview,
+        folder: r.folder,
         seen: d.seen,
         source: 'imap' as const,
         messageIdHeader: d.messageIdHeader,
@@ -152,8 +162,8 @@ export async function searchMail(opts: {
       messages,
       messageAr:
         messages.length === 0
-          ? 'لا رسائل مطابقة في بريد IMAP.'
-          : `وُجد ${messages.length} رسالة عبر IMAP.`,
+          ? 'لا رسائل مطابقة في بريد IMAP (وارد+مرسل).'
+          : `وُجد ${messages.length} رسالة عبر IMAP في الوارد والمرسل.`,
     }
   }
 

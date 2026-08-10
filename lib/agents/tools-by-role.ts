@@ -65,10 +65,12 @@ export const EMPLOYEE_SAFE_TOOLS = [
   'edit_excel',
   'edit_image',
   'generate_image_edit',
-  // Mail read (+ sync)
+  // Mail read (+ sync + draft for UI edit/send)
   'mail_sync',
   'mail_search',
+  'mail_corpus_search',
   'mail_read',
+  'mail_draft_reply',
   'gmail_search',
   'gmail_read',
   'sheets_read',

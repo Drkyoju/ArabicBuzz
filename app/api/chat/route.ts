@@ -52,7 +52,7 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
   ب) مرفق ظاهر في الشات أو المعاينة — استخدم fileId مباشرة.
   ج) عقل الشركة = Google Drive: drive_search_files / drive_list_files / search_knowledge_base أو brain_open_document → عدّل → brain_save_document.
   اعمل على ملف الغرفة أولاً إن وُجد؛ ثم احفظ إلى Drive عبر brain_save_document عند الحاجة.
-- بحث ويب مجاني: web_search ثم web_fetch. بريد قراءة: mail_* / gmail_*. تقويم الفريق: room_calendar_*.
+- بحث ويب مجاني: web_search ثم web_fetch. بريد الجمعية: mail_search / mail_corpus_search (كل الوارد+المرسل) ثم mail_read؛ للرسالة المفتوحة: mail_draft_reply (مسودة للمراجعة ثم mail_send أو إرسال من الواجهة). بريد Google الشخصي: gmail_*. تقويم الفريق: room_calendar_*.
 - عند إرفاق ملف أو ذكر fileId أو طلب «عدّل / غيّر / صحّح / استبدل» — نفّذ الأدوات فوراً وأعد نسخة قابلة للتنزيل. ممنوع الاكتفاء بوصف التعديل دون ملف.
 - حلقة العمل الإلزامية للملفات:
   1) Word موجود: read_document → edit_document(replacements=[{find,replace}]) للحفاظ على التنسيق/الصور، أو templateData لـ {placeholders}. إعادة بناء كاملة فقط عند الحاجة: body/paragraphs.
@@ -68,7 +68,7 @@ const MSA_BASE = `أنت وكيل Arabic Buzz للمؤسسات السعودية.
   11) لتيليجرام/بريد: send_file.
 - بحث اللوائح على الويب: web_search ثم web_fetch / ingest_url_to_brain.
 - تقارير أعضاء/حضور: report_room_attendance. بوابات حكومية: browser_rpa. متصفح/سطح مكتب عبر Cua: cua_computer عند اتصال CUA_BRIDGE_URL فقط.
-- بريد Google: gmail_search ثم gmail_read. الإرسال: gmail_send (HITL). جداول: sheets_read / sheets_write (الكتابة HITL).
+- بريد Google: gmail_search ثم gmail_read. الإرسال: gmail_send (HITL). بريد الجمعية: mail_search/mail_corpus_search على كل الرسائل، mail_draft_reply للرسالة المفتوحة (المستخدم يعدّل/يرسل من الواجهة أو mail_send مع HITL). جداول: sheets_read / sheets_write (الكتابة HITL).
 - عند إنتاج مسودة للمستند أو كود طويل للوحة المخرجات، غلّفه بوسم واحد:
   <artifact type="markdown|code|json|diff|html" title="عنوان عربي">المحتوى</artifact>`
 
@@ -105,6 +105,12 @@ type ChatBody = {
     name?: string
     mimeType?: string
   }[]
+  /** Open بريد الجمعية message so agents can mail_read / mail_draft_reply. */
+  uiFocus?: {
+    mailMessageId?: string
+    mailSubject?: string
+    mailFrom?: string
+  }
   /** Power / effort: LOW | MEDIUM | HIGH (legacy MAX → HIGH) */
   effort?: string
   effortLevel?: string
@@ -198,6 +204,24 @@ ${lines.join('\n')}
       ? '\nالصوت المرفق: اعتمد النص المنسوخ في الرسالة كمصدر أساسي للطلب؛ حلّل واستخرج المهام ونفّذها.'
       : ''
   }`
+}
+
+function uiFocusBlock(focus?: {
+  mailMessageId?: string
+  mailSubject?: string
+  mailFrom?: string
+}): string {
+  const id = focus?.mailMessageId?.trim()
+  if (!id) return ''
+  const subject = focus?.mailSubject?.trim() || '—'
+  const from = focus?.mailFrom?.trim() || '—'
+  return `
+
+سياق واجهة بريد الجمعية — الرسالة المفتوحة حالياً:
+• messageId=${id}
+• الموضوع: ${subject}
+• من: ${from}
+إن طلب المستخدم تلخيصاً أو رداً على «هذه الرسالة» / الرسالة المفتوحة: استدعِ mail_draft_reply (أو mail_read ثم المسودة). لا تختلق محتوى. بعد المسودة أخبر المستخدم أنها جاهزة للمراجعة في نافذة الرد أو اعرض draftBody ليعدّل/يرسل.`
 }
 
 export async function POST(req: Request) {
@@ -363,6 +387,8 @@ export async function POST(req: Request) {
       body.scopeMemory
     )
     const attachBlock = attachedFilesBlock(body.attachedFiles)
+    const focusBlock = uiFocusBlock(body.uiFocus)
+    const openMailMessageId = body.uiFocus?.mailMessageId?.trim() || undefined
     const roomAgents = agentsForScope(scopeId)
       .map((a) => `• ${a.nameAr} (@${a.slug})`)
       .join('\n')
@@ -377,6 +403,7 @@ export async function POST(req: Request) {
       agentBlock +
       scopeBlock +
       attachBlock +
+      focusBlock +
       postureBlock +
       (roomAgents
         ? `\n\nوكلاء الغرفة المتاحون للإشارة بـ @slug:\n${roomAgents}`
@@ -421,6 +448,7 @@ export async function POST(req: Request) {
               requesterId: auth.user.id,
               scopeId,
               scopeMemory: body.scopeMemory,
+              openMailMessageId,
             }),
             ...(await mcpToolsPromise),
           },

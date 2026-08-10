@@ -26,11 +26,20 @@ export function getNativeAiTools(opts?: {
   requesterId?: string
   scopeId?: string
   scopeMemory?: string[]
+  /** Currently open org-mail message (from UI focus). */
+  openMailMessageId?: string
 }): ToolSet {
   const mode = opts?.mode || parsePosture(process.env.DEFAULT_SECURITY_POSTURE)
   const requesterId = opts?.requesterId || 'engine'
   const scopeId = opts?.scopeId
   const scopeMemory = opts?.scopeMemory
+  const openMailMessageId = opts?.openMailMessageId?.trim() || undefined
+
+  const withMailFocus = (params: Record<string, unknown>) => ({
+    ...params,
+    userId: requesterId,
+    ...(openMailMessageId ? { openMailMessageId } : {}),
+  })
 
   const native: ToolSet = {
     web_search: tool({
@@ -1360,39 +1369,86 @@ export function getNativeAiTools(opts?: {
     }),
     mail_search: tool({
       description:
-        'بحث/قائمة بريد الجمعية عبر IMAP (الأولوية) أو Gmail. استخدم للاستعلامات العربية مثل «غير مقروء» أو كلمات من الموضوع/المرسل. قراءة فقط.',
+        'بحث في كل بريد الجمعية عبر IMAP (وارد + مرسل + نص الرسالة) أو Gmail. استخدم كلمات عربية/إنجليزية أو is:unread. لا يقتصر على الوارد. قراءة فقط.',
       inputSchema: z.object({
         query: z
           .string()
           .optional()
-          .describe('نص بحث عربي/إنجليزي أو is:unread'),
+          .describe('نص بحث عربي/إنجليزي أو is:unread — يبحث في كل المجلدات'),
         unreadOnly: z.boolean().optional().describe('غير المقروء فقط'),
-        maxResults: z.number().optional().describe('حد أقصى 25'),
+        maxResults: z.number().optional().describe('حد أقصى 50 (افتراضي 40)'),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'mail_search',
-          params: { ...params, userId: requesterId },
+          params: withMailFocus(params as Record<string, unknown>),
           mode,
           requesterId,
           scopeId,
           execute: getToolExecutor('mail_search'),
         }),
     }),
+    mail_corpus_search: tool({
+      description:
+        'بحث شامل في كل بريد الجمعية (وارد/مرسل/مرفقات مستخرجة) وملفات الغرفة/المعرفة. أفضل لاستعلامات عامة عبر كل الرسائل.',
+      inputSchema: z.object({
+        query: z.string().describe('كلمة أو عبارة للبحث في كل البريد'),
+        maxResults: z.number().optional().describe('حد أقصى 60'),
+        includeFiles: z
+          .boolean()
+          .optional()
+          .describe('تضمين ملفات الغرفة والمعرفة (افتراضي true)'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_corpus_search',
+          params: withMailFocus(params as Record<string, unknown>),
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_corpus_search'),
+        }),
+    }),
     mail_read: tool({
       description:
-        'قراءة نص رسالة كاملة (IMAP محلي أو Gmail) بالمعرّف من mail_search/gmail_search. يدعم العربية والإنجليزية.',
+        'قراءة نص رسالة كاملة (IMAP أو Gmail). مرّر messageId من البحث، أو اتركه إن كانت رسالة مفتوحة في واجهة بريد الجمعية.',
       inputSchema: z.object({
-        messageId: z.string().describe('معرّف الرسالة'),
+        messageId: z
+          .string()
+          .optional()
+          .describe('معرّف الرسالة — اختياري إن فُتحت رسالة في الواجهة'),
       }),
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'mail_read',
-          params: { ...params, userId: requesterId },
+          params: withMailFocus(params as Record<string, unknown>),
           mode,
           requesterId,
           scopeId,
           execute: getToolExecutor('mail_read'),
+        }),
+    }),
+    mail_draft_reply: tool({
+      description:
+        'اقرأ الرسالة المفتوحة (أو messageId) وجهّز مسودة رد كاملة + ملخص. المستخدم يراجع/يعدّل في بريد الجمعية ثم يرسل، أو يرسل كما هي. لا ترسل البريد من هذه الأداة.',
+      inputSchema: z.object({
+        messageId: z
+          .string()
+          .optional()
+          .describe('معرّف الرسالة — اختياري إن فُتحت في الواجهة'),
+        force: z
+          .boolean()
+          .optional()
+          .describe('أعد توليد المسودة حتى لو وُجد تحليل محفوظ'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'mail_draft_reply',
+          params: withMailFocus(params as Record<string, unknown>),
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('mail_draft_reply'),
         }),
     }),
     mail_send: tool({
@@ -1414,7 +1470,7 @@ export function getNativeAiTools(opts?: {
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'mail_send',
-          params: { ...params, userId: requesterId },
+          params: withMailFocus(params as Record<string, unknown>),
           mode,
           requesterId,
           scopeId,
@@ -1428,7 +1484,7 @@ export function getNativeAiTools(opts?: {
       execute: async (params) =>
         interceptToolExecution({
           toolName: 'mail_sync',
-          params: { ...params, userId: requesterId },
+          params: withMailFocus(params as Record<string, unknown>),
           mode,
           requesterId,
           scopeId,

@@ -12,6 +12,7 @@ import type { ThreadItem } from '@/components/chat-thread-bar'
 import { stripArtifactTags, createArtifactStreamParser } from '@/lib/agents/canvas-stream'
 import { useCanvasStore } from '@/lib/canvas/store'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
+import { readOrgMailFocus } from '@/lib/ui/org-mail-focus'
 import { cn } from '@/lib/utils'
 
 const LTR_CODE_CLASS =
@@ -144,6 +145,15 @@ export function ChatCanvas({
           prompt,
           modelId: selectedModel,
           effortLevel: effort,
+          uiFocus: (() => {
+            const focus = readOrgMailFocus()
+            if (!focus?.messageId) return undefined
+            return {
+              mailMessageId: focus.messageId,
+              mailSubject: focus.subject,
+              mailFrom: focus.from,
+            }
+          })(),
         }),
       })
 

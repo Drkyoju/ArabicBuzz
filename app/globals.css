@@ -36,6 +36,8 @@
   --ab-sidebar-width: 15.5rem;
   /* Room / workspace text zoom (90%–140%); set via FontScalePicker */
   --ab-font-scale: 1;
+  /* Org mail reading/reply zoom — independent of room chat */
+  --ab-mail-font-scale: 1;
 }
 
 body {
@@ -338,6 +340,19 @@ time,
   .ab-room-feed {
     /* Base ~15px at 100% scale (was ~13px); zoom via --ab-font-scale */
     font-size: calc(0.9375rem * var(--ab-font-scale, 1));
+  }
+  /* بريد الجمعية — reading + reply scale (independent of chat) */
+  .ab-mail-zoomable {
+    font-size: calc(0.875rem * var(--ab-mail-font-scale, 1));
+  }
+  .ab-mail-zoomable h3 {
+    font-size: 1.15em;
+  }
+  .ab-mail-zoomable .ProseMirror,
+  .ab-mail-zoomable pre,
+  .ab-mail-zoomable textarea,
+  .ab-mail-zoomable input {
+    font-size: 1em;
   }
   .ab-room-post-author {
     font-size: 1em;

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   ArrowRight,
   Check,
@@ -25,6 +25,16 @@ import { authHeaders } from '@/lib/supabase/browser'
 import { ORG_REPLY_TEMPLATES } from '@/lib/email/org-reply-templates'
 import { plainTextToMailHtml } from '@/lib/email/mail-html'
 import { MailRichComposer } from '@/components/mail-rich-composer'
+import { FontScalePicker } from '@/components/font-scale-picker'
+import {
+  MAIL_FONT_SCALE_CSS_VAR,
+  MAIL_FONT_SCALE_STORAGE_KEY,
+} from '@/lib/ui/font-scale'
+import {
+  ORG_MAIL_DRAFT_EVENT,
+  type OrgMailDraftEventDetail,
+  writeOrgMailFocus,
+} from '@/lib/ui/org-mail-focus'
 
 type MailboxPublic = {
   id: string
@@ -166,9 +176,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const [composeSubject, setComposeSubject] = useState('')
   const [composeText, setComposeText] = useState('')
   const [composeHtml, setComposeHtml] = useState('')
+  const [mailFontScale, setMailFontScale] = useState(1)
 
   const readingRef = useRef<HTMLDivElement>(null)
   const replyRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
 
   const loadSettings = useCallback(async () => {
     const headers = await authHeaders()
@@ -257,6 +269,62 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Agent draft from room chat → fill reply composer for the open message.
+  useEffect(() => {
+    const onDraft = (e: Event) => {
+      const detail = (e as CustomEvent<OrgMailDraftEventDetail>).detail
+      if (!detail?.messageId || !detail.draftBody) return
+      const fill = () => {
+        setReplySubject(
+          detail.draftSubject ||
+            (detail.messageId ? `Re: ${detail.messageId}` : '')
+        )
+        setReplyBody(detail.draftBody)
+        setDraftAccepted(true)
+        setAiMode('draft')
+        if (detail.summaryAr) {
+          const summaryAr = detail.summaryAr
+          setIntel((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  summaryAr,
+                  draftSubject: detail.draftSubject || prev.draftSubject,
+                  draftBody: detail.draftBody,
+                }
+              : {
+                  summaryAr,
+                  draftSubject: detail.draftSubject || '',
+                  draftBody: detail.draftBody,
+                  extract: { dates: [], times: [], names: [], important: [] },
+                  analyzedAt: new Date().toISOString(),
+                }
+          )
+        }
+        setOkMsg(
+          'مسودة الوكيل جاهزة في صندوق الرد — راجعها وعدّلها ثم أرسل، أو أرسل كما هي.'
+        )
+        requestAnimationFrame(() =>
+          replyRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+          })
+        )
+      }
+      if (selected?.id === detail.messageId) {
+        fill()
+        return
+      }
+      void openMessage(detail.messageId).then(() => {
+        // openMessage clears reply; re-apply after load.
+        fill()
+      })
+    }
+    window.addEventListener(ORG_MAIL_DRAFT_EVENT, onDraft)
+    return () => window.removeEventListener(ORG_MAIL_DRAFT_EVENT, onDraft)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id])
 
   useEffect(() => {
     if (!configured) return
@@ -635,6 +703,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           ? m.subject
           : `Re: ${m.subject || ''}`
       )
+      writeOrgMailFocus({
+        messageId: m.id,
+        subject: m.subject || '',
+        from: m.from || '',
+      })
       await loadMessages()
       void loadRelated(id)
       requestAnimationFrame(() => {
@@ -643,6 +716,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطأ')
       setSelected(null)
+      writeOrgMailFocus(null)
     } finally {
       setBusy('')
     }
@@ -751,6 +825,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
     setIntel(null)
     setDelivery(null)
     setComposing(false)
+    writeOrgMailFocus(null)
   }
 
   async function sendCompose() {
@@ -798,7 +873,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
   const showListOnMobile = !selected && !composing
 
   return (
-    <section className="ab-page" dir="rtl">
+    <section
+      ref={panelRef}
+      className="ab-page ab-mail-panel"
+      dir="rtl"
+      style={
+        {
+          [MAIL_FONT_SCALE_CSS_VAR]: String(mailFontScale),
+        } as CSSProperties
+      }
+    >
       <header className="ab-page-head">
         <div className="min-w-0">
           <h2 className="ab-title flex items-center gap-2">
@@ -813,10 +897,21 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
           <p className="ab-subtitle">
             اختر: لخّص أو اكتب رداً — المسودة تظهر في صندوق الرد للمراجعة قبل
             الإرسال، مع خيار «أرسل فوراً». ابحث في كل الوارد والمرسل والمرفقات
-            والملفات.
+            والملفات. الوكلاء يقرؤون كل البريد ويمكنهم كتابة رد للرسالة المفتوحة.
           </p>
         </div>
         <div className="ab-page-head-actions">
+          <FontScalePicker
+            compact
+            storageKey={MAIL_FONT_SCALE_STORAGE_KEY}
+            cssVar={MAIL_FONT_SCALE_CSS_VAR}
+            applyToDocument={false}
+            onScaleChange={setMailFontScale}
+            labelAr="حجم النص"
+            helpTextAr="كبّر أو صغّر نص قراءة البريد وصندوق الرد (أ+ / أ−) — مستقل عن حجم خط الدردشة."
+            ariaLabelAr="حجم نص بريد الجمعية"
+            className="shrink-0"
+          />
           {configured && (
             <button
               type="button"
@@ -824,6 +919,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                 setComposing(true)
                 setSelected(null)
                 setIntel(null)
+                writeOrgMailFocus(null)
               }}
               className="ab-btn-secondary"
             >
@@ -1220,7 +1316,7 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
         <div
           ref={readingRef}
           id="org-mail-reading"
-          className={`min-h-[16rem] space-y-3 rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto ${
+          className={`ab-mail-zoomable min-h-[16rem] space-y-3 rounded-xl border border-ab-border bg-white p-4 shadow-ab-sm md:sticky md:top-3 md:max-h-[calc(100dvh-7rem)] md:overflow-y-auto ${
             selected || composing ? '' : 'hidden md:block'
           }`}
         >

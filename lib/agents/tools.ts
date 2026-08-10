@@ -16,6 +16,8 @@ import {
   executeSheetsWrite,
 } from '@/lib/agents/tools/workspace-google-tools'
 import {
+  executeMailCorpusSearch,
+  executeMailDraftReply,
   executeMailRead,
   executeMailSearch,
   executeMailSend,
@@ -312,7 +314,9 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   gmail_read: executeGmailRead,
   gmail_send: executeGmailSend,
   mail_search: executeMailSearch,
+  mail_corpus_search: executeMailCorpusSearch,
   mail_read: executeMailRead,
+  mail_draft_reply: executeMailDraftReply,
   mail_send: executeMailSend,
   mail_sync: executeMailSync,
   sheets_read: executeSheetsRead,

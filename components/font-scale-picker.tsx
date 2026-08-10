@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { HelpTip } from '@/components/help-tip'
 import {
+  FONT_SCALE_CSS_VAR,
   FONT_SCALE_DEFAULT,
   FONT_SCALE_MAX,
   FONT_SCALE_MIN,
   FONT_SCALE_STEP,
+  FONT_SCALE_STORAGE_KEY,
   applyFontScale,
   fontScalePercentLabel,
   persistFontScale,
@@ -17,26 +19,49 @@ import { cn } from '@/lib/utils'
 /**
  * Font size zoom (حجم الخط) — A− / A+.
  * Distinct from EffortPicker القوة (منخفضة…عالية).
+ * Pass storageKey/cssVar to scope zoom (e.g. mail vs room chat).
  */
 export function FontScalePicker({
   compact,
   className,
+  storageKey = FONT_SCALE_STORAGE_KEY,
+  cssVar = FONT_SCALE_CSS_VAR,
+  applyToDocument = true,
+  labelAr = 'حجم الخط',
+  helpTextAr = 'كبّر أو صغّر نص الدردشة من أ+ / أ− — يُحفظ اختيارك تلقائياً.',
+  ariaLabelAr = 'حجم خط الدردشة',
+  onScaleChange,
 }: {
   compact?: boolean
   className?: string
+  storageKey?: string
+  cssVar?: string
+  /** When false, only notifies via onScaleChange (caller sets CSS var on a panel). */
+  applyToDocument?: boolean
+  labelAr?: string
+  helpTextAr?: string
+  ariaLabelAr?: string
+  onScaleChange?: (scale: number) => void
 }) {
   const [scale, setScale] = useState(FONT_SCALE_DEFAULT)
 
   useEffect(() => {
-    const saved = readStoredFontScale()
+    const saved = readStoredFontScale(storageKey)
     setScale(saved)
-    applyFontScale(saved)
-  }, [])
+    if (applyToDocument) {
+      applyFontScale(saved, { cssVar })
+    }
+    onScaleChange?.(saved)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per key
+  }, [storageKey, cssVar, applyToDocument])
 
   const commit = (next: number) => {
-    const clamped = applyFontScale(next)
+    const clamped = applyToDocument
+      ? applyFontScale(next, { cssVar })
+      : clampOnly(next)
     setScale(clamped)
-    persistFontScale(clamped)
+    persistFontScale(clamped, storageKey)
+    onScaleChange?.(clamped)
   }
 
   const canMinus = scale > FONT_SCALE_MIN + 0.001
@@ -50,14 +75,14 @@ export function FontScalePicker({
       )}
     >
       <span className="ab-toolbar-label">
-        حجم الخط
-        <HelpTip textAr="كبّر أو صغّر نص الدردشة من أ+ / أ− — يُحفظ اختيارك تلقائياً." />
+        {labelAr}
+        <HelpTip textAr={helpTextAr} />
       </span>
       <div
         role="group"
-        aria-label="حجم خط الدردشة"
+        aria-label={ariaLabelAr}
         className="ab-seg"
-        title="كبّر أو صغّر نص الدردشة من أ+ / أ−"
+        title={helpTextAr}
       >
         <button
           type="button"
@@ -102,7 +127,9 @@ export function FontScalePicker({
             onClick={() => commit(FONT_SCALE_DEFAULT)}
             className={cn(
               'ab-seg-item text-ab-muted',
-              compact ? 'px-1.5 py-1 text-[9px] sm:text-[10px]' : 'px-1.5 py-1 text-[10px]'
+              compact
+                ? 'px-1.5 py-1 text-[9px] sm:text-[10px]'
+                : 'px-1.5 py-1 text-[10px]'
             )}
           >
             ١٠٠٪
@@ -111,6 +138,10 @@ export function FontScalePicker({
       </div>
     </div>
   )
+}
+
+function clampOnly(n: number): number {
+  return applyFontScale(n, { el: null })
 }
 
 /** Hydrate --ab-font-scale early (call once from workspace shell). */

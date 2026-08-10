@@ -36,6 +36,10 @@ import {
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
 import { mapChatErrorAr } from '@/lib/ai/user-error-ar'
 import {
+  dispatchOrgMailDraft,
+  readOrgMailFocus,
+} from '@/lib/ui/org-mail-focus'
+import {
   createBrowserSupabaseClient,
   getBrowserSession,
   isSupabaseConfigured,
@@ -982,6 +986,15 @@ export function RoomWorkspace({ className }: { className?: string }) {
             mimeType: f.mimeType,
           })),
           autoAdapt: false,
+          uiFocus: (() => {
+            const focus = readOrgMailFocus()
+            if (!focus?.messageId) return undefined
+            return {
+              mailMessageId: focus.messageId,
+              mailSubject: focus.subject,
+              mailFrom: focus.from,
+            }
+          })(),
         }),
       })
     } catch (e) {
@@ -1111,6 +1124,23 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 if (!citations.some((x) => x.labelAr === c.labelAr)) {
                   citations.push(c)
                 }
+              }
+              // Agent drafted an org-mail reply — fill the mail UI composer.
+              if (
+                typeof nested.draftBody === 'string' &&
+                nested.draftBody.trim() &&
+                typeof nested.messageId === 'string' &&
+                nested.messageId.trim()
+              ) {
+                dispatchOrgMailDraft({
+                  messageId: nested.messageId,
+                  draftSubject: String(nested.draftSubject || ''),
+                  draftBody: nested.draftBody,
+                  summaryAr:
+                    typeof nested.summaryAr === 'string'
+                      ? nested.summaryAr
+                      : undefined,
+                })
               }
               const attachList = (nested.attachments || out.attachments) as
                 | RoomFileAttachment[]
