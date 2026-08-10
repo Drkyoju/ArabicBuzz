@@ -125,7 +125,7 @@ Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the
 | What | Travels with Nous login? | Where it lives |
 |------|--------------------------|----------------|
 | Inference / Portal auth | **Yes** — `hermes portal login` on each machine | `auth.json` (per machine after login) |
-| Official **Skill Sync** (`hermes sync push/pull/now`) | **Not yet** — needs Nous `nous_admin` entitlement | Cloud plane when Nous opens the gate |
+| Official **Skill Sync** (`hermes sync push/pull/now`) | **Not yet** — needs Nous portal **admin** JWT claim `tool_gateway_admin` (CLI: `nous_admin`); paid plans do **not** unlock it | Cloud plane when Nous opens the gate |
 | Local skills (`wa-archive`, `wa-file-read`, `waqf-drive`, `ar-help`, `wa-tools`, …) | Opted-in locally; cloud push locked until GA | `~/.hermes/skills/local/` |
 | `SOUL.md`, `config.yaml` MCP list | **No** (SOUL not in official Skill Sync) | portable pack / `~/.hermes/` |
 | Google Drive OAuth | **No** — re-auth on each machine | `google_token.json` (never git) |
@@ -133,7 +133,7 @@ Note: prefer **npx** MCP servers on Monterey; `uvx` Python MCP wrappers need the
 
 **Ready on this Mac:** `sync.enabled: true` in `config.yaml`, device `Mac-WA-gateway`, all local skills `hermes sync enable`’d. Arabic runbook: [hermes-skills-cloud-sync-ar.md](./hermes-skills-cloud-sync-ar.md).
 
-**Official Skill Sync status (checked 2026-08-10):** `logged_in: true`, `feature_enabled: true` (local), **`nous_admin: false`** → cloud push/pull still locked. Use portable pack until Nous opens the gate.
+**Official Skill Sync status (checked 2026-08-10):** `logged_in: true`, `feature_enabled: true` (local), **`nous_admin: false`** (`tool_gateway_admin` in JWT) → cloud push/pull still locked by Nous pre-launch admin gate. Use portable pack v2 until Nous ships a real sync entitlement.
 
 **أمر واحد لما يفتح نووس (أو لتحديث البديل المحمول):**
 
@@ -151,9 +151,12 @@ npm run hermes:skills:pack
 # Do NOT commit the .tgz. Copy via encrypted USB / private channel only.
 ```
 
-**On PC2 (ثلاث أوامر):**
+**On PC2 (أمر واحد / أو مع ArabicBuzz):**
 
 ```bash
+# standalone:
+bash -c 'tar -xzf hermes-skills-portable-….tgz && bash hermes-skills-portable/RESTORE.sh hermes-skills-portable-….tgz'
+# full (MCP auto-merge + bin wrappers):
 hermes portal login
 cd /path/to/ArabicBuzz
 npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz

@@ -69,6 +69,18 @@ print(raw[start : end + 1])
 ' 2>/dev/null || true
 }
 
+# Explain the Nous gate without printing tokens.
+explain_nous_gate() {
+  cat <<'EOF'
+سبب القفل (من نووس — مو منّا):
+  Skill Sync ما زال pre-launch. العميل يقرأ JWT claim اسمه
+  tool_gateway_admin (= Permissions.ADMIN_ACCESS في بوابة نووس).
+  CLI يسمّيه nous_admin. ما في زر في portal ولا باقة مدفوعة تفتحه —
+  فتحه = صلاحية أدمن بوابة نووس، مو اشتراك Plus/Super/Ultra.
+  الاشتراك يعطي credits + Hosted tool usage، مو Skill Sync.
+EOF
+}
+
 prepare_local_cloud_opt_in() {
   require_hermes_cli
   # Device label for the sync console (idempotent; quiet).
@@ -125,8 +137,9 @@ cmd_status() {
     echo "  device: ${device:-unknown}"
     hermes sync status 2>/dev/null | head -60 || true
     echo
-    echo "بوابة الحساب: يحتاج nous_admin=true من نووس. المفتاح المحلي sync.enabled يعدّ feature_enabled."
-    echo "أمر واحد لما يفتح: npm run hermes:skills:sync-cloud"
+    explain_nous_gate
+    echo
+    echo "محلياً جاهز: sync.enabled → feature_enabled. أمر واحد لما يفتح: npm run hermes:skills:sync-cloud"
   else
     echo "  hermes CLI not found (install Hermes / check $HERMES_HOME/hermes-agent/venv/bin)"
   fi
@@ -192,18 +205,20 @@ cmd_cloud() {
   fi
 
   echo "🔒 المزامنة السحابية ما زالت مقفلة من نووس (nous_admin=false)."
+  explain_nous_gate
+  echo
   echo "التحضير المحلي جاهز: device + sync.enabled + مهارات محلية معلّمة."
   echo "تحديث الحزمة المحمولة (بديل حتى يفتح نووس)…"
   cmd_pack
   echo
   echo "────────────────────────────────────────"
+  echo "جهاز ثانٍ الآن (بدون سحابة):"
+  echo "  npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz"
+  echo "  # أو من داخل الأرشيف: tar -xzf ….tgz && bash hermes-skills-portable/RESTORE.sh ….tgz"
+  echo
   echo "لما يفتح Nous Skill Sync — أمر واحد:"
   echo "  npm run hermes:skills:sync-cloud"
-  echo
-  echo "أو مباشرة:"
-  echo "  hermes sync now"
   echo "────────────────────────────────────────"
-  echo "لا تشغّل كرون مزعج — أعد الأمر يدوياً بعد إعلان نووس / عند تغيير المهارات."
   # Locked-but-prepared is success for operators; status is clear above.
   exit 0
 }
@@ -419,12 +434,13 @@ PY
   # Manifest
   cat >"$bundle/meta/MANIFEST.json" <<EOF
 {
-  "format": "arabicbuzz-hermes-skills-portable/v1",
+  "format": "arabicbuzz-hermes-skills-portable/v2",
   "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "source_host": "$(hostname -s 2>/dev/null || hostname)",
   "hermes_home_note": "~/.hermes (machine-local secrets excluded)",
   "excludes": [".env", "auth.json", "google_token.json", "google_client_secret.json", "platforms/whatsapp", "session", "*.pem"],
   "arabicbuzz_placeholder": "$PLACEHOLDER",
+  "includes": ["skills/local", "SOUL.md", "meta/mcp_servers.yaml+json", "meta/skills-snapshot.json", "RESTORE.sh", "bin-wrappers"],
   "local_skills": $(find "$bundle/skills/local" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))'),
   "companion_scripts": [
     "scripts/hermes-wa-drive-archive.sh",
@@ -434,11 +450,14 @@ PY
     "scripts/hermes-pdf-dup.sh",
     "scripts/hermes-drive-setup.sh",
     "scripts/hermes-tools-status.sh",
-    "scripts/hermes-wa-prepare-dedicated.sh"
+    "scripts/hermes-wa-prepare-dedicated.sh",
+    "scripts/hermes-skills-sync.sh"
   ],
+  "cloud_sync_gate": "nous_admin ← JWT tool_gateway_admin ← Permissions.ADMIN_ACCESS (Nous portal admin; not a paid-plan toggle)",
   "restore_notes": [
+    "One command: bash hermes-skills-portable/RESTORE.sh /path/to/archive.tgz",
+    "Or: npm run hermes:skills:restore -- /path/to/archive.tgz",
     "hermes portal login (same Nous account)",
-    "npm run hermes:skills:restore -- /path/to/archive.tgz",
     "clone ArabicBuzz and set ARABICBUZZ_ROOT if needed",
     "Drive OAuth: hermes-drive-setup.sh --from-arabicbuzz",
     "WA Baileys session is NOT transferred — keep gateway on always-on Mac or re-link"
@@ -446,18 +465,111 @@ PY
 }
 EOF
 
+  cat >"$bundle/RESTORE.sh" <<'EOF'
+#!/usr/bin/env bash
+# One-command restore from this portable pack (secret-free).
+# Usage:
+#   bash hermes-skills-portable/RESTORE.sh /path/to/hermes-skills-portable-….tgz
+#   # or, after extracting:
+#   bash ./RESTORE.sh
+#
+# Prefers ArabicBuzz scripts/hermes-skills-sync.sh when the repo is present;
+# otherwise restores skills + SOUL + MCP list directly into ~/.hermes.
+set -euo pipefail
+
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ARCHIVE="${1:-}"
+
+die() { echo "error: $*" >&2; exit 1; }
+
+find_repo_script() {
+  local cand
+  for cand in \
+    "${ARABICBUZZ_ROOT:-}/scripts/hermes-skills-sync.sh" \
+    "$HOME/Desktop/ArabicBuzz/scripts/hermes-skills-sync.sh" \
+    "$HOME/ArabicBuzz/scripts/hermes-skills-sync.sh"
+  do
+    [[ -n "$cand" && -f "$cand" ]] && { echo "$cand"; return 0; }
+  done
+  return 1
+}
+
+# If caller passed the .tgz, extract to temp and re-exec from inside.
+if [[ -n "$ARCHIVE" ]]; then
+  [[ -f "$ARCHIVE" ]] || die "archive not found: $ARCHIVE"
+  stage="$(mktemp -d "${TMPDIR:-/tmp}/hermes-portable-restore.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap 'rm -rf "'"$stage"'"' EXIT
+  tar -C "$stage" -xzf "$ARCHIVE"
+  [[ -d "$stage/hermes-skills-portable" ]] || die "bad archive layout"
+  # Prefer repo script with the archive path (full restore + bin wrappers).
+  if script="$(find_repo_script)"; then
+    exec bash "$script" restore "$ARCHIVE"
+  fi
+  # Fallback: copy from extracted tree
+  HERE="$stage/hermes-skills-portable"
+fi
+
+if script="$(find_repo_script)"; then
+  # Re-pack? No — if we're already extracted, call restore via a temp tgz
+  # so the main script's checksum/safety path stays canonical when possible.
+  if [[ -n "${ARCHIVE:-}" && -f "${ARCHIVE:-}" ]]; then
+    exec bash "$script" restore "$ARCHIVE"
+  fi
+fi
+
+echo "=== Portable restore (standalone) → $HERMES_HOME ==="
+mkdir -p "$HERMES_HOME/skills/local" "$HERMES_HOME/bin"
+if [[ -d "$HERE/skills/local" ]]; then
+  cp -R "$HERE/skills/local/." "$HERMES_HOME/skills/local/"
+  echo "Restored skills → $HERMES_HOME/skills/local/"
+fi
+if [[ -f "$HERE/SOUL.md" ]]; then
+  if [[ -f "$HERMES_HOME/SOUL.md" ]]; then
+    cp "$HERMES_HOME/SOUL.md" "$HERMES_HOME/SOUL.md.bak-before-portable-$(date +%Y%m%d-%H%M%S)"
+  fi
+  cp "$HERE/SOUL.md" "$HERMES_HOME/SOUL.md"
+  echo "Restored SOUL.md"
+fi
+if [[ -f "$HERE/meta/mcp_servers.yaml" ]]; then
+  cp "$HERE/meta/mcp_servers.yaml" "$HERMES_HOME/mcp_servers.portable.yaml"
+  [[ -f "$HERE/meta/mcp_servers.json" ]] && cp "$HERE/meta/mcp_servers.json" "$HERMES_HOME/mcp_servers.portable.json"
+  echo "MCP list → $HERMES_HOME/mcp_servers.portable.yaml"
+  echo "  (clone ArabicBuzz + npm run hermes:skills:restore for auto-merge into config.yaml)"
+fi
+if [[ -f "$HERE/meta/skills-snapshot.json" ]]; then
+  cp "$HERE/meta/skills-snapshot.json" "$HERMES_HOME/skills-snapshot.portable.json"
+  echo "Hub snapshot → $HERMES_HOME/skills-snapshot.portable.json"
+  echo "  reinstall: hermes skills snapshot import $HERMES_HOME/skills-snapshot.portable.json"
+fi
+echo
+echo "Done (standalone). Next:"
+echo "  hermes portal login"
+echo "  clone ArabicBuzz → npm run hermes:skills:restore -- <this.tgz>   # full merge + bin wrappers"
+echo "  ./scripts/hermes-drive-setup.sh --from-arabicbuzz"
+echo "WhatsApp: keep Baileys on always-on Mac — do not copy session."
+EOF
+  chmod 755 "$bundle/RESTORE.sh"
+
   cat >"$bundle/README.md" <<'EOF'
 # Hermes portable skills pack (ArabicBuzz)
 
-Secret-free bundle of local skills + SOUL + MCP server list.
+Secret-free bundle: local skills + SOUL + MCP server list (+ hub snapshot recipe).
 
-## PC2 — أسرع استعادة (ثلاث أوامر)
+## لماذا السحابة مقفلة؟
+
+Skill Sync الرسمي يحتاج صلاحية أدمن بوابة نووس (`tool_gateway_admin` في JWT).
+مو عطل عندنا، ومو باقة مدفوعة — نووس لسا ما فتحوا الميزة للحسابات العادية.
+
+## PC2 — أمر واحد
 
 ```bash
-# على الجهاز الجديد بعد تثبيت Hermes + clone ArabicBuzz:
+# بعد تثبيت Hermes + نسخ الـ .tgz بقناة خاصة:
+bash -c 'tar -xzf hermes-skills-portable-….tgz && bash hermes-skills-portable/RESTORE.sh hermes-skills-portable-….tgz'
+# الأفضل (مع clone ArabicBuzz): دمج MCP + bin wrappers
+cd ~/ArabicBuzz && npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
 hermes portal login
-cd ~/ArabicBuzz   # أو ARABICBUZZ_ROOT
-npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
 ./scripts/hermes-drive-setup.sh --from-arabicbuzz && ./scripts/hermes-drive-setup.sh --probe
 ```
 
@@ -465,8 +577,8 @@ npm run hermes:skills:restore -- /path/to/hermes-skills-portable-….tgz
 
 ## Official cloud Skill Sync
 
-`hermes sync status` → يحتاج `nous_admin: true` من نووس (المفتاح المحلي `sync.enabled` يعدّ `feature_enabled`).  
-لما يفتح: `npm run hermes:skills:sync-cloud` (يجرّب `hermes sync now` ثم يحدّث هذه الحزمة إن بقيت مقفلة).  
+`hermes sync status` → يحتاج `nous_admin: true` (= JWT `tool_gateway_admin`) من نووس.  
+لما يفتح: `npm run hermes:skills:sync-cloud`.  
 SOUL.md ليس جزءاً من Skill Sync الرسمي — هذه الحزمة تحمله.
 
 ## Not included (by design)
@@ -518,19 +630,93 @@ merge_mcp_into_config() {
   local fragment="$1"
   local cfg="$HERMES_HOME/config.yaml"
   [[ -f "$fragment" ]] || return 0
+
+  # Always keep a reviewable copy beside config (no secrets in fragment).
+  cp "$fragment" "$HERMES_HOME/mcp_servers.portable.yaml"
+  if [[ -f "$(dirname "$fragment")/mcp_servers.json" ]]; then
+    cp "$(dirname "$fragment")/mcp_servers.json" "$HERMES_HOME/mcp_servers.portable.json" 2>/dev/null || true
+  fi
+
   if [[ ! -f "$cfg" ]]; then
-    echo "No config.yaml yet — copying MCP fragment aside for manual merge:"
-    cp "$fragment" "$HERMES_HOME/mcp_servers.portable.yaml"
+    echo "No config.yaml yet — MCP fragment saved for manual paste:"
     echo "  → $HERMES_HOME/mcp_servers.portable.yaml"
     return 0
   fi
-  # Non-destructive: write fragment beside config; user/Hermes can merge
-  cp "$fragment" "$HERMES_HOME/mcp_servers.portable.yaml"
-  if [[ -f "${fragment%.yaml}.json" ]] || [[ -f "$(dirname "$fragment")/mcp_servers.json" ]]; then
-    cp "$(dirname "$fragment")/mcp_servers.json" "$HERMES_HOME/mcp_servers.portable.json" 2>/dev/null || true
-  fi
-  echo "MCP fragment saved (not auto-merged — review then paste into config.yaml):"
-  echo "  $HERMES_HOME/mcp_servers.portable.yaml"
+
+  # Auto-merge: append only servers missing from config.yaml.
+  # Never copies env:/token blocks (fragment already redacted).
+  # Never overwrites existing server definitions.
+  python3 - "$cfg" "$fragment" <<'PY'
+import re, sys
+from pathlib import Path
+
+cfg_path, frag_path = Path(sys.argv[1]), Path(sys.argv[2])
+cfg = cfg_path.read_text(encoding="utf-8", errors="replace")
+frag = frag_path.read_text(encoding="utf-8", errors="replace")
+
+def server_blocks(text: str):
+    """Yield (name, block_text) for top-level entries under mcp_servers:."""
+    if "mcp_servers:" not in text:
+        return []
+    body = text.split("mcp_servers:", 1)[1]
+    lines = []
+    for line in body.splitlines():
+        if line and not line[0].isspace() and not line.startswith("#"):
+            if re.match(r"^[A-Za-z0-9_]+:", line):
+                break
+        lines.append(line)
+    blocks = []
+    cur = None
+    buf = []
+    for line in lines:
+        m = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+        if m:
+            if cur is not None:
+                blocks.append((cur, "\n".join(buf).rstrip() + "\n"))
+            cur, buf = m.group(1), [line]
+            continue
+        if cur is not None:
+            buf.append(line)
+    if cur is not None:
+        blocks.append((cur, "\n".join(buf).rstrip() + "\n"))
+    return blocks
+
+existing = {n for n, _ in server_blocks(cfg)}
+missing = [(n, b) for n, b in server_blocks(frag) if n not in existing]
+if not missing:
+    print(f"MCP: all {len(existing)} portable servers already in config.yaml (no changes)")
+    print(f"  review copy: {cfg_path.parent / 'mcp_servers.portable.yaml'}")
+    raise SystemExit(0)
+
+insert = "\n".join(b.rstrip() for _, b in missing) + "\n"
+# Prefer inserting just before the next top-level key after mcp_servers
+if "mcp_servers:" not in cfg:
+    cfg = cfg.rstrip() + "\n\nmcp_servers:\n" + insert
+else:
+    head, rest = cfg.split("mcp_servers:", 1)
+    # Find end of mcp_servers block (next non-indented key)
+    rest_lines = rest.splitlines(keepends=True)
+    end_idx = len(rest_lines)
+    for i, line in enumerate(rest_lines):
+        if i == 0:
+            continue  # first line may be blank after "mcp_servers:"
+        if line and not line[0].isspace() and not line.startswith("#") and re.match(r"^[A-Za-z0-9_]+:", line):
+            end_idx = i
+            break
+    before = "".join(rest_lines[:end_idx]).rstrip() + "\n"
+    after = "".join(rest_lines[end_idx:])
+    cfg = head + "mcp_servers:" + before + insert + after
+
+bak = cfg_path.with_suffix(cfg_path.suffix + f".bak-before-mcp-merge")
+if not bak.exists():
+    bak.write_text(cfg_path.read_text(encoding="utf-8"), encoding="utf-8")
+cfg_path.write_text(cfg, encoding="utf-8")
+names = ", ".join(n for n, _ in missing)
+print(f"MCP: merged {len(missing)} missing server(s) into config.yaml: {names}")
+print(f"  backup: {bak.name}")
+print(f"  review copy: mcp_servers.portable.yaml")
+print("  note: env/secrets for MCP are NOT in the pack — add keys on this machine if needed")
+PY
 }
 
 cmd_restore() {
