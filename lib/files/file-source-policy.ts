@@ -1,25 +1,37 @@
 /**
  * HARD RULE — file sources for agents (Telegram + website room):
- * 1) Telegram attachment in this conversation
- * 2) Website غرفة الفريق / room vault
- * 3) Google Drive «عقل الشركة» — only files already in the linked brain folder
  *
- * FORBIDDEN: external files, fuzzy/partial name substitutes, web downloads as
- * stand-ins, inventing nearest-similar Drive docs the user did not send/upload.
+ * Golden rule: a brand-new attachment in THIS message is the working copy —
+ * execute (edit/summarize/convert/derive) and return_file. Never require Drive,
+ * room history, or a prior sighting.
+ *
+ * Search order only when NO attachment is in the turn:
+ * 1) Telegram mirror / recent TG media
+ * 2) Website غرفة الفريق / room vault
+ * 3) Google Drive «عقل الشركة»
+ * 4) Mac bridge
+ *
+ * FORBIDDEN: «مو بالدرايف», «ما أعرف وين», resend spam, hanging, external files,
+ * fuzzy substitutes, inventing nearest-similar Drive docs.
  *
  * When a Telegram attachment lock is active: ONLY that fileId (and derivatives
- * created in the same turn) may be used. Missing bytes → Arabic failure, never
- * pick another file.
+ * created in the same turn) may be used. Missing bytes → mesh resume, never
+ * pick another file by fuzzy name.
  */
 import { AsyncLocalStorage } from 'node:async_hooks'
 
+/** One-liner injected into cascade / system / short-intent. */
+export const TELEGRAM_FILE_GOLDEN_RULE_AR =
+  'قاعدة ذهبية: مرفق جديد في الرسالة = نسخة العمل فوراً. نفّذ المطلوب (تعديل/تلخيص/تحويل/إنشاء مشتق) وأرجع الملف أو النتيجة بـ return_file. لا تشترط Drive ولا غرفة ولا تاريخ سابق. ممنوع «مو بالدرايف» / «ما أعرف وين» / «أعد الإرسال» / الصمت.'
+
 export const FILE_SOURCE_POLICY_AR = [
-  'قاعدة الملفات الصارمة — ابحث بهذا الترتيب قبل أي رد:',
-  '1) عقل الشركة (Google Drive) كأرشيف أساسي، ثم',
-  '2) مرآة مرفقات مجموعة تيليجرام، ثم',
-  '3) ملفات غرفة الفريق على الموقع، ثم',
+  TELEGRAM_FILE_GOLDEN_RULE_AR,
+  'إن لم يوجد مرفق في هذه الرسالة — ابحث بهذا الترتيب:',
+  '1) مرآة مرفقات تيليجرام / ذاكرة حيّة، ثم',
+  '2) ملفات غرفة الفريق على الموقع، ثم',
+  '3) عقل الشركة (Google Drive)، ثم',
   '4) جسر الماك إن وُجد.',
-  'ممنوع طلب إعادة الإرسال إن وُجدت أي نسخة. ممنوع: ملف خارجي، تطابق تقريبي، أو دليل أحياء بدل «المعلم الأول» (السيرة).',
+  'ممنوع طلب إعادة الإرسال إن وُجدت أي بايتات. ممنوع: ملف خارجي، تطابق تقريبي، أو دليل أحياء بدل «المعلم الأول» (السيرة).',
 ].join(' ')
 
 export type FileSourceLock = {
@@ -198,10 +210,31 @@ export function formatFileSourceLockHint(lock: {
   if (!lock.lockedTelegramFileIds.length) return ''
   const name = lock.lockedNames?.[0]
   return [
-    '[قفل مرفق تيليجرام — إلزامي]',
+    '[قفل مرفق تيليجرام — إلزامي — حتى لو أول مرة ولم يُرَ في Drive]',
+    TELEGRAM_FILE_GOLDEN_RULE_AR,
     FILE_SOURCE_POLICY_AR,
     `الملف الوحيد المسموح كمصدر: ${name ? `«${name}» ` : ''}fileId=${lock.lockedTelegramFileIds[0]}.`,
-    'ممنوع brain_open_document / drive_search_files / أي تطابق تقريبي بالاسم («معلم» إلخ).',
-    'إن فشل قراءة هذا fileId: أوقف واعتذر بالعربية — لا تختار ملفاً آخر.',
+    'ممنوع brain_open_document / drive_search_files / اشتراط الوجود في Drive أو الغرفة.',
+    'إن تعذّرت البايتات: find_storage_mesh ثم استأنف — ممنوع «أعد الإرسال» إن وُجدت أي نسخة؛ ممنوع اختيار ملف آخر بالتشابه.',
   ].join('\n')
+}
+
+/** Dumb refusals the bot must never ship (Drive-only / lost / resend spam). */
+export function looksLikeDumbFileRefusalAr(text: string): boolean {
+  const t = String(text || '').trim()
+  if (!t || t.length > 900) return false
+  const refusal =
+    /(?:مو\s*(?:بال)?درايف|مو\s*موجود\s*(?:في\s*)?(?:ال)?درايف|غير\s*موجود\s*(?:في\s*)?(?:ال)?درايف|لازم\s*(?:يكون\s*)?(?:على|في)\s*(?:ال)?درايف|فقط\s*(?:إن|إذا)\s*(?:كان\s*)?(?:على|في)\s*(?:ال)?درايف|ما\s*أعرف\s*وين|ما\s*عرفت\s*وين|وين\s*(?:الملف|هو)\s*\?|أعد\s*(?:الإرسال|ارساله|إرسال)|أرسله\s*مرة\s*أخرى|ارفعه\s*(?:إلى|على)\s*(?:ال)?درايف\s*أولا|not\s*(?:on|in)\s*drive|resend\s*(?:the\s*)?file)/iu.test(
+      t
+    )
+  if (!refusal) return false
+  // Success deliveries are never refusals even if they mention Drive.
+  if (
+    /(?:تم\s*(?:ال|)|أُنشئ|أنشأت|أضفت|وجدت|return_file|webViewLink|أُرسل|ارسلت)/iu.test(
+      t
+    )
+  ) {
+    return false
+  }
+  return true
 }

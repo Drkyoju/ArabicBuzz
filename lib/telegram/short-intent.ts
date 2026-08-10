@@ -2,7 +2,15 @@
  * Pure short-intent parsing for @alhuda14bot.
  * Goal: execute Arabic shortcuts immediately with terse nudges — no over-explaining.
  * Hermes WhatsApp stays separate (no WA coupling here).
+ *
+ * Golden rule: brand-new TG attachment in the message = working copy → edit/summarize/
+ * convert → return_file. Never require Drive/room/history.
  */
+
+import {
+  looksLikeDumbFileRefusalAr,
+  TELEGRAM_FILE_GOLDEN_RULE_AR,
+} from '@/lib/files/file-source-policy'
 
 export type TelegramShortIntentKind =
   | 'web_search'
@@ -54,6 +62,7 @@ const VERBOSE_PREAMBLE_RE =
 export function looksLikeDumbClarifyAsk(text: string): boolean {
   const t = String(text || '').trim()
   if (!t || t.length > 900) return false
+  if (looksLikeDumbFileRefusalAr(t)) return true
   // Successful tool-ish replies are never "dumb clarify"
   if (
     /(?:تم\s*(?:ال|)|أُنشئ|أنشأت|أضفت|وجدت|الإحداثي|osm|maps\.google|webViewLink|مرفق|return_file)/iu.test(
@@ -72,6 +81,9 @@ export function looksLikeDumbClarifyAsk(text: string): boolean {
 export function compressTelegramReplyAr(raw: string): string {
   let t = String(raw || '').trim()
   if (!t) return t
+  if (looksLikeDumbFileRefusalAr(t)) {
+    return 'المرفق في الرسالة = نسخة العمل — نفّذ وأرجع الناتج بـ return_file. لا تشترط Drive.'
+  }
   if (looksLikeDumbClarifyAsk(t)) {
     return 'نفّذ الطلب مباشرة إن أمكن — أعد صياغة مختصرة إن نقص عنصر واحد فقط (عنوان/وقت/اسم ملف).'
   }
@@ -200,13 +212,13 @@ function nudgeFor(
       return {
         labelAr: 'إنشاء ملف',
         forceHeavy: true,
-        nudgeAr: `[اختصار: إنشاء ملف] أنشئ فوراً عبر write_file أو pdf_create أو brain_create_document («${p}») ثم return_file. ممنوع Drive أولاً. ممنوع سؤال توضيحي إن المحتوى واضح.`,
+        nudgeAr: `[اختصار: إنشاء ملف] أنشئ فوراً عبر write_file أو pdf_create أو brain_create_document («${p}») ثم return_file. ملف جديد من الصفر لا يحتاج Drive ولا غرفة. ممنوع سؤال توضيحي إن المحتوى واضح.`,
       }
     case 'edit_file':
       return {
         labelAr: 'تعديل ملف',
         forceHeavy: true,
-        nudgeAr: `[اختصار: تعديل مرفق] نفّذ على مرفق تيليجرام الأخير («${p}») ثم return_file. ممنوع اشتراط Drive أو «أعد الإرسال».`,
+        nudgeAr: `[اختصار: تعديل/تلخيص/تحويل مرفق] ${TELEGRAM_FILE_GOLDEN_RULE_AR} المرفق في هذه الرسالة أو الأخير («${p}») = نسخة العمل حتى لو أول مرة. عدّل/لخّص/حوّل ثم return_file. ممنوع اشتراط Drive/غرفة أو «أعد الإرسال».`,
       }
     case 'mail':
       return {
@@ -255,8 +267,7 @@ function nudgeFor(
       return {
         labelAr: 'OCR',
         forceHeavy: true,
-        nudgeAr:
-          '[اختصار: OCR] arabic_ocr على مرفق تيليجرام الأخير ثم أعد النص/الملف عبر return_file إن لزم.',
+        nudgeAr: `[اختصار: OCR] ${TELEGRAM_FILE_GOLDEN_RULE_AR} arabic_ocr على مرفق تيليجرام في الرسالة/الأخير ثم أعد النص/الملف عبر return_file.`,
       }
     case 'notify':
       return {

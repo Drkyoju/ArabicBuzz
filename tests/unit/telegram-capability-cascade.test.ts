@@ -31,6 +31,8 @@ describe('capability cascade', () => {
     expect(n).toContain('research_task_tools')
     expect(n).toContain('pdf_duplicate_page')
     expect(n).toContain('بوابة الدفع')
+    expect(n).toMatch(/قاعدة ذهبية|مرفق جديد/)
     expect(TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR).toContain('تشغيل تلقائي مطلق')
+    expect(TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR).toMatch(/قاعدة ذهبية/)
   })
 })

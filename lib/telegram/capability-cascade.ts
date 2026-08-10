@@ -11,6 +11,7 @@ import {
   mapTaskToBuiltinFreeTools,
   type FreeExecuteHint,
 } from '@/lib/agents/tools/free-execute-map'
+import { TELEGRAM_FILE_GOLDEN_RULE_AR } from '@/lib/files/file-source-policy'
 
 /** Hard / unknown cues — escalate to agent pool + mandatory free research+execute. */
 const CAPABILITY_GAP_CUE_RE =
@@ -51,14 +52,16 @@ export function capabilityCascadePromptNudgeAr(task?: string): string {
     : ''
   return [
     '[تشغيل تلقائي كامل — إلا بوابة الدفع]',
+    TELEGRAM_FILE_GOLDEN_RULE_AR,
     '١) أيقظ مقاعد الغرفة المتفرّغة واطلب مساعدتها — لا تصمت ولا تسأل «هل تريد؟».',
     '٢) ابحث مجاناً أولاً عبر research_task_tools (ويب + GitHub).',
     '٣) إن وُجد حل مجاني / مكتبة مدمجة (pdf-lib، convert_document، arabic_ocr…): نفّذه فوراً وأعد الناتج بـ return_file — البوت يمرّره للمجموعة.',
     '٤) ممنوع تشغيل كود MCP بعيد غير موثوق؛ طبّق القدرة نفسها بالمكتبات المدمجة.',
-    '٥) ممنوع طلب إعادة إرسال الملف إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بنفس الاسم — استأنف تلقائياً عبر find_storage_mesh (Drive→تيليجرام→غرفة→ماك).',
-    '٦) ملف كبير: Bot API محلي / جسر الماك تلقائياً → خزّن → Drive/غرفة → عدّل → أعد لتيليجرام. أرشفة: archive_telegram_group.',
-    '٧) فقط إن فشل كل مسار مجاني واحتجت مفتاحاً/اشتراكاً مدفوعاً: انشر messageAr (بدائل مدفوعة الأرخص) وانتظر الموافقة/المفتاح.',
-    'ممنوع ادّعاء النجاح دون تنفيذ.',
+    '٥) مرفق في الرسالة (حتى أول مرة ولم يُرَ في Drive/غرفة) = نفّذ عليه مباشرة ثم return_file. ممنوع «مو بالدرايف» / «ما أعرف وين».',
+    '٦) ممنوع طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بنفس الاسم — استأنف عبر find_storage_mesh (تيليجرام→غرفة→Drive→ماك).',
+    '٧) ملف كبير: Bot API محلي / جسر الماك تلقائياً → خزّن → عدّل → أعد لتيليجرام. أرشفة Drive اختيارية بعد التسليم.',
+    '٨) فقط إن فشل كل مسار مجاني واحتجت مفتاحاً/اشتراكاً مدفوعاً: انشر messageAr (بدائل مدفوعة الأرخص) وانتظر الموافقة/المفتاح.',
+    'ممنوع ادّعاء النجاح دون تنفيذ. ممنوع التعليق بلا return_file عند طلب ملف.',
     builtinBlock,
   ]
     .filter(Boolean)
@@ -67,10 +70,11 @@ export function capabilityCascadePromptNudgeAr(task?: string): string {
 
 /** System rule block for Telegram agent. */
 export const TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR = `تشغيل تلقائي مطلق (إلا بوابة الدفع):
-- نفّذ فوراً بلا «هل تريد؟» وبلا طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم.
+- ${TELEGRAM_FILE_GOLDEN_RULE_AR}
+- نفّذ فوراً بلا «هل تريد؟» وبلا طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة أو مرفق في الرسالة.
 - عجز/مهمة صعبة: أيقظ وكلاء الغرفة → research_task_tools (مجاني أولاً) → إن وُجدت أدوات مدمجة مجانية (pdf-lib / convert / OCR / find_storage_mesh / archive_telegram_group…) نفّذها فوراً وreturn_file للمجموعة.
-- ملف مفقود: find_storage_mesh بالترتيب Drive→تيليجرام→غرفة→ماك.
+- مرفق تيليجرام جديد = نسخة العمل (لا يشترط Drive). ملف مفقود بالاسم فقط: find_storage_mesh (تيليجرام→غرفة→Drive→ماك).
 - لا تشغّل كود MCP بعيداً غير موثوق؛ نفّذ القدرة نفسها بالمكتبات الموثوقة المدمجة.
 - HITL فقط للحذف الحساس/RBAC أو عندما يلزم مفتاح/دفع بعد استنفاد المجاني.
-- المهام الناقصة تُستأنف من الطابور تلقائياً. الملفات الكبيرة: غرفة/Drive ثم العودة لتيليجرام.
+- المهام الناقصة تُستأنف من الطابور تلقائياً. الملفات الكبيرة: خزّن → عدّل → أعد لتيليجرام؛ Drive اختياري بعد التسليم.
 - فقط عند استنفاد المجاني: رسالة عربية ببدائل مدفوعة الأرخص وانتظر المفتاح/الموافقة. ممنوع الصمت. ممنوع ادّعاء النجاح دون فعل.`

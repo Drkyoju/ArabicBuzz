@@ -33,6 +33,7 @@ import {
   shortIntentPromptBlockAr,
   shortIntentToWorkKind,
 } from '@/lib/telegram/short-intent'
+import { TELEGRAM_FILE_GOLDEN_RULE_AR } from '@/lib/files/file-source-policy'
 
 export type TelegramWorkKind =
   | 'appointment'
@@ -480,9 +481,10 @@ function workKindNudge(kind: TelegramWorkKind, raw = ''): string {
         ].join(' ')
       }
       return [
-        '[قصد تيليجرام: ملف — تيليجرام أولاً — تلقائي بلا سؤال]',
-        'إن وُجد fileId لمرفق تيليجرام في الرسالة/الذاكرة: هذه نسخة العمل — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
-        'ممنوع: brain_open/drive_search كبديل بالتشابه؛ ممنوع «أعد الإرسال» إن وُجدت بايتات/خزنة/مهمة معلّقة — find_storage_mesh ثم نفّذ.',
+        '[قصد تيليجرام: ملف — مرفق الرسالة = نسخة العمل — تلقائي بلا سؤال]',
+        TELEGRAM_FILE_GOLDEN_RULE_AR,
+        'إن وُجد fileId لمرفق تيليجرام في الرسالة/الذاكرة (حتى أول مرة ولم يُرَ في Drive/غرفة): هذه نسخة العمل — اقرأ/عدّل/لخّص/حوّل مباشرة ثم return_file كمرفق تيليجرام.',
+        'ممنوع: brain_open/drive_search كبديل بالتشابه؛ ممنوع «مو بالدرايف» / «ما أعرف وين» / «أعد الإرسال» — إن نقصت البايتات: find_storage_mesh ثم نفّذ.',
         'ممنوع «هل تريد؟». OCR: arabic_ocr. تعليق: pdf_annotate. نسخ صفحة: pdf_duplicate_page ثم return_file.',
         'رد موجز + المرفق.',
       ].join(' ')
@@ -677,10 +679,11 @@ export async function telegramGoogleLinkedHintAr(
 
 export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة + تشغيل تلقائي:
 - أنت = نفس وكلاء غرفة الموقع على تيليجرام. نفّذ فوراً؛ رد موجز بعد النجاح (نتيجة + مرفق إن وُجد). ممنوع شرح مطوّل أو طلب توضيح لطلب واضح/اختصار.
+- ${TELEGRAM_FILE_GOLDEN_RULE_AR}
 - ذاكرة الشات إلزامية: سجل هذه المحادثة (مرآة room_posts حسب chatId) + مهام ملفات + مرفقات تيليجرام — لا تنسَ طلباً سابقاً في نفس الشات.
-- مرفق تيليجرام المرسل حديثاً = نسخة العمل (عدّل/حوّل ثم return_file). إنشاء ملف من الصفر (صوت/نص): write_file / brain_create_document / pdf_create ثم return_file — بلا Drive أولاً.
+- مرفق تيليجرام في الرسالة (حتى لو أول مرة) = نسخة العمل (عدّل/لخّص/حوّل ثم return_file). إنشاء ملف من الصفر (صوت/نص): write_file / brain_create_document / pdf_create ثم return_file — بلا اشتراط Drive/غرفة.
 - بحث جوجل/ويب: web_search (DDG مجاني). موقع/خريطة: geocode + روابط OSM/Google Maps من النتيجة.
 - تشغيل تلقائي: ممنوع «هل تريد؟» للعمل الروتيني. المقاطعة الوحيدة = بوابة دفع بعد استنفاد المجاني.
-- المقاعد: وكيل١…٨. انشغال → التالي. «أبغا للجميع» → متوازٍ. ملف مفقود: find_storage_mesh (Drive→TG→غرفة→ماك).
+- المقاعد: وكيل١…٨. انشغال → التالي. «أبغا للجميع» → متوازٍ. ملف مفقود بالاسم: find_storage_mesh (تيليجرام→غرفة→Drive→ماك).
 - HITL فقط لحذف ملفات الغرفة/Drive أو بوابة الدفع. ممنوع حذف رسائل تيليجرام. التقويم: room_calendar_* فقط (Asia/Riyadh).
 - هيرميس واتساب منفصل تماماً — لا تخلط أدوات/سياق واتساب مع هذا البوت.`

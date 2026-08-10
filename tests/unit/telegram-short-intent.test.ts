@@ -10,6 +10,16 @@ import {
   formatUnknownShortAr,
   looksLikeDumbGroupClarify,
 } from '@/lib/telegram/group-reply-policy'
+import {
+  looksLikeDumbFileRefusalAr,
+  TELEGRAM_FILE_GOLDEN_RULE_AR,
+  FILE_SOURCE_POLICY_AR,
+} from '@/lib/files/file-source-policy'
+import {
+  capabilityCascadePromptNudgeAr,
+  TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR,
+} from '@/lib/telegram/capability-cascade'
+import { TELEGRAM_LIMITS_SYSTEM_AR } from '@/lib/telegram/power-path'
 
 describe('parseTelegramShortIntent', () => {
   it('parses web / maps / brief / archive', () => {
@@ -102,5 +112,36 @@ describe('compressTelegramReplyAr / dumb clarify', () => {
     expect(formatUnknownShortAr('هل تريد المزيد من التفاصيل؟')).toMatch(
       /أعد الطلب/
     )
+  })
+})
+
+describe('golden rule — brand-new attachment is working copy', () => {
+  it('exports golden rule and prefers attachment over Drive-first', () => {
+    expect(TELEGRAM_FILE_GOLDEN_RULE_AR).toMatch(/مرفق جديد/)
+    expect(TELEGRAM_FILE_GOLDEN_RULE_AR).toMatch(/لا تشترط Drive/)
+    expect(FILE_SOURCE_POLICY_AR).toMatch(/مرآة مرفقات تيليجرام/)
+    expect(TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR).toMatch(/قاعدة ذهبية/)
+    expect(TELEGRAM_LIMITS_SYSTEM_AR).toMatch(/قاعدة ذهبية/)
+    expect(capabilityCascadePromptNudgeAr('لخّص الملف')).toMatch(/مرفق جديد|قاعدة ذهبية/)
+  })
+
+  it('bans Drive-only / lost / resend refusals', () => {
+    expect(looksLikeDumbFileRefusalAr('الملف مو بالدرايف')).toBe(true)
+    expect(looksLikeDumbFileRefusalAr('مو موجود في الدرايف')).toBe(true)
+    expect(looksLikeDumbFileRefusalAr('ما أعرف وين الملف')).toBe(true)
+    expect(looksLikeDumbFileRefusalAr('أعد الإرسال من فضلك')).toBe(true)
+    expect(looksLikeDumbFileRefusalAr('تم إرسال المرفق بنجاح')).toBe(false)
+  })
+
+  it('compresses Drive refusals to execute nudge', () => {
+    expect(compressTelegramReplyAr('الملف مو بالدرايف')).toMatch(/نسخة العمل|return_file/)
+    expect(formatUnknownShortAr('ما أعرف وين')).toMatch(/نسخة العمل|لا تشترط/)
+  })
+
+  it('edit short-intent nudges golden rule', () => {
+    const edit = parseTelegramShortIntent('عدّل الملف')
+    expect(edit?.kind).toBe('edit_file')
+    expect(edit?.nudgeAr).toMatch(/قاعدة ذهبية|أول مرة/)
+    expect(edit?.nudgeAr).toMatch(/return_file/)
   })
 })

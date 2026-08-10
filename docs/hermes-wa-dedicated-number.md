@@ -51,7 +51,7 @@ hermes whatsapp   # امسح QR من هاتف الرقم المخصص فقط
    hermes whatsapp   # امسح QR من هاتف الرقم المخصص
    ```
 5. في `~/.hermes/.env` (محلي — لا للمستودع):
-   - `WHATSAPP_ALLOWED_USERS=` رقم المالك بصيغة دولية بدون `+`
+   - لوضع **bot + قروبات:** اترك `WHATSAPP_ALLOWED_USERS=` **فارغاً** واعتمد `WHATSAPP_GROUP_ALLOWED_USERS` (JIDs `@g.us`) + `WHATSAPP_DM_POLICY=pairing`. رقم هاتف فقط في `ALLOWED_USERS` يرفض مرسلين `@lid` في القروب (`Unauthorized user`) حتى لو القروب مسموحاً.
    - أبقِ `WHATSAPP_REQUIRE_MENTION=true`
    - أبقِ `WHATSAPP_GROUP_POLICY=allowlist`
    - لا تضع `ALLOWED_USERS=*`

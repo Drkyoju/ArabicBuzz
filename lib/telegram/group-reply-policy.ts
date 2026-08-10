@@ -1,3 +1,5 @@
+import { looksLikeDumbFileRefusalAr } from '@/lib/files/file-source-policy'
+
 /**
  * Linked Telegram group reply policy (product):
  * - Always ingest + analyze every delivered update.
@@ -78,6 +80,7 @@ export function looksLikeUnknownOrNotFound(text: string): boolean {
 export function looksLikeDumbGroupClarify(text: string): boolean {
   const t = String(text || '').trim()
   if (!t || t.length > 900) return false
+  if (looksLikeDumbFileRefusalAr(t)) return true
   if (
     /(?:تم\s*(?:ال|)|أُنشئ|أنشأت|أضفت|وجدت|الإحداثي|osm|maps\.google|مرفق)/iu.test(
       t
@@ -98,6 +101,9 @@ export function formatUnknownShortAr(raw?: string): string {
   const t = String(raw || '').trim()
   if (looksLikeBlockedTaskReply(t)) {
     return t.slice(0, 3500)
+  }
+  if (looksLikeDumbFileRefusalAr(t)) {
+    return 'المرفق في الرسالة = نسخة العمل — نفّذ وأرجع الناتج. لا تشترط Drive.'
   }
   if (looksLikeDumbGroupClarify(t)) {
     return 'أعد الطلب باختصار (عنوان · وقت · اسم ملف) — أنفّذ مباشرة بدون أسئلة.'
