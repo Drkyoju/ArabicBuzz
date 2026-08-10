@@ -81,9 +81,27 @@ describe('classifyTelegramWorkIntent', () => {
     expect(classifyTelegramWorkIntent('ابحث في الغرفة عن الفاتورة').kind).toBe(
       'question'
     )
+    expect(classifyTelegramWorkIntent('ابحث في جوجل عن رؤية 2030').labelAr).toBe(
+      'بحث ويب'
+    )
+    expect(classifyTelegramWorkIntent('أين تقع برج المملكة').labelAr).toBe(
+      'موقع / خريطة'
+    )
+    expect(classifyTelegramWorkIntent('أنشئ ملف مذكرة بالمحتوى التالي').labelAr).toBe(
+      'إنشاء ملف'
+    )
     expect(classifyTelegramWorkIntent('السلام عليكم').kind).toBe('casual')
     expect(classifyTelegramWorkIntent('كيفك').kind).toBe('casual')
     expect(classifyTelegramWorkIntent('يا أحمد وش رايك').kind).toBe('casual')
+  })
+
+  it('keeps edit-file distinct from create-new-file', () => {
+    expect(classifyTelegramWorkIntent('عدّل الملف وأصلح التنسيق').labelAr).toBe(
+      'ملف'
+    )
+    expect(classifyTelegramWorkIntent('اكتب لي ملف ورد عن الاجتماع').labelAr).toBe(
+      'إنشاء ملف'
+    )
   })
 
   it('classifies Gulf dialect file asks', () => {

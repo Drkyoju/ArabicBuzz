@@ -124,6 +124,7 @@ import {
   markTelegramSeatFree,
   telegramEffortMaxSteps,
   telegramGoogleLinkedHintAr,
+  looksLikeTelegramCreateFile,
 } from '@/lib/telegram/power-path'
 import { loadTelegramAgentPool } from '@/lib/telegram/agent-pool'
 import type { RoomAgent } from '@/lib/rooms/agents'
@@ -312,30 +313,14 @@ let botInitPromise: Promise<void> | null = null
 let commandsRegistered = false
 
 const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرام (@alhuda14bot) — بوت «عمل الجمعية» + مقاعد وكيل١–٨ (ليس هيرميس/@waqfBbot).
-- أقصى قوة أدواتية: نفس غرفة الموقع. نفّذ فوراً: Drive (drive_search_files / drive_list_files / drive_get_link)، find_storage_mesh، خزنة الغرفة، بريد الجمعية (mail_*)، تقويم الغرفة، PDF، web_search المجاني (DDG)، room_search، archive_telegram_group عند طلب أرشفة.
-- افهم الفصحى والعامية السعودية/الخليجية؛ أعد صياغة القصد داخلياً وأجب بالفصحى المهنية الموجزة.
-- لا تنتظر /ask ولا تنتظر تأكيد الأزرار — نفّذ فوراً بعد فهم الطلب (نص · صوت · ملف · صورة).
-- أيقظ وكيل١ ثم وكيل٢…عند الانشغال. طلب ثقيل / «أبغا للجميع» / وضع فريق الغرفة → تشغيل متوازٍ للمقاعد المتفرّغة (حتى ٨). «يا وكيل١» / @وكيل٢ يوجّهان مقعداً بعينه.
-- ذاكرة الشات: عندك سجل محادثة المجموعة الكامل (مرآة الغرفة) + المهام المعلّقة — نفّذ على أساسه ولا تتجاهل طلباً سابقاً في نفس القروب.
-- نفّذ بكل الأدوات: ملفات تيليجرام/خزنة الغرفة، تحويل، OCR، تعليق PDF (pdf_annotate)، تقويم الغرفة، مهام، بريد الجمعية + Gmail، Sheets، بحث موحّد (room_search)، إحاطة الصباح (owner_morning_brief)، تبليغ أعضاء، سير عمل. Drive للقراءة/البحث دائماً؛ المزامنة الكاملة فقط عند طلب صريح.
-- بحث ملف مفقود/ناقص: find_storage_mesh أولاً بالترتيب Drive→مرآة تيليجرام→غرفة→ماك — ممنوع «أعد الإرسال». أرشفة المجموعة: archive_telegram_group.
-- بحث عام في «الموقع/الغرفة»: room_search أولاً ثم فصّل. ملف في Drive بالاسم: drive_search_files. إحاطة/ملخص اليوم: owner_morning_brief.
-- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh). إن رجعت الأداة فارغة فقل «لا مواعيد» — ممنوع الاختلاق. لا تستخدم تقويم Google الشخصي كأجندة الفريق.
-- موعد جديد: room_calendar_create فوراً ثم أكّد العنوان · الوقت · أنه في تقويم الغرفة.
-- مهام: room_tasks_create / update فوراً.
-- ملفات تيليجرام أولاً: إن وُجد fileId لمرفق في الرسالة/السياق → هذه نسخة العمل الوحيدة. اقرأ/عدّل/حوّل/OCR/pdf_duplicate_page ثم return_file (مرفق تيليجرام). ممنوع brain_open/drive_search أو أي تطابق تقريبي بالاسم كبديل. ممنوع طلب إعادة الإرسال إن وُجدت بايتات/خزنة/مهمة معلّقة — استأنف. إن انعدمت كل المسارات: رسالة عربية واحدة تطلب الرفع للموقع/Drive بنفس الاسم.
-- ملف كبير: أكمل عبر غرفة الفريق أو Drive ثم أرسل الناتج هنا (sendDocument/ضغط). رابط Drive وحده ليس إكمالاً إن طلب المستخدم ملف تيليجرام.
-- بدون مرفق صريح: list_workspace_files بالاسم/المعرّف المطابق حرفياً فقط. Drive/brain_open_document فقط عند طلب صريح لاسم أو معرّف Drive كامل. إن تعذّر: find_storage_mesh.
-- تعديل ثم إرجاع: edit_document / edit_excel / pdf_replace_text / pdf_annotate / convert_document ثم return_file. حفظ Drive بـ brain_save_document اختياري بعد النجاح إن طُلب.
-- حذف ملف غرفة/Drive: عبر الأداة مع موافقة HITL — ممنوع حذف رسائل تيليجرام.
-- صور/PDF ممسوح: arabic_ocr. لا drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).
-- بريد: mail_* لصندوق الجمعية (أعضاء الجلسة مسموح)؛ gmail_* للشخصي المربوط — نفّذ ولخّص، لا تختلق رسائل.
-- بحث ويب: web_search (DuckDuckGo+ويكيبيديا+gov.sa) / web_fetch (Jina) عند طلب بحث أو معلومة خارجية — بلا مفتاح مدفوع أولاً.
-- تشغيل تلقائي مطلق: ممنوع «هل تريد؟» للعمل الروتيني. ممنوع طلب إعادة إرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم — استأنف ونفّذ.
-- إن عجزت الأدوات (أو «ما عرفت»): استدعِ research_task_tools → إن canExecuteFree/executeNext نفّذ الأدوات المجانية المدمجة فوراً (pdf-lib…) وreturn_file للمجموعة. لا تشغّل كود MCP بعيداً غير موثوق.
-- فقط إن blocked بعد استنفاد المجاني: انشر messageAr (بدائل مدفوعة الأرخص) وانتظر المفتاح/الموافقة — هذه المقاطعة الوحيدة للمستخدم بسبب المال.
-- «أرسل لفلان» / تبليغ شخص: notify_room_member فوراً. خاص فقط إن بدأ المستلم Start؛ وإلا المجموعة — اشرح بصراحة. تنسيق/تعديل ملف ≠ تبليغ شخص.
-- HITL فقط لحذف ملفات الغرفة/Drive الحساس (RBAC) أو بوابة الدفع — ممنوع HITL لتعديل/تحويل روتيني. ممنوع حذف رسائل تيليجرام.
+- نفّذ فوراً بعد فهم الاختصار/القصد. رد موجز (نتيجة + مرفق). ممنوع شرح مطوّل أو طلب توضيح لطلب واضح.
+- ذاكرة الشات إلزامية: عندك سجل هذه المحادثة (خاص أو مجموعة) + مهام معلّقة + مرفقات تيليجرام — لا تنسَ ولا تتجاهل طلباً سابقاً في نفس الشات.
+- ملفات تيليجرام المرسلة هنا = نسخة العمل: عدّل/حوّل/OCR/pdf_* ثم return_file — ممنوع اشتراط Drive.
+- إنشاء ملف من الصفر (صوت أو نص): write_file / brain_create_document / pdf_create ثم return_file.
+- بحث جوجل/ويب: web_search (DDG مجاني). موقع/خريطة: geocode + روابط الخرائط. بحث غرفة: room_search. إحاطة: owner_morning_brief.
+- أيقظ وكيل١ ثم التالي عند الانشغال؛ «أبغا للجميع» → متوازٍ. ملف مفقود: find_storage_mesh (Drive→TG→غرفة→ماك) — ممنوع «أعد الإرسال» إن وُجدت بايتات.
+- تقويم الغرفة: room_calendar_* فقط. مهام: room_tasks_*. بريد: mail_*/gmail_*. تبليغ: notify_room_member.
+- عجز: research_task_tools → نفّذ المجاني المدمج فوراً. مدفوع فقط بعد الاستنفاد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}
 ${TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR}`
 
@@ -1516,7 +1501,7 @@ async function runTelegramAgentTurn(opts: {
     systemBase,
     driveHint,
     chatMemoryAr,
-    'تذكّر: اعتمد ذاكرة المحادثة الكاملة أعلاه واستعن بمقاعد وكيل١…٨ (pool) — لا تنسَ الطلبات السابقة في نفس الشات.',
+    'تذكّر: اعتمد ذاكرة هذه المحادثة أعلاه (لا تنسَ). نفّذ الاختصار فوراً وردّ موجزاً — مقاعد وكيل١…٨ عند الحاجة.',
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -2460,9 +2445,11 @@ export function getTelegramBot() {
     }
 
     // Follow-up file work without reply-to: enqueue linked to last persisted media.
+    // Skip when the ask is «create new file from scratch».
     if (
       !replyIngestHint &&
       workKindForPrompt === 'file' &&
+      !looksLikeTelegramCreateFile(promptSource) &&
       getLatestTelegramMedia(chatId)
     ) {
       const latest = getLatestTelegramMedia(chatId)!
@@ -2759,7 +2746,8 @@ export function getTelegramBot() {
       const recentHint = formatRecentTelegramMediaHint(chatId)
       await hydrateRecentMediaFromPersist(chatId)
       const recentHintFresh = formatRecentTelegramMediaHint(chatId) || recentHint
-      if (voiceWork.kind === 'file') {
+      const createNewFile = looksLikeTelegramCreateFile(transcript)
+      if (voiceWork.kind === 'file' && !createNewFile) {
         const resumes = await prepareTelegramFileJobResumes({
           chatId,
           scopeId: scope.scope.id,
@@ -2822,14 +2810,20 @@ export function getTelegramBot() {
           ? '\n[صوت: موعد — أنشئ في تقويم الغرفة بعد استخراج التاريخ/الوقت]'
           : voiceWork.kind === 'task'
             ? '\n[صوت: مهمة — سجّل في لوحة مهام الغرفة]'
-            : voiceWork.kind === 'file'
-              ? '\n[صوت: ملف — نفّذ على مرفق تيليجرام الأخير (fileId) مباشرة ثم return_file — ممنوع طلب إعادة الإرسال إن وُجدت بايتات]'
-              : voiceWork.kind === 'mail'
-                ? '\n[صوت: بريد — mail_*/gmail_* فوراً ولخّص]'
-                : voiceWork.kind === 'message'
-                  ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
-                  : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة]',
-        recentHintFresh ? `\n${recentHintFresh}` : '',
+            : createNewFile
+              ? '\n[صوت: إنشاء ملف من الصفر — write_file أو brain_create_document أو pdf_create بالمحتوى ثم return_file — ممنوع Drive أولاً]'
+              : voiceWork.kind === 'file'
+                ? '\n[صوت: ملف — نفّذ على مرفق تيليجرام الأخير (fileId) مباشرة ثم return_file — ممنوع طلب إعادة الإرسال إن وُجدت بايتات]'
+                : voiceWork.kind === 'mail'
+                  ? '\n[صوت: بريد — mail_*/gmail_* فوراً ولخّص]'
+                  : voiceWork.kind === 'message'
+                    ? '\n[صوت: رسالة/تبليغ — notify_room_member فوراً]'
+                    : voiceWork.labelAr === 'بحث ويب'
+                      ? '\n[صوت: بحث ويب — web_search فوراً ورد موجز]'
+                      : voiceWork.labelAr === 'موقع / خريطة'
+                        ? '\n[صوت: موقع/خريطة — geocode ثم روابط الخرائط]'
+                        : '\n[صوت: نفّذ كغرفة الموقع — وكيل١ + أدوات كاملة — رد موجز]',
+        recentHintFresh && !createNewFile ? `\n${recentHintFresh}` : '',
         voiceMarker
           ? `\n${voiceMarker}\n(صوت محفوظ في مساحة العمل — يمكن سحبه للمساعدين أو غرفة الفريق من المرآة.)`
           : '',

@@ -109,6 +109,16 @@ describe('free-execute-map extra public tools', () => {
       )
     ).toBe(true)
     expect(
+      mapTaskToBuiltinFreeTools('خريطة برج المملكة').some(
+        (h) => h.toolName === 'geocode'
+      )
+    ).toBe(true)
+    expect(
+      mapTaskToBuiltinFreeTools('أنشئ ملف مذكرة من الصفر').some(
+        (h) => h.toolName === 'write_file'
+      )
+    ).toBe(true)
+    expect(
       mapTaskToBuiltinFreeTools('define endowment dictionary').some(
         (h) => h.toolName === 'dictionary_lookup'
       )

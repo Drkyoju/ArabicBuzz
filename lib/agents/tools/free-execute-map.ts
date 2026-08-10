@@ -225,13 +225,26 @@ const RULES: Rule[] = [
     ],
   },
   {
-    re: /(?:إحداثي|ترميز\s*جغراف|geocode|أين\s*(?:تقع|موقع)|إحداثيات|nominatim|خريط[ةه]\s*لـ)/iu,
+    re: /(?:إحداثي|ترميز\s*جغراف|geocode|أين\s*(?:تقع|موقع)|إحداثيات|nominatim|خريط[ةه]|موقع\s+(?:ال|على\s*ال)?(?:خريط|جوجل|maps)|وين\s+(?:تقع|موقع)|google\s*maps|openstreetmap)/iu,
     hints: [
       {
         toolName: 'geocode',
-        libAr: 'Nominatim/OSM (مجاني)',
-        whyAr: 'ترميز جغرافي بلا مفتاح',
-        instructionAr: 'نفّذ geocode باسم المكان.',
+        libAr: 'Nominatim/OSM (مجاني) + روابط خرائط',
+        whyAr: 'ترميز جغرافي + OSM/Google Maps بلا مفتاح',
+        instructionAr:
+          'نفّذ geocode باسم المكان ثم انشر الإحداثيات وروابط osmUrl/googleMapsUrl من النتيجة — بلا شرح مطوّل.',
+      },
+    ],
+  },
+  {
+    re: /(?:أنشئ|انشئ|اكتب|سو[يّ]|جه[ّ]?ز|حض[ّ]?ر)\s*(?:لي\s*)?(?:ملف|مستند|وثيق|مذكرة|ملاحظة|نص|ورد|وورد|word|pdf)|(?:ملف|مستند)\s*جديد|من\s*(?:الصفر|scratch)|create\s*(?:a\s*)?(?:file|doc|document)/iu,
+    hints: [
+      {
+        toolName: 'write_file',
+        libAr: 'خزنة الغرفة (write_file / brain_create_document / pdf_create)',
+        whyAr: 'إنشاء ملف جديد من الصفر ثم return_file لتيليجرام',
+        instructionAr:
+          'أنشئ الملف فوراً عبر write_file أو brain_create_document أو pdf_create بالمحتوى المطلوب ثم return_file. ممنوع البحث في Drive أولاً إن طُلب ملف جديد.',
       },
     ],
   },
@@ -307,13 +320,21 @@ const RULES: Rule[] = [
     ],
   },
   {
-    re: /(?:بريد|gmail|إيميل|mail_search|gmail_search)/iu,
+    re: /(?:بريد|gmail|إيميل|mail_search|gmail_search|mail_corpus|مسودة\s*رد|اكتب\s*رد)/iu,
     hints: [
       {
         toolName: 'mail_search',
         libAr: 'Gmail / mail المدمج',
-        whyAr: 'بحث البريد عبر أدوات المنتج المجانية',
-        instructionAr: 'نفّذ mail_search أو gmail_search (حسب نطاق الغرفة) فوراً.',
+        whyAr: 'بحث كل بريد الجمعية (وارد+مرسل) عبر أدوات المنتج المجانية',
+        instructionAr:
+          'نفّذ mail_search أو mail_corpus_search للبحث في كل الرسائل، أو mail_draft_reply للرسالة المفتوحة.',
+      },
+      {
+        toolName: 'mail_draft_reply',
+        libAr: 'مسودة رد بريد الجمعية',
+        whyAr: 'قراءة الرسالة المفتوحة وكتابة رد كامل للمراجعة قبل الإرسال',
+        instructionAr:
+          'إن فُتحت رسالة: mail_draft_reply. وإلا mail_search ثم mail_read ثم mail_draft_reply.',
       },
     ],
   },

@@ -92,16 +92,28 @@ function rowToFeedItem(row: DbRoomPost): TelegramFeedItem | null {
 /** Recent telegram-mirrored room posts for the home window (newest last). */
 export async function listTelegramFeed(
   scopeId: string,
-  limit = 40
+  limit = 40,
+  opts?: {
+    /**
+     * Telegram chat id (`external_id` on mirrored posts).
+     * When set, memory is scoped to that DM/group only — not other chats on the same room.
+     */
+    externalId?: string
+  }
 ): Promise<{ ok: boolean; items: TelegramFeedItem[]; error?: string }> {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false, items: [], error: 'no supabase' }
   const take = Math.min(Math.max(limit, 1), 100)
-  const { data, error } = await sb
+  let q = sb
     .from('room_posts')
     .select('*')
     .eq('scope_id', scopeId)
     .eq('channel', 'telegram')
+  const externalId = opts?.externalId?.trim()
+  if (externalId) {
+    q = q.eq('external_id', externalId)
+  }
+  const { data, error } = await q
     .order('created_at', { ascending: false })
     .limit(take)
   if (error) return { ok: false, items: [], error: error.message }

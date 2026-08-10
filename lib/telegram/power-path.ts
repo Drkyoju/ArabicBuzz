@@ -70,6 +70,21 @@ const DIGEST_RE =
 const ROOM_SEARCH_RE =
   /(?:ابحث\s*(?:في|عبر)?\s*(?:ال)?(?:موقع|غرفة|كل\s*شيء|الجمعية)|دور\s*(?:في\s*)?(?:ال)?(?:موقع|غرفة)|بحث\s*موحّ?د|search\s*(?:the\s*)?(?:site|room))/iu
 
+/** Google / web search (free DDG path — not room_search). */
+const WEB_SEARCH_RE =
+  /(?:ابحث\s*(?:في|عبر|على)?\s*(?:ال)?(?:جوجل|google|ويب|انترنت|الشبكة|duckduckgo)|بحث\s*(?:ويب|جوجل|google)|google\s*search|web\s*search|دور\s*(?:لي\s*)?(?:في\s*)?(?:ال)?(?:جوجل|google|ويب))/iu
+
+/** Location / maps online. */
+const MAPS_RE =
+  /(?:أين\s*(?:تقع|موقع)|وين\s*(?:تقع|موقع)|موقع\s+(?:ال|على\s*)?(?:خريط|جوجل|maps)|خريط[ةه]|إحداثي|geocode|google\s*maps|openstreetmap|أعطني\s*(?:موقع|خريط)|أرسل\s*(?:موقع|خريط)|رابط\s*(?:ال)?(?:موقع|خريط))/iu
+
+/**
+ * Create a brand-new file from text/voice (not edit an existing TG attachment).
+ * Keep narrower than FILE_RE so «عدّل الملف» stays edit.
+ */
+const CREATE_FILE_RE =
+  /(?:أنشئ|انشئ|اكتب|سو[يّ]|جه[ّ]?ز|حض[ّ]?ر)\s*(?:لي\s*)?(?:ملف|مستند|وثيق|مذكرة|ملاحظة|نص|ورد|وورد|word|pdf|docx)|(?:ملف|مستند)\s*جديد|من\s*(?:الصفر|scratch)|create\s*(?:a\s*)?(?:new\s*)?(?:file|doc|document)|(?:صوت|تفريغ).{0,40}(?:ملف|مستند)\s*(?:جديد|من)/iu
+
 /** Explicit ask-the-bot / do-work cues (Gulf + MSA). */
 const ACTION_RE =
   /(?:أبغا|ابغا|أبغى|ابغى|أبي|ابي|أريد|اريد|عايز|بدي|ودي|سوي|سوّي|سوّ|نف[ّ]?ذ|جيب|هات|عطني|نز[ّ]?ل|حم[ّ]?ل|افتح|ور[ّ]?ي?ني|وريني|احذف|حذف|امسح|عد[ّ]?ل|حو[ّ]?ل|نس[ّ]?ق|نظ[ّ]?م|رت[ّ]?ب|هي[ّ]?ئ|لخ[ّ]?ص|اشرح|وض[ّ]?ح|ابحث|دور|جه[ّ]?ز|حض[ّ]?ر|اكتب|أنشئ|انشئ)/iu
@@ -229,6 +244,18 @@ export function markTelegramSeatFree(scopeId: string, agentId: string) {
   if (!row.ids.size) busyByScope.delete(scopeId)
 }
 
+export function looksLikeTelegramCreateFile(raw: string): boolean {
+  return CREATE_FILE_RE.test((raw || '').trim())
+}
+
+export function looksLikeTelegramWebSearch(raw: string): boolean {
+  return WEB_SEARCH_RE.test((raw || '').trim())
+}
+
+export function looksLikeTelegramMaps(raw: string): boolean {
+  return MAPS_RE.test((raw || '').trim())
+}
+
 export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
   const t = (raw || '').trim()
   if (!t || t.length < 2) {
@@ -265,7 +292,10 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     !APPOINTMENT_RE.test(t) &&
     !TASK_RE.test(t) &&
     !WAKE_RE.test(t) &&
-    !ACTION_RE.test(t)
+    !ACTION_RE.test(t) &&
+    !WEB_SEARCH_RE.test(t) &&
+    !MAPS_RE.test(t) &&
+    !CREATE_FILE_RE.test(t)
   ) {
     return {
       kind: 'casual',
@@ -299,6 +329,15 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
       preferFullAgent: true,
     }
   }
+  // Create-new before appointment/file so «ملف … عن الاجتماع» is not a calendar ask.
+  if (CREATE_FILE_RE.test(t)) {
+    return {
+      kind: 'file',
+      labelAr: 'إنشاء ملف',
+      forceHeavy: true,
+      preferFullAgent: true,
+    }
+  }
   if (APPOINTMENT_RE.test(t) && !/كم\s*(?:موعد|مواعيد)/i.test(t)) {
     return {
       kind: 'appointment',
@@ -327,6 +366,22 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
     return {
       kind: 'question',
       labelAr: 'إحاطة صباح',
+      forceHeavy: false,
+      preferFullAgent: true,
+    }
+  }
+  if (WEB_SEARCH_RE.test(t)) {
+    return {
+      kind: 'question',
+      labelAr: 'بحث ويب',
+      forceHeavy: false,
+      preferFullAgent: true,
+    }
+  }
+  if (MAPS_RE.test(t)) {
+    return {
+      kind: 'question',
+      labelAr: 'موقع / خريطة',
       forceHeavy: false,
       preferFullAgent: true,
     }
@@ -376,7 +431,10 @@ export function classifyTelegramWorkIntent(raw: string): TelegramWorkIntent {
   }
 }
 
-function workKindNudge(kind: TelegramWorkKind): string {
+function workKindNudge(kind: TelegramWorkKind, raw = ''): string {
+  const createNew = looksLikeTelegramCreateFile(raw)
+  const web = looksLikeTelegramWebSearch(raw)
+  const maps = looksLikeTelegramMaps(raw)
   switch (kind) {
     case 'appointment':
       return [
@@ -385,53 +443,59 @@ function workKindNudge(kind: TelegramWorkKind): string {
         'أنشئ فوراً عبر room_calendar_create (أو room_calendar_ingest إن وُجدت عدة تواريخ).',
         'لا تسأل «هل تود الإضافة؟» — نفّذ ثم أكّد بالعربية: العنوان · الوقت · أنّه في تقويم الغرفة.',
         'إن نقص التاريخ: افترض أقرب يوم عمل معقول واذكر الافتراض صراحة.',
+        'رد موجز.',
       ].join(' ')
     case 'task':
       return [
         '[قصد تيليجرام: مهمة]',
         'أنشئ/حدّث عبر room_tasks_create أو room_tasks_update فوراً.',
-        'لخّص ما سُجّل في لوحة مهام الغرفة.',
+        'لخّص سطراً واحداً ما سُجّل.',
       ].join(' ')
     case 'file':
+      if (createNew) {
+        return [
+          '[قصد تيليجرام: إنشاء ملف من الصفر]',
+          'أنشئ ملفاً جديداً فوراً عبر write_file أو brain_create_document أو pdf_create بالمحتوى المطلوب (من النص/تفريغ الصوت).',
+          'ثم return_file كمرفق تيليجرام. ممنوع البحث في Drive أولاً. ممنوع طلب توضيح إن المحتوى واضح من الرسالة/الصوت.',
+          'رد موجز: اسم الملف + تم الإرسال.',
+        ].join(' ')
+      }
       return [
         '[قصد تيليجرام: ملف — تيليجرام أولاً — تلقائي بلا سؤال]',
-        'إن وُجد fileId لمرفق تيليجرام في الرسالة: هذه نسخة العمل الوحيدة — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
-        'ممنوع منعاً باتاً: brain_open_document / drive_search / تطابق تقريبي بالاسم («معلم»→ملف أحياء) / أي بديل من Drive أو الويب.',
-        'ممنوع طلب «أعد إرسال الملف» إن وُجد fileId أو بايتات في Drive أو مرآة تيليجرام أو غرفة الفريق أو الماك أو مهمة معلّقة — استدعِ find_storage_mesh بالترتيب (Drive→TG→غرفة→ماك) ونفّذ.',
-        'ممنوع «هل تريد؟» — نفّذ فوراً. إن انعدمت كل المخازن: طابور waiting_file صامت بلا إزعاج المستخدم.',
-        'بدون مرفق تيليجرام صريح: list_workspace_files بالمعرّف/الاسم المطابق حرفياً فقط؛ وإلا find_storage_mesh. Drive فقط عند طلب صريح لاسم/معرّف Drive كامل.',
-        'ملف كبير (>حد تنزيل البوت): خزّن → غرفة/Drive → عدّل → أعد بـ return_file/sendDocument تلقائياً.',
-        'أرشفة المجموعة: archive_telegram_group. مزامنة Drive اختيارية بعد النجاح — لا تفشل ولا تتوقف إن لم يُربط Google.',
-        'لا تستدعِ drive_sync_brain إلا بطلب مزامنة صريح («زامن الدرايف»).',
-        'OCR: arabic_ocr. تعليق: pdf_annotate/pdf_stamp. نسخ صفحة: pdf_duplicate_page (pdf-lib مجاني) ثم return_file.',
-        'PDF عربي: pdf_replace_text (HarfBuzz/PyMuPDF). عجز → research_task_tools ثم نفّذ المجاني المدمج؛ مدفوع فقط بعد الاستنفاد.',
+        'إن وُجد fileId لمرفق تيليجرام في الرسالة/الذاكرة: هذه نسخة العمل — اقرأها/عدّلها/حوّلها مباشرة ثم return_file كمرفق تيليجرام.',
+        'ممنوع: brain_open/drive_search كبديل بالتشابه؛ ممنوع «أعد الإرسال» إن وُجدت بايتات/خزنة/مهمة معلّقة — find_storage_mesh ثم نفّذ.',
+        'ممنوع «هل تريد؟». OCR: arabic_ocr. تعليق: pdf_annotate. نسخ صفحة: pdf_duplicate_page ثم return_file.',
+        'رد موجز + المرفق.',
       ].join(' ')
     case 'mail':
       return [
         '[قصد تيليجرام: بريد]',
-        'صندوق الجمعية (IMAP): mail_search / mail_read / mail_send / mail_sync — متاح لأعضاء الجلسة المسجّلين.',
-        'Gmail الشخصي المربوط: gmail_search / gmail_read / gmail_send.',
-        'بحث شامل (بريد+ملفات+تقويم): room_search — لا يشمل Gmail الشخصي للأعضاء.',
-        'نفّذ فوراً ثم لخّص النتائج بالعربية (المرسل · الموضوع · مقتطف). لا تختلق رسائل.',
-        'قبل الإرسال: أكّد المستلم والموضوع بإيجاز بعد التنفيذ.',
+        'نفّذ mail_* أو gmail_* فوراً ولخّص (مرسل · موضوع · مقتطف). لا تختلق رسائل. رد موجز.',
       ].join(' ')
     case 'message':
       return [
-        '[قصد تيليجرام: رسالة / تبليغ / تنسيق]',
-        'استخرج اسم المستلم ونص الرسالة.',
-        'نفّذ فوراً عبر notify_room_member (اسم العضو + النص) أو send_message.',
-        'إن كان الطلب للمجموعة/الفريق استخدم targetNameAr=المجموعة أو البث عبر الأداة.',
-        'حدود صادقة: البوت لا يرسل خاصاً لمن لم يضغط Start سابقاً — عند الفشل انشر في المجموعة المربوطة واشرح السبب.',
-        'لا تختلق أن الرسالة وصلت خاصاً إن فشلت الأداة.',
+        '[قصد تيليجرام: رسالة / تبليغ]',
+        'نفّذ notify_room_member فوراً. خاص فقط إن بدأ المستلم Start — وإلا المجموعة واشرح بصراحة سطراً.',
       ].join(' ')
     case 'question':
+      if (web) {
+        return [
+          '[قصد تيليجرام: بحث ويب/جوجل]',
+          'نفّذ web_search فوراً (DuckDuckGo+ويكيبيديا+gov.sa — بلا مفتاح). عند الحاجة web_fetch/Jina.',
+          'أعد 3–5 نتائج مختصرة بروابط. ممنوع room_search بدل البحث الخارجي. ممنوع شرح مطوّل.',
+        ].join(' ')
+      }
+      if (maps) {
+        return [
+          '[قصد تيليجرام: موقع / خريطة]',
+          'نفّذ geocode فوراً ثم انشر الاسم · الإحداثيات · روابط osmUrl و googleMapsUrl من النتيجة.',
+          'رد موجز — بلا محاضرة.',
+        ].join(' ')
+      }
       return [
-        '[قصد تيليجرام: سؤال / إيقاظ وكيل / طلب عمل / إحاطة]',
-        'أنت مقعد غرفة الموقع — نفّذ فوراً دون انتظار أوامر إضافية.',
-        'إحاطة/ملخص اليوم: owner_morning_brief فوراً وأعد textAr كما هو.',
-        'بحث عام في الغرفة/الموقع: room_search أولاً (بريد جمعية · ملفات · تقويم) ثم فصّل بأدوات متخصصة إن لزم.',
-        'استخدم كل أدوات الغرفة المتاحة (تقويم/مهام/ملفات/Drive/بريد/تبليغ/بحث/تحويل) ثم لخّص ما نُفّذ.',
-        'إن ذُكر وكيل٢ أو انشغل وكيل١ اتبع سياسة الإيقاظ في الغرفة.',
+        '[قصد تيليجرام: سؤال / طلب عمل / إحاطة]',
+        'نفّذ فوراً. إحاطة: owner_morning_brief. بحث غرفة: room_search. تذكّر سياق المحادثة أعلاه.',
+        'رد موجز بالنتيجة — ممنوع طلب شرح أطول لطلب واضح/اختصار.',
       ].join(' ')
     default:
       return ''
@@ -541,7 +605,7 @@ export function buildTelegramPowerPrompt(opts: {
   const parts = [
     roomIntent.cleanPrompt || opts.raw,
     roomIntentPromptNudge(roomIntent),
-    workKindNudge(opts.work.kind),
+    workKindNudge(opts.work.kind, opts.raw),
     opts.work.preferFullAgent
       ? capabilityCascadePromptNudgeAr(opts.raw)
       : '',
@@ -593,21 +657,11 @@ export async function telegramGoogleLinkedHintAr(
 }
 
 export const TELEGRAM_LIMITS_SYSTEM_AR = `حدود صادقة + قدرات كاملة + تشغيل تلقائي:
-- أنت = نفس وكلاء غرفة الموقع: أدوات أصلية كاملة على طلبات العمل (ملفات تيليجرام/خزنة، تحويل، OCR، تقويم الغرفة، مهام، بريد، خطابات، محاضر، تبليغ، بحث موحّد room_search، إحاطة الصباح، تعليق PDF). Drive اختياري.
-- تشغيل تلقائي مطلق: ممنوع «هل تريد؟» للعمل الروتيني. نفّذ ثم سلّم الناتج على تيليجرام. المقاطعة الوحيدة للمستخدم = بوابة دفع بعد استنفاد المجاني.
-- المقاعد: وكيل١…وكيل٨ (أو المخصصون في الغرفة). انشغال وكيل١ → إيقاظ التالي. طلب ثقيل / عجز / «أبغا للجميع» / وضع فريق → تشغيل متوازٍ + بحث مجاني ثم تنفيذ. «يا وكيل١» يوجّه مقعداً بعينه.
-- مرفق تيليجرام (fileId في الرسالة) = نسخة العمل. نفّذ عليه فوراً وأعد الناتج بـ return_file كمرفق تيليجرام. ممنوع رفض الطلب لأن الملف «ليس على Drive». ممنوع طلب إعادة الإرسال إن وُجدت بايتات/خزنة/مهمة معلّقة/Drive بالاسم — استأنف تلقائياً.
-- ملف كبير: خزّن → غرفة/Drive → عدّل → أعد لتيليجرام تلقائياً.
-- عجز القدرة: research_task_tools → إن canExecuteFree نفّذ executeNext (pdf-lib/convert/OCR…) فوراً. لا تشغّل MCP بعيداً غير موثوق. فقط إن blocked: messageAr ببدائل مدفوعة الأرخص وانتظر المفتاح.
-- عقل الشركة (Drive): اختياري بعد النجاح إن رُبط Google؛ بدون ربط أكمل من خزنة الغرفة/تيليجرام فقط.
-- مشاركة ACL على Drive غير متاحة — أعِد webViewLink فقط عند توفره.
-- بريد الجمعية (mail_*): متاح لأعضاء الجلسة المسجّلين — لا تقصر الاستخدام على المالك.
-- Gmail الشخصي: ربط Google + ربط حساب تيليجرام الشخصي إن وُجد (/link account).
-- الرسائل لشخص: notify_room_member — خاص فقط إن ضغط المستلم Start؛ وإلا منشور في المجموعة المربوطة. لا تختلق وصول خاص.
-- HITL فقط لحذف ملفات الغرفة/Drive (RBAC) أو بوابة الدفع — ممنوع HITL لتعديل/تحويل روتيني. ممنوع حذف رسائل تيليجرام.
-- التقويم الجماعي: room_calendar_* فقط (Asia/Riyadh) مع تنبيه التعارض. لا تختلق مواعيد.
-- خطابات: list_letter_templates / letter_fill_template. محاضر: minutes_from_thread.
-- في المجموعة: القصد يحدد الرد — طلب عمل → نفّذ واردّ بالناتج بدون منشن؛ دردشة بشرية → صامت. المنشن اختياري.
-- لست نسخة بصرية من الموقع: لا لوحة TipTap ولا سبورة tldraw ولا أداة رسم PDF بالقلم — نفّذ المكافئ عبر الأدوات (pdf_annotate / edit_document / draft HTML في البريد).
-- PDF: استبدال عربي عبر pdf_replace_text أدق؛ تعليق عبر pdf_annotate؛ نسخ صفحة عبر pdf_duplicate_page (pdf-lib مجاني).
-- ملف مفقود: find_storage_mesh (Drive→تيليجرام→غرفة→ماك). أرشفة المجموعة: archive_telegram_group.`
+- أنت = نفس وكلاء غرفة الموقع على تيليجرام. نفّذ فوراً؛ رد موجز بعد النجاح (نتيجة + مرفق إن وُجد). ممنوع شرح مطوّل أو طلب توضيح لطلب واضح/اختصار.
+- ذاكرة الشات إلزامية: سجل هذه المحادثة (مرآة room_posts حسب chatId) + مهام ملفات + مرفقات تيليجرام — لا تنسَ طلباً سابقاً في نفس الشات.
+- مرفق تيليجرام المرسل حديثاً = نسخة العمل (عدّل/حوّل ثم return_file). إنشاء ملف من الصفر (صوت/نص): write_file / brain_create_document / pdf_create ثم return_file — بلا Drive أولاً.
+- بحث جوجل/ويب: web_search (DDG مجاني). موقع/خريطة: geocode + روابط OSM/Google Maps من النتيجة.
+- تشغيل تلقائي: ممنوع «هل تريد؟» للعمل الروتيني. المقاطعة الوحيدة = بوابة دفع بعد استنفاد المجاني.
+- المقاعد: وكيل١…٨. انشغال → التالي. «أبغا للجميع» → متوازٍ. ملف مفقود: find_storage_mesh (Drive→TG→غرفة→ماك).
+- HITL فقط لحذف ملفات الغرفة/Drive أو بوابة الدفع. ممنوع حذف رسائل تيليجرام. التقويم: room_calendar_* فقط (Asia/Riyadh).
+- هيرميس واتساب منفصل تماماً — لا تخلط أدوات/سياق واتساب مع هذا البوت.`

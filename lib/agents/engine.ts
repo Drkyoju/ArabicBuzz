@@ -176,7 +176,7 @@ export function getNativeAiTools(opts?: {
     }),
     geocode: tool({
       description:
-        'ترميز جغرافي مجاني لاسم مكان → إحداثيات عبر Nominatim/OSM.',
+        'ترميز جغرافي مجاني لاسم مكان → إحداثيات + روابط خرائط (OpenStreetMap وGoogle Maps) عبر Nominatim/OSM. استخدمه عند «أين تقع» / موقع / خريطة.',
       inputSchema: z.object({
         query: z.string().describe('اسم المكان مثل الرياض'),
       }),

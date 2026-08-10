@@ -789,12 +789,34 @@ export async function executeGeocode(
       type?: string
       importance?: number
     }>
-    const results = (rows || []).map((r) => ({
-      name: String(r.display_name || '').slice(0, 240),
-      lat: Number(r.lat),
-      lon: Number(r.lon),
-      type: String(r.type || ''),
-    }))
+    const results = (rows || []).map((r) => {
+      const lat = Number(r.lat)
+      const lon = Number(r.lon)
+      const osm =
+        Number.isFinite(lat) && Number.isFinite(lon)
+          ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`
+          : ''
+      const gmaps =
+        Number.isFinite(lat) && Number.isFinite(lon)
+          ? `https://www.google.com/maps?q=${lat},${lon}`
+          : ''
+      return {
+        name: String(r.display_name || '').slice(0, 240),
+        lat,
+        lon,
+        type: String(r.type || ''),
+        /** OpenStreetMap pin + zoom (مجاني). */
+        osmUrl: osm,
+        /** Google Maps pin (رابط عام بلا مفتاح API). */
+        googleMapsUrl: gmaps,
+        mapsUrl: osm || gmaps,
+      }
+    })
+    const top = results[0]
+    const linkHint =
+      top?.mapsUrl
+        ? ` خريطة: ${top.osmUrl || top.googleMapsUrl}`
+        : ''
     return {
       ok: results.length > 0,
       query,
@@ -803,7 +825,11 @@ export async function executeGeocode(
       attribution: '© OpenStreetMap contributors (ODbL)',
       messageAr:
         results.length > 0
-          ? `عُثر على ${results.length} موقع لـ «${query}».`
+          ? `عُثر على ${results.length} موقع لـ «${query}».${
+              top
+                ? ` الأقرب: ${top.name} (${top.lat}, ${top.lon}).${linkHint}`
+                : ''
+            }`
           : 'لا نتائج جغرافية.',
     }
   } catch (e) {

@@ -139,8 +139,9 @@ export function voiceQuickPrompt(
           transcript,
           '',
           '[زر سريع: ملف]',
-          'ابحث في خزنة الغرفة و/أو عقل الشركة (Drive إن مربوط) وأعد الملف أو ملخصاً قصيراً.',
-          'استخدم list_workspace_files / search_knowledge_base / brain_open_document ثم return_file عند الحاجة.',
+          'إن طُلب إنشاء ملف جديد/من الصفر: write_file أو brain_create_document أو pdf_create ثم return_file.',
+          'وإلا: نفّذ على مرفق تيليجرام الأخير (fileId) أو خزنة الغرفة — edit/convert ثم return_file.',
+          'ممنوع طلب إعادة الإرسال إن وُجدت بايتات. رد موجز.',
         ].join('\n'),
       }
     case 'mail':

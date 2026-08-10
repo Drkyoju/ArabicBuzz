@@ -154,10 +154,11 @@ export const EXCELLENT_FREE_TOOLKIT: FreeToolkitItem[] = [
   },
   {
     id: 'memory',
-    labelAr: 'ذاكرة جلسة خفيفة',
-    bot: 'chat-memory / غرفة الفريق',
+    labelAr: 'ذاكرة محادثة تيليجرام (لكل شات)',
+    bot: 'chat-memory (room_posts حسب chatId) + مهام/مرفقات',
     hermes: 'MCP memory',
     bothReady: true,
+    noteAr: 'أنظمة منفصلة — ذاكرة TG لا تُشارك مع واتساب هيرميس',
   },
   {
     id: 'code_docs',
