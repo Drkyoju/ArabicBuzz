@@ -56,9 +56,26 @@ describe('mapToolErrorAr / toolLabelAr', () => {
 
 describe('mapToolSuccessAr', () => {
   it('prefixes short Arabic success with tool label', async () => {
-    const { mapToolSuccessAr } = await import('@/lib/ai/user-error-ar')
+    const { mapToolSuccessAr, toolChipBodyAr } = await import(
+      '@/lib/ai/user-error-ar'
+    )
     expect(mapToolSuccessAr('room_calendar_list', '٣ مواعيد')).toMatch(/تقويم/)
-    expect(mapToolSuccessAr('gmail_search', null, { count: 0 })).toMatch(/لا نتائج/)
+    expect(mapToolSuccessAr('gmail_search', null, { count: 0 })).toMatch(
+      /لا نتائج/
+    )
+    expect(mapToolSuccessAr('gmail_search', null, { count: 3 })).toMatch(
+      /3 رسائل/
+    )
+    expect(mapToolSuccessAr('room_calendar_list', null, { count: 2 })).toMatch(
+      /2 مواعيد/
+    )
     expect(mapToolSuccessAr('send_message', 'أُرسلت')).toMatch(/تيليجرام|أُرسلت/)
+    expect(mapToolSuccessAr('room_calendar_create', null)).toMatch(/حُفظ|اكتمل/)
+    expect(
+      mapToolSuccessAr('gmail_send', null, { pending: true })
+    ).toMatch(/بانتظار موافقة/)
+    expect(
+      toolChipBodyAr('تقويم الغرفة: وُجد', 'تقويم الغرفة')
+    ).toBe('وُجد')
   })
 })

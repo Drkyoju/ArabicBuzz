@@ -513,7 +513,7 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
       </div>
       {post.citations && post.citations.length > 0 && (
         <div className="mt-2 space-y-1" dir="rtl">
-          <p className="text-[10px] font-semibold text-stone-500">المصادر</p>
+          <p className="text-[10px] font-semibold text-ab-muted">المصادر</p>
           <div className="flex flex-wrap gap-1.5">
             {post.citations.map((c, i) =>
               c.url ? (
@@ -540,6 +540,54 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
           </div>
         </div>
       )}
+      {post.usedTools && post.usedTools.length > 0 ? (
+        <ul
+          className="mt-2 flex flex-wrap gap-1.5"
+          dir="rtl"
+          aria-label="نتائج الأدوات"
+        >
+          {post.usedTools.map((t, i) => {
+            const status = t.status || 'ok'
+            const body = (() => {
+              const s = (t.summaryAr || '').trim()
+              const label = (t.labelAr || '').trim()
+              if (!label) return s
+              return (
+                s
+                  .replace(
+                    new RegExp(
+                      `^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：·]?\\s*`
+                    ),
+                    ''
+                  )
+                  .trim() || s
+              )
+            })()
+            return (
+              <li
+                key={`${t.name}-${i}`}
+                title={t.summaryAr}
+                className={cn(
+                  'inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium',
+                  status === 'error' &&
+                    'border-ab-danger/35 bg-ab-danger/10 text-ab-danger',
+                  status === 'pending' &&
+                    'border-ab-warn/40 bg-ab-warn/10 text-ab-warn',
+                  status === 'running' &&
+                    'border-ab-border bg-ab-stage text-ab-muted',
+                  status === 'ok' &&
+                    'border-ab-accent/25 bg-ab-accent/5 text-ab-ink'
+                )}
+              >
+                <span className="shrink-0 font-semibold">{t.labelAr}</span>
+                {body ? (
+                  <span className="truncate opacity-90">{body}</span>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
       {post.authorKind === 'human' || post.authorKind === 'agent' ? (
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {post.authorKind === 'human' && !post.streaming && (

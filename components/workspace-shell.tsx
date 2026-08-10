@@ -67,11 +67,11 @@ type CalendarTab =
   | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
-  { id: 'schedule', labelAr: 'أسبوع / قائمة' },
-  { id: 'full', labelAr: 'التقويم الكامل' },
+  { id: 'schedule', labelAr: 'أسبوع / قائمة · مشترك' },
+  { id: 'full', labelAr: 'التقويم الكامل · مشترك' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'Zoom والاجتماعات' },
-  { id: 'external', labelAr: 'تقويم Google' },
+  { id: 'external', labelAr: 'Google · شخصي' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
@@ -587,9 +587,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div className="min-w-0">
                 <h2 className="ab-title">تقويم الفريق</h2>
                 <p className="ab-subtitle">
-                  سبورة مشتركة لكل الحسابات في غرفة الفريق — أي عضو يضيف أو يعدّل
-                  يراه الجميع. تيليجرام يستخدم نفس المصدر. تقويم Google الشخصي
-                  اختياري للدعوات الخارجية فقط.
+                  تقويم الفريق المشترك — المصدر الرسمي للمواعيد. أي عضو يضيف أو
+                  يعدّل يراه الجميع. تقويم Google اختياري للدعوات الشخصية
+                  الخارجية فقط.
                 </p>
               </div>
             </header>
@@ -655,10 +655,10 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                   <h3 className="mb-1 text-sm font-semibold text-ab-ink">
                     ربط بريد Google Workspace (Gmail)
                   </h3>
-                  <p className="mb-3 text-xs text-stone-500">
+                  <p className="mb-3 text-xs text-ab-muted">
                     هذا تقويمك الشخصي / دعوات خارجية — ليس أجندة الفريق. مواعيد
-                    الغرفة المشتركة تُدار من «أسبوع / قائمة» و«التقويم الكامل»
-                    وتظهر لكل الأعضاء. Microsoft 365 و IMAP غير مدعومين.
+                    الغرفة المشتركة تُدار من «أسبوع / قائمة · مشترك» و«التقويم
+                    الكامل · مشترك» وتظهر لكل الأعضاء.
                   </p>
                   <GoogleCalendarPanel hideTitle />
                 </div>

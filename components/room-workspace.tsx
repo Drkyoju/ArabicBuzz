@@ -34,7 +34,7 @@ import {
   setBridgeDragData,
 } from '@/lib/files/workspace-bridge'
 import { useModelPickerStore } from '@/lib/ai/model-picker-store'
-import { mapChatErrorAr } from '@/lib/ai/user-error-ar'
+import { mapChatErrorAr, toolLabelAr } from '@/lib/ai/user-error-ar'
 import {
   dispatchOrgMailDraft,
   readOrgMailFocus,
@@ -106,6 +106,8 @@ import type {
 import {
   extractCitationsFromToolOutput,
   extractPausedApprovalId,
+  summarizeToolChip,
+  type UsedToolCall,
 } from '@/lib/agents/citation-events'
 import { createArtifactStreamParser } from '@/lib/agents/canvas-stream'
 import { cn } from '@/lib/utils'
@@ -229,6 +231,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
 
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [activeToolLabelAr, setActiveToolLabelAr] = useState('')
   const [answeringAgentId, setAnsweringAgentId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('أنت')
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -884,6 +887,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
     activeRunsRef.current = 0
     setStreaming(false)
     setAnsweringAgentId(null)
+    setActiveToolLabelAr('')
   }
 
   async function streamOneAgent(opts: {
@@ -1049,18 +1053,26 @@ export function RoomWorkspace({ className }: { className?: string }) {
     let assembled = ''
     const citations: RoomCitation[] = []
     const attachments: RoomFileAttachment[] = []
+    const usedTools: UsedToolCall[] = []
+    const toolCallNames = new Map<string, string>()
     let pendingApprovalId: string | undefined
+    let lastToolLabelAr = ''
+    const pushToolsUpdate = (streamingFlag: boolean) => {
+      if (lastToolLabelAr) setActiveToolLabelAr(lastToolLabelAr)
+      updatePost(activeScopeId, opts.postId, {
+        content: assembled,
+        streaming: streamingFlag,
+        citations: citations.length ? [...citations] : undefined,
+        attachments: attachments.length ? [...attachments] : undefined,
+        usedTools: usedTools.length ? [...usedTools] : undefined,
+        pendingApprovalId,
+      })
+    }
     const artifactParser = createArtifactStreamParser({
       onChatText: (visible) => {
         if (!visible) return
         assembled += visible
-        updatePost(activeScopeId, opts.postId, {
-          content: assembled,
-          streaming: true,
-          citations: citations.length ? [...citations] : undefined,
-          attachments: attachments.length ? [...attachments] : undefined,
-          pendingApprovalId,
-        })
+        pushToolsUpdate(true)
       },
       onArtifactUpsert: (partial) => {
         upsertArtifact({ ...partial, pendingReview: true })
@@ -1100,6 +1112,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
               text?: string
               output?: unknown
               result?: unknown
+              toolCallId?: string
+              toolName?: string
+              errorText?: string
             }
             if (
               event.type === 'text-delta' ||
@@ -1107,6 +1122,48 @@ export function RoomWorkspace({ className }: { className?: string }) {
               (event.type === 'text' && typeof event.text === 'string')
             ) {
               artifactParser.push(String(event.delta ?? event.text ?? ''))
+            }
+            if (
+              (event.type === 'tool-input-start' ||
+                event.type === 'tool-input-available') &&
+              event.toolCallId &&
+              event.toolName
+            ) {
+              toolCallNames.set(event.toolCallId, event.toolName)
+              lastToolLabelAr = toolLabelAr(event.toolName)
+              const idx = usedTools.findIndex(
+                (u) => u.name === event.toolName && u.status === 'running'
+              )
+              const running: UsedToolCall = {
+                name: event.toolName,
+                labelAr: lastToolLabelAr,
+                summaryAr: `${lastToolLabelAr}: جاري…`,
+                status: 'running',
+              }
+              if (idx >= 0) usedTools[idx] = running
+              else usedTools.push(running)
+              pushToolsUpdate(true)
+            }
+            if (
+              event.type === 'tool-output-error' &&
+              event.toolCallId
+            ) {
+              const name =
+                toolCallNames.get(event.toolCallId) ||
+                event.toolName ||
+                'unknown'
+              const chip = summarizeToolChip(name, null, {
+                errorText: event.errorText || 'تعذّر إكمال الإجراء',
+              })
+              lastToolLabelAr = chip.labelAr
+              const runIdx = usedTools.findIndex(
+                (u) =>
+                  u.name === name &&
+                  (u.status === 'running' || u.status === 'pending')
+              )
+              if (runIdx >= 0) usedTools[runIdx] = chip
+              else usedTools.push(chip)
+              pushToolsUpdate(true)
             }
             const toolOut =
               event.output ??
@@ -1124,6 +1181,20 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 if (!citations.some((x) => x.labelAr === c.labelAr)) {
                   citations.push(c)
                 }
+              }
+              const toolName =
+                (event.toolCallId && toolCallNames.get(event.toolCallId)) ||
+                event.toolName ||
+                (typeof out.toolName === 'string' ? out.toolName : '') ||
+                (typeof nested.toolName === 'string' ? nested.toolName : '')
+              if (toolName) {
+                const chip = summarizeToolChip(toolName, toolOut)
+                lastToolLabelAr = chip.labelAr
+                const runIdx = usedTools.findIndex(
+                  (u) => u.name === toolName && u.status === 'running'
+                )
+                if (runIdx >= 0) usedTools[runIdx] = chip
+                else usedTools.push(chip)
               }
               // Agent drafted an org-mail reply — fill the mail UI composer.
               if (
@@ -1206,13 +1277,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   })
                 }
               }
-              updatePost(activeScopeId, opts.postId, {
-                content: assembled,
-                streaming: true,
-                citations: citations.length ? [...citations] : undefined,
-                attachments: attachments.length ? [...attachments] : undefined,
-                pendingApprovalId,
-              })
+              pushToolsUpdate(true)
             }
           } catch {
             /* ignore */
@@ -1252,6 +1317,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       streaming: false,
       citations: citations.length ? citations : undefined,
       attachments: attachments.length ? attachments : undefined,
+      usedTools: usedTools.length ? usedTools : undefined,
       pendingApprovalId,
     })
 
@@ -1558,6 +1624,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         if (runAbortRef.current === abort) runAbortRef.current = null
         setStreaming(false)
         setAnsweringAgentId(null)
+        setActiveToolLabelAr('')
       }
     }
   }
@@ -1644,7 +1711,11 @@ export function RoomWorkspace({ className }: { className?: string }) {
                           ? roomAgents.find((a) => a.id === answeringAgentId)
                               ?.nameAr || 'الوكيل'
                           : 'الوكيل'
-                      } يكتب الآن…`
+                      }${
+                        activeToolLabelAr
+                          ? ` · ${activeToolLabelAr}`
+                          : ' يكتب الآن…'
+                      }`
                     : shared
                       ? 'غرفة الفريق · اكتب @ لاستدعاء وكيل'
                       : PERSONAL_DESK_COPY.taglineAr}

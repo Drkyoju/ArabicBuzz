@@ -328,12 +328,26 @@ function TaskPane({
         ) : null}
         {expanded && job.usedTools && job.usedTools.length > 0 ? (
           <ul className="w-full space-y-0.5 pt-1">
-            {job.usedTools.map((t, i) => (
-              <li key={`${t.name}-${i}`} className="text-[10px] text-stone-600">
-                <span className="font-semibold text-ab-ink">{t.labelAr}</span>{' '}
-                {t.summaryAr}
-              </li>
-            ))}
+            {job.usedTools.map((t, i) => {
+              const label = t.labelAr || ''
+              const body = (t.summaryAr || '')
+                .replace(
+                  new RegExp(
+                    `^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：·]?\\s*`
+                  ),
+                  ''
+                )
+                .trim()
+              return (
+                <li
+                  key={`${t.name}-${i}`}
+                  className="text-[10px] text-ab-muted"
+                >
+                  <span className="font-semibold text-ab-ink">{label}</span>
+                  {body ? <> — {body}</> : null}
+                </li>
+              )
+            })}
           </ul>
         ) : null}
       </div>

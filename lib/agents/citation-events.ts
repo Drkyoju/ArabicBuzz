@@ -50,23 +50,52 @@ export function extractPausedApprovalId(toolOut: unknown): string | null {
   return null
 }
 
-function summarizeToolOutput(name: string, out: unknown): string {
-  if (out == null) return mapToolSuccessAr(name, null)
+export type ToolChipStatus = 'ok' | 'error' | 'pending' | 'running'
+
+export type UsedToolCall = {
+  name: string
+  labelAr: string
+  summaryAr: string
+  status?: ToolChipStatus
+}
+
+function chip(
+  name: string,
+  summaryAr: string,
+  status: ToolChipStatus
+): UsedToolCall {
+  return {
+    name,
+    labelAr: toolLabelAr(name),
+    summaryAr,
+    status,
+  }
+}
+
+/** Build a room/assistants tool chip from raw tool output. */
+export function summarizeToolChip(
+  name: string,
+  out: unknown,
+  opts?: { errorText?: string }
+): UsedToolCall {
+  if (opts?.errorText) {
+    return chip(name, mapToolErrorAr(opts.errorText).slice(0, 120), 'error')
+  }
+  if (out == null) return chip(name, mapToolSuccessAr(name, null), 'ok')
   if (typeof out === 'string') {
     const t = out.replace(/\s+/g, ' ').trim()
-    if (!t) return mapToolSuccessAr(name, null)
-    // Only sanitize when the string looks like an error / technical dump.
+    if (!t) return chip(name, mapToolSuccessAr(name, null), 'ok')
     if (
       /error|fail|refuse|tounicode|extract_source|unknown tool|تعذّر|فشل|خطأ/i.test(
         t
       )
     ) {
-      return mapToolErrorAr(t).slice(0, 100)
+      return chip(name, mapToolErrorAr(t).slice(0, 120), 'error')
     }
-    return mapToolSuccessAr(name, t)
+    return chip(name, mapToolSuccessAr(name, t), 'ok')
   }
   if (typeof out !== 'object') {
-    return mapToolErrorAr(String(out)).slice(0, 100)
+    return chip(name, mapToolErrorAr(String(out)).slice(0, 120), 'error')
   }
   const o = out as Record<string, unknown>
   const nested =
@@ -74,35 +103,44 @@ function summarizeToolOutput(name: string, out: unknown): string {
       ? (o.output as Record<string, unknown>)
       : o
   if (nested.status === 'paused' && nested.approvalId) {
-    return mapToolSuccessAr(name, 'بانتظار موافقة')
+    return chip(
+      name,
+      mapToolSuccessAr(name, null, { pending: true }),
+      'pending'
+    )
   }
   const ok = nested.ok === true || nested.ok === 'true'
   if (nested.ok === false) {
     if (typeof nested.messageAr === 'string' && nested.messageAr.trim()) {
-      return mapToolErrorAr(nested.messageAr).slice(0, 100)
+      return chip(name, mapToolErrorAr(nested.messageAr).slice(0, 120), 'error')
     }
     if (typeof nested.reason_ar === 'string' && nested.reason_ar.trim()) {
-      return mapToolErrorAr(nested.reason_ar).slice(0, 100)
+      return chip(name, mapToolErrorAr(nested.reason_ar).slice(0, 120), 'error')
     }
     if (typeof nested.error === 'string' && nested.error.trim()) {
-      return mapToolErrorAr(nested.error).slice(0, 100)
+      return chip(name, mapToolErrorAr(nested.error).slice(0, 120), 'error')
     }
+    return chip(name, mapToolErrorAr(null).slice(0, 120), 'error')
   }
   if (typeof nested.messageAr === 'string' && nested.messageAr.trim()) {
     const msg = nested.messageAr.trim()
-    if (ok || nested.ok !== false) return mapToolSuccessAr(name, msg)
-    return mapToolErrorAr(msg).slice(0, 100)
+    if (ok || nested.ok !== false) {
+      return chip(name, mapToolSuccessAr(name, msg), 'ok')
+    }
+    return chip(name, mapToolErrorAr(msg).slice(0, 120), 'error')
   }
   if (typeof nested.reason_ar === 'string' && nested.reason_ar.trim()) {
-    return mapToolErrorAr(nested.reason_ar).slice(0, 100)
+    return chip(name, mapToolErrorAr(nested.reason_ar).slice(0, 120), 'error')
   }
   if (typeof nested.error === 'string' && nested.error.trim()) {
-    return mapToolErrorAr(nested.error).slice(0, 100)
+    return chip(name, mapToolErrorAr(nested.error).slice(0, 120), 'error')
   }
   if (typeof nested.message === 'string' && nested.message.trim()) {
     const msg = nested.message.trim()
-    if (ok) return mapToolSuccessAr(name, msg)
-    return mapToolErrorAr(msg).slice(0, 100)
+    if (ok || nested.ok !== false) {
+      return chip(name, mapToolSuccessAr(name, msg), 'ok')
+    }
+    return chip(name, mapToolErrorAr(msg).slice(0, 120), 'error')
   }
   for (const key of [
     'events',
@@ -116,25 +154,27 @@ function summarizeToolOutput(name: string, out: unknown): string {
   ] as const) {
     const arr = nested[key]
     if (Array.isArray(arr)) {
-      return mapToolSuccessAr(name, null, { count: arr.length })
+      return chip(
+        name,
+        mapToolSuccessAr(name, null, { count: arr.length }),
+        'ok'
+      )
     }
   }
   if (typeof nested.count === 'number') {
-    return mapToolSuccessAr(name, null, { count: nested.count })
+    return chip(
+      name,
+      mapToolSuccessAr(name, null, { count: nested.count }),
+      'ok'
+    )
   }
   if (typeof nested.id === 'string' || typeof nested.messageId === 'string') {
-    return mapToolSuccessAr(name, 'تم')
+    return chip(name, mapToolSuccessAr(name, null), 'ok')
   }
   if (name === 'send_message' && (nested.ok === true || nested.sent === true)) {
-    return mapToolSuccessAr(name, 'أُرسلت')
+    return chip(name, mapToolSuccessAr(name, 'أُرسلت'), 'ok')
   }
-  return mapToolSuccessAr(name, null)
-}
-
-export type UsedToolCall = {
-  name: string
-  labelAr: string
-  summaryAr: string
+  return chip(name, mapToolSuccessAr(name, null), 'ok')
 }
 
 export type StepAttachmentRef = {
@@ -209,11 +249,7 @@ export function extractFromAgentSteps(steps: unknown): {
           ''
       ).trim()
       if (name && name !== 'undefined') {
-        usedTools.push({
-          name,
-          labelAr: toolLabelAr(name),
-          summaryAr: summarizeToolOutput(name, out),
-        })
+        usedTools.push(summarizeToolChip(name, out))
       }
       for (const c of extractCitationsFromToolOutput(out)) {
         if (!citations.some((x) => x.labelAr === c.labelAr)) citations.push(c)
@@ -234,16 +270,14 @@ export function extractFromAgentSteps(steps: unknown): {
         if (!c || typeof c !== 'object') continue
         const row = c as Record<string, unknown>
         const name = String(row.toolName || row.name || '').trim()
-        if (
-          name &&
-          !usedTools.some((u) => u.name === name && u.summaryAr === mapToolSuccessAr(name, null))
-        ) {
+        if (name) {
           const already = usedTools.some((u) => u.name === name)
           if (!already) {
             usedTools.push({
               name,
               labelAr: toolLabelAr(name),
               summaryAr: mapToolSuccessAr(name, null),
+              status: 'ok',
             })
           }
         }

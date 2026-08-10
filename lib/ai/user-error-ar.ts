@@ -272,6 +272,36 @@ export function unknownModelMessageAr(modelId: string): string {
   return `النموذج «${id}» غير معروف — اختر نموذجاً من قائمة الوكلاء.`
 }
 
+/** Count noun for tool result chips — never bare digits. */
+function toolCountUnitAr(toolName: string, count: number): string {
+  const n = String(toolName || '')
+  const one = count === 1
+  if (/calendar|event/i.test(n)) return one ? 'موعد' : 'مواعيد'
+  if (/task/i.test(n)) return one ? 'مهمة' : 'مهام'
+  if (/mail|gmail|message/i.test(n) && !/send_message/i.test(n)) {
+    return one ? 'رسالة' : 'رسائل'
+  }
+  if (/memor/i.test(n)) return one ? 'ذكرى' : 'ذكريات'
+  if (/file|document|drive|brain|pdf|excel|sheet/i.test(n)) {
+    return one ? 'ملف' : 'ملفات'
+  }
+  if (/search|web|result|arxiv|hn_/i.test(n)) return one ? 'نتيجة' : 'نتائج'
+  return one ? 'عنصر' : 'عناصر'
+}
+
+/** Outcome verb when the tool gave no useful Arabic body. */
+function toolDefaultOutcomeAr(toolName: string): string {
+  const n = String(toolName || '')
+  if (/send|notify/i.test(n)) return 'أُرسل'
+  if (/create|add|ingest|write|save|upload|fill/i.test(n)) return 'حُفظ'
+  if (/update|edit|replace|reconcile/i.test(n)) return 'عُدّل'
+  if (/delete|cancel|remove/i.test(n)) return 'أُلغي'
+  if (/search|list|read|fetch|lookup|scan|find/i.test(n)) return 'وُجد'
+  if (/draft/i.test(n)) return 'مسودة جاهزة'
+  if (/convert|ocr/i.test(n)) return 'اكتمل'
+  return 'اكتمل'
+}
+
 /**
  * Short MSA success / status line for tool chips in the room feed.
  * Prefer tool messageAr when already Arabic and concise; otherwise normalize.
@@ -279,19 +309,30 @@ export function unknownModelMessageAr(modelId: string): string {
 export function mapToolSuccessAr(
   toolName: string | undefined | null,
   raw: string | undefined | null,
-  opts?: { count?: number; ok?: boolean }
+  opts?: { count?: number; ok?: boolean; pending?: boolean }
 ): string {
   const label = toolLabelAr(toolName)
   const text = (raw || '').trim()
   const count = opts?.count
 
-  if (typeof count === 'number' && Number.isFinite(count)) {
-    if (count === 0) return `${label}: لا نتائج`
-    return `${label}: ${count}`
+  if (opts?.pending || /paused|pending.?approv|بانتظار موافقة/i.test(text)) {
+    return `${label}: بانتظار موافقة`
   }
 
-  if (!text || text === 'تم الاستدعاء' || text === 'تم بنجاح') {
-    return `${label}: تم`
+  if (typeof count === 'number' && Number.isFinite(count)) {
+    if (count === 0) return `${label}: لا نتائج`
+    return `${label}: ${count} ${toolCountUnitAr(String(toolName || ''), count)}`
+  }
+
+  if (
+    !text ||
+    text === 'تم الاستدعاء' ||
+    text === 'تم بنجاح' ||
+    text === 'تم' ||
+    text === 'ok' ||
+    text === 'OK'
+  ) {
+    return `${label}: ${toolDefaultOutcomeAr(String(toolName || ''))}`
   }
 
   // Already short Arabic — keep, lightly trim.
@@ -309,7 +350,20 @@ export function mapToolSuccessAr(
   }
 
   // English / technical success dumps — never show raw.
-  if (/paused|pending.?approv/i.test(text)) return `${label}: بانتظار موافقة`
-  if (/sent|ok|success|created|updated|done/i.test(text)) return `${label}: تم`
-  return `${label}: تم`
+  if (/sent|ok|success|created|updated|done|saved/i.test(text)) {
+    return `${label}: ${toolDefaultOutcomeAr(String(toolName || ''))}`
+  }
+  return `${label}: ${toolDefaultOutcomeAr(String(toolName || ''))}`
+}
+
+/** Body-only line for chips that already show labelAr separately. */
+export function toolChipBodyAr(summaryAr: string, labelAr: string): string {
+  const s = (summaryAr || '').trim()
+  const label = (labelAr || '').trim()
+  if (!s) return ''
+  if (!label) return s
+  const stripped = s
+    .replace(new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：·]?\\s*`), '')
+    .trim()
+  return stripped || s
 }

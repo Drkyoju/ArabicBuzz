@@ -1514,9 +1514,14 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   <Send className="h-4 w-4 text-ab-accent" aria-hidden />
                   نافذة الرد
                 </p>
-                <p className="text-[11px] leading-relaxed text-stone-600">
+                <p className="text-[11px] leading-relaxed text-ab-muted">
                   اضغط «اكتب رد بالذكاء» لملء المسودة هنا، راجعها وعدّلها، ثم
                   أرسل — أو «أرسل فوراً» دون تعديل إضافي.
+                </p>
+                <p className="rounded-md border border-ab-accent/20 bg-ab-accent/10 px-2 py-1.5 text-[10px] leading-relaxed text-ab-ink">
+                  <span className="font-semibold text-ab-accent">نبرة الجمعية:</span>{' '}
+                  فصحى رسمية · جمع مهذب · افتتاح «السلام عليكم…» · ختام «إدارة
+                  الجمعية» — خصّص للموضوع وعدّل أي «…» في القوالب.
                 </p>
 
                 {delivery && (
@@ -1566,6 +1571,11 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       جاهزة للتعديل/الإرسال
                     </span>
                   )}
+                  {intel?.draftBody ? (
+                    <span className="self-center rounded-md bg-ab-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-ab-accent">
+                      بنبرة جمعية الهدى والحكمة
+                    </span>
+                  ) : null}
                 </div>
 
                 <div>

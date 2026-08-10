@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle,
+  CalendarDays,
   Inbox,
   ListTodo,
   Radio,
   Send,
+  ShieldCheck,
   Sun,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
@@ -93,22 +95,59 @@ export function MorningBriefCard({
     }
   }
 
-  if (!brief?.hasContent) return null
+  if (!brief) return null
 
   const mail = brief.orgMail
   const conflicts = brief.conflicts || []
   const overdue = brief.overdueTasks || []
   const tg = brief.telegram || []
   const soon = brief.soonReminders || []
+  const today = brief.todayEvents || []
+  const pending = brief.pendingApprovals || 0
+
+  if (!brief.hasContent) {
+    return (
+      <section
+        id="ab-morning-brief"
+        className="rounded-xl border border-ab-border bg-ab-surface px-3 py-2.5"
+        dir="rtl"
+      >
+        <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
+          <Sun className="h-4 w-4 text-ab-accent" aria-hidden />
+          إحاطة الصباح
+        </h2>
+        <p className="mt-1.5 text-[12px] leading-relaxed text-ab-muted">
+          {brief.messageAr || 'لا جديد الآن — يوم هادئ حتى الآن.'}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => onNavigate?.('calendar')}
+            className="rounded-md border border-ab-border bg-ab-stage px-2 py-1 text-[11px] font-semibold text-ab-ink hover:border-ab-accent/40"
+          >
+            تقويم الفريق
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('mail')}
+            className="rounded-md border border-ab-border bg-ab-stage px-2 py-1 text-[11px] font-semibold text-ab-ink hover:border-ab-accent/40"
+          >
+            بريد الجمعية
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section
       id="ab-morning-brief"
-      className="rounded-xl border border-amber-200/80 bg-gradient-to-l from-amber-50/70 to-ab-surface px-3 py-2.5"
+      className="rounded-xl border border-ab-border bg-gradient-to-l from-ab-accent/10 to-ab-surface px-3 py-2.5"
+      dir="rtl"
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
-          <Sun className="h-4 w-4 text-amber-700" aria-hidden />
+          <Sun className="h-4 w-4 text-ab-accent" aria-hidden />
           إحاطة الصباح
         </h2>
         <div className="flex items-center gap-1.5">
@@ -144,16 +183,37 @@ export function MorningBriefCard({
                 </li>
               ))}
             </ul>
-            <p className="mt-1 text-[10px] text-stone-500">
-              نفس النافذة تصل تيليجرام مرة واحدة — بلا سبام.
+            <p className="mt-1 text-[10px] text-ab-muted">
+              تذكير واحد قبل الموعد — بلا تكرار مزعج.
             </p>
           </button>
         ) : null}
+
+        {today.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => onNavigate?.('calendar')}
+            className="rounded-lg border border-ab-border/60 bg-ab-stage/70 px-2.5 py-2 text-start"
+          >
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-muted">
+              <CalendarDays className="h-3 w-3" aria-hidden />
+              مواعيد اليوم · {today.length}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {today.slice(0, 3).map((e) => (
+                <li key={e.id} className="truncate text-[12px] text-ab-ink">
+                  {e.titleAr} · {e.whenAr}
+                </li>
+              ))}
+            </ul>
+          </button>
+        ) : null}
+
         {(mail?.unread || 0) > 0 || (mail?.recent?.length || 0) > 0 ? (
           <button
             type="button"
             onClick={() => onNavigate?.('mail')}
-            className="rounded-lg border border-ab-border/60 bg-white/70 px-2.5 py-2 text-start"
+            className="rounded-lg border border-ab-border/60 bg-ab-stage/70 px-2.5 py-2 text-start"
           >
             <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-muted">
               <Inbox className="h-3 w-3" aria-hidden />
@@ -176,15 +236,18 @@ export function MorningBriefCard({
           <button
             type="button"
             onClick={() => onNavigate?.('calendar')}
-            className="rounded-lg border border-amber-300/70 bg-amber-50/80 px-2.5 py-2 text-start"
+            className="rounded-lg border border-ab-warn/40 bg-ab-warn/10 px-2.5 py-2 text-start"
           >
-            <p className="flex items-center gap-1 text-[11px] font-semibold text-amber-900">
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-warn">
               <AlertTriangle className="h-3 w-3" aria-hidden />
               تعارضات اليوم · {conflicts.length}
             </p>
             <ul className="mt-1 space-y-0.5">
               {conflicts.slice(0, 3).map((c, i) => (
-                <li key={`${c.titleAr}-${i}`} className="truncate text-[12px] text-amber-950">
+                <li
+                  key={`${c.titleAr}-${i}`}
+                  className="truncate text-[12px] text-ab-ink"
+                >
                   {c.titleAr} · تداخل {c.overlapMinutes} د
                 </li>
               ))}
@@ -196,15 +259,15 @@ export function MorningBriefCard({
           <button
             type="button"
             onClick={() => onNavigate?.('calendar:tasks')}
-            className="rounded-lg border border-rose-200/80 bg-rose-50/60 px-2.5 py-2 text-start"
+            className="rounded-lg border border-ab-danger/30 bg-ab-danger/10 px-2.5 py-2 text-start"
           >
-            <p className="flex items-center gap-1 text-[11px] font-semibold text-rose-900">
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-danger">
               <ListTodo className="h-3 w-3" aria-hidden />
               متأخر · {overdue.length}
             </p>
             <ul className="mt-1 space-y-0.5">
               {overdue.slice(0, 3).map((t) => (
-                <li key={t.id} className="truncate text-[12px] text-rose-950">
+                <li key={t.id} className="truncate text-[12px] text-ab-ink">
                   {t.titleAr}
                 </li>
               ))}
@@ -212,11 +275,27 @@ export function MorningBriefCard({
           </button>
         ) : null}
 
+        {pending > 0 ? (
+          <button
+            type="button"
+            onClick={() => onNavigate?.('approvals')}
+            className="rounded-lg border border-ab-warn/40 bg-ab-warn/10 px-2.5 py-2 text-start"
+          >
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-warn">
+              <ShieldCheck className="h-3 w-3" aria-hidden />
+              موافقات معلّقة · {pending}
+            </p>
+            <p className="mt-1 text-[12px] text-ab-ink">
+              راجع صندوق الموافقات قبل تنفيذ الإجراءات الحساسة.
+            </p>
+          </button>
+        ) : null}
+
         {tg.length > 0 ? (
           <button
             type="button"
             onClick={() => onNavigate?.('chats')}
-            className="rounded-lg border border-ab-border/60 bg-white/70 px-2.5 py-2 text-start"
+            className="rounded-lg border border-ab-border/60 bg-ab-stage/70 px-2.5 py-2 text-start"
           >
             <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-muted">
               <Radio className="h-3 w-3" aria-hidden />

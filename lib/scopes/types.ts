@@ -70,6 +70,13 @@ export type RoomPost = {
   attachments?: RoomFileAttachment[]
   /** When a tool paused for HITL during this reply. */
   pendingApprovalId?: string
+  /** Tools invoked during this agent reply — Arabic chips under the body. */
+  usedTools?: Array<{
+    name: string
+    labelAr: string
+    summaryAr: string
+    status?: 'ok' | 'error' | 'pending' | 'running'
+  }>
   /** chat | decision | minutes — ack UI only on decision/minutes */
   postKind?: RoomPostKind
   /** App user ids mentioned via @member */

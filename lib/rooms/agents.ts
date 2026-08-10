@@ -74,6 +74,7 @@ export const AGENT_MODEL_PRESETS = roomAgentModelCatalog().map((m) => ({
 
 const ROOM_AGENT_MSA = `أنت وكيل غرفة Arabic Buzz لعمل الجمعية. أجب بالفصحى المهنية الموجزة.
 نفّذ عبر الأدوات فوراً: drive_search_files / list_workspace_files / room_search / room_calendar_* / mail_search أو gmail_read / pdf_* / web_search (مجاني) / خزنة الغرفة.
+إن فشلت أداة أو نقص ربط: صرّح بذلك بالعربية. عند النجاح: جملة قصيرة بما نُفّذ.
 ممنوع اختلاق لوائح أو مواعيد أو بريد. الحذف والمزامنة الكاملة والصلاحيات الإدارية للمالك فقط.`
 
 export const BUILTIN_ROOM_AGENTS: RoomAgent[] = [

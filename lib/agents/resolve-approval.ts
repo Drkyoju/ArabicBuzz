@@ -14,6 +14,7 @@ import {
   updateApprovalInSupabase,
 } from '@/lib/supabase/server'
 import { DEFAULT_DIRECTOR_EMAIL } from '@/lib/auth/roles'
+import { toolLabelAr } from '@/lib/ai/user-error-ar'
 
 export type ResolveApprovalInput = {
   approvalId: string
@@ -75,7 +76,7 @@ export async function listPendingApprovals(): Promise<
       params: r.params,
       riskLevel: (r.riskLevel === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
       status: 'PENDING_APPROVAL' as const,
-      messageAr: `إجراء يحتاج موافقة: ${r.actionName}`,
+      messageAr: `إجراء يحتاج موافقة: ${toolLabelAr(r.actionName)}`,
       scopeId: r.scopeId,
     }))
 
@@ -92,7 +93,7 @@ export async function listPendingApprovals(): Promise<
       params: r.params as Record<string, unknown>,
       riskLevel: (r.riskLevel === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
       status: 'PENDING_APPROVAL' as const,
-      messageAr: `إجراء يحتاج موافقة: ${r.actionName}`,
+      messageAr: `إجراء يحتاج موافقة: ${toolLabelAr(r.actionName)}`,
       scopeId: r.scopeId || undefined,
     }))
   }, [] as typeof fromMem)
@@ -104,7 +105,7 @@ export async function listPendingApprovals(): Promise<
     params: (r.params || {}) as Record<string, unknown>,
     riskLevel: (r.risk_level === 'HIGH' ? 'HIGH' : 'LOW') as 'LOW' | 'HIGH',
     status: 'PENDING_APPROVAL' as const,
-    messageAr: `إجراء يحتاج موافقة: ${r.action_name}`,
+    messageAr: `إجراء يحتاج موافقة: ${toolLabelAr(r.action_name)}`,
     scopeId: r.scope_id || undefined,
   }))
 

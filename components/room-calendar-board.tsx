@@ -897,32 +897,32 @@ export function RoomCalendarBoard({
       <div>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold text-ab-ink">
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-          سبورة تقويم الفريق
+          تقويم الفريق
         </h2>
         <p className="ab-subtitle !mt-0">
-          مصدر واحد لكل الحسابات في غرفة الفريق — أضف موعداً هنا فيظهر للجميع
-          وللوكيل وتيليجرام. تقويم Google الشخصي منفصل (اختياري للنشر فقط).
+          قائمة الأسبوع المشتركة — مصدر المواعيد الرسمي للغرفة والوكيل. تقويم
+          Google الشخصي منفصل (اختياري للنشر فقط).
         </p>
       </div>
 
       {signedIn === true && googleConnected && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
-          <p className="text-sm font-semibold text-sky-950">
+        <div className="rounded-xl border border-ab-border bg-ab-accent/10 px-4 py-3">
+          <p className="text-sm font-semibold text-ab-ink">
             انشر مواعيدي من Google في تقويم الفريق
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-sky-900/80">
+          <p className="mt-1 text-[11px] leading-relaxed text-ab-muted">
             اختياري ومتوقف افتراضياً. عند التفعيل تُنسَخ مواعيدك القادمة (حوالي
             ٣ أسابيع من التقويم الرئيسي) إلى تقويم الغرفة ويراها الأعضاء — مع
             وسم «من Google · اسمك». التعديل أو الإلغاء في Google يُحدَّث هنا في
             المزامنة التالية.
           </p>
           {!publishGoogle && (
-            <label className="mt-2 flex items-start gap-2 text-[11px] text-sky-950">
+            <label className="mt-2 flex items-start gap-2 text-[11px] text-ab-ink">
               <input
                 type="checkbox"
                 checked={publishAck}
                 onChange={(e) => setPublishAck(e.target.checked)}
-                className="mt-0.5 rounded border-sky-300"
+                className="mt-0.5 rounded border-ab-border"
               />
               <span>
                 أوافق على مشاركة مواعيدي القادمة من Google مع فريق هذه الغرفة.

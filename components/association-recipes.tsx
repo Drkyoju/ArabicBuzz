@@ -7,7 +7,6 @@ import {
   Archive,
   Sunrise,
   Mail,
-  Users,
 } from 'lucide-react'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -18,16 +17,15 @@ const RECIPES = [
     id: 'brief',
     titleAr: 'إحاطة الصباح',
     detailAr:
-      'ملخص يوم واحد من لوحة اليوم: بريد · مواعيد الفريق · مهام — بدون سبام تذكيرات.',
+      'ملخص يوم واحد من لوحة اليوم: بريد · مواعيد الفريق · مهام — بلا ضوضاء.',
     section: 'home',
     icon: Sunrise,
-    promptHint: 'إحاطة الصباح',
   },
   {
     id: 'mail-draft',
     titleAr: 'مسودة رد الجمعية',
     detailAr:
-      'افتح بريد الجمعية → اختر رسالة → «اكتب رد بالذكاء» بنبرة رسمية ومراعاة المرفقات.',
+      'بريد الجمعية → رسالة → «اكتب رد بالذكاء» بنبرة رسمية ومراعاة المرفقات.',
     section: 'mail',
     icon: Mail,
   },
@@ -35,14 +33,14 @@ const RECIPES = [
     id: 'team-calendar',
     titleAr: 'تقويم الفريق',
     detailAr:
-      'أجندة الغرفة المشتركة + Zoom — أضف من Zoom أو احجز من الغرفة/تيليجرام.',
+      'أجندة الغرفة المشتركة (المصدر الرسمي) + Zoom عند الحاجة — ليست تقويم Google الشخصي.',
     section: 'calendar',
-    icon: Users,
+    icon: CalendarDays,
   },
   {
     id: 'archive',
     titleAr: 'أرشفة المستندات',
-    detailAr: 'من تيليجرام أو الملفات: احفظ الفواتير/المحاضر في Drive + الغرفة.',
+    detailAr: 'احفظ الفواتير والمحاضر في ملفات الغرفة وDrive من لوحة الملفات.',
     section: 'files',
     icon: Archive,
   },
@@ -54,16 +52,9 @@ const RECIPES = [
     icon: FolderSearch,
   },
   {
-    id: 'calendar',
-    titleAr: 'مواعيد اليوم',
-    detailAr: 'تقويم مشترك + تذكير تيليجرام قبل الموعد بحوالي ساعة (مرة واحدة).',
-    section: 'calendar',
-    icon: CalendarDays,
-  },
-  {
     id: 'letters',
     titleAr: 'قوالب خطابات',
-    detailAr: 'خطاب · تعميم · شكر · دعوة — من تقويم ← محضر وخطابات.',
+    detailAr: 'خطاب · تعميم · شكر · دعوة — من تقويم الفريق ← محضر وخطابات.',
     section: 'calendar:meetings',
     icon: FileText,
   },
@@ -104,11 +95,11 @@ export function AssociationRecipes({
   return (
     <div
       id="ab-recipes"
-      className="rounded-xl border border-ab-border bg-white p-4"
+      className="rounded-xl border border-ab-border bg-ab-surface p-4"
       dir="rtl"
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
-      <p className="mt-1 text-[11px] text-stone-500">
+      <p className="mt-1 text-[11px] text-ab-muted">
         إحاطة · مسودة بريد · تقويم فريق · أرشفة — مربوطة بمسارات العمل الحقيقية.
       </p>
 
@@ -120,14 +111,14 @@ export function AssociationRecipes({
               <button
                 type="button"
                 onClick={() => openRecipe(r)}
-                className="flex w-full items-start gap-2 rounded-lg border border-ab-border bg-stone-50/80 px-3 py-2.5 text-right transition-colors hover:border-ab-accent/40 hover:bg-ab-accent/5"
+                className="flex w-full items-start gap-2 rounded-lg border border-ab-border bg-ab-stage/80 px-3 py-2.5 text-right transition-colors hover:border-ab-accent/40 hover:bg-ab-accent/5"
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ab-accent" />
                 <span>
                   <span className="block text-[13px] font-semibold text-ab-ink">
                     {r.titleAr}
                   </span>
-                  <span className="mt-0.5 block text-[11px] text-stone-500">
+                  <span className="mt-0.5 block text-[11px] text-ab-muted">
                     {r.detailAr}
                   </span>
                 </span>
