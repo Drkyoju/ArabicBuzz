@@ -3,10 +3,12 @@
  * Prevents parallel agent turns on the same user message (webhook races,
  * double-tap same text, cascade re-entry) from posting duplicate replies.
  *
- * Prefers Upstash Redis SET NX; falls back to process memory.
+ * Prefers Upstash Redis SET NX; falls back to Prisma CronLog (TTL via ranAt);
+ * then process memory.
  */
 
 import { Redis } from '@upstash/redis'
+import { prisma, withPrismaFallback } from '@/lib/db'
 
 const TURN_TTL_SEC = 180
 const RECENT_TTL_SEC = 90
@@ -14,6 +16,12 @@ const memoryTurns = new Map<string, number>()
 const memoryRecent = new Map<string, number>()
 
 let redis: Redis | null | undefined
+
+function prismaLockEnabled(): boolean {
+  if (process.env.VITEST != null) return false
+  if (process.env.TELEGRAM_DEDUPE_PRISMA === '0') return false
+  return true
+}
 
 function getRedis(): Redis | null {
   if (redis !== undefined) return redis
@@ -42,6 +50,59 @@ function fingerprintKey(chatId: string, fingerprint: string): string {
   return `${safeChat}:${safeFp}`
 }
 
+function cronLogIdFor(redisKey: string): string {
+  return `tg-lock-${redisKey}`.replace(/[^a-zA-Z0-9:_-]/g, '_').slice(0, 180)
+}
+
+async function prismaHasFresh(logId: string, ttlSec: number): Promise<boolean> {
+  const row = await withPrismaFallback(
+    () =>
+      prisma.cronLog.findUnique({
+        where: { id: logId },
+        select: { ranAt: true },
+      }),
+    null
+  )
+  if (!row) return false
+  const age = Date.now() - new Date(row.ranAt).getTime()
+  if (age < ttlSec * 1000) return true
+  await withPrismaFallback(
+    () => prisma.cronLog.delete({ where: { id: logId } }).catch(() => null),
+    null
+  )
+  return false
+}
+
+async function prismaClaim(logId: string, ttlSec: number): Promise<boolean | null> {
+  if (await prismaHasFresh(logId, ttlSec)) return false
+  return withPrismaFallback(async () => {
+    try {
+      await prisma.cronLog.create({
+        data: {
+          id: logId,
+          taskId: logId.slice(0, 120),
+          taskNameAr: 'قفل دورة تيليجرام',
+          channel: 'telegram',
+          status: 'success',
+          details: `ttl=${ttlSec}`,
+        },
+      })
+      return true
+    } catch {
+      // Unique race — treat as claimed by peer if still fresh
+      if (await prismaHasFresh(logId, ttlSec)) return false
+      return false
+    }
+  }, null)
+}
+
+async function prismaRelease(logId: string): Promise<void> {
+  await withPrismaFallback(
+    () => prisma.cronLog.delete({ where: { id: logId } }).catch(() => null),
+    null
+  )
+}
+
 async function hasKey(
   redisKey: string,
   memory: Map<string, number>,
@@ -63,6 +124,11 @@ async function hasKey(
     } catch (e) {
       console.warn('[telegram] chat-inflight redis get', e)
     }
+  }
+
+  if (prismaLockEnabled() && (await prismaHasFresh(cronLogIdFor(redisKey), ttlSec))) {
+    memory.set(redisKey, now)
+    return true
   }
   return false
 }
@@ -95,6 +161,15 @@ async function claimNx(
     const ts = memory.get(redisKey)!
     if (now - ts < ttlSec * 1000) return false
   }
+
+  if (prismaLockEnabled()) {
+    const db = await prismaClaim(cronLogIdFor(redisKey), ttlSec)
+    if (db === false) {
+      memory.set(redisKey, now)
+      return false
+    }
+  }
+
   memory.set(redisKey, now)
   return true
 }
@@ -105,11 +180,15 @@ async function releaseNx(
 ): Promise<void> {
   memory.delete(redisKey)
   const r = getRedis()
-  if (!r) return
-  try {
-    await r.del(redisKey)
-  } catch {
-    /* ignore */
+  if (r) {
+    try {
+      await r.del(redisKey)
+    } catch {
+      /* ignore */
+    }
+  }
+  if (prismaLockEnabled()) {
+    await prismaRelease(cronLogIdFor(redisKey))
   }
 }
 

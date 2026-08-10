@@ -3,17 +3,25 @@
  * Telegram retries when the handler is slow; without a claim gate the
  * same message can spawn multiple agent replies.
  *
- * Prefers Upstash Redis SET NX (cross-instance on Netlify); falls back
- * to process memory for same-instance / local.
+ * Prefers Upstash Redis SET NX (cross-instance); falls back to Prisma
+ * CronLog (same pattern as digest day-claim); then process memory.
  */
 
 import { Redis } from '@upstash/redis'
+import { prisma, withPrismaFallback } from '@/lib/db'
 
 const TTL_MS = 10 * 60 * 1000
 const TTL_SEC = 600
 const memory = new Map<number, number>()
 
 let redis: Redis | null | undefined
+
+/** Unit tests stay memory-only so shared CronLog rows do not flake. */
+function prismaDedupeEnabled(): boolean {
+  if (process.env.VITEST != null) return false
+  if (process.env.TELEGRAM_DEDUPE_PRISMA === '0') return false
+  return true
+}
 
 function getRedis(): Redis | null {
   if (redis !== undefined) return redis
@@ -32,6 +40,47 @@ function pruneMemory(now: number) {
   for (const [id, ts] of memory) {
     if (now - ts > TTL_MS) memory.delete(id)
   }
+}
+
+async function claimViaCronLog(logId: string, now: number): Promise<boolean> {
+  const existing = await withPrismaFallback(
+    () =>
+      prisma.cronLog.findUnique({
+        where: { id: logId },
+        select: { id: true, ranAt: true },
+      }),
+    null
+  )
+  if (existing) {
+    const age = now - new Date(existing.ranAt).getTime()
+    if (age < TTL_MS) return false
+    await withPrismaFallback(
+      () => prisma.cronLog.delete({ where: { id: logId } }).catch(() => null),
+      null
+    )
+  }
+
+  const created = await withPrismaFallback(async () => {
+    try {
+      await prisma.cronLog.create({
+        data: {
+          id: logId,
+          taskId: logId.slice(0, 120),
+          taskNameAr: 'قفل تحديث تيليجرام',
+          channel: 'telegram',
+          status: 'success',
+          details: 'update_dedupe',
+        },
+      })
+      return true
+    } catch {
+      return false
+    }
+  }, null)
+
+  if (created === false) return false
+  if (created === true) return true
+  return true // prisma unavailable → caller uses memory
 }
 
 /**
@@ -62,11 +111,23 @@ export async function claimTelegramUpdate(
       return true
     } catch (e) {
       console.warn('[telegram] update dedupe redis', e)
-      /* fall through to memory */
+      /* fall through */
     }
   }
 
-  if (memory.has(id)) return false
+  if (memory.has(id)) {
+    const ts = memory.get(id)!
+    if (now - ts < TTL_MS) return false
+  }
+
+  if (prismaDedupeEnabled()) {
+    const dbOk = await claimViaCronLog(`tg-upd-${id}`, now)
+    if (!dbOk) {
+      memory.set(id, now)
+      return false
+    }
+  }
+
   memory.set(id, now)
   return true
 }
@@ -85,6 +146,7 @@ export async function claimTelegramMessageKey(
   if (!cid || !Number.isFinite(mid) || mid <= 0) return true
   const safeChat = cid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
   const key = `ab:tg:msg:${safeChat}:${mid}`
+  const logId = `tg-msg-${safeChat}-${mid}`.slice(0, 180)
 
   const now = Date.now()
   pruneMemory(now)
@@ -100,10 +162,20 @@ export async function claimTelegramMessageKey(
     }
   }
 
-  // Memory fallback keyed by numeric message id alone is too weak across chats;
-  // include chat in the memory map via a synthetic negative space.
   const memId = simpleMemId(safeChat, mid)
-  if (memory.has(memId)) return false
+  if (memory.has(memId)) {
+    const ts = memory.get(memId)!
+    if (now - ts < TTL_MS) return false
+  }
+
+  if (prismaDedupeEnabled()) {
+    const dbOk = await claimViaCronLog(logId, now)
+    if (!dbOk) {
+      memory.set(memId, now)
+      return false
+    }
+  }
+
   memory.set(memId, now)
   return true
 }
@@ -113,7 +185,6 @@ function simpleMemId(chat: string, mid: number): number {
   for (let i = 0; i < chat.length; i++) {
     h = (Math.imul(h, 31) + chat.charCodeAt(i)) | 0
   }
-  // Keep positive finite for the Map<number,...> used by update_id claims.
   return h === 0 ? mid : Math.abs(h)
 }
 

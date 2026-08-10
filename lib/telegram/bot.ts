@@ -98,6 +98,11 @@ import {
 } from '@/lib/telegram/group-reply-policy'
 import { compressTelegramReplyAr } from '@/lib/telegram/short-intent'
 import {
+  decideFinalizeAckFallback,
+  isTelegramMessageNotModifiedError,
+  type FinalizeAckMode,
+} from '@/lib/telegram/finalize-ack'
+import {
   resolveCapabilityGapReplyAr,
   resolveCapabilityGapResearch,
 } from '@/lib/agents/tools/research-task-tools'
@@ -575,8 +580,10 @@ async function maybeSendTelegramVoiceReply(ctx: Context, text: string) {
 
 /**
  * Replace the «جاري…» ack with the final text.
- * HARD BAN: never deleteMessage / deleteMessages — edit only, or leave ack
- * + new reply. HITL file deletes on the site must not cascade here.
+ * HARD BAN: never deleteMessage / deleteMessages — edit only.
+ * HARD BAN: never post a second copy of text already shown in the ack
+ * (Telegram «message is not modified» used to fall through to ctx.reply =
+ * duplicate spam in «عمل الجمعية»).
  * Guard: installTelegramNeverDeleteGuard on the Bot instance.
  */
 async function finalizeTelegramAck(opts: {
@@ -585,8 +592,12 @@ async function finalizeTelegramAck(opts: {
   messageId: number
   text: string
   replyMarkup?: InlineKeyboard
-}) {
+  /** Last text successfully edited into the ack during streaming. */
+  alreadyDisplayedText?: string
+}): Promise<FinalizeAckMode> {
   const body = opts.text.slice(0, 4000)
+  const already = String(opts.alreadyDisplayedText || '').slice(0, 4000)
+
   try {
     await opts.ctx.api.editMessageText(
       opts.chatId,
@@ -594,10 +605,26 @@ async function finalizeTelegramAck(opts: {
       body,
       opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
     )
-    return
-  } catch {
-    /* message not modified / race / transient — never delete */
+    return 'edited'
+  } catch (editErr) {
+    if (isTelegramMessageNotModifiedError(editErr)) {
+      return 'already'
+    }
+    const fallback = decideFinalizeAckFallback({
+      finalText: body,
+      alreadyDisplayedText: already,
+      editError: editErr,
+    })
+    if (fallback === 'already' || fallback === 'left_ack') {
+      console.info('[telegram] finalize ack skip duplicate reply', {
+        mode: fallback,
+        messageId: opts.messageId,
+      })
+      return fallback
+    }
   }
+
+  // Ack still shows «جاري…» (nothing useful on screen) — deliver once.
   try {
     await opts.ctx.api.editMessageText(
       opts.chatId,
@@ -611,6 +638,7 @@ async function finalizeTelegramAck(opts: {
     body,
     opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
   )
+  return 'replied'
 }
 
 async function bindTelegramTools(opts: {
@@ -689,9 +717,19 @@ function wrapTelegramToolsAgainstSelfSend(
 
   patchExecute('send_message', async (prev, args, execOpts) => {
     const p = (args || {}) as Record<string, unknown>
-    const channel = String(p.channel || 'telegram')
+    const channel = String(p.channel || 'telegram').toLowerCase()
     const to = p.to != null ? String(p.to).trim() : ''
-    if (channel === 'telegram' && (!to || to === chatId)) {
+    const chatField =
+      p.chatId != null
+        ? String(p.chatId).trim()
+        : p.chat_id != null
+          ? String(p.chat_id).trim()
+          : ''
+    const target = to || chatField
+    if (
+      (channel === 'telegram' || channel === 'both' || !p.channel) &&
+      (!target || target === chatId)
+    ) {
       return {
         ok: true,
         skippedSelfSend: true,
@@ -772,6 +810,8 @@ async function streamTelegramReply(opts: {
   const attachmentBucket: TelegramAttachmentRef[] = []
   let assembled = ''
   let lastEdit = 0
+  /** Text last successfully written into the ack (prevents duplicate finalize reply). */
+  let lastEditedText = ''
   /** Fewer Telegram API round-trips during stream (was 1s). */
   const editThrottleMs = 2500
 
@@ -802,14 +842,19 @@ async function streamTelegramReply(opts: {
         const now = Date.now()
         if (now - lastEdit > editThrottleMs && assembled.trim()) {
           lastEdit = now
+          const slice = assembled.slice(0, 3900)
           try {
             await opts.ctx.api.editMessageText(
               opts.ctx.chat!.id,
               placeholderId,
-              assembled.slice(0, 3900)
+              slice
             )
-          } catch {
-            /* ignore edit races */
+            lastEditedText = slice
+          } catch (e) {
+            if (isTelegramMessageNotModifiedError(e)) {
+              lastEditedText = slice
+            }
+            /* ignore other edit races */
           }
         }
       }
@@ -895,6 +940,7 @@ async function streamTelegramReply(opts: {
     chatId: opts.ctx.chat!.id,
     messageId: placeholderId,
     text: body,
+    alreadyDisplayedText: lastEditedText || assembled.slice(0, 3900),
     replyMarkup: firstApproval
       ? buildApprovalKeyboard(firstApproval)
       : undefined,
