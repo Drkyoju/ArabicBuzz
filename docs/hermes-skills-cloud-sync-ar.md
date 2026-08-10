@@ -13,6 +13,7 @@
 | جهاز | تسمية `Mac-WA-gateway` |
 | مهارات معلّمة | `ar-help`, `wa-archive`, `wa-file-read`, `wa-pdf-dup`, `wa-storage-mesh`, `wa-tools`, `waqf-drive` |
 | SOUL.md | **ليس** في Skill Sync الرسمي — فقط الحزمة المحمولة |
+| آخر فحص محلي | أُعيد عبر `npm run hermes:skills:status` / `sync-cloud` (البوابة ما زالت مقفلة → حزمة محمولة) |
 
 طالما `nous_admin=false` فـ `hermes sync now` يرد:  
 `sync unavailable: not enabled for your account yet.`

@@ -26,6 +26,12 @@ type Brief = {
   conflicts?: Array<{ titleAr: string; whenAr: string; overlapMinutes: number }>
   overdueTasks?: Array<{ id: string; titleAr: string; assigneeAr?: string | null }>
   todayEvents?: Array<{ id: string; titleAr: string; whenAr: string }>
+  soonReminders?: Array<{
+    id: string
+    titleAr: string
+    whenAr: string
+    mins: number
+  }>
   pendingApprovals?: number
 }
 
@@ -58,6 +64,16 @@ export function MorningBriefCard({
     void load()
   }, [load])
 
+  useEffect(() => {
+    const onFocus = () => {
+      const el = document.getElementById('ab-morning-brief')
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      void load()
+    }
+    window.addEventListener('ab-morning-brief-focus', onFocus)
+    return () => window.removeEventListener('ab-morning-brief-focus', onFocus)
+  }, [load])
+
   async function sendTelegram() {
     if (!canAccessOpsUi || busy) return
     setBusy(true)
@@ -83,9 +99,13 @@ export function MorningBriefCard({
   const conflicts = brief.conflicts || []
   const overdue = brief.overdueTasks || []
   const tg = brief.telegram || []
+  const soon = brief.soonReminders || []
 
   return (
-    <section className="rounded-xl border border-amber-200/80 bg-gradient-to-l from-amber-50/70 to-ab-surface px-3 py-2.5">
+    <section
+      id="ab-morning-brief"
+      className="rounded-xl border border-amber-200/80 bg-gradient-to-l from-amber-50/70 to-ab-surface px-3 py-2.5"
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-ab-ink">
           <Sun className="h-4 w-4 text-amber-700" aria-hidden />
@@ -108,6 +128,27 @@ export function MorningBriefCard({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
+        {soon.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => onNavigate?.('calendar')}
+            className="rounded-lg border border-ab-accent/30 bg-ab-accent/5 px-2.5 py-2 text-start sm:col-span-2"
+          >
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-ab-accent">
+              تذكير موعد · خلال ≈ ساعة
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {soon.slice(0, 3).map((e) => (
+                <li key={e.id} className="truncate text-[12px] text-ab-ink">
+                  {e.titleAr} · بعد ≈{e.mins} د · {e.whenAr}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-[10px] text-stone-500">
+              نفس النافذة تصل تيليجرام مرة واحدة — بلا سبام.
+            </p>
+          </button>
+        ) : null}
         {(mail?.unread || 0) > 0 || (mail?.recent?.length || 0) > 0 ? (
           <button
             type="button"

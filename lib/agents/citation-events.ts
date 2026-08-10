@@ -1,5 +1,9 @@
 import type { RoomCitation } from '@/lib/scopes/types'
-import { mapToolErrorAr, toolLabelAr } from '@/lib/ai/user-error-ar'
+import {
+  mapToolErrorAr,
+  mapToolSuccessAr,
+  toolLabelAr,
+} from '@/lib/ai/user-error-ar'
 
 type DocLike = {
   citation?: string
@@ -47,22 +51,22 @@ export function extractPausedApprovalId(toolOut: unknown): string | null {
 }
 
 function summarizeToolOutput(name: string, out: unknown): string {
-  if (out == null) return 'تم الاستدعاء'
+  if (out == null) return mapToolSuccessAr(name, null)
   if (typeof out === 'string') {
     const t = out.replace(/\s+/g, ' ').trim()
-    if (!t) return 'تم الاستدعاء'
+    if (!t) return mapToolSuccessAr(name, null)
     // Only sanitize when the string looks like an error / technical dump.
     if (
       /error|fail|refuse|tounicode|extract_source|unknown tool|تعذّر|فشل|خطأ/i.test(
         t
       )
     ) {
-      return mapToolErrorAr(t).slice(0, 140)
+      return mapToolErrorAr(t).slice(0, 100)
     }
-    return t.slice(0, 140)
+    return mapToolSuccessAr(name, t)
   }
   if (typeof out !== 'object') {
-    return mapToolErrorAr(String(out)).slice(0, 140)
+    return mapToolErrorAr(String(out)).slice(0, 100)
   }
   const o = out as Record<string, unknown>
   const nested =
@@ -70,24 +74,35 @@ function summarizeToolOutput(name: string, out: unknown): string {
       ? (o.output as Record<string, unknown>)
       : o
   if (nested.status === 'paused' && nested.approvalId) {
-    return 'بانتظار موافقة بشرية'
+    return mapToolSuccessAr(name, 'بانتظار موافقة')
   }
   const ok = nested.ok === true || nested.ok === 'true'
+  if (nested.ok === false) {
+    if (typeof nested.messageAr === 'string' && nested.messageAr.trim()) {
+      return mapToolErrorAr(nested.messageAr).slice(0, 100)
+    }
+    if (typeof nested.reason_ar === 'string' && nested.reason_ar.trim()) {
+      return mapToolErrorAr(nested.reason_ar).slice(0, 100)
+    }
+    if (typeof nested.error === 'string' && nested.error.trim()) {
+      return mapToolErrorAr(nested.error).slice(0, 100)
+    }
+  }
   if (typeof nested.messageAr === 'string' && nested.messageAr.trim()) {
     const msg = nested.messageAr.trim()
-    if (ok || nested.ok !== false) return msg.slice(0, 140)
-    return mapToolErrorAr(msg).slice(0, 140)
+    if (ok || nested.ok !== false) return mapToolSuccessAr(name, msg)
+    return mapToolErrorAr(msg).slice(0, 100)
   }
   if (typeof nested.reason_ar === 'string' && nested.reason_ar.trim()) {
-    return mapToolErrorAr(nested.reason_ar).slice(0, 140)
+    return mapToolErrorAr(nested.reason_ar).slice(0, 100)
   }
   if (typeof nested.error === 'string' && nested.error.trim()) {
-    return mapToolErrorAr(nested.error).slice(0, 140)
+    return mapToolErrorAr(nested.error).slice(0, 100)
   }
   if (typeof nested.message === 'string' && nested.message.trim()) {
     const msg = nested.message.trim()
-    if (ok) return msg.slice(0, 140)
-    return mapToolErrorAr(msg).slice(0, 140)
+    if (ok) return mapToolSuccessAr(name, msg)
+    return mapToolErrorAr(msg).slice(0, 100)
   }
   for (const key of [
     'events',
@@ -101,33 +116,19 @@ function summarizeToolOutput(name: string, out: unknown): string {
   ] as const) {
     const arr = nested[key]
     if (Array.isArray(arr)) {
-      const label =
-        key === 'events'
-          ? 'موعد'
-          : key === 'messages'
-            ? 'رسالة'
-            : key === 'tasks'
-              ? 'مهمة'
-              : key === 'files'
-                ? 'ملف'
-                : key === 'documents'
-                  ? 'مستند'
-                  : key === 'memories'
-                    ? 'ذكرى'
-                    : 'عنصر'
-      return arr.length === 0
-        ? `لا ${label === 'عنصر' ? 'نتائج' : label + 'ات'}`
-        : `${arr.length} ${label}${arr.length > 1 && label !== 'عنصر' ? '' : ''}`
+      return mapToolSuccessAr(name, null, { count: arr.length })
     }
   }
-  if (typeof nested.count === 'number') return `${nested.count} نتيجة`
+  if (typeof nested.count === 'number') {
+    return mapToolSuccessAr(name, null, { count: nested.count })
+  }
   if (typeof nested.id === 'string' || typeof nested.messageId === 'string') {
-    return 'تم بنجاح'
+    return mapToolSuccessAr(name, 'تم')
   }
   if (name === 'send_message' && (nested.ok === true || nested.sent === true)) {
-    return 'أُرسلت رسالة تيليجرام'
+    return mapToolSuccessAr(name, 'أُرسلت')
   }
-  return 'تم الاستدعاء'
+  return mapToolSuccessAr(name, null)
 }
 
 export type UsedToolCall = {
@@ -235,14 +236,14 @@ export function extractFromAgentSteps(steps: unknown): {
         const name = String(row.toolName || row.name || '').trim()
         if (
           name &&
-          !usedTools.some((u) => u.name === name && u.summaryAr === 'تم الاستدعاء')
+          !usedTools.some((u) => u.name === name && u.summaryAr === mapToolSuccessAr(name, null))
         ) {
           const already = usedTools.some((u) => u.name === name)
           if (!already) {
             usedTools.push({
               name,
               labelAr: toolLabelAr(name),
-              summaryAr: 'تم الاستدعاء',
+              summaryAr: mapToolSuccessAr(name, null),
             })
           }
         }

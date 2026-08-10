@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Video } from 'lucide-react'
+import { CalendarPlus, RefreshCw, Video } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
@@ -53,6 +53,7 @@ export function ZoomUpcomingPanel({
   const [msg, setMsg] = useState('')
   const [configured, setConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
 
   const load = useCallback(async () => {
     setBusy(true)
@@ -99,6 +100,34 @@ export function ZoomUpcomingPanel({
     void load()
   }, [load, signedIn])
 
+  async function syncToTeam(meetingId?: string) {
+    if (signedIn !== true || syncBusy) return
+    setSyncBusy(true)
+    try {
+      const res = await fetch('/api/zoom/sync-to-team', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ scopeId, meetingId }),
+      })
+      const data = (await res.json()) as { messageAr?: string }
+      setMsg(data.messageAr || (res.ok ? 'تمت المزامنة' : 'تعذّرت المزامنة'))
+      if (res.ok) {
+        try {
+          window.dispatchEvent(new CustomEvent('ab-room-calendar-changed'))
+        } catch {
+          /* ignore */
+        }
+        void load()
+      }
+    } catch {
+      setMsg('تعذّرت إضافة Zoom إلى تقويم الفريق')
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const zoomOnly = meetings.filter((m) => m.source === 'zoom_api')
+
   return (
     <section
       className="rounded-xl border border-ab-border bg-ab-surface p-4"
@@ -113,23 +142,38 @@ export function ZoomUpcomingPanel({
           <p className="mt-1 text-[11px] text-stone-500">
             من تقويم الفريق المشترك
             {configured ? ' وحساب Zoom' : ''} — يظهر لكل الحسابات في الغرفة.
+            المزامنة باتجاه واحد: Zoom → تقويم الفريق (إنشاء موعد من Zoom عند
+            الحجز يعمل بالعكس).
           </p>
           {msg && (
             <p className="mt-1 text-[11px] text-stone-500">{msg}</p>
           )}
         </div>
-        <button
-          type="button"
-          disabled={busy || signedIn !== true}
-          onClick={() => void load()}
-          className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] disabled:opacity-40"
-        >
-          <RefreshCw
-            className={cn('h-3 w-3', busy && 'animate-spin')}
-            aria-hidden
-          />
-          تحديث
-        </button>
+        <div className="flex shrink-0 flex-col gap-1">
+          <button
+            type="button"
+            disabled={busy || signedIn !== true}
+            onClick={() => void load()}
+            className="inline-flex items-center gap-1 rounded-md border border-ab-border px-2 py-1 text-[11px] disabled:opacity-40"
+          >
+            <RefreshCw
+              className={cn('h-3 w-3', busy && 'animate-spin')}
+              aria-hidden
+            />
+            تحديث
+          </button>
+          {configured && zoomOnly.length > 0 && (
+            <button
+              type="button"
+              disabled={syncBusy || signedIn !== true}
+              onClick={() => void syncToTeam()}
+              className="inline-flex items-center gap-1 rounded-md border border-ab-accent/40 bg-ab-accent/5 px-2 py-1 text-[11px] font-medium text-ab-accent disabled:opacity-40"
+            >
+              <CalendarPlus className="h-3 w-3" aria-hidden />
+              {syncBusy ? 'جاري…' : 'أضف للكل'}
+            </button>
+          )}
+        </div>
       </div>
 
       {signedIn !== true ? (
@@ -168,17 +212,29 @@ export function ZoomUpcomingPanel({
                   {m.source === 'zoom_api' ? 'Zoom' : 'فريق'}
                 </span>
               </div>
-              {m.joinUrl && (
-                <a
-                  href={m.joinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  dir="ltr"
-                  className="mt-1 inline-block text-[11px] text-ab-accent underline"
-                >
-                  انضم / الرابط
-                </a>
-              )}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {m.joinUrl && (
+                  <a
+                    href={m.joinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    dir="ltr"
+                    className="inline-block text-[11px] text-ab-accent underline"
+                  >
+                    انضم / الرابط
+                  </a>
+                )}
+                {m.source === 'zoom_api' && (
+                  <button
+                    type="button"
+                    disabled={syncBusy}
+                    onClick={() => void syncToTeam(m.id)}
+                    className="text-[11px] font-medium text-ab-accent underline disabled:opacity-40"
+                  >
+                    أضف لتقويم الفريق
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

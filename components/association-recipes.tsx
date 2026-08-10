@@ -6,17 +6,38 @@ import {
   FolderSearch,
   Archive,
   Sunrise,
+  Mail,
+  Users,
 } from 'lucide-react'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { ORG_MAIL_DRAFT_EVENT } from '@/lib/ui/org-mail-focus'
 
 const RECIPES = [
   {
     id: 'brief',
     titleAr: 'إحاطة الصباح',
-    detailAr: 'ملخص يوم واحد: بريد · مواعيد · مهام معلّقة — بدون سبام تذكيرات.',
-    section: 'chats',
+    detailAr:
+      'ملخص يوم واحد من لوحة اليوم: بريد · مواعيد الفريق · مهام — بدون سبام تذكيرات.',
+    section: 'home',
     icon: Sunrise,
+    promptHint: 'إحاطة الصباح',
+  },
+  {
+    id: 'mail-draft',
+    titleAr: 'مسودة رد الجمعية',
+    detailAr:
+      'افتح بريد الجمعية → اختر رسالة → «اكتب رد بالذكاء» بنبرة رسمية ومراعاة المرفقات.',
+    section: 'mail',
+    icon: Mail,
+  },
+  {
+    id: 'team-calendar',
+    titleAr: 'تقويم الفريق',
+    detailAr:
+      'أجندة الغرفة المشتركة + Zoom — أضف من Zoom أو احجز من الغرفة/تيليجرام.',
+    section: 'calendar',
+    icon: Users,
   },
   {
     id: 'archive',
@@ -34,8 +55,8 @@ const RECIPES = [
   },
   {
     id: 'calendar',
-    titleAr: 'مواعيد الفريق',
-    detailAr: 'تقويم مشترك + تذكير تيليجرام قبل المواعيد المهمة.',
+    titleAr: 'مواعيد اليوم',
+    detailAr: 'تقويم مشترك + تذكير تيليجرام قبل الموعد بحوالي ساعة (مرة واحدة).',
     section: 'calendar',
     icon: CalendarDays,
   },
@@ -54,11 +75,30 @@ export function AssociationRecipes({
 }: {
   onNavigate?: (section: string) => void
 }) {
-  function openRecipe(section: string) {
-    if (section === 'chats') {
+  function openRecipe(r: (typeof RECIPES)[number]) {
+    useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+    if (r.id === 'mail-draft') {
+      onNavigate?.('mail')
+      try {
+        window.dispatchEvent(new CustomEvent(ORG_MAIL_DRAFT_EVENT))
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    if (r.id === 'brief') {
+      onNavigate?.('home')
+      try {
+        window.dispatchEvent(new CustomEvent('ab-morning-brief-focus'))
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    if (r.section === 'chats') {
       useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
     }
-    onNavigate?.(section)
+    onNavigate?.(r.section)
   }
 
   return (
@@ -69,7 +109,7 @@ export function AssociationRecipes({
     >
       <h2 className="text-sm font-bold text-ab-ink">مسارات سريعة للفريق</h2>
       <p className="mt-1 text-[11px] text-stone-500">
-        إحاطة · أرشفة · بحث · مواعيد · خطابات — نتائج يومية بلا فوضى مستندات.
+        إحاطة · مسودة بريد · تقويم فريق · أرشفة — مربوطة بمسارات العمل الحقيقية.
       </p>
 
       <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -79,7 +119,7 @@ export function AssociationRecipes({
             <li key={r.id}>
               <button
                 type="button"
-                onClick={() => openRecipe(r.section)}
+                onClick={() => openRecipe(r)}
                 className="flex w-full items-start gap-2 rounded-lg border border-ab-border bg-stone-50/80 px-3 py-2.5 text-right transition-colors hover:border-ab-accent/40 hover:bg-ab-accent/5"
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ab-accent" />

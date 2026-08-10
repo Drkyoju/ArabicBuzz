@@ -1,5 +1,6 @@
 /**
  * ~1 hour before room calendar appointments → Telegram (linked group).
+ * Also surfaces a short dashboard-friendly detail list (no extra spam).
  * Runs inside /api/crons/runner (GitHub Actions every ~15 min).
  */
 import { listRoomCalendarEvents, updateRoomCalendarEvent } from '@/lib/rooms/room-calendar'
@@ -42,6 +43,38 @@ async function scopesWithTelegram(): Promise<string[]> {
     }
   }
   return [...scopes].filter((s) => !s.startsWith('personal'))
+}
+
+/** Upcoming appointments in the reminder window — for لوحة اليوم (read-only). */
+export async function listSoonAppointmentRemindersAr(opts?: {
+  scopeId?: string
+  now?: Date
+}): Promise<
+  Array<{ id: string; titleAr: string; whenAr: string; mins: number }>
+> {
+  const now = opts?.now || new Date()
+  const t0 = now.getTime()
+  const from = new Date(t0 + WINDOW_MIN_MS).toISOString()
+  const to = new Date(t0 + WINDOW_MAX_MS).toISOString()
+  const scopeId =
+    opts?.scopeId || process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo'
+  const events = await listRoomCalendarEvents({
+    scopeId,
+    from,
+    to,
+    hideTestTitles: true,
+  }).catch(() => [])
+  return events
+    .filter((ev) => ev.status !== 'cancelled')
+    .map((ev) => {
+      const delta = new Date(ev.startsAt).getTime() - t0
+      return {
+        id: ev.id,
+        titleAr: ev.titleAr,
+        whenAr: fmtWhen(ev.startsAt),
+        mins: Math.max(1, Math.round(delta / 60_000)),
+      }
+    })
 }
 
 export async function runAppointmentTelegramReminders(opts?: {

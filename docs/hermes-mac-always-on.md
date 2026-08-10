@@ -421,6 +421,9 @@ curl -sf http://127.0.0.1:3000/health
 
 # Mac hop (ArabicBuzz tunnels) — separate
 npm run mac-hop:install
+
+# صحة جسر الماك — سطر واحد (OrbStack 1.5.1 · لا ترقِّ)
+npm run mac-hop:health
 ```
 
 ---

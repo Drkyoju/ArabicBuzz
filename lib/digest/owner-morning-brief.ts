@@ -74,6 +74,8 @@ export type OwnerMorningBrief = {
   conflicts: Array<{ titleAr: string; whenAr: string; overlapMinutes: number }>
   overdueTasks: Array<{ id: string; titleAr: string; assigneeAr?: string | null }>
   todayEvents: Array<{ id: string; titleAr: string; whenAr: string }>
+  /** Appointments ~1h away — matches Telegram reminder window (no spam). */
+  soonReminders: Array<{ id: string; titleAr: string; whenAr: string; mins: number }>
   pendingApprovals: number
   textAr: string
 }
@@ -140,6 +142,14 @@ export async function buildOwnerMorningBrief(
     whenAr: fmtWhen(e.startsAt),
   }))
 
+  const { listSoonAppointmentRemindersAr } = await import(
+    '@/lib/rooms/appointment-reminders'
+  )
+  const soonReminders = await listSoonAppointmentRemindersAr({
+    scopeId,
+    now: new Date(now),
+  }).catch(() => [])
+
   const hasContent =
     unread > 0 ||
     recent.length > 0 ||
@@ -147,6 +157,7 @@ export async function buildOwnerMorningBrief(
     conflicts.length > 0 ||
     overdueTasks.length > 0 ||
     todayEvents.length > 0 ||
+    soonReminders.length > 0 ||
     scopedPending.length > 0
 
   const lines = [
@@ -191,6 +202,14 @@ export async function buildOwnerMorningBrief(
     lines.push('')
   }
 
+  if (soonReminders.length) {
+    lines.push('── تذكير قريب (≈ ساعة) ──')
+    for (const e of soonReminders) {
+      lines.push(`• ${e.titleAr} · بعد ≈${e.mins} د · ${e.whenAr}`)
+    }
+    lines.push('')
+  }
+
   if (telegram.length) {
     lines.push('── أبرز تيليجرام ──')
     for (const t of telegram) {
@@ -220,6 +239,7 @@ export async function buildOwnerMorningBrief(
       assigneeAr: t.assigneeAr,
     })),
     todayEvents,
+    soonReminders,
     pendingApprovals: scopedPending.length,
     textAr: lines.join('\n').slice(0, 3500),
   }

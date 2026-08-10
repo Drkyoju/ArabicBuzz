@@ -65,6 +65,10 @@ type Msg = {
   snippet: string
   seen: boolean
   folder?: string
+  triageLabelAr?: string
+  priority?: 'high' | 'normal' | 'low'
+  classify?: string
+  sortBoost?: number
 }
 
 type CorpusHit = {
@@ -103,6 +107,9 @@ type Intel = {
   }
   analyzedAt: string
   fallbackNoteAr?: string
+  triageLabelAr?: string
+  attachmentNoteAr?: string
+  priority?: string
 }
 
 type MsgDetail = Msg & {
@@ -1284,6 +1291,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                   <div className="min-w-0 flex-1 truncate text-sm text-ab-ink">
                     {m.subject || '(بدون موضوع)'}
                   </div>
+                  {m.priority === 'high' && (
+                    <span className="shrink-0 rounded bg-ab-warn/15 px-1.5 py-0.5 text-[9px] font-semibold text-ab-warn">
+                      {m.triageLabelAr || 'أولوية'}
+                    </span>
+                  )}
+                  {m.priority !== 'high' && m.triageLabelAr && m.classify !== 'other' && (
+                    <span className="shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-medium text-stone-600">
+                      {m.triageLabelAr}
+                    </span>
+                  )}
                   {m.folder && m.folder !== 'INBOX' && (
                     <span className="shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-semibold text-stone-600">
                       مرسل
@@ -1474,6 +1491,16 @@ export function OrgMailPanel({ isOwner = false }: { isOwner?: boolean }) {
                       {intel.fallbackNoteAr}
                     </p>
                   )}
+                  {intel.attachmentNoteAr ? (
+                    <p className="text-[10px] text-stone-600">
+                      مرفقات: {intel.attachmentNoteAr}
+                    </p>
+                  ) : null}
+                  {intel.triageLabelAr ? (
+                    <p className="text-[10px] font-medium text-ab-accent">
+                      تصنيف: {intel.triageLabelAr}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 

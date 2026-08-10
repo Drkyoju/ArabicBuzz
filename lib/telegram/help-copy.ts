@@ -20,9 +20,21 @@ export function buildTelegramGoogleConnectHintAr(): string {
 
 export function buildTelegramHelpAr(opts?: {
   botUsername?: string
+  /** Show association-group shortcuts only when linked in a group. */
+  inAssociationGroup?: boolean
 }): string {
   const tag = opts?.botUsername ? `@${opts.botUsername}` : ''
   const linkCmd = tag ? `/link${tag}` : '/link'
+  const associationBlock = opts?.inAssociationGroup
+    ? [
+        '',
+        '🏛 اختصارات مجموعة الجمعية (هذه المجموعة مربوطة):',
+        '• «إحاطة الصباح» · «أرشف المجموعة» · «ابحث في الغرفة عن …»',
+        '• صوت → «مستند جاهز»: تفريغ → write_file/pdf → return_file',
+        '• «احجز موعد …» → تقويم الفريق · تذكير تيليجرام ≈ ساعة قبل الموعد',
+        '• لجان: /link finance | programs | board في مجموعة اللجنة',
+      ]
+    : []
   return [
     '🤖 بوت Arabic Buzz — تشغيل كامل لغرفة الموقع من تيليجرام',
     `الموقع: ${TELEGRAM_SITE_URL}`,
@@ -33,6 +45,8 @@ export function buildTelegramHelpAr(opts?: {
     '3) تلخيص — «لخّص الملف» / «OCR» / صوت → تفريغ ثم تنفيذ إن كان طلباً',
     '4) شبكة — ملف مفقود: Drive→تيليجرام→غرفة→ماك (بلا «أعد الإرسال»)',
     '5) إحاطة — «إحاطة الصباح» مرة واحدة صباحاً (بدون تذكيرات مزعجة)',
+    '6) صوت→مستند — زر «مستند جاهز» أو اطلب: اكتب ملفاً ثم أرسله',
+    ...associationBlock,
     '',
     '❓ هل نستغني عن الموقع تماماً؟',
     '• نعم للتشغيل اليومي: بحث · ملفات · Drive · بريد · تقويم · مهام · خطابات · محاضر · تحويل · OCR · تبليغ · إحاطة',
@@ -58,8 +72,8 @@ export function buildTelegramHelpAr(opts?: {
     '• احجز موعد غداً ١٠ص · خطاب شكر · محضر من الغرفة',
     '• أرسل لأحمد: … · يا وكيل٢ لخّص',
     '',
-    '🎤 صوت: تفريغ → تنفيذ فوري (موعد/مهمة/تعديل مرفق/إنشاء ملف جديد/بحث…)',
-    '🧠 ذاكرة: يتذكر محادثة هذا الشات (نص+صوت+مهام ملفات+مرفقات) عبر مرآة الغرفة',
+    '🎤 صوت: تفريغ → تنفيذ فوري · زر «مستند جاهز» = STT → ملف → return_file',
+    '🧠 ذاكرة: حقائق ثابتة + سياق حديث لكل شات (نص+صوت+مهام+مرفقات)',
     '',
     'أوامر:',
     `${linkCmd} — ربط المجموعة`,

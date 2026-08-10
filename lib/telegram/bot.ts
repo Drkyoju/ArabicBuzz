@@ -1924,7 +1924,13 @@ export function getTelegramBot() {
     if (helpCmd) {
       const privacy = privacyHintAr(botUsername)
       await ctx.reply(
-        [buildTelegramHelpAr({ botUsername }), privacy]
+        [
+          buildTelegramHelpAr({
+            botUsername,
+            inAssociationGroup: Boolean(inGroup && existingBinding),
+          }),
+          privacy,
+        ]
           .filter(Boolean)
           .join('\n\n'),
         { reply_markup: buildTelegramHelpMenuKeyboard() }

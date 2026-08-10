@@ -36,6 +36,17 @@ export type MailIntelCache = {
   }
   analyzedAt: string
   fallbackNoteAr?: string
+  /** Lightweight triage — stored in intel_json, no spam */
+  priority?: 'high' | 'normal' | 'low'
+  classify?:
+    | 'action'
+    | 'meeting'
+    | 'docs'
+    | 'fyi'
+    | 'newsletter'
+    | 'other'
+  triageLabelAr?: string
+  attachmentNoteAr?: string
 }
 
 export type ImapMessageRow = {

@@ -58,6 +58,19 @@ vi.mock('@/lib/telegram/recent-media', () => ({
   ]),
 }))
 
+vi.mock('@/lib/rooms/room-memory', () => ({
+  listRoomMemories: vi.fn(async () => [
+    {
+      id: 'm1',
+      scopeId: 'scope-1',
+      content: 'اللجنة تجتمع الأحد مساءً بتوقيت الرياض',
+      createdBy: null,
+      createdByAr: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+    },
+  ]),
+}))
+
 describe('buildTelegramChatMemoryAr', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -79,6 +92,9 @@ describe('buildTelegramChatMemoryAr', () => {
     expect(ar).toMatch(/خالد/)
     expect(ar).toMatch(/مرفق-تجريبي/)
     expect(ar).toMatch(/هذه المحادثة فقط/)
+    expect(ar).toMatch(/حقائق ثابتة/)
+    expect(ar).toMatch(/اللجنة تجتمع/)
+    expect(ar).toMatch(/صوت → مستند/)
     expect(ar).toMatch(/write_file/)
     expect(ar).toMatch(/geocode/)
     expect(ar).toMatch(/web_search/)

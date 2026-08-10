@@ -13,6 +13,7 @@ import {
   attachmentsContextText,
   type MailAttachmentMeta,
 } from '@/lib/email/mail-attachments'
+import { classifyMailTriage } from '@/lib/email/mail-triage'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 
@@ -23,11 +24,20 @@ function modelSlug() {
 const analyzeSchema = z.object({
   summaryAr: z.string().describe('ملخص قصير بالعربية الفصحى'),
   draftSubject: z.string().describe('موضوع الرد'),
-  draftBody: z.string().describe('مسودة رد مهنية بالعربية (أو الإنجليزية إن كانت الرسالة إنجليزية)'),
+  draftBody: z.string().describe('مسودة رد مهنية بنبرة جمعية الهدى والحكمة'),
   dates: z.array(z.string()).describe('تواريخ مذكورة أو مستنتجة'),
   times: z.array(z.string()).describe('أوقات مذكورة'),
   names: z.array(z.string()).describe('أسماء أشخاص أو جهات'),
   important: z.array(z.string()).describe('نقاط مهمة أخرى (أرقام، مواعيد، طلبات، روابط)'),
+  priority: z
+    .enum(['high', 'normal', 'low'])
+    .describe('أولوية المتابعة دون مبالغة'),
+  classify: z
+    .enum(['action', 'meeting', 'docs', 'fyi', 'newsletter', 'other'])
+    .describe('تصنيف خفيف للصندوق'),
+  attachmentNoteAr: z
+    .string()
+    .describe('سطر واحد عن المرفقات إن وُجدت — ماذا تحتوي وما يلزم الإشارة إليه في الرد؛ وإلا فارغ'),
 })
 
 function parseAttachments(row: ImapMessageRow): MailAttachmentMeta[] {
@@ -63,6 +73,14 @@ export function messageIntel(row: ImapMessageRow): MailIntelCache | null {
   return parseIntel(row)
 }
 
+const ASSOCIATION_TONE = `نبرة الجمعية (إلزامية للمسودة):
+- افتتاح: السلام عليكم ورحمة الله وبركاته
+- تمثيل: جمعية الهدى والحكمة — رسمي، مهذب، مختصر، بلا مبالغة تسويقية
+- لا تختلق موافقات/مبالغ/مواعيد غير موجودة في الرسالة أو المرفقات
+- إن وُجدت مرفقات: أشر لمحتواها باختصار واطلب استكمالاً إن لزم
+- ختام: مع خالص التحية، ثم إدارة الجمعية
+- لا تُكدّس قوالب جاهزة بلا صلة؛ خصّص الرد لموضوع الرسالة`
+
 export async function analyzeMailMessage(
   messageId: string,
   opts?: { force?: boolean }
@@ -84,36 +102,60 @@ export async function analyzeMailMessage(
       intel: existing,
       attachments,
       cached: true,
-      messageAr: 'عُرض التحليل المحفوظ للرسالة.',
+      messageAr: 'عُرضت المسودة المحفوظة.',
     }
   }
 
   const attCtx = attachmentsContextText(attachments)
-  const prompt = `حلّل رسالة البريد التالية وجهّز مسودة رد.
+  const triageSeed = classifyMailTriage({
+    subject: row.subject,
+    snippet: row.snippet,
+    from: row.from_addr,
+    seen: row.seen,
+    answered: row.answered,
+    hasAttachments: attachments.length > 0,
+  })
+
+  const prompt = `حلّل رسالة بريد الجمعية وجهّز مسودة رد جاهزة للمراجعة.
 
 من: ${row.from_addr}
 إلى: ${row.to_addr}
 الموضوع: ${row.subject}
 التاريخ: ${row.date_at ? new Date(row.date_at).toISOString() : '—'}
+تصنيف أولي: ${triageSeed.labelAr}
 
 النص:
 ${(row.body_text || row.snippet || '').slice(0, 18_000)}
 
-${attCtx ? `المرفقات المستخرجة:\n${attCtx.slice(0, 14_000)}` : 'لا مرفقات نصية.'}
+${attCtx ? `المرفقات المستخرجة (يجب مراعاتها في الملخص والمسودة):\n${attCtx.slice(0, 14_000)}` : 'لا مرفقات نصية.'}
 
-قواعد:
-- summaryAr: 2–4 جمل فصحى.
-- draftBody: رد جاهز للإرسال من جمعية الهدى والحكمة، مهذب ومختصر، دون اختلاق حقائق.
+${ASSOCIATION_TONE}
+
+قواعد الحقول:
+- summaryAr: ٢–٤ جمل فصحى — ماذا يطلب المرسل وما المرفقات إن وُجدت.
+- draftBody: رد كامل جاهز للإرسال بعد مراجعة بشرية؛ لا تترك نقاط «…» إلا إن كان النقص من الرسالة نفسها.
 - إن كانت الرسالة إنجليزية يمكن الرد بالإنجليزية مع إبقاء summaryAr بالعربية.
-- استخرج التواريخ والأوقات والأسماء وأي شيء مهم بدقة من النص/المرفقات فقط.`
+- priority/classify: واقعيان بلا تضخيم — النشرات = low/newsletter.
+- attachmentNoteAr: سطر واحد أو فارغ.`
 
   try {
     const { object } = await generateObject({
       model: getHarnessModel(modelSlug()),
       schema: analyzeSchema,
       system:
-        'أنت مساعد بريد جمعية الهدى والحكمة. تكتب بالعربية الفصحى المهنية وتستخرج كيانات بدقة دون اختلاق.',
+        'أنت كاتب مراسلات جمعية الهدى والحكمة. تكتب فصحى مهنية، تراعي المرفقات، ولا تختلق حقائق.',
       prompt,
+    })
+
+    const triage = classifyMailTriage({
+      subject: row.subject,
+      snippet: row.snippet,
+      from: row.from_addr,
+      seen: row.seen,
+      answered: row.answered,
+      hasAttachments: attachments.length > 0,
+      priority: object.priority,
+      classify: object.classify,
     })
 
     const intel: MailIntelCache = {
@@ -127,6 +169,10 @@ ${attCtx ? `المرفقات المستخرجة:\n${attCtx.slice(0, 14_000)}` : 
         important: object.important || [],
       },
       analyzedAt: new Date().toISOString(),
+      priority: triage.priority,
+      classify: triage.classify,
+      triageLabelAr: triage.labelAr,
+      attachmentNoteAr: (object.attachmentNoteAr || '').trim() || undefined,
     }
     await updateMessageIntel(messageId, intel)
     return {
@@ -134,22 +180,37 @@ ${attCtx ? `المرفقات المستخرجة:\n${attCtx.slice(0, 14_000)}` : 
       intel,
       attachments,
       cached: false,
-      messageAr: 'جهّز الوكيل ملخصاً ومسودة رد واستخراجاً ذكياً.',
+      messageAr: attachments.length
+        ? 'مسودة رد بنبرة الجمعية مع مراعاة المرفقات.'
+        : 'مسودة رد بنبرة الجمعية جاهزة للمراجعة.',
     }
   } catch (e) {
-    // Deterministic fallback when LLM unavailable
+    const triage = triageSeed
+    const attNote =
+      attachments.length > 0
+        ? `المرفقات: ${attachments.map((a) => a.filename).slice(0, 4).join('، ')}`
+        : ''
     const intel: MailIntelCache = {
       summaryAr: `رسالة من ${row.from_addr}: ${(row.snippet || row.subject || '').slice(0, 200)}`,
       draftSubject: /^(re|رد)\s*:/i.test(row.subject || '')
         ? row.subject
         : `Re: ${row.subject || '(بدون موضوع)'}`,
-      draftBody: `السلام عليكم ورحمة الله وبركاته،\n\nشكراً لتواصلكم. تلقّينا رسالتكم بخصوص «${row.subject || '—'}» وسنراجعها ونعود إليكم.\n\nمع خالص التحية،\nجمعية الهدى والحكمة`,
+      draftBody: `السلام عليكم ورحمة الله وبركاته،
+
+نشكر تواصلكم مع جمعية الهدى والحكمة. تلقّينا رسالتكم بخصوص «${row.subject || '—'}»${attNote ? ` والمرفقات المشار إليها (${attNote})` : ''}، وسنراجعها ونعود إليكم في أقرب وقت مناسب.
+
+مع خالص التحية،
+إدارة الجمعية`,
       extract: heuristicExtract(row.body_text || row.snippet || ''),
       analyzedAt: new Date().toISOString(),
+      priority: triage.priority,
+      classify: triage.classify,
+      triageLabelAr: triage.labelAr,
+      attachmentNoteAr: attNote || undefined,
       fallbackNoteAr:
         e instanceof Error
-          ? `تعذّر التحليل بالوكيل (${e.message}) — عُرضت مسودة أساسية.`
-          : 'تعذّر التحليل بالوكيل — عُرضت مسودة أساسية.',
+          ? `تعذّر التحليل بالوكيل (${e.message}) — عُرضت مسودة أساسية بنبرة الجمعية.`
+          : 'تعذّر التحليل بالوكيل — عُرضت مسودة أساسية بنبرة الجمعية.',
     }
     await updateMessageIntel(messageId, intel).catch(() => null)
     return {

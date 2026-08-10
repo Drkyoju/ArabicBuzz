@@ -271,3 +271,45 @@ export function unknownModelMessageAr(modelId: string): string {
   const id = (modelId || '').trim() || '؟'
   return `النموذج «${id}» غير معروف — اختر نموذجاً من قائمة الوكلاء.`
 }
+
+/**
+ * Short MSA success / status line for tool chips in the room feed.
+ * Prefer tool messageAr when already Arabic and concise; otherwise normalize.
+ */
+export function mapToolSuccessAr(
+  toolName: string | undefined | null,
+  raw: string | undefined | null,
+  opts?: { count?: number; ok?: boolean }
+): string {
+  const label = toolLabelAr(toolName)
+  const text = (raw || '').trim()
+  const count = opts?.count
+
+  if (typeof count === 'number' && Number.isFinite(count)) {
+    if (count === 0) return `${label}: لا نتائج`
+    return `${label}: ${count}`
+  }
+
+  if (!text || text === 'تم الاستدعاء' || text === 'تم بنجاح') {
+    return `${label}: تم`
+  }
+
+  // Already short Arabic — keep, lightly trim.
+  if (ARABIC_SCRIPT.test(text) && text.length <= 90) {
+    // Strip redundant tool name prefix if present
+    const stripped = text
+      .replace(new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[:：·]?\\s*`), '')
+      .trim()
+    const body = stripped || text
+    return body.length <= 72 ? `${label}: ${body}` : `${label}: ${body.slice(0, 69)}…`
+  }
+
+  if (ARABIC_SCRIPT.test(text)) {
+    return `${label}: ${text.slice(0, 69)}${text.length > 69 ? '…' : ''}`
+  }
+
+  // English / technical success dumps — never show raw.
+  if (/paused|pending.?approv/i.test(text)) return `${label}: بانتظار موافقة`
+  if (/sent|ok|success|created|updated|done/i.test(text)) return `${label}: تم`
+  return `${label}: تم`
+}

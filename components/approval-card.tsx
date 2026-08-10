@@ -165,6 +165,13 @@ export function ApprovalCard({
       <div className="mb-1 text-base font-semibold text-ab-ink">
         {humanizeAction(actionName)}
       </div>
+      <p className="mb-2 text-[12px] leading-relaxed text-ab-muted">
+        {deleteAction
+          ? 'ظهر هنا لأن الحذف لا يُنفَّذ تلقائياً — راجع التفاصيل ثم وافق أو ارفض.'
+          : riskLevel === 'HIGH'
+            ? 'ظهر هنا لأن الإجراء عالي المخاطر ويحتاج تأكيداً من المالك/التشغيل قبل التنفيذ.'
+            : 'ظهر هنا لأنه يحتاج موافقة بشرية وفق وضع الحوكمة الحالي.'}
+      </p>
       <p className="mb-3 text-[11px] text-ab-muted-soft" dir="ltr">
         {actionName}
       </p>
@@ -306,9 +313,11 @@ export function ApprovalCard({
       )}
       {localStatus === 'PENDING_APPROVAL' && (
         <p className="mt-3 border-t border-ab-border/70 pt-2 text-[10px] leading-relaxed text-stone-500">
-          الموافقة هنا تنفّذ الإجراء فوراً. نفس الطلب يصل على تيليجرام (أزرار أو{' '}
+          لماذا الموافقة؟ في الوضع التلقائي تظهر هنا طلبات الحذف (أو المخاطر
+          العالية). الموافقة تنفّذ فوراً؛ الرفض يلغي الطلب. نفس البطاقة تصل على
+          تيليجرام (أزرار أو{' '}
           <code dir="ltr">/approve</code>
-          ). النتيجة تُسجَّل في سجل التدقيق.
+          ). النتيجة تُسجَّل في سجل التدقيق للمالك/التشغيل.
         </p>
       )}
     </div>

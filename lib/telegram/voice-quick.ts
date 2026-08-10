@@ -7,6 +7,7 @@ export type VoiceQuickAction =
   | 'appointment'
   | 'task'
   | 'file'
+  | 'doc'
   | 'mail'
   | 'message'
   | 'broadcast'
@@ -56,6 +57,7 @@ export const VOICE_QUICK_PREFIX = {
   appointment: 'vq_appt',
   task: 'vq_task',
   file: 'vq_file',
+  doc: 'vq_doc',
   mail: 'vq_mail',
   message: 'vq_msg',
   broadcast: 'vq_cast',
@@ -69,6 +71,7 @@ export function parseVoiceQuickCallback(
   if (data === VOICE_QUICK_PREFIX.appointment) return 'appointment'
   if (data === VOICE_QUICK_PREFIX.task) return 'task'
   if (data === VOICE_QUICK_PREFIX.file) return 'file'
+  if (data === VOICE_QUICK_PREFIX.doc) return 'doc'
   if (data === VOICE_QUICK_PREFIX.mail) return 'mail'
   if (data === VOICE_QUICK_PREFIX.message) return 'message'
   if (data === VOICE_QUICK_PREFIX.broadcast) return 'broadcast'
@@ -83,12 +86,14 @@ export function buildVoiceQuickKeyboard(): InlineKeyboard {
     .text('📅 موعد', VOICE_QUICK_PREFIX.appointment)
     .row()
     .text('✅ مهمة', VOICE_QUICK_PREFIX.task)
-    .text('📁 ملف', VOICE_QUICK_PREFIX.file)
+    .text('📄 مستند جاهز', VOICE_QUICK_PREFIX.doc)
     .row()
+    .text('📁 عدّل مرفق', VOICE_QUICK_PREFIX.file)
     .text('✉️ بريد', VOICE_QUICK_PREFIX.mail)
-    .text('👤 لعضو', VOICE_QUICK_PREFIX.message)
     .row()
+    .text('👤 لعضو', VOICE_QUICK_PREFIX.message)
     .text('📣 للمجموعة', VOICE_QUICK_PREFIX.broadcast)
+    .row()
     .text('🤖 أيقظ وكيل', VOICE_QUICK_PREFIX.wake)
 }
 
@@ -133,15 +138,30 @@ export function voiceQuickPrompt(
       }
     case 'file':
       return {
-        labelAr: 'ملف',
+        labelAr: 'تعديل مرفق',
         forceHeavy: true,
         prompt: [
           transcript,
           '',
-          '[زر سريع: ملف]',
-          'إن طُلب إنشاء ملف جديد/من الصفر: write_file أو brain_create_document أو pdf_create ثم return_file.',
-          'وإلا: نفّذ على مرفق تيليجرام الأخير (fileId) أو خزنة الغرفة — edit/convert ثم return_file.',
+          '[زر سريع: عدّل مرفق]',
+          'نفّذ على مرفق تيليجرام الأخير (fileId) أو خزنة الغرفة — edit/convert ثم return_file.',
           'ممنوع طلب إعادة الإرسال إن وُجدت بايتات. رد موجز.',
+        ].join('\n'),
+      }
+    case 'doc':
+      return {
+        labelAr: 'مستند جاهز',
+        forceHeavy: true,
+        prompt: [
+          transcript,
+          '',
+          '[زر سريع: مستند جاهز — مسار صوت→ملف]',
+          'المسار الإلزامي:',
+          '1) استخدم التفريغ أعلاه كمحتوى.',
+          '2) أنشئ ملفاً جديداً: write_file (نص/md) أو pdf_create — أو brain_create_document إن طُلب Drive مباشرة.',
+          '3) أرجع الناتج فوراً بـ return_file للمجموعة.',
+          '4) اختياري بعد التسليم: أرشفة Drive عبر brain_save_document — لا تؤرشف قبل return_file.',
+          'ممنوع البحث في Drive أولاً. ممنوع طلب إعادة الإرسال. رد موجز: اسم الملف + أنه أُرسل.',
         ].join('\n'),
       }
     case 'mail':

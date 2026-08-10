@@ -33,6 +33,9 @@
 ## مرجع
 
 - [docs/hermes-mac-always-on.md](./hermes-mac-always-on.md)  
+- **صحة جسر الماك (سطر واحد):** `npm run mac-hop:health`  
 - مزامنة مهارات هيرميس السحابية (لما يفتح Nous): [docs/hermes-skills-cloud-sync-ar.md](./hermes-skills-cloud-sync-ar.md) — أمر واحد: `npm run hermes:skills:sync-cloud`  
+- رقم واتساب مخصص (تحضير فقط): [docs/hermes-wa-dedicated-number.md](./hermes-wa-dedicated-number.md) — `npm run hermes:wa:prepare-dedicated`  
+- Fly Bot API (تحضير فقط — لا نشر): [docs/fly-bot-api-prepare.md](./fly-bot-api-prepare.md)  
 - [docs/telegram-bot-ar.md](./telegram-bot-ar.md)  
 - ICP outcomes (أرشيف · وضوح · HITL): [docs/research/startup-ops/01-icp-interview-ar.md](./research/startup-ops/01-icp-interview-ar.md)

@@ -53,3 +53,12 @@ describe('mapToolErrorAr / toolLabelAr', () => {
     expect(toolLabelAr('some_unknown_tool_xyz')).not.toMatch(/_/)
   })
 })
+
+describe('mapToolSuccessAr', () => {
+  it('prefixes short Arabic success with tool label', async () => {
+    const { mapToolSuccessAr } = await import('@/lib/ai/user-error-ar')
+    expect(mapToolSuccessAr('room_calendar_list', '٣ مواعيد')).toMatch(/تقويم/)
+    expect(mapToolSuccessAr('gmail_search', null, { count: 0 })).toMatch(/لا نتائج/)
+    expect(mapToolSuccessAr('send_message', 'أُرسلت')).toMatch(/تيليجرام|أُرسلت/)
+  })
+})
