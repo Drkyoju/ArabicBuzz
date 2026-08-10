@@ -1,6 +1,6 @@
 # ArabicBuzz — CranL production image (Next.js standalone + Prisma)
 # Binds 0.0.0.0:$PORT (default 3000). Do not commit secrets; use CranL env.
-# build-bust: telegram-group-push-off-efba8b8-cranl500-retry
+# build-bust: telegram-silence-unsolicited-01dea9f-20260810
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
