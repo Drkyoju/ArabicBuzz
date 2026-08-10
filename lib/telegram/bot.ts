@@ -116,6 +116,7 @@ import {
   shouldNormalizeTelegramDialect,
 } from '@/lib/telegram/fast-path'
 import {
+  claimTelegramContentKey,
   claimTelegramMessageKey,
   claimTelegramUpdate,
 } from '@/lib/telegram/update-dedupe'
@@ -579,17 +580,17 @@ async function maybeSendTelegramVoiceReply(ctx: Context, text: string) {
 }
 
 /**
- * Replace the «جاري…» ack with the final text.
- * HARD BAN: never deleteMessage / deleteMessages — edit only.
- * HARD BAN: never post a second copy of text already shown in the ack
- * (Telegram «message is not modified» used to fall through to ctx.reply =
- * duplicate spam in «عمل الجمعية»).
- * Guard: installTelegramNeverDeleteGuard on the Bot instance.
+ * Deliver the final text for a turn — ONE visible message.
+ * HARD BAN: never deleteMessage / deleteMessages.
+ * HARD BAN: if an ack message_id exists → EDIT ONLY, never ctx.reply
+ * (jari+final twin was the remaining group spam).
+ * Groups: no ack (messageId omitted) → single reply only.
  */
 async function finalizeTelegramAck(opts: {
   ctx: Context
   chatId: number | string
-  messageId: number
+  /** When set, only edit this message — never send a second one. */
+  messageId?: number
   text: string
   replyMarkup?: InlineKeyboard
   /** Last text successfully edited into the ack during streaming. */
@@ -597,11 +598,21 @@ async function finalizeTelegramAck(opts: {
 }): Promise<FinalizeAckMode> {
   const body = opts.text.slice(0, 4000)
   const already = String(opts.alreadyDisplayedText || '').slice(0, 4000)
+  const ackId = opts.messageId
+
+  // No ack (group nuclear path): exactly one sendMessage.
+  if (ackId == null || !Number.isFinite(ackId) || ackId <= 0) {
+    await opts.ctx.reply(
+      body,
+      opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
+    )
+    return 'replied'
+  }
 
   try {
     await opts.ctx.api.editMessageText(
       opts.chatId,
-      opts.messageId,
+      ackId,
       body,
       opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
     )
@@ -614,31 +625,20 @@ async function finalizeTelegramAck(opts: {
       finalText: body,
       alreadyDisplayedText: already,
       editError: editErr,
+      ackAlreadyPosted: true,
     })
-    if (fallback === 'already' || fallback === 'left_ack') {
-      console.info('[telegram] finalize ack skip duplicate reply', {
-        mode: fallback,
-        messageId: opts.messageId,
-      })
-      return fallback
+    console.info('[telegram] finalize ack edit-only (no reply fallback)', {
+      mode: fallback,
+      messageId: ackId,
+    })
+    // Last-ditch: try plain edit without markup — still never reply.
+    try {
+      await opts.ctx.api.editMessageText(opts.chatId, ackId, body)
+      return 'edited'
+    } catch {
+      return fallback === 'reply' ? 'left_ack' : fallback
     }
   }
-
-  // Ack still shows «جاري…» (nothing useful on screen) — deliver once.
-  try {
-    await opts.ctx.api.editMessageText(
-      opts.chatId,
-      opts.messageId,
-      '✅ تم — الرد بالأسفل'
-    )
-  } catch {
-    /* leave ack visible — never delete */
-  }
-  await opts.ctx.reply(
-    body,
-    opts.replyMarkup ? { reply_markup: opts.replyMarkup } : undefined
-  )
-  return 'replied'
 }
 
 async function bindTelegramTools(opts: {
@@ -778,6 +778,34 @@ function wrapTelegramToolsAgainstSelfSend(
     return prev(p, execOpts)
   })
 
+  patchExecute('notify_room_member', async (prev, args, execOpts) => {
+    const p = (args || {}) as Record<string, unknown>
+    const groupField =
+      p.groupChatId != null
+        ? String(p.groupChatId).trim()
+        : p.group_chat_id != null
+          ? String(p.group_chat_id).trim()
+          : ''
+    const targetNameAr = String(
+      p.targetNameAr || p.memberNameAr || p.toNameAr || ''
+    ).trim()
+    const broadcastAliases =
+      /^(المجموعة|القروب|الفريق|الأعضاء|الاعضاء|الجميع|all|team|group)$/iu
+    const isBroadcast =
+      !targetNameAr || broadcastAliases.test(targetNameAr)
+    // Same-chat broadcast during an inbound turn = twin of the final reply.
+    if (isBroadcast && (!groupField || groupField === chatId)) {
+      return {
+        ok: true,
+        skippedSelfSend: true,
+        channel: 'telegram',
+        messageAr:
+          'لن أُبلّغ هذه المحادثة مرة ثانية — الرد النهائي لهذه الدورة يكفي.',
+      }
+    }
+    return prev(args, execOpts)
+  })
+
   return out
 }
 
@@ -792,6 +820,11 @@ async function streamTelegramReply(opts: {
   tools: ToolSet
   /** Pre-sent ack message to edit into the final reply. */
   placeholderMessageId?: number
+  /**
+   * Groups: false — never post «جاري…»; one final reply only.
+   * DMs: true (default) — single editable ack.
+   */
+  allowPlaceholder?: boolean
 }): Promise<{
   text: string
   citations: RoomCitation[]
@@ -800,7 +833,8 @@ async function streamTelegramReply(opts: {
 }> {
   await opts.ctx.replyWithChatAction('typing')
   let placeholderId = opts.placeholderMessageId
-  if (!placeholderId) {
+  const allowPlaceholder = opts.allowPlaceholder !== false
+  if (!placeholderId && allowPlaceholder) {
     const placeholder = await opts.ctx.reply('جاري…')
     placeholderId = placeholder.message_id
   }
@@ -840,7 +874,11 @@ async function streamTelegramReply(opts: {
       ) {
         assembled += String(p.textDelta ?? p.delta ?? '')
         const now = Date.now()
-        if (now - lastEdit > editThrottleMs && assembled.trim()) {
+        if (
+          placeholderId &&
+          now - lastEdit > editThrottleMs &&
+          assembled.trim()
+        ) {
           lastEdit = now
           const slice = assembled.slice(0, 3900)
           try {
@@ -940,7 +978,9 @@ async function streamTelegramReply(opts: {
     chatId: opts.ctx.chat!.id,
     messageId: placeholderId,
     text: body,
-    alreadyDisplayedText: lastEditedText || assembled.slice(0, 3900),
+    alreadyDisplayedText: placeholderId
+      ? lastEditedText || assembled.slice(0, 3900)
+      : undefined,
     replyMarkup: firstApproval
       ? buildApprovalKeyboard(firstApproval)
       : undefined,
@@ -1067,6 +1107,7 @@ async function runTelegramTeamAgentTurn(opts: {
   maxSteps: number
   tools: ToolSet
   placeholderMessageId?: number
+  allowPlaceholder?: boolean
   silent: boolean
   runLocked: <T>(fn: () => Promise<T>) => Promise<T>
 }): Promise<{
@@ -1157,6 +1198,7 @@ async function runTelegramTeamAgentTurn(opts: {
       maxSteps: opts.maxSteps,
       tools: opts.tools,
       placeholderMessageId: opts.placeholderMessageId,
+      allowPlaceholder: opts.allowPlaceholder,
     })
   )
   const peerOuts = await peerPromise
@@ -1182,25 +1224,23 @@ async function runTelegramTeamAgentTurn(opts: {
     }
   }
 
-  // Primary already edited the ack — append peer digests + extra attachments.
+  // Primary already delivered once — peer digest may EDIT ack only, never reply.
   let text = primaryOut.text
   if (peerNotes.length) {
     const digest = peerNotes
       .map((n) => `【${n.nameAr}】 ${n.text.slice(0, 600)}`)
       .join('\n')
     text = `${primaryOut.text}\n\n—\nزملاء الفريق:\n${digest}`.slice(0, 3900)
-    try {
-      if (opts.placeholderMessageId) {
+    if (opts.placeholderMessageId) {
+      try {
         await opts.ctx.api.editMessageText(
           opts.ctx.chat!.id,
           opts.placeholderMessageId,
           text
         )
-      } else {
-        await opts.ctx.reply(text.slice(0, 3900))
+      } catch {
+        /* ignore edit races — never second reply */
       }
-    } catch {
-      /* ignore edit races */
     }
   }
 
@@ -1252,6 +1292,10 @@ async function runTelegramAgentTurn(opts: {
     messageId: opts.ctx.message?.message_id,
     text: opts.promptSource,
   })
+  const textFp = telegramTurnFingerprint({
+    text: opts.promptSource,
+  })
+  // Claim message-id lock AND content lock (same text + different update_id).
   const turnClaimed = await claimTelegramChatTurn(opts.chatId, turnFp)
   if (!turnClaimed) {
     console.info('[telegram] skip in-flight/recent turn', {
@@ -1263,6 +1307,23 @@ async function runTelegramAgentTurn(opts: {
       citations: [] as RoomCitation[],
       pendingApprovalIds: [] as string[],
       attachmentsSent: [] as string[],
+    }
+  }
+  let textTurnClaimed = false
+  if (textFp !== turnFp && textFp.startsWith('t')) {
+    textTurnClaimed = await claimTelegramChatTurn(opts.chatId, textFp)
+    if (!textTurnClaimed) {
+      console.info('[telegram] skip duplicate content turn', {
+        chatId: opts.chatId,
+        fingerprint: textFp,
+      })
+      await releaseTelegramChatTurn(opts.chatId, turnFp, { answered: false })
+      return {
+        text: '',
+        citations: [] as RoomCitation[],
+        pendingApprovalIds: [] as string[],
+        attachmentsSent: [] as string[],
+      }
     }
   }
   let answered = false
@@ -1315,26 +1376,34 @@ async function runTelegramAgentTurn(opts: {
 
   let ack: { message_id: number } | null = null
   if (!silent) {
-    // Groups: one short «جاري…» only — no seat/intent/tools spam.
-    // DMs may keep a slightly clearer ack; still single message edited to final.
-    if (inGroup) {
-      ack = await opts.ctx.reply('جاري…')
-    } else if (!powered.wakeAgent && powered.wakeNoticeAr) {
-      ack = await opts.ctx.reply(powered.wakeNoticeAr)
-    } else {
-      ack = await opts.ctx.reply('جاري…')
+    // Nuclear groups: NO «جاري…» — one final reply only (edit path unused).
+    // DMs may keep a single editable ack.
+    if (!inGroup) {
+      if (!powered.wakeAgent && powered.wakeNoticeAr) {
+        ack = await opts.ctx.reply(powered.wakeNoticeAr)
+      } else {
+        ack = await opts.ctx.reply('جاري…')
+      }
     }
   }
 
   // All seats busy
   if (!powered.wakeAgent && powered.wakeNoticeAr) {
-    if (!silent && ack) {
-      await finalizeTelegramAck({
-        ctx: opts.ctx,
-        chatId: opts.ctx.chat!.id,
-        messageId: ack.message_id,
-        text: powered.wakeNoticeAr,
-      })
+    if (!silent) {
+      if (ack) {
+        await finalizeTelegramAck({
+          ctx: opts.ctx,
+          chatId: opts.ctx.chat!.id,
+          messageId: ack.message_id,
+          text: powered.wakeNoticeAr,
+        })
+      } else {
+        await finalizeTelegramAck({
+          ctx: opts.ctx,
+          chatId: opts.ctx.chat!.id,
+          text: powered.wakeNoticeAr,
+        })
+      }
       answered = true
     }
     // Busy notice is operational — allow a short visible line even in silent? User said only mention or unknown. Skip.
@@ -1387,15 +1456,15 @@ async function runTelegramAgentTurn(opts: {
               fromLabelAr,
             })
       const text = [result.messageAr, result.limitsAr].filter(Boolean).join('\n')
-      if (!silent && ack) {
+      if (!silent) {
         await finalizeTelegramAck({
           ctx: opts.ctx,
           chatId: opts.ctx.chat!.id,
-          messageId: ack.message_id,
+          messageId: ack?.message_id,
           text,
         })
         answered = true
-      } else if (silent && !result.ok) {
+      } else if (!result.ok) {
         await opts.ctx.reply(
           await replyForCapabilityGapAr({
             task: opts.promptSource,
@@ -1442,15 +1511,15 @@ async function runTelegramAgentTurn(opts: {
         userFirstName: opts.ctx.from?.first_name,
         rawPrompt: opts.promptSource,
       })
-      if (!silent && ack) {
+      if (!silent) {
         await finalizeTelegramAck({
           ctx: opts.ctx,
           chatId: opts.ctx.chat!.id,
-          messageId: ack.message_id,
+          messageId: ack?.message_id,
           text,
         })
         answered = true
-      } else if (silent && looksLikeUnknownOrNotFound(text)) {
+      } else if (looksLikeUnknownOrNotFound(text)) {
         await opts.ctx.reply(
           await replyForCapabilityGapAr({
             task: opts.promptSource,
@@ -1516,11 +1585,11 @@ async function runTelegramAgentTurn(opts: {
       if (driveHint && /drive|درايف|عقل|brain|google/i.test(opts.promptSource)) {
         text = `${text}\n\n${driveHint}`
       }
-      if (!silent && ack) {
+      if (!silent) {
         await finalizeTelegramAck({
           ctx: opts.ctx,
           chatId: opts.ctx.chat!.id,
-          messageId: ack.message_id,
+          messageId: ack?.message_id,
           text,
         })
         const attachmentsSent = await sendAttachmentsToTelegramChat({
@@ -1831,6 +1900,7 @@ async function runTelegramAgentTurn(opts: {
       maxSteps,
       tools,
       placeholderMessageId: ack?.message_id,
+      allowPlaceholder: !inGroup,
       silent: false,
       runLocked,
     })
@@ -1881,6 +1951,7 @@ async function runTelegramAgentTurn(opts: {
       maxSteps,
       tools,
       placeholderMessageId: ack?.message_id,
+      allowPlaceholder: !inGroup,
     })
   )
   console.info('[telegram] timing', {
@@ -1919,6 +1990,9 @@ async function runTelegramAgentTurn(opts: {
   }
   } finally {
     await releaseTelegramChatTurn(opts.chatId, turnFp, { answered })
+    if (textTurnClaimed) {
+      await releaseTelegramChatTurn(opts.chatId, textFp, { answered })
+    }
   }
 }
 
@@ -3628,34 +3702,69 @@ export function getTelegramBot() {
   return bot
 }
 
-/** Process a Telegram update payload directly (webhook + async workflow dispatch). */
-export async function processTelegramUpdatePayload(payload: unknown) {
+/**
+ * Claim-only gate for fast webhook ACK (before after() work).
+ * Order: update_id → chat/message_id → content fingerprint.
+ */
+export async function claimTelegramUpdatePayload(payload: unknown): Promise<{
+  claimed: boolean
+  reason?: string
+}> {
   const raw = payload as {
     update_id?: number
-    message?: { message_id?: number; chat?: { id?: number } }
-    edited_message?: { message_id?: number; chat?: { id?: number } }
+    message?: {
+      message_id?: number
+      chat?: { id?: number }
+      from?: { id?: number }
+      text?: string
+      caption?: string
+    }
+    edited_message?: {
+      message_id?: number
+      chat?: { id?: number }
+      from?: { id?: number }
+      text?: string
+      caption?: string
+    }
     callback_query?: { id?: string }
   }
   const claimed = await claimTelegramUpdate(raw?.update_id)
-  if (!claimed) {
-    console.info('[telegram] skip duplicate update_id', raw?.update_id)
-    return
-  }
+  if (!claimed) return { claimed: false, reason: 'update_id' }
   // Message-key dedupe for text/media only — callbacks share message_id across buttons.
   const msg = raw.message || raw.edited_message
   if (msg?.chat?.id != null && msg.message_id != null) {
     const msgClaimed = await claimTelegramMessageKey(msg.chat.id, msg.message_id)
-    if (!msgClaimed) {
-      console.info(
-        '[telegram] skip duplicate chat/message',
+    if (!msgClaimed) return { claimed: false, reason: 'message_key' }
+    const body = String(msg.text || msg.caption || '').trim()
+    if (body && msg.from?.id != null) {
+      const contentClaimed = await claimTelegramContentKey(
         msg.chat.id,
-        msg.message_id
+        msg.from.id,
+        body
       )
-      return
+      if (!contentClaimed) return { claimed: false, reason: 'content_key' }
     }
   }
+  return { claimed: true }
+}
+
+/** Handle update after claim succeeded (used by webhook after()). */
+export async function handleClaimedTelegramUpdate(payload: unknown) {
   const instance = await ensureTelegramBotReady()
   await ensureBotCommands(instance)
   const update = payload as Parameters<typeof instance.handleUpdate>[0]
   await instance.handleUpdate(update)
+}
+
+/** Process a Telegram update payload directly (webhook + async workflow dispatch). */
+export async function processTelegramUpdatePayload(payload: unknown) {
+  const gate = await claimTelegramUpdatePayload(payload)
+  if (!gate.claimed) {
+    console.info('[telegram] skip duplicate', gate.reason, {
+      update_id: (payload as { update_id?: number })?.update_id,
+    })
+    return { skipped: true as const, reason: gate.reason }
+  }
+  await handleClaimedTelegramUpdate(payload)
+  return { skipped: false as const }
 }

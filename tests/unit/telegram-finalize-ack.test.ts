@@ -66,24 +66,43 @@ describe('shouldSkipDuplicateFinalizeReply — group spam failure mode', () => {
     ).toBe('left_ack')
   })
 
-  it('allows one reply only when ack is still جاري…', () => {
+  it('NUCLEAR: never reply fallback when ack already posted (even if still جاري…)', () => {
     expect(
       shouldSkipDuplicateFinalizeReply({
         finalText: 'النتيجة النهائية',
         alreadyDisplayedText: 'جاري…',
-        editError: new Error('can\'t parse entities'),
+        editError: new Error("can't parse entities"),
+        ackAlreadyPosted: true,
+      })
+    ).toBe(true)
+    expect(
+      decideFinalizeAckFallback({
+        finalText: 'النتيجة النهائية',
+        alreadyDisplayedText: 'جاري…',
+        editError: new Error("can't parse entities"),
+        ackAlreadyPosted: true,
+      })
+    ).toBe('left_ack')
+  })
+
+  it('legacy path without ackAlreadyPosted may still reply when only جاري…', () => {
+    expect(
+      shouldSkipDuplicateFinalizeReply({
+        finalText: 'النتيجة النهائية',
+        alreadyDisplayedText: 'جاري…',
+        editError: new Error("can't parse entities"),
       })
     ).toBe(false)
     expect(
       decideFinalizeAckFallback({
         finalText: 'النتيجة النهائية',
         alreadyDisplayedText: 'جاري…',
-        editError: new Error('can\'t parse entities'),
+        editError: new Error("can't parse entities"),
       })
     ).toBe('reply')
   })
 
-  it('allows reply when nothing was displayed yet', () => {
+  it('allows reply when nothing was displayed yet and no ack posted', () => {
     expect(
       decideFinalizeAckFallback({
         finalText: 'أول رد',

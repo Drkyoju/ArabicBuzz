@@ -1,5 +1,7 @@
+import { after } from 'next/server'
 import {
-  processTelegramUpdatePayload,
+  claimTelegramUpdatePayload,
+  handleClaimedTelegramUpdate,
 } from '@/lib/telegram/bot'
 import {
   telegramUpdateHasCallback,
@@ -9,8 +11,8 @@ import { enforceWebhookRateLimit } from '@/lib/reliability/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
-/** Netlify function budget for agent + Telegram round-trips. */
-export const maxDuration = 30
+/** Netlify/CranL budget for agent + Telegram round-trips (after ACK). */
+export const maxDuration = 60
 
 /**
  * Netlify-compatible Telegram webhook.
@@ -20,8 +22,9 @@ export const maxDuration = 30
  * was registered without secret_token — outbound approve buttons work, clicks
  * silently no-op. We verify mismatch only; missing header is allowed (compat).
  *
- * Always process inline (including group /ask and HITL callbacks). Queuing to
- * Trigger.dev / self-dispatch has caused silent no-replies in groups.
+ * Fast ACK: claim dedupe keys first, return 200 immediately, then process via
+ * after(). Slow sync replies caused Telegram retries (and duplicate agent turns
+ * when update_id somehow differed / cold instances raced).
  */
 export async function POST(req: Request) {
   try {
@@ -50,8 +53,28 @@ export async function POST(req: Request) {
     }
 
     const isCallback = telegramUpdateHasCallback(payload)
-    await processTelegramUpdatePayload(payload)
-    return Response.json({ ok: true, processed: isCallback ? 'callback' : 'update' })
+    const gate = await claimTelegramUpdatePayload(payload)
+    if (!gate.claimed) {
+      return Response.json({
+        ok: true,
+        duplicate: true,
+        reason: gate.reason || 'deduped',
+      })
+    }
+
+    after(async () => {
+      try {
+        await handleClaimedTelegramUpdate(payload)
+      } catch (e) {
+        console.error('[telegram webhook after]', e)
+      }
+    })
+
+    return Response.json({
+      ok: true,
+      accepted: true,
+      processed: isCallback ? 'callback' : 'update',
+    })
   } catch (e) {
     console.error('[telegram webhook]', e)
     return Response.json(
@@ -123,8 +146,10 @@ export async function GET() {
         'tasks_count',
         'message_dm_broadcast',
       ],
-      updateDedupe: 'update_id_ttl_10m+message_key+chat_turn_lock+prisma_fallback',
-      groupAckPolicy: 'single_jari_then_final_edit_no_duplicate_reply',
+      updateDedupe:
+        'update_id_ttl_10m+message_key+content_key+chat_turn_lock+prisma_fallback',
+      groupAckPolicy: 'groups_no_jari_single_final_reply_edit_only_if_ack',
+      webhookAck: 'claim_then_200_then_after_handle',
       calendarDisplayTz: 'Asia/Riyadh',
       wakePolicy: 'agent1_cascade',
       workIntents: [

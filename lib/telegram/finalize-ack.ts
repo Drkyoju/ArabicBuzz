@@ -1,10 +1,10 @@
 /**
- * Finalize the single «جاري…» ack into the final group/DM reply.
+ * Finalize the single ack (if any) into the final group/DM reply.
  *
- * HARD RULE: one visible answer per turn. Never send a second copy of the
- * same (or already-streamed) text when editMessageText fails with
- * «message is not modified» or a transient error after the ack already
- * shows the answer.
+ * HARD RULE: one visible answer per turn.
+ * - If an ack message already exists: EDIT ONLY — never ctx.reply fallback
+ *   (that was the jari+final twin spam in «عمل الجمعية»).
+ * - Groups: no «جاري…» at all — single final sendMessage only.
  */
 
 export function isTelegramMessageNotModifiedError(err: unknown): boolean {
@@ -31,10 +31,14 @@ export function shouldSkipDuplicateFinalizeReply(opts: {
   finalText: string
   alreadyDisplayedText?: string
   editError?: unknown
+  /** When true (ack already posted), never allow a second sendMessage. */
+  ackAlreadyPosted?: boolean
 }): boolean {
   const body = String(opts.finalText || '').slice(0, 4000)
   const already = String(opts.alreadyDisplayedText || '').slice(0, 4000)
   if (!body) return true
+  // Nuclear: any prior outbound for this turn → never send another copy.
+  if (opts.ackAlreadyPosted) return true
   if (already && already === body) return true
   if (opts.editError && isTelegramMessageNotModifiedError(opts.editError)) {
     return true
@@ -48,17 +52,22 @@ export function shouldSkipDuplicateFinalizeReply(opts: {
 
 /**
  * Pure decision helper for unit tests — mirrors finalizeTelegramAck branches.
+ * With ackAlreadyPosted (default when messageId exists): never 'reply'.
  */
 export function decideFinalizeAckFallback(opts: {
   finalText: string
   alreadyDisplayedText?: string
   editError?: unknown
+  /** Default true when an ack message_id exists — ban reply fallback. */
+  ackAlreadyPosted?: boolean
 }): 'already' | 'reply' | 'left_ack' {
+  const ackPosted = opts.ackAlreadyPosted === true
   if (
     shouldSkipDuplicateFinalizeReply({
       finalText: opts.finalText,
       alreadyDisplayedText: opts.alreadyDisplayedText,
       editError: opts.editError,
+      ackAlreadyPosted: ackPosted,
     })
   ) {
     if (
@@ -68,6 +77,7 @@ export function decideFinalizeAckFallback(opts: {
       return 'already'
     }
     const already = String(opts.alreadyDisplayedText || '').trim()
+    if (ackPosted) return already && already !== 'جاري…' ? 'left_ack' : 'left_ack'
     if (already && already !== 'جاري…') return 'left_ack'
     return 'already'
   }

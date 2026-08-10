@@ -7,6 +7,7 @@ import {
 } from '@/lib/telegram/chat-inflight'
 import {
   __resetTelegramUpdateDedupeForTests,
+  claimTelegramContentKey,
   claimTelegramMessageKey,
   claimTelegramUpdate,
 } from '@/lib/telegram/update-dedupe'
@@ -48,7 +49,7 @@ describe('claimTelegramChatTurn', () => {
   })
 })
 
-describe('claimTelegramUpdate + message key', () => {
+describe('claimTelegramUpdate + message key + content key', () => {
   beforeEach(() => {
     __resetTelegramUpdateDedupeForTests()
   })
@@ -60,5 +61,20 @@ describe('claimTelegramUpdate + message key', () => {
     expect(await claimTelegramMessageKey(-10099, 501)).toBe(false)
     expect(await claimTelegramMessageKey(-10099, 502)).toBe(true)
     expect(await claimTelegramMessageKey(-10088, 501)).toBe(true)
+  })
+
+  it('dedupes same chat+from+text across different update/message ids', async () => {
+    expect(
+      await claimTelegramContentKey(-10077, 42, '  أهلاً  بالجميع  ')
+    ).toBe(true)
+    expect(
+      await claimTelegramContentKey(-10077, 42, 'أهلاً بالجميع')
+    ).toBe(false)
+    expect(
+      await claimTelegramContentKey(-10077, 99, 'أهلاً بالجميع')
+    ).toBe(true)
+    expect(
+      await claimTelegramContentKey(-10088, 42, 'أهلاً بالجميع')
+    ).toBe(true)
   })
 })

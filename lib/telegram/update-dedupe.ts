@@ -180,6 +180,79 @@ export async function claimTelegramMessageKey(
   return true
 }
 
+const CONTENT_TTL_SEC = 120
+const CONTENT_TTL_MS = CONTENT_TTL_SEC * 1000
+
+function normalizeContentText(text: unknown): string {
+  return String(text || '')
+    .trim()
+    .replace(/\s+/gu, ' ')
+    .slice(0, 240)
+    .toLowerCase()
+}
+
+function contentHash(s: string): string {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0).toString(36)
+}
+
+/**
+ * Tertiary claim by chat + sender + text fingerprint.
+ * Covers Telegram retries that somehow arrive with a NEW update_id / message_id
+ * but the same body (slow webhook → redelivery races), and user double-tap.
+ */
+export async function claimTelegramContentKey(
+  chatId: unknown,
+  fromUserId: unknown,
+  text: unknown
+): Promise<boolean> {
+  const cid = String(chatId ?? '').trim()
+  const uid = String(fromUserId ?? '').trim()
+  const norm = normalizeContentText(text)
+  if (!cid || !uid || norm.length < 2) return true
+
+  const safeChat = cid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32)
+  const hash = contentHash(norm)
+  const key = `ab:tg:txt:${safeChat}:${safeUid}:${hash}`
+  const logId = `tg-txt-${safeChat}-${safeUid}-${hash}`.slice(0, 180)
+
+  const now = Date.now()
+  pruneMemory(now)
+
+  const r = getRedis()
+  if (r) {
+    try {
+      const res = await r.set(key, '1', { nx: true, ex: CONTENT_TTL_SEC })
+      if (res === null) return false
+      return true
+    } catch (e) {
+      console.warn('[telegram] content dedupe redis', e)
+    }
+  }
+
+  const memId = simpleMemId(`${safeChat}:${safeUid}`, Number.parseInt(hash, 36) || 1)
+  if (memory.has(memId)) {
+    const ts = memory.get(memId)!
+    if (now - ts < CONTENT_TTL_MS) return false
+  }
+
+  if (prismaDedupeEnabled()) {
+    const dbOk = await claimViaCronLog(logId, now)
+    if (!dbOk) {
+      memory.set(memId, now)
+      return false
+    }
+  }
+
+  memory.set(memId, now)
+  return true
+}
+
 function simpleMemId(chat: string, mid: number): number {
   let h = mid | 0
   for (let i = 0; i < chat.length; i++) {
