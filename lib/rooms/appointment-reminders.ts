@@ -113,6 +113,16 @@ export async function runAppointmentTelegramReminders(opts?: {
         continue
       }
 
+      // Claim BEFORE send so concurrent cron runners cannot double-fire.
+      const { claimDigestDayKey } = await import('@/lib/digest/day-claim')
+      const claimKey = `appt-hour:${ev.id}`
+      const claimed = await claimDigestDayKey(claimKey)
+      if (!claimed) {
+        skipped += 1
+        details.push(`dup:${scopeId}:${ev.id}`)
+        continue
+      }
+
       const mins = Math.max(1, Math.round(delta / 60_000))
       const textAr = [
         '⏰ تذكير موعد — بعد حوالي ساعة',

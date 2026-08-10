@@ -123,7 +123,8 @@ export async function GET() {
         'tasks_count',
         'message_dm_broadcast',
       ],
-      updateDedupe: 'update_id_ttl_10m',
+      updateDedupe: 'update_id_ttl_10m+message_key+chat_turn_lock',
+      groupAckPolicy: 'single_jari_then_final_edit',
       calendarDisplayTz: 'Asia/Riyadh',
       wakePolicy: 'agent1_cascade',
       workIntents: [

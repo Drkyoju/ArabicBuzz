@@ -109,7 +109,15 @@ import {
   runTelegramFastPath,
   shouldNormalizeTelegramDialect,
 } from '@/lib/telegram/fast-path'
-import { claimTelegramUpdate } from '@/lib/telegram/update-dedupe'
+import {
+  claimTelegramMessageKey,
+  claimTelegramUpdate,
+} from '@/lib/telegram/update-dedupe'
+import {
+  claimTelegramChatTurn,
+  releaseTelegramChatTurn,
+  telegramTurnFingerprint,
+} from '@/lib/telegram/chat-inflight'
 import {
   routeAssistantIntent,
   runAssistant,
@@ -608,6 +616,11 @@ async function bindTelegramTools(opts: {
   heavy: boolean
   /** Full room tool surface (same as /api/chat) — default for work turns. */
   fullRoom?: boolean
+  /**
+   * Current Telegram chat — suppress tools that would send a second copy of
+   * the same reply/file into this chat (final ack path delivers once).
+   */
+  telegramChatId?: string
 }): Promise<ToolSet> {
   const { parsePosture } = await import('@/lib/security/posture')
   const native = getNativeAiTools({
@@ -617,7 +630,7 @@ async function bindTelegramTools(opts: {
   })
   // Max power: full native toolset for work turns; light subset only for greetings.
   // Omit personal Google calendar_* so team agenda stays room_calendar_* only.
-  const subset = omitTelegramPersonalCalendarTools(
+  let subset = omitTelegramPersonalCalendarTools(
     opts.fullRoom
       ? native
       : pickToolSubset(
@@ -634,12 +647,97 @@ async function bindTelegramTools(opts: {
     try {
       await connectEnvMcpServers()
       const mcpTools = await getMCPHostManager().getCombinedToolSet()
-      return omitTelegramPersonalCalendarTools({ ...subset, ...mcpTools })
+      subset = omitTelegramPersonalCalendarTools({ ...subset, ...mcpTools })
     } catch {
       /* optional — native tools still run */
     }
   }
-  return subset
+
+  const chatId = String(opts.telegramChatId || '').trim()
+  if (!chatId) return subset
+
+  // Prevent tool→Telegram + final reply double-post in the same group/DM.
+  return wrapTelegramToolsAgainstSelfSend(subset, chatId, opts.scopeId)
+}
+
+function wrapTelegramToolsAgainstSelfSend(
+  tools: ToolSet,
+  chatId: string,
+  scopeId: string
+): ToolSet {
+  const out: ToolSet = { ...tools }
+
+  const patchExecute = (
+    name: string,
+    wrap: (
+      prev: (args: unknown, opts?: unknown) => Promise<unknown>,
+      args: unknown,
+      opts?: unknown
+    ) => Promise<unknown>
+  ) => {
+    const tool = out[name] as
+      | { execute?: (args: unknown, opts?: unknown) => Promise<unknown> }
+      | undefined
+    if (!tool || typeof tool.execute !== 'function') return
+    const prev = tool.execute.bind(tool)
+    tool.execute = async (args: unknown, execOpts?: unknown) =>
+      wrap(prev, args, execOpts)
+  }
+
+  patchExecute('send_message', async (prev, args, execOpts) => {
+    const p = (args || {}) as Record<string, unknown>
+    const channel = String(p.channel || 'telegram')
+    const to = p.to != null ? String(p.to).trim() : ''
+    if (channel === 'telegram' && (!to || to === chatId)) {
+      return {
+        ok: true,
+        skippedSelfSend: true,
+        channel: 'telegram',
+        messageAr:
+          'لن أُرسل نسخة إضافية هنا — الرد النهائي لهذه الدورة يكفي.',
+      }
+    }
+    return prev(args, execOpts)
+  })
+
+  patchExecute('send_file', async (prev, args, execOpts) => {
+    const p = (args || {}) as Record<string, unknown>
+    const channel = String(p.channel || 'telegram')
+    const to = p.to != null ? String(p.to).trim() : ''
+    if (
+      (channel === 'telegram' || channel === 'both') &&
+      (!to || to === chatId)
+    ) {
+      const fileId = String(p.fileId || '').trim()
+      return {
+        ok: true,
+        skippedSelfSend: true,
+        fileId,
+        name: String(p.captionAr || p.messageAr || fileId || 'file'),
+        scopeId: String(p.scopeId || scopeId),
+        messageAr:
+          'الملف سيُمرَّر مع الرد النهائي مرة واحدة — بلا إرسال مكرر.',
+      }
+    }
+    return prev(args, execOpts)
+  })
+
+  patchExecute('owner_morning_brief', async (prev, args, execOpts) => {
+    const p = { ...((args || {}) as Record<string, unknown>) }
+    p.sendTelegram = false
+    return prev(p, execOpts)
+  })
+
+  patchExecute('send_director_digest', async (prev, args, execOpts) => {
+    const p = { ...((args || {}) as Record<string, unknown>) }
+    const channels = Array.isArray(p.channels)
+      ? (p.channels as string[]).filter((c) => c !== 'telegram')
+      : ['email']
+    p.channels = channels.length ? channels : ['email']
+    return prev(p, execOpts)
+  })
+
+  return out
 }
 
 async function streamTelegramReply(opts: {
@@ -1097,6 +1195,26 @@ async function runTelegramAgentTurn(opts: {
   const replyMode = opts.replyMode || 'full'
   const silent = replyMode === 'silent_execute'
   const scopeId = opts.scope.scope.id
+  const inGroup = isGroupChat(opts.ctx.chat)
+  const turnFp = telegramTurnFingerprint({
+    messageId: opts.ctx.message?.message_id,
+    text: opts.promptSource,
+  })
+  const turnClaimed = await claimTelegramChatTurn(opts.chatId, turnFp)
+  if (!turnClaimed) {
+    console.info('[telegram] skip in-flight/recent turn', {
+      chatId: opts.chatId,
+      fingerprint: turnFp,
+    })
+    return {
+      text: '',
+      citations: [] as RoomCitation[],
+      pendingApprovalIds: [] as string[],
+      attachmentsSent: [] as string[],
+    }
+  }
+  let answered = false
+  try {
   const classified = classifyTelegramWorkIntent(opts.promptSource)
   const work = {
     ...classified,
@@ -1145,30 +1263,15 @@ async function runTelegramAgentTurn(opts: {
 
   let ack: { message_id: number } | null = null
   if (!silent) {
-    const ackBits: string[] = []
-    if (!powered.wakeAgent && powered.wakeNoticeAr) {
-      ackBits.push(powered.wakeNoticeAr)
+    // Groups: one short «جاري…» only — no seat/intent/tools spam.
+    // DMs may keep a slightly clearer ack; still single message edited to final.
+    if (inGroup) {
+      ack = await opts.ctx.reply('جاري…')
+    } else if (!powered.wakeAgent && powered.wakeNoticeAr) {
+      ack = await opts.ctx.reply(powered.wakeNoticeAr)
     } else {
-      ackBits.push('⏳ استلمت — جاري العمل…')
-      if (powered.wakeNoticeAr) ackBits.push(powered.wakeNoticeAr)
-      else if (powered.parallel && powered.wakeAgents.length > 1) {
-        ackBits.push(
-          `الفريق: ${powered.wakeAgents.map((a) => a.nameAr).join('، ')}`
-        )
-      } else if (powered.wakeAgent) {
-        ackBits.push(`المقعد: ${powered.wakeAgent.nameAr}`)
-      }
-      if (opts.workLabelAr || work.kind !== 'casual') {
-        ackBits.push(`القصد: ${opts.workLabelAr || work.labelAr}`)
-      }
-      if (work.kind === 'file' || work.forceHeavy) {
-        ackBits.push('أدوات كاملة (ملفات / Drive / تحويل)')
-      }
-      if (powered.parallel) {
-        ackBits.push(`متوازٍ ×${powered.wakeAgents.length}`)
-      }
+      ack = await opts.ctx.reply('جاري…')
     }
-    ack = await opts.ctx.reply(ackBits.join('\n'))
   }
 
   // All seats busy
@@ -1180,6 +1283,7 @@ async function runTelegramAgentTurn(opts: {
         messageId: ack.message_id,
         text: powered.wakeNoticeAr,
       })
+      answered = true
     }
     // Busy notice is operational — allow a short visible line even in silent? User said only mention or unknown. Skip.
     void mirrorChannelTurnToRoom({
@@ -1238,6 +1342,7 @@ async function runTelegramAgentTurn(opts: {
           messageId: ack.message_id,
           text,
         })
+        answered = true
       } else if (silent && !result.ok) {
         await opts.ctx.reply(
           await replyForCapabilityGapAr({
@@ -1245,6 +1350,7 @@ async function runTelegramAgentTurn(opts: {
             agentText: text,
           })
         )
+        answered = true
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -1255,7 +1361,7 @@ async function runTelegramAgentTurn(opts: {
         agentReplyAr: silent && result.ok ? '' : text,
         includeAgentReply: !silent || !result.ok,
       })
-      if (!silent) await maybeSendTelegramVoiceReply(opts.ctx, text)
+      if (!silent && !inGroup) await maybeSendTelegramVoiceReply(opts.ctx, text)
       return {
         text,
         citations: [] as RoomCitation[],
@@ -1291,6 +1397,7 @@ async function runTelegramAgentTurn(opts: {
           messageId: ack.message_id,
           text,
         })
+        answered = true
       } else if (silent && looksLikeUnknownOrNotFound(text)) {
         await opts.ctx.reply(
           await replyForCapabilityGapAr({
@@ -1298,6 +1405,7 @@ async function runTelegramAgentTurn(opts: {
             agentText: text,
           })
         )
+        answered = true
       }
       void mirrorChannelTurnToRoom({
         scopeId,
@@ -1314,7 +1422,7 @@ async function runTelegramAgentTurn(opts: {
         kind: fastKind,
         totalMs: Date.now() - t0,
       })
-      if (!silent) await maybeSendTelegramVoiceReply(opts.ctx, text)
+      if (!silent && !inGroup) await maybeSendTelegramVoiceReply(opts.ctx, text)
       return {
         text,
         citations: [] as RoomCitation[],
@@ -1393,7 +1501,8 @@ async function runTelegramAgentTurn(opts: {
           assistantId: routed.assistantId,
           totalMs: Date.now() - t0,
         })
-        await maybeSendTelegramVoiceReply(opts.ctx, text)
+        answered = true
+        if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, text)
         return {
           text,
           citations: run.citations || [],
@@ -1510,6 +1619,7 @@ async function runTelegramAgentTurn(opts: {
     scopeId,
     heavy,
     fullRoom: useFullRoomTools,
+    telegramChatId: opts.chatId,
   })
   const prepMs = Date.now() - tPrep
   const tStream = Date.now()
@@ -1612,6 +1722,7 @@ async function runTelegramAgentTurn(opts: {
         streamMs: Date.now() - tStream,
         totalMs: Date.now() - t0,
       })
+      answered = true
       return {
         text: freeOut.text,
         citations: freeOut.citations.length
@@ -1647,6 +1758,7 @@ async function runTelegramAgentTurn(opts: {
       streamMs: Date.now() - tStream,
       totalMs: Date.now() - t0,
     })
+    if (attachmentsSent.length) answered = true
     return {
       text: '',
       citations: silentOut.citations,
@@ -1691,7 +1803,8 @@ async function runTelegramAgentTurn(opts: {
       userMessageAr: opts.promptSource,
       agentReplyAr: teamOut.text,
     })
-    await maybeSendTelegramVoiceReply(opts.ctx, teamOut.text)
+    answered = true
+    if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, teamOut.text)
     return {
       text: teamOut.text,
       citations: teamOut.citations,
@@ -1736,11 +1849,15 @@ async function runTelegramAgentTurn(opts: {
     agentReplyAr: out.text,
   })
 
-  await maybeSendTelegramVoiceReply(opts.ctx, out.text)
+  answered = true
+  if (!inGroup) await maybeSendTelegramVoiceReply(opts.ctx, out.text)
   return out
   } finally {
     for (const id of seatIds) markTelegramSeatFree(scopeId, id)
     if (seatId && !seatIds.includes(seatId)) markTelegramSeatFree(scopeId, seatId)
+  }
+  } finally {
+    await releaseTelegramChatTurn(opts.chatId, turnFp, { answered })
   }
 }
 
@@ -3452,11 +3569,29 @@ export function getTelegramBot() {
 
 /** Process a Telegram update payload directly (webhook + async workflow dispatch). */
 export async function processTelegramUpdatePayload(payload: unknown) {
-  const raw = payload as { update_id?: number }
+  const raw = payload as {
+    update_id?: number
+    message?: { message_id?: number; chat?: { id?: number } }
+    edited_message?: { message_id?: number; chat?: { id?: number } }
+    callback_query?: { id?: string }
+  }
   const claimed = await claimTelegramUpdate(raw?.update_id)
   if (!claimed) {
     console.info('[telegram] skip duplicate update_id', raw?.update_id)
     return
+  }
+  // Message-key dedupe for text/media only — callbacks share message_id across buttons.
+  const msg = raw.message || raw.edited_message
+  if (msg?.chat?.id != null && msg.message_id != null) {
+    const msgClaimed = await claimTelegramMessageKey(msg.chat.id, msg.message_id)
+    if (!msgClaimed) {
+      console.info(
+        '[telegram] skip duplicate chat/message',
+        msg.chat.id,
+        msg.message_id
+      )
+      return
+    }
   }
   const instance = await ensureTelegramBotReady()
   await ensureBotCommands(instance)

@@ -71,6 +71,52 @@ export async function claimTelegramUpdate(
   return true
 }
 
+/**
+ * Secondary claim by chat + message_id (covers rare cases where the same
+ * message arrives under a different update_id, e.g. edited_message fan-out).
+ */
+export async function claimTelegramMessageKey(
+  chatId: unknown,
+  messageId: unknown
+): Promise<boolean> {
+  const cid = String(chatId ?? '').trim()
+  const mid =
+    typeof messageId === 'number' ? messageId : Number(messageId)
+  if (!cid || !Number.isFinite(mid) || mid <= 0) return true
+  const safeChat = cid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+  const key = `ab:tg:msg:${safeChat}:${mid}`
+
+  const now = Date.now()
+  pruneMemory(now)
+
+  const r = getRedis()
+  if (r) {
+    try {
+      const res = await r.set(key, '1', { nx: true, ex: TTL_SEC })
+      if (res === null) return false
+      return true
+    } catch (e) {
+      console.warn('[telegram] message dedupe redis', e)
+    }
+  }
+
+  // Memory fallback keyed by numeric message id alone is too weak across chats;
+  // include chat in the memory map via a synthetic negative space.
+  const memId = simpleMemId(safeChat, mid)
+  if (memory.has(memId)) return false
+  memory.set(memId, now)
+  return true
+}
+
+function simpleMemId(chat: string, mid: number): number {
+  let h = mid | 0
+  for (let i = 0; i < chat.length; i++) {
+    h = (Math.imul(h, 31) + chat.charCodeAt(i)) | 0
+  }
+  // Keep positive finite for the Map<number,...> used by update_id claims.
+  return h === 0 ? mid : Math.abs(h)
+}
+
 /** Test helper — clear in-memory claims. */
 export function __resetTelegramUpdateDedupeForTests() {
   memory.clear()

@@ -56,6 +56,16 @@ export async function runDeadlineTelegramReminders(): Promise<{
         continue
       }
 
+      // Claim BEFORE send — concurrent cron ticks must not re-fire the same day-left.
+      const { claimDigestDayKey } = await import('@/lib/digest/day-claim')
+      const claimKey = `deadline:${d.id}:${d.daysLeft}`
+      const claimed = await claimDigestDayKey(claimKey)
+      if (!claimed) {
+        skipped += 1
+        details.push(`dup:${scopeId}:${d.kind}:${d.daysLeft}`)
+        continue
+      }
+
       const when =
         d.daysLeft < 0
           ? `متأخر ${Math.abs(d.daysLeft)} يوماً`
