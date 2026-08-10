@@ -5,6 +5,7 @@ import { RefreshCw, Video } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
+import { formatZoomTopicAr } from '@/lib/zoom/topic-ar'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -156,7 +157,7 @@ export function ZoomUpcomingPanel({
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-ab-ink">
-                    {m.topic}
+                    {formatZoomTopicAr(m.topic)}
                   </p>
                   <p className="mt-0.5 text-[11px] text-stone-500">
                     {fmtWhen(m.startTime)}

@@ -72,22 +72,14 @@ describe('convert OCR cascade config', () => {
     expect(mistralOcrConfigured()).toBe(true)
   })
 
-  it('Arabic refuse message stops after Gemini→Paddle (no auto Mistral)', () => {
+  it('Arabic refuse message stays user-facing MSA (no engine dump)', () => {
     const msg = brokenToUnicodeErrorAr({
       hasPaddle: false,
       hasMistral: false,
+      hasGoogleHint: true,
     })
     expect(msg).toContain(CONVERT_OCR_REFUSE_AR)
-    expect(msg).toContain('PaddleOCR')
-    expect(msg).toContain('CONVERT_ALLOW_MISTRAL=1')
-    expect(msg).toMatch(/Flash|Gemini Flash/)
-    expect(msg).toMatch(/توقّف/)
-    expect(msg).toContain('معطّل افتراضياً')
-    // Cascade path sentence: Gemini → Paddle → stop before Mistral opt-in wording
-    const pathIdx = msg.indexOf('المسار الافتراضي')
-    expect(pathIdx).toBeGreaterThanOrEqual(0)
-    expect(msg.indexOf('PaddleOCR', pathIdx)).toBeLessThan(
-      msg.indexOf('Mistral معطّل', pathIdx)
-    )
+    expect(msg).toMatch(/طلاسم|OCR|Drive/)
+    expect(msg).not.toMatch(/ToUnicode|CONVERT_ALLOW_MISTRAL|Gemini Flash|PaddleOCR/)
   })
 })

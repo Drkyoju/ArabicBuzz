@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { TrustBadge } from '@/components/trust-badge'
 import { authHeaders } from '@/lib/supabase/browser'
+import { toolLabelAr } from '@/lib/ai/user-error-ar'
 
 type Props = {
   approvalId: string
@@ -12,55 +13,6 @@ type Props = {
   riskLevel: 'LOW' | 'HIGH'
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
   autonomyHint?: 'IN_LOOP' | 'ON_LOOP'
-}
-
-const ACTION_LABELS_AR: Record<string, string> = {
-  send_email: 'إرسال بريد',
-  gmail_send: 'إرسال بريد Gmail',
-  sheets_write: 'كتابة Google Sheets',
-  create_calendar_event: 'إنشاء موعد Google',
-  calendar_create_event: 'إنشاء موعد Google',
-  calendar_update_event: 'تعديل موعد Google',
-  calendar_delete_event: 'حذف موعد Google',
-  room_calendar_create: 'إضافة لتقويم الفريق المشترك',
-  room_calendar_ingest: 'دمج مواعيد الفريق',
-  room_calendar_update: 'تعديل موعد تقويم الفريق',
-  room_calendar_cancel: 'إلغاء موعد من تقويم الفريق',
-  room_calendar_reconcile: 'ترتيب تقويم الفريق',
-  room_tasks_create: 'إضافة مهمة للغرفة',
-  room_tasks_update: 'تعديل مهمة الغرفة',
-  room_tasks_reconcile: 'إعادة ترتيب مهام الغرفة',
-  room_memory_add: 'حفظ في ذاكرة الغرفة',
-  pdf_create: 'إنشاء PDF',
-  pdf_stamp: 'ختم على PDF',
-  pdf_merge: 'دمج PDF',
-  pdf_fill_form: 'تعبئة نموذج PDF',
-  convert_document: 'تحويل صيغة الملف',
-  convert_file: 'تحويل صيغة الملف',
-  brain_open_document: 'فتح ملف من عقل الشركة',
-  brain_save_document: 'حفظ إلى Drive / العقل',
-  brain_create_document: 'رفع ملف جديد إلى Drive',
-  brain_delete_document: 'حذف ملف من Drive',
-  fill_policy_audit: 'تعبئة نموذج تدقيق Excel',
-  send_director_digest: 'ملخص ما ينتظر قرارك',
-  edit_document: 'إنشاء أو تعديل مستند',
-  edit_excel: 'تعديل خلايا Excel',
-  read_excel: 'قراءة Excel',
-  edit_image: 'تعديل صورة',
-  generate_image_edit: 'تعديل صورة توليدي',
-  return_file: 'إرفاق ملف في الشات',
-  ingest_url_to_brain: 'سحب صفحة إلى المعرفة',
-  read_decision_document: 'قراءة قرار للمستندات',
-  report_room_attendance: 'تقرير أعضاء وحضور',
-  browser_rpa: 'أتمتة متصفح',
-  delete_file: 'حذف ملف',
-  delete_database: 'حذف قاعدة بيانات',
-  db_delete: 'حذف من قاعدة البيانات',
-  write_file: 'كتابة ملف',
-  transfer_funds: 'تحويل مالي',
-  web_search: 'بحث ويب',
-  drive_upload: 'رفع إلى Drive',
-  drive_sync_brain: 'مزامنة Drive → العقل',
 }
 
 function isDeleteAction(name: string) {
@@ -76,7 +28,7 @@ function isDeleteAction(name: string) {
 }
 
 function humanizeAction(name: string) {
-  return ACTION_LABELS_AR[name] || name.replace(/_/g, ' ')
+  return toolLabelAr(name)
 }
 
 function paramRows(params: Record<string, unknown>) {

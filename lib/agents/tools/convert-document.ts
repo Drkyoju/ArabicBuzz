@@ -154,7 +154,7 @@ export async function executeConvertDocument(
   const found = await findWorkspaceFile(scopeId, ref)
   if (!found) {
     return convertRefuseResult(
-      `لم يُعثر على «${ref}». افتحه من Drive بـ brain_open_document أو من list_workspace_files.`
+      `لم يُعثر على «${ref}». افتحه من ملفات الفريق أو عقل الشركة ثم أعد المحاولة.`
     )
   }
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mapChatErrorAr, unknownModelMessageAr } from '@/lib/ai/user-error-ar'
+import {
+  mapChatErrorAr,
+  mapToolErrorAr,
+  toolLabelAr,
+  unknownModelMessageAr,
+} from '@/lib/ai/user-error-ar'
 
 describe('mapChatErrorAr', () => {
   it('maps unknown model English to Arabic', () => {
@@ -27,5 +32,24 @@ describe('mapChatErrorAr', () => {
 
   it('unknownModelMessageAr includes id', () => {
     expect(unknownModelMessageAr('x-1')).toContain('x-1')
+  })
+
+  it('maps ToUnicode English noise', () => {
+    expect(mapChatErrorAr('Broken ToUnicode layer in PDF')).toMatch(/عربي|ترميز/)
+  })
+})
+
+describe('mapToolErrorAr / toolLabelAr', () => {
+  it('maps extract_source style dumps', () => {
+    expect(mapToolErrorAr('extract_source_fixed failed')).toMatch(/تحويل|استخراج/)
+    expect(mapToolErrorAr('extract_source_fixed failed')).not.toMatch(
+      /extract_source/
+    )
+  })
+
+  it('never dumps raw snake_case tool names as labels', () => {
+    expect(toolLabelAr('convert_document')).toBe('تحويل صيغة الملف')
+    expect(toolLabelAr('some_unknown_tool_xyz')).toBe('إجراء تقني')
+    expect(toolLabelAr('some_unknown_tool_xyz')).not.toMatch(/_/)
   })
 })

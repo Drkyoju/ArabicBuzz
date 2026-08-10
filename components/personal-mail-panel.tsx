@@ -705,15 +705,27 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
         <div className="mx-auto max-w-md space-y-3 rounded-xl border border-dashed border-ab-border bg-stone-50 px-4 py-8 text-center">
           <Mail className="mx-auto h-8 w-8 text-ab-accent" aria-hidden />
           <h3 className="text-sm font-bold text-ab-ink">
-            اربط بريدك في Google
+            اربط بريدك الشخصي في Google
           </h3>
           <p className="text-[12px] leading-relaxed text-stone-600">
             {PERSONAL_DESK_COPY.mailOrgVsPersonalAr}
           </p>
+          <p className="rounded-lg border border-emerald-200/80 bg-emerald-50/70 px-3 py-2 text-[11px] leading-relaxed text-emerald-950">
+            بريد الجمعية يعمل منفصلاً عبر IMAP من الشريط → «بريد الجمعية» — لا
+            يحتاج ربط Google الشخصي.
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new Event('ab-open-mail'))
+              }}
+              className="ms-1 font-semibold text-ab-accent underline"
+            >
+              فتح بريد الجمعية
+            </button>
+          </p>
           <p className="text-[11px] text-stone-500">
-            ستظهر شاشة موافقة Google لصلاحيات القراءة والإرسال وتعديل التسميات
-            (gmail.readonly / send / modify). إن كان التطبيق في وضع الاختبار،
-            أضف بريدك كـ Test user في Google Cloud.
+            ستظهر شاشة موافقة Google لقراءة وإرسال بريدك الشخصي فقط. إن كان
+            التطبيق في وضع الاختبار، أضف بريدك كمستخدم تجريبي في Google Cloud.
           </p>
           <GmailModifyReconnectChecklist
             compact
@@ -726,7 +738,7 @@ export function PersonalMailPanel({ compact }: { compact?: boolean }) {
             className="inline-flex items-center gap-2 rounded-lg bg-ab-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
             <Link2 className="h-4 w-4" aria-hidden />
-            {connecting ? 'جاري التحويل إلى Google…' : 'اربط بريدي في Google'}
+            {connecting ? 'جاري التحويل إلى Google…' : 'اربط بريدي الشخصي'}
           </button>
         </div>
       )}

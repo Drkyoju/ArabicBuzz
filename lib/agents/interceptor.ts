@@ -17,6 +17,7 @@ import { seedMemoryApproval } from '@/lib/agents/resolve-approval'
 import { insertPendingApprovalInSupabase } from '@/lib/supabase/server'
 import type { ToolExecutor } from '@/lib/agents/tools'
 import { markThreadPaused } from '@/lib/agents/loop'
+import { toolLabelAr } from '@/lib/ai/user-error-ar'
 
 export type InterceptResult =
   | { status: 'executed'; output: unknown; passiveNoticeAr?: string }
@@ -48,14 +49,15 @@ export async function interceptToolExecution(opts: {
 
   if (needsHuman && !onLoopAllowed) {
     const approvalId = randomUUID()
+    const label = toolLabelAr(opts.toolName)
     const notification: ApprovalNotificationPayload = {
       approvalId,
       actionName: opts.toolName,
       params: opts.params,
       riskLevel: risk.riskLevel,
       messageAr: isDelete
-        ? `حذف يحتاج موافقة بشرية: ${opts.toolName}`
-        : `إجراء يحتاج موافقة: ${opts.toolName}`,
+        ? `حذف يحتاج موافقة بشرية: ${label}`
+        : `إجراء يحتاج موافقة: ${label}`,
       scopeId,
     }
 
@@ -112,7 +114,7 @@ export async function interceptToolExecution(opts: {
     let passiveNoticeAr: string | undefined
     if (onLoopAllowed && risk.requiresApproval) {
       await recordToolExecution(opts.toolName, scopeId, 'APPROVED')
-      passiveNoticeAr = `⚡ تم تنفيذ الإجراء الموثوق تلقائياً: ${opts.toolName}`
+      passiveNoticeAr = `⚡ تم تنفيذ الإجراء الموثوق تلقائياً: ${toolLabelAr(opts.toolName)}`
       await emitPassiveNotification({
         messageAr: passiveNoticeAr,
         actionName: opts.toolName,

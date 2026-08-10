@@ -69,7 +69,7 @@ export function detectScannedOrImageOnlyPdf(
       'PDF يبدو ممسوحاً/صور صفحات (لا نص يمكن نسخه) — سيُشغَّل OCR عربي+إنجليزي.'
   } else if (scanned && brokenToUnicode > 0) {
     reasonAr =
-      'معظم الصفحات فارغة أو بطبقة ToUnicode معطوبة — OCR صفحة بصفحة (ara+eng).'
+      'معظم الصفحات فارغة أو بطبقة ترميز نص تالفة — OCR صفحة بصفحة (عربي+إنجليزي).'
   } else if (scanned) {
     reasonAr =
       'أغلب الصفحات بلا نص صالح للنسخ — OCR تلقائي (جودة تعتمد على وضوح المسح).'

@@ -569,7 +569,7 @@ export function getToolExecutor(toolName: string): ToolExecutor {
   const base =
     toolRegistry[toolName] ||
     (async () => {
-      throw new Error(`Unknown tool: ${toolName}`)
+      throw new Error('الأداة غير معروفة أو غير متاحة لهذا الوكيل.')
     })
   return async (name, params) => {
     const { assertFileSourceToolAllowed } = await import(

@@ -1,4 +1,5 @@
 import type { RoomCitation } from '@/lib/scopes/types'
+import { mapToolErrorAr, toolLabelAr } from '@/lib/ai/user-error-ar'
 
 type DocLike = {
   citation?: string
@@ -45,63 +46,24 @@ export function extractPausedApprovalId(toolOut: unknown): string | null {
   return null
 }
 
-const TOOL_LABEL_AR: Record<string, string> = {
-  gmail_search: 'بحث Gmail',
-  gmail_read: 'قراءة رسالة',
-  gmail_send: 'إرسال بريد',
-  mail_search: 'بحث بريد الجمعية',
-  mail_corpus_search: 'بحث شامل في البريد',
-  mail_read: 'قراءة رسالة الجمعية',
-  mail_draft_reply: 'مسودة رد بالذكاء',
-  mail_send: 'إرسال بريد الجمعية',
-  mail_sync: 'مزامنة بريد الجمعية',
-  calendar_list_events: 'تقويم Google',
-  calendar_create_event: 'إنشاء موعد Google',
-  calendar_scan_email: 'مسح بريد للمواعيد',
-  room_calendar_list: 'تقويم الغرفة',
-  room_calendar_create: 'إضافة موعد غرفة',
-  room_tasks_list: 'مهام الغرفة',
-  room_memory_list: 'ذاكرة الغرفة',
-  memory_search: 'بحث الذاكرة',
-  search_knowledge_base: 'قاعدة المعرفة',
-  list_workspace_files: 'قائمة الملفات',
-  list_files: 'قائمة الملفات',
-  read_file: 'قراءة ملف',
-  read_document: 'قراءة مستند',
-  brain_open_document: 'فتح مستند العقل',
-  send_message: 'تيليجرام',
-  notify_room_member: 'تبليغ عضو',
-  web_search: 'بحث ويب',
-  web_fetch: 'جلب صفحة',
-  wikipedia_lookup: 'ويكيبيديا',
-  youtube_transcript: 'تفريغ يوتيوب',
-  math_eval: 'حساب رياضي',
-  domain_intel: 'استعلام نطاق',
-  arxiv_search: 'بحث arXiv',
-  fx_rate: 'سعر صرف',
-  geocode: 'ترميز جغرافي',
-  dictionary_lookup: 'قاموس',
-  hn_search: 'Hacker News',
-  research_task_tools: 'بحث أدوات/مهارات',
-  drive_search_files: 'بحث Drive',
-  drive_list_files: 'قائمة Drive',
-  drive_get_link: 'رابط Drive',
-  find_storage_mesh: 'بحث شبكة التخزين',
-  archive_telegram_group: 'أرشفة تيليجرام→Drive',
-  room_search: 'بحث الغرفة',
-  pdf_annotate: 'تعليق PDF',
-  pdf_merge: 'دمج PDF',
-  pdf_duplicate_page: 'نسخ صفحة PDF',
-  arabic_ocr: 'OCR عربي',
-}
-
 function summarizeToolOutput(name: string, out: unknown): string {
   if (out == null) return 'تم الاستدعاء'
   if (typeof out === 'string') {
     const t = out.replace(/\s+/g, ' ').trim()
-    return t ? t.slice(0, 140) : 'تم الاستدعاء'
+    if (!t) return 'تم الاستدعاء'
+    // Only sanitize when the string looks like an error / technical dump.
+    if (
+      /error|fail|refuse|tounicode|extract_source|unknown tool|تعذّر|فشل|خطأ/i.test(
+        t
+      )
+    ) {
+      return mapToolErrorAr(t).slice(0, 140)
+    }
+    return t.slice(0, 140)
   }
-  if (typeof out !== 'object') return String(out).slice(0, 140)
+  if (typeof out !== 'object') {
+    return mapToolErrorAr(String(out)).slice(0, 140)
+  }
   const o = out as Record<string, unknown>
   const nested =
     o.output && typeof o.output === 'object'
@@ -110,9 +72,23 @@ function summarizeToolOutput(name: string, out: unknown): string {
   if (nested.status === 'paused' && nested.approvalId) {
     return 'بانتظار موافقة بشرية'
   }
-  if (typeof nested.error === 'string') return `خطأ: ${nested.error.slice(0, 100)}`
-  if (typeof nested.messageAr === 'string') return nested.messageAr.slice(0, 140)
-  if (typeof nested.message === 'string') return nested.message.slice(0, 140)
+  const ok = nested.ok === true || nested.ok === 'true'
+  if (typeof nested.messageAr === 'string' && nested.messageAr.trim()) {
+    const msg = nested.messageAr.trim()
+    if (ok || nested.ok !== false) return msg.slice(0, 140)
+    return mapToolErrorAr(msg).slice(0, 140)
+  }
+  if (typeof nested.reason_ar === 'string' && nested.reason_ar.trim()) {
+    return mapToolErrorAr(nested.reason_ar).slice(0, 140)
+  }
+  if (typeof nested.error === 'string' && nested.error.trim()) {
+    return mapToolErrorAr(nested.error).slice(0, 140)
+  }
+  if (typeof nested.message === 'string' && nested.message.trim()) {
+    const msg = nested.message.trim()
+    if (ok) return msg.slice(0, 140)
+    return mapToolErrorAr(msg).slice(0, 140)
+  }
   for (const key of [
     'events',
     'messages',
@@ -234,7 +210,7 @@ export function extractFromAgentSteps(steps: unknown): {
       if (name && name !== 'undefined') {
         usedTools.push({
           name,
-          labelAr: TOOL_LABEL_AR[name] || name,
+          labelAr: toolLabelAr(name),
           summaryAr: summarizeToolOutput(name, out),
         })
       }
@@ -265,7 +241,7 @@ export function extractFromAgentSteps(steps: unknown): {
           if (!already) {
             usedTools.push({
               name,
-              labelAr: TOOL_LABEL_AR[name] || name,
+              labelAr: toolLabelAr(name),
               summaryAr: 'تم الاستدعاء',
             })
           }

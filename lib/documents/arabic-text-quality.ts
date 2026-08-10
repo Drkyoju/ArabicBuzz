@@ -235,9 +235,9 @@ export function structureArabicParagraphs(text: string): Array<{
 
 /** Soft refuse when Gemini→Paddle (and optional Mistral) cannot produce clean Arabic. */
 export const CONVERT_OCR_REFUSE_AR =
-  'تعذّر التحويل بنص عربي نظيف (Gemini ثم Paddle). لم نُنشئ ملفاً حتى لا يصلك طلاسم. إن رغبت لاحقاً بتجربة Mistral OCR أخبرني، أو أوقف التحويل لهذا الملف.'
+  'تعذّر التحويل بنص عربي نظيف. لم نُنشئ ملفاً حتى لا يصلك طلاسم. جرّب OCR صفحة بصفحة أو اربط Google Drive من الإعدادات.'
 
-/** Arabic error when free rebuild would produce garbage. */
+/** Arabic error when free rebuild would produce garbage — user-facing, no engine ids. */
 export function brokenToUnicodeErrorAr(opts?: {
   hasMac?: boolean
   hasGoogleHint?: boolean
@@ -245,35 +245,21 @@ export function brokenToUnicodeErrorAr(opts?: {
   hasMistral?: boolean
   hasPaddle?: boolean
 }): string {
-  const parts = [
-    CONVERT_OCR_REFUSE_AR,
-    'المسار الافتراضي: Gemini Flash → Gemini أقوى إن ضعف → PaddleOCR → توقّف. Mistral معطّل افتراضياً (CONVERT_ALLOW_MISTRAL=1 + MISTRAL_API_KEY فقط). محلي نظيف فقط إن اجتاز البوابة — وإلا نرفض بلا طلاسم.',
-  ]
-  if (opts?.hasPaddle === false) {
-    parts.push(
-      'PaddleOCR غير مضبوط (اختياري عبر PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — لم يُستخدم.'
-    )
-  }
-  if (opts?.hasMistral === false) {
-    parts.push(
-      'Mistral OCR غير مفعّل (افتراضي OFF — يحتاج CONVERT_ALLOW_MISTRAL=1 وMISTRAL_API_KEY معاً).'
-    )
+  const parts = [CONVERT_OCR_REFUSE_AR]
+  if (opts?.hasGoogleHint) {
+    parts.push('مسار Drive للملفات العربية التالفة متاح بعد الربط من الإعدادات.')
   }
   if (opts?.hasMac) {
-    parts.push(
-      'جسر الماك اختياري لاستخراج حرّ؛ لا نُسلّم ملفاً مرئياً كبديل صامت عن نص معطوب.'
-    )
+    parts.push('جسر الماك اختياري لاستخراج حرّ عند الحاجة.')
   }
   if (opts?.hasLibreOffice) {
     parts.push('LibreOffice متوفر لـ Word↔PDF عندما يكون النص نظيفاً.')
   }
-  if (opts?.hasGoogleHint) {
-    parts.push(
-      'Drive/pdf2docx للعربية المعطوبة معطّلان. لن نُرفق ملفاً يبدو سليماً وهو فاسد.'
-    )
+  if (opts?.hasPaddle === false) {
+    parts.push('محرّك OCR الاحتياطي غير مضبوط على هذه البيئة.')
   }
   parts.push(
-    'صدق الجودة: إن وُجد شك (صفحات ناقصة، ثقة منخفضة، طلاسم) نُخبرك صراحة بدل تسليم ملف مضلّل.'
+    'إن وُجد شك في الجودة نُخبرك صراحة بدل تسليم ملف مضلّل.'
   )
   return parts.join(' ')
 }

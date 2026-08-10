@@ -287,10 +287,14 @@ function SidebarBody({
     if (n.id === 'usage' || n.id === 'audit') {
       return canAccessOpsUi && mode === 'admin'
     }
-    // Never keep an empty «الموافقات» nav item — only when a delete is pending.
-    // Deep link / home banner / sticky bar still open the inbox.
+    // الموافقات:
+    // - مخفية للأعضاء عندما لا يوجد طلب معلّق (صندوق فارغ).
+    // - للمالك/التشغيل: دائماً ظاهرة إن كانت الحوكمة مفعّلة، لفتح الصندوق وشرح الوضع.
+    // - عند HITL_DISABLED: مخفية للجميع (لا معنى لصندوق فارغ دائم).
     if (n.id === 'approvals') {
-      return pendingApprovals > 0 && !hitlDisabled
+      if (hitlDisabled) return false
+      if (canAccessOpsUi) return true
+      return pendingApprovals > 0
     }
     return true
   })
@@ -678,7 +682,7 @@ export function Sidebar({
   activeSection?: SidebarSection
   onSectionChange?: (section: SidebarSection) => void
   pendingApprovals?: number
-  /** When HITL is off, never show approvals in the main nav. */
+  /** When HITL is off, never show approvals in the main nav. Owner/ops still see it when HITL is on (even with zero pending). */
   hitlDisabled?: boolean
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)

@@ -550,7 +550,7 @@ export async function readDocumentPages(opts: {
       const warnParts = [
         scannedWarning,
         brokenAny
-          ? 'طبقة ToUnicode قد تكون معطوبة — فضّل OCR صفحة بصفحة أو تحويل Google Drive.'
+          ? 'طبقة ترميز النص في PDF قد تكون تالفة — فضّل OCR صفحة بصفحة أو تحويل Google Drive.'
           : undefined,
       ].filter(Boolean)
       return {
@@ -598,7 +598,7 @@ export async function readDocumentPages(opts: {
   const warnParts = [
     scannedWarning,
     brokenAny
-      ? 'طبقة ToUnicode قد تكون معطوبة في بعض الصفحات — لا تعتمد النص دون OCR أو Drive.'
+      ? 'طبقة ترميز النص قد تكون تالفة في بعض الصفحات — لا تعتمد النص دون OCR أو Drive.'
       : undefined,
     emptyStill && enableOcr
       ? 'بعض الصفحات بلا نص بعد OCR — تحقق من وضوح المسح أو شغّل جسر الماك (Tesseract ara+eng).'

@@ -735,15 +735,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 </p>
                 <p className="mt-1 text-xs text-emerald-900/90">
                   البحث والكتابة والإرسال والتقويم وغيرها تُنفَّذ فوراً. يظهر هنا فقط
-                  حذف الملفات أو الأشياء (مثل{' '}
-                  <code dir="ltr" className="rounded bg-white/70 px-1">
-                    delete_file
-                  </code>
-                  ). نفس القرار يصل عبر تيليجرام (أزرار أو{' '}
-                  <code dir="ltr" className="rounded bg-white/70 px-1">
-                    /approve
-                  </code>
-                  ).
+                  حذف الملفات أو الأشياء (مثل إلغاء موعد أو حذف ملف من الأرشيف).
+                  نفس القرار يصل عبر تيليجرام (أزرار أو أمر الموافقة).
                 </p>
                 {canAccessOpsUi && mode === 'admin' ? (
                   <button

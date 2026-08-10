@@ -19,6 +19,7 @@ import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { buildGuestDemoDigest, type DemoDigest } from '@/lib/demo/guest-digest'
+import { formatZoomTopicAr } from '@/lib/zoom/topic-ar'
 import { AssociationRecipes } from '@/components/association-recipes'
 import { FirstRunChecklist } from '@/components/first-run-checklist'
 import { DateDual } from '@/components/date-dual'
@@ -1034,7 +1035,11 @@ export function HomeDashboard({
                         | { liveMeetings?: Array<{ topic: string }> }
                         | undefined
                       return (
-                        live?.liveMeetings?.[0]?.topic || zoom?.messageAr || ''
+                        formatZoomTopicAr(
+                          live?.liveMeetings?.[0]?.topic || ''
+                        ) ||
+                        zoom?.messageAr ||
+                        ''
                       )
                     })()}
                   </p>
