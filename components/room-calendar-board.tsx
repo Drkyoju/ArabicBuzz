@@ -15,6 +15,8 @@ import {
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
 import { isTestCalendarTitle } from '@/lib/rooms/calendar-test-noise'
 import { cn } from '@/lib/utils'
@@ -149,7 +151,8 @@ export function RoomCalendarBoard({
   scopeId?: string
 }) {
   const storeScope = useWorkspaceStore((s) => s.activeScopeId)
-  const scopeId = scopeIdProp || storeScope
+  // Team board never binds to a personal desk — shared association calendar only.
+  const scopeId = teamCalendarScopeId(scopeIdProp || storeScope || PRIMARY_TEAM_SCOPE_ID)
   const signedIn = useSignedIn()
   const canAccessOpsUi = useWorkspaceModeStore((s) => s.canAccessOpsUi)
   const [events, setEvents] = useState<RoomEvent[]>([])
@@ -897,8 +900,8 @@ export function RoomCalendarBoard({
           سبورة تقويم الفريق
         </h2>
         <p className="ab-subtitle !mt-0">
-          سبورة مشتركة: كل المواعيد التي يضيفها الأعضاء يدوياً أو ينشرونها من
-          Google الشخصي تظهر هنا للجميع. Google اختياري ولا يُنشر إلا إذا فعّلته.
+          مصدر واحد لكل الحسابات في غرفة الفريق — أضف موعداً هنا فيظهر للجميع
+          وللوكيل وتيليجرام. تقويم Google الشخصي منفصل (اختياري للنشر فقط).
         </p>
       </div>
 

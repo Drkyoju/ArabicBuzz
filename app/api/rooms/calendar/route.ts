@@ -18,7 +18,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
-  const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const { teamCalendarScopeId } = await import('@/lib/scopes/team-calendar-scope')
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  const rawScope = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  // Team calendar UI always hits shared-demo; personal desks keep their own SoT.
+  const scopeId = isPersonalScopeId(rawScope)
+    ? rawScope
+    : teamCalendarScopeId(rawScope)
   const { assertRoomCanAccess } = await import('@/lib/rooms/persist')
   const gate = await assertRoomCanAccess(
     scopeId,
@@ -32,7 +38,6 @@ export async function GET(req: NextRequest) {
   const to = req.nextUrl.searchParams.get('to') || undefined
   // Same SoT as home + Telegram (getRoomAgenda hides QA test titles).
   const events = await getRoomAgenda({ scopeId, from, to })
-  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
   return NextResponse.json({
     scopeId,
     count: events.length,
@@ -75,7 +80,12 @@ export async function POST(req: NextRequest) {
     patch?: Record<string, unknown>
   }
 
-  const scopeId = String(body.scopeId || 'shared-demo')
+  const rawScopeId = String(body.scopeId || 'shared-demo')
+  const { isPersonalScopeId } = await import('@/lib/scopes/personal-desk')
+  const { teamCalendarScopeId } = await import('@/lib/scopes/team-calendar-scope')
+  const scopeId = isPersonalScopeId(rawScopeId)
+    ? rawScopeId
+    : teamCalendarScopeId(rawScopeId)
   const gate = await assertRoomCanEdit(scopeId, user.id, user.email)
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: 403 })

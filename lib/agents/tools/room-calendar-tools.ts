@@ -6,11 +6,13 @@ import {
   updateRoomCalendarEvent,
   cancelRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 
 const TZ = 'Asia/Riyadh'
 
 function scopeOf(params: Record<string, unknown>) {
-  return String(params.scopeId || 'shared-demo')
+  // Agents / Telegram: never write team agenda onto a personal desk.
+  return teamCalendarScopeId(String(params.scopeId || ''))
 }
 
 function formatRiyadhRange(

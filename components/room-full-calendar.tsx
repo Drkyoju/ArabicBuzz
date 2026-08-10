@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, CalendarDays, List } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 import { cn } from '@/lib/utils'
 
 type RoomEvent = {
@@ -127,7 +129,9 @@ export function RoomFullCalendar({
   scopeId?: string
 }) {
   const storeScope = useWorkspaceStore((s) => s.activeScopeId)
-  const scopeId = scopeIdProp || storeScope
+  const scopeId = teamCalendarScopeId(
+    scopeIdProp || storeScope || PRIMARY_TEAM_SCOPE_ID
+  )
   const signedIn = useSignedIn()
   const [events, setEvents] = useState<RoomEvent[]>([])
   const [loading, setLoading] = useState(true)

@@ -11,6 +11,7 @@ import {
   lookupTelegramWorkspaceUserId,
 } from '@/lib/telegram/user-link'
 import { DEMO_SCOPES, resolveActiveScope } from '@/lib/scopes/manager'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 import { getNativeAiTools } from '@/lib/agents/engine'
 import { getHarnessModel } from '@/lib/ai/router'
 import { getMCPHostManager } from '@/lib/mcp/client-manager'
@@ -378,11 +379,14 @@ function resolveTelegramScope(opts: {
   /** Groups: false until /link creates a binding */
   autoBind?: boolean
 }) {
+  // Team agenda SoT = shared room calendar — never a personal desk.
+  const pin = (id: string) => teamCalendarScopeId(id)
+
   if (opts.preferredScopeId) {
     return Promise.resolve(
       resolveActiveScope({
         userId: opts.userId,
-        scopeId: opts.preferredScopeId,
+        scopeId: pin(opts.preferredScopeId),
         scopes: DEMO_SCOPES,
       })
     )
@@ -393,11 +397,19 @@ function resolveTelegramScope(opts: {
     fallbackUserId: opts.userId,
     autoBind: opts.autoBind,
   }).then((scope) => {
-    if (scope) return scope
+    if (scope) {
+      const pinned = pin(scope.scope.id)
+      if (pinned === scope.scope.id) return scope
+      return resolveActiveScope({
+        userId: opts.userId,
+        scopeId: pinned,
+        scopes: DEMO_SCOPES,
+      })
+    }
     if (opts.autoBind === false) return null
     return resolveActiveScope({
       userId: opts.userId,
-      scopeId: process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo',
+      scopeId: pin(process.env.TELEGRAM_DEFAULT_SCOPE_ID || 'shared-demo'),
       scopes: DEMO_SCOPES,
     })
   })

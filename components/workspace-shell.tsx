@@ -33,6 +33,7 @@ import { RoomCalendarBoard } from '@/components/room-calendar-board'
 import { RoomFullCalendar } from '@/components/room-full-calendar'
 import { RoomTasksBoard } from '@/components/room-tasks-board'
 import { ZoomLivePanel } from '@/components/zoom-live-panel'
+import { ZoomUpcomingPanel } from '@/components/zoom-upcoming-panel'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import {
   PRIMARY_TEAM_SCOPE_ID,
@@ -69,7 +70,7 @@ const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
   { id: 'schedule', labelAr: 'أسبوع / قائمة' },
   { id: 'full', labelAr: 'التقويم الكامل' },
   { id: 'tasks', labelAr: 'المهام' },
-  { id: 'meetings', labelAr: 'محضر وخطابات' },
+  { id: 'meetings', labelAr: 'Zoom والاجتماعات' },
   { id: 'external', labelAr: 'تقويم Google' },
   { id: 'export', labelAr: 'تصدير' },
 ]
@@ -294,6 +295,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
     }
   }, [])
 
+  // تقويم الفريق دائماً على الغرفة المشتركة — لا مساحات شخصية.
+  useEffect(() => {
+    if (section !== 'calendar') return
+    const current = useWorkspaceStore.getState().activeScopeId
+    if (current !== PRIMARY_TEAM_SCOPE_ID) {
+      useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+    }
+  }, [section])
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
@@ -410,7 +420,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
   }, [loadApprovals, signedIn])
 
   const goToSection = useCallback((target: string) => {
+    const pinTeamCalendar = () => {
+      useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+    }
     if (target === 'calendar:tasks') {
+      pinTeamCalendar()
       setCalendarTab('tasks')
       setSection('calendar')
       // After paint, scroll tabs under sticky chrome so «المهام» isn't covered.
@@ -426,6 +440,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       target === 'calendar:letters' ||
       target === 'letters'
     ) {
+      pinTeamCalendar()
       setCalendarTab('meetings')
       setSection('calendar')
       requestAnimationFrame(() => {
@@ -439,6 +454,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       return
     }
     if (target === 'calendar:full' || target === 'calendar-full') {
+      pinTeamCalendar()
       setCalendarTab('full')
       setSection('calendar')
       return
@@ -459,8 +475,8 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       target === 'api-keys' ||
       target === 'ops'
     ) {
-      if (target === 'chats') {
-        useWorkspaceStore.getState().setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+      if (target === 'chats' || target === 'calendar') {
+        pinTeamCalendar()
       }
       setSection(target === 'memory' ? 'files' : target)
     }
@@ -480,7 +496,14 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
       <Sidebar
         airGapped={airGapped}
         activeSection={section}
-        onSectionChange={setSection}
+        onSectionChange={(next) => {
+          if (next === 'calendar' || next === 'chats') {
+            useWorkspaceStore
+              .getState()
+              .setActiveScopeId(PRIMARY_TEAM_SCOPE_ID)
+          }
+          setSection(next)
+        }}
         pendingApprovals={signedIn === false ? 0 : pendingCount}
         hitlDisabled={hitlDisabled === true}
       />
@@ -564,8 +587,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               <div className="min-w-0">
                 <h2 className="ab-title">تقويم الفريق</h2>
                 <p className="ab-subtitle">
-                  سبورة مواعيد الفريق — أي عضو يضيف يدوياً أو ينشر من Google
-                  الشخصي، والكل يرى الجميع. الوكيل يكشف التعارض والتكرار.
+                  سبورة مشتركة لكل الحسابات في غرفة الفريق — أي عضو يضيف أو يعدّل
+                  يراه الجميع. تيليجرام يستخدم نفس المصدر. تقويم Google الشخصي
+                  اختياري للدعوات الخارجية فقط.
                 </p>
               </div>
             </header>
@@ -597,7 +621,7 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
             <div className="space-y-6">
               {calendarTab === 'schedule' && (
                 <>
-                  <RoomCalendarBoard />
+                  <RoomCalendarBoard scopeId={PRIMARY_TEAM_SCOPE_ID} />
                   {signedIn === true && canAccessOpsUi && mode === 'admin' && (
                     <details className="rounded-xl border border-dashed border-ab-border bg-stone-50/60 p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-stone-600">
@@ -611,12 +635,15 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                 </>
               )}
 
-              {calendarTab === 'full' && <RoomFullCalendar />}
+              {calendarTab === 'full' && (
+                <RoomFullCalendar scopeId={PRIMARY_TEAM_SCOPE_ID} />
+              )}
 
               {calendarTab === 'tasks' && <RoomTasksBoard />}
 
               {calendarTab === 'meetings' && (
                 <>
+                  <ZoomUpcomingPanel scopeId={PRIMARY_TEAM_SCOPE_ID} />
                   <ZoomLivePanel />
                   <MeetingCopilotPanel />
                   <LetterTemplatesPanel />
@@ -629,11 +656,9 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
                     ربط بريد Google Workspace (Gmail)
                   </h3>
                   <p className="mb-3 text-xs text-stone-500">
-                    هنا تربط بريد الجمعية الرسمي عبر Google (تقويم + Gmail قراءة
-                    وإرسال). تقويم الفريق المشترك يبقى في «تقويم الغرفة» —
-                    Google لا يستبدله. Microsoft 365 و IMAP غير مدعومين؛ إن كان
-                    البريد على مزوّد آخر: انقل النطاق إلى Workspace أو وجّه
-                    البريد إلى Gmail ثم اربط ذلك الحساب.
+                    هذا تقويمك الشخصي / دعوات خارجية — ليس أجندة الفريق. مواعيد
+                    الغرفة المشتركة تُدار من «أسبوع / قائمة» و«التقويم الكامل»
+                    وتظهر لكل الأعضاء. Microsoft 365 و IMAP غير مدعومين.
                   </p>
                   <GoogleCalendarPanel hideTitle />
                 </div>

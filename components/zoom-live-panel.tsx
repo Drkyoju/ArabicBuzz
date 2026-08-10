@@ -5,6 +5,7 @@ import { Radio, RefreshCw, Video } from 'lucide-react'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
 import { cn } from '@/lib/utils'
 
 type Meeting = {
@@ -23,7 +24,11 @@ type Meeting = {
  * Shows whether Zoom sessions are live right now (API + room calendar).
  */
 export function ZoomLivePanel({ compact }: { compact?: boolean }) {
-  const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const storeScope = useWorkspaceStore((s) => s.activeScopeId)
+  const scopeId =
+    storeScope?.startsWith('personal-') || storeScope === 'shared-ops'
+      ? PRIMARY_TEAM_SCOPE_ID
+      : storeScope || PRIMARY_TEAM_SCOPE_ID
   const signedIn = useSignedIn()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [liveCount, setLiveCount] = useState(0)

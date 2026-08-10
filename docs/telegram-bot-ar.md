@@ -59,7 +59,8 @@
 | ويب / معرفة مجانية | «ابحث في جوجل…» → `web_search` · ويكيبيديا → `wikipedia_lookup` · يوتيوب → `youtube_transcript` · احسب → `math_eval` · نطاق → `domain_intel` · arXiv → `arxiv_search` |
 | إحاطة الصباح | «إحاطة الصباح» أو زر القائمة → `owner_morning_brief` |
 | Drive | `drive_list_files` · `drive_search_files` · `brain_*` · `drive_upload_file` · `drive_get_link` |
-| تقويم الغرفة | `room_calendar_*` (+ تنبيه تعارض) |
+| تقويم الغرفة | `room_calendar_*` فقط (+ تنبيه تعارض) — ليس تقويم Google الشخصي |
+| Zoom قادم | الموقع: **تقويم الفريق → Zoom والاجتماعات** (`/api/zoom/upcoming`) |
 | مهام | `room_tasks_*` |
 | خطابات | `list_letter_templates` · `letter_fill_template` |
 | محضر | `minutes_from_thread` |
