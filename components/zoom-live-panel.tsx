@@ -178,7 +178,7 @@ export function ZoomLivePanel({ compact }: { compact?: boolean }) {
               </div>
               {m.live && (
                 <span className="shrink-0 text-[10px] font-bold text-red-700">
-                  LIVE
+                  مباشر
                 </span>
               )}
             </div>

@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Send,
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { authHeaders } from '@/lib/supabase/browser'
 import { useSignedIn } from '@/lib/supabase/use-signed-in'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
@@ -82,10 +84,14 @@ export function TelegramMirrorChat({
   const [note, setNote] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
   const stickBottom = useRef(true)
+  const loadGen = useRef(0)
+  const linkKnownRef = useRef(false)
 
   const load = useCallback(async () => {
     if (signedIn !== true) return
-    setBusy(true)
+    const gen = ++loadGen.current
+    const isInitial = !linkKnownRef.current
+    if (isInitial) setBusy(true)
     try {
       const attempt = async (waitMs: number) => {
         const headers = await authHeaders(undefined, { waitMs })
@@ -94,15 +100,17 @@ export function TelegramMirrorChat({
           { headers }
         )
       }
-      let res = await attempt(4500)
-      if (res.status === 401) {
-        await new Promise((r) => setTimeout(r, 500))
-        res = await attempt(2000)
-      }
-      if (res.status === 401) {
-        await new Promise((r) => setTimeout(r, 800))
+      // Cold restore can need a longer wait; polls should stay snappy.
+      let res = await attempt(isInitial ? 3500 : 0)
+      if (isInitial && res.status === 401) {
+        await new Promise((r) => setTimeout(r, 400))
         res = await attempt(1500)
       }
+      if (isInitial && res.status === 401) {
+        await new Promise((r) => setTimeout(r, 600))
+        res = await attempt(1000)
+      }
+      if (gen !== loadGen.current) return
       const json = (await res.json()) as {
         items?: TelegramFeedItem[]
         link?: TelegramLinkStatus
@@ -111,6 +119,7 @@ export function TelegramMirrorChat({
       if (!res.ok) {
         if (res.status === 401) {
           setErr('')
+          linkKnownRef.current = true
           setLink((prev) =>
             prev ?? {
               linked: false,
@@ -127,11 +136,14 @@ export function TelegramMirrorChat({
         }
         throw new Error(json.error || 'فشل تحميل نافذة تيليجرام')
       }
+      linkKnownRef.current = true
       setItems(json.items || [])
       setLink(json.link || null)
       setErr('')
     } catch (e) {
+      if (gen !== loadGen.current) return
       setErr(e instanceof Error ? e.message : 'خطأ')
+      linkKnownRef.current = true
       setLink((prev) =>
         prev ?? {
           linked: false,
@@ -144,7 +156,7 @@ export function TelegramMirrorChat({
         }
       )
     } finally {
-      setBusy(false)
+      if (gen === loadGen.current) setBusy(false)
     }
   }, [scopeId, signedIn])
 
@@ -277,7 +289,7 @@ export function TelegramMirrorChat({
           <span className="truncate">تيليجرام</span>
           {!statusKnown ? (
             <span className="shrink-0 text-[10px] font-normal text-ab-muted">
-              · جاري التحقق…
+              · جاري التحقق من الربط…
             </span>
           ) : linked ? (
             <span className="shrink-0 text-[10px] font-normal text-emerald-700">
@@ -424,9 +436,11 @@ export function TelegramMirrorChat({
                       {m.atAr}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-[11px] leading-snug text-ab-ink">
-                    {m.textAr}
-                  </p>
+                  <div className="text-[11px] leading-snug text-ab-ink [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:ps-4 [&_p]:my-0.5 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:list-disc [&_ul]:ps-4">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {m.textAr || ''}
+                    </ReactMarkdown>
+                  </div>
                   {m.attachments && m.attachments.length > 0 ? (
                     <ul className="mt-1.5 space-y-1">
                       {m.attachments.map((a) => (
@@ -503,7 +517,7 @@ export function TelegramMirrorChat({
             disabled={!linked || sending}
             placeholder={
               !statusKnown
-                ? 'جاري التحقق…'
+                ? 'جاري التحقق من الربط…'
                 : linked
                   ? 'اكتب رسالة…'
                   : 'اربط تيليجرام أولاً'

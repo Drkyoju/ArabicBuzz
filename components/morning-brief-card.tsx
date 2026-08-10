@@ -12,6 +12,7 @@ import {
 import { authHeaders } from '@/lib/supabase/browser'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
 import { useWorkspaceModeStore } from '@/lib/scopes/workspace-mode-store'
+import { plainFromMarkdown } from '@/lib/text/plain-from-markdown'
 import { cn } from '@/lib/utils'
 
 type Brief = {
@@ -183,7 +184,8 @@ export function MorningBriefCard({
             <ul className="mt-1 space-y-0.5">
               {tg.slice(0, 2).map((t) => (
                 <li key={t.id} className="truncate text-[12px] text-ab-ink">
-                  <span className="text-ab-muted">{t.senderAr}:</span> {t.textAr}
+                  <span className="text-ab-muted">{t.senderAr}:</span>{' '}
+                  {plainFromMarkdown(t.textAr)}
                 </li>
               ))}
             </ul>

@@ -28,6 +28,7 @@ import {
   ActivityHistoryDialog,
   type ActivityFeedItem,
 } from '@/components/activity-history-dialog'
+import { plainFromMarkdown } from '@/lib/text/plain-from-markdown'
 import { cn } from '@/lib/utils'
 
 type CalEvent = {
@@ -1041,7 +1042,7 @@ export function HomeDashboard({
               </div>
               <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[10px] font-bold text-white">
                 <Radio className="h-3 w-3 animate-pulse" aria-hidden />
-                LIVE
+                مباشر
               </span>
             </div>
           )}
@@ -1134,11 +1135,11 @@ export function HomeDashboard({
                           {a.actorAr}
                         </span>
                         {' · '}
-                        {a.actionAr}
+                        {plainFromMarkdown(a.actionAr)}
                         {a.detailAr ? (
                           <span className="text-ab-muted-soft">
                             {' · '}
-                            {a.detailAr}
+                            {plainFromMarkdown(a.detailAr)}
                           </span>
                         ) : null}
                         {a.atAr ? (
