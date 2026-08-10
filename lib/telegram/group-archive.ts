@@ -314,6 +314,8 @@ export async function resolveAndRunPendingPdfJob(opts: {
   copyPage?: number
   afterPage?: number
   findEmptyPage?: boolean
+  /** Allow Telegram send while silence kill-switch is on (inbound only). */
+  solicited?: boolean
 }): Promise<{
   ok: boolean
   source?: string
@@ -321,6 +323,7 @@ export async function resolveAndRunPendingPdfJob(opts: {
   pages?: string
   emptySourcePage?: number
   errorAr?: string
+  telegramSendSkipped?: string
 }> {
   const { getTelegramFileJob, resolvePdfDuplicateParams, updateTelegramFileJob } =
     await import('@/lib/telegram/file-jobs')
@@ -434,7 +437,11 @@ export async function resolveAndRunPendingPdfJob(opts: {
   const { maySendTelegramToChat } = await import(
     '@/lib/telegram/group-push-policy'
   )
-  const sendGate = maySendTelegramToChat({ chatId: opts.chatId })
+  const sendGate = maySendTelegramToChat({
+    chatId: opts.chatId,
+    // Cron calls this without solicited — silence blocks group send.
+    meta: opts.solicited ? { solicited: true, inboundReply: true } : undefined,
+  })
   const allowTelegramSend = sendGate.ok
 
   const { duplicatePdfPageAfter, findEmptyContentPage } = await import(

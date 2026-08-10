@@ -21,7 +21,10 @@ export type ExecuteFileJobsResult = {
   waitingNotices: number
 }
 
-async function executeOneJob(job: TelegramFileJob): Promise<{
+async function executeOneJob(
+  job: TelegramFileJob,
+  opts?: { solicited?: boolean }
+): Promise<{
   ok: boolean
   sentName?: string
   errorAr?: string
@@ -34,6 +37,10 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
   await updateTelegramFileJob(job.id, { status: 'running' })
 
   const dup = resolvePdfDuplicateParams(job)
+  const sendMeta = {
+    scopeId: job.scopeId,
+    ...(opts?.solicited ? { solicited: true, inboundReply: true } : {}),
+  }
 
   try {
     let resultFileId = vaultId
@@ -82,7 +89,7 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
           captionAr,
           `الملف الناتج «${file.meta.originalName}» (~${mb} م.ب) محفوظ في خزنة الغرفة — تجاوز حد إرسال تيليجرام. افتحه من الموقع.`,
         ].join('\n'),
-        meta: { scopeId: job.scopeId },
+        meta: sendMeta,
       })
       await updateTelegramFileJob(job.id, {
         status: 'done',
@@ -110,7 +117,7 @@ async function executeOneJob(job: TelegramFileJob): Promise<{
       filename: file.meta.originalName || resultName,
       captionAr,
       to: job.chatId,
-      meta: { scopeId: job.scopeId },
+      meta: sendMeta,
     })
     if (!sent.ok) {
       await updateTelegramFileJob(job.id, {
@@ -160,6 +167,8 @@ export async function runReadyTelegramFileJobs(opts?: {
   chatId?: string
   scopeId?: string
   limit?: number
+  /** True when continuing work from an inbound Telegram update. */
+  solicited?: boolean
 }): Promise<ExecuteFileJobsResult> {
   const prepared = await prepareTelegramFileJobResumes({
     chatId: opts?.chatId,
@@ -171,7 +180,7 @@ export async function runReadyTelegramFileJobs(opts?: {
   const failed: string[] = []
 
   for (const r of prepared.ready) {
-    const out = await executeOneJob(r.job)
+    const out = await executeOneJob(r.job, { solicited: opts?.solicited })
     if (out.ok && out.sentName) sent.push(out.sentName)
     else if (!out.ok) failed.push(out.errorAr || r.job.id)
   }
@@ -193,11 +202,14 @@ export async function afterVaultFileMaybeRunTelegramJobs(opts: {
   scopeId: string
   vaultFileId: string
   fileName: string
+  solicited?: boolean
 }): Promise<ExecuteFileJobsResult> {
   await onVaultFileSavedMaybeResume(opts)
   return runReadyTelegramFileJobs({
     chatId: opts.chatId,
     scopeId: opts.scopeId,
     limit: 10,
+    // Default solicited when a chatId is present (inbound TG / linked group path).
+    solicited: opts.solicited ?? Boolean(opts.chatId),
   })
 }

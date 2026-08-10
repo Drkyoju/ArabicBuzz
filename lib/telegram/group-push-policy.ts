@@ -8,12 +8,10 @@
  * Per-feature flags (also default OFF) further narrow what may fire.
  *
  * Absolute kill-switch: TELEGRAM_SILENCE_UNSOLICITED defaults ON when unset.
- * Group sendMessage/sendDocument blocked unless inbound webhook context
- * (or meta.inboundReply / meta.solicited). Set TELEGRAM_SILENCE_UNSOLICITED=0
- * to allow opted-in group push features again.
+ * Group sendMessage/sendDocument blocked unless meta.inboundReply / meta.solicited
+ * (set by server emit path when inside inbound webhook ALS).
+ * Set TELEGRAM_SILENCE_UNSOLICITED=0 to allow opted-in group push features again.
  */
-
-import { isInsideTelegramInbound } from '@/lib/telegram/inbound-context'
 
 export type TelegramGroupPushFeature =
   | 'morning_digest'
@@ -73,16 +71,20 @@ export function isTelegramSilenceUnsolicitedEnabled(
 }
 
 /** Telegram groups / supergroups / channels use negative chat ids. */
-export function isTelegramGroupChatId(chatId: string | null | undefined): boolean {
+export function isTelegramGroupChatId(
+  chatId: string | null | undefined
+): boolean {
   const id = String(chatId || '').trim()
   return id.startsWith('-')
 }
 
 /**
  * May we send to this chat without an inbound update?
- * Groups: blocked while silence kill-switch is on, unless meta marks solicited
- * or AsyncLocalStorage inbound context matches.
+ * Groups: blocked while silence kill-switch is on, unless meta marks solicited.
  * Private chats: allowed (owner DM digests still gated by TELEGRAM_GROUP_PUSH).
+ *
+ * Note: inbound webhook ALS is applied in server emit helpers (not here) so this
+ * module stays free of node:async_hooks for the client bundle.
  */
 export function maySendTelegramToChat(opts: {
   chatId?: string | null
@@ -101,9 +103,6 @@ export function maySendTelegramToChat(opts: {
   const meta = opts.meta || {}
   if (meta.inboundReply === true || meta.solicited === true) {
     return { ok: true, reason: 'meta_solicited' }
-  }
-  if (isInsideTelegramInbound(chatId)) {
-    return { ok: true, reason: 'inbound_context' }
   }
   return { ok: false, reason: 'telegram_silence_unsolicited' }
 }

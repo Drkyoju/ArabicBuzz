@@ -3634,10 +3634,7 @@ export async function processTelegramUpdatePayload(payload: unknown) {
     update_id?: number
     message?: { message_id?: number; chat?: { id?: number } }
     edited_message?: { message_id?: number; chat?: { id?: number } }
-    callback_query?: {
-      id?: string
-      message?: { chat?: { id?: number } }
-    }
+    callback_query?: { id?: string }
   }
   const claimed = await claimTelegramUpdate(raw?.update_id)
   if (!claimed) {
@@ -3657,22 +3654,8 @@ export async function processTelegramUpdatePayload(payload: unknown) {
       return
     }
   }
-  const chatId =
-    msg?.chat?.id ??
-    raw.callback_query?.message?.chat?.id ??
-    null
-  const { runWithTelegramInbound } = await import(
-    '@/lib/telegram/inbound-context'
-  )
-  const run = async () => {
-    const instance = await ensureTelegramBotReady()
-    await ensureBotCommands(instance)
-    const update = payload as Parameters<typeof instance.handleUpdate>[0]
-    await instance.handleUpdate(update)
-  }
-  if (chatId != null) {
-    await runWithTelegramInbound(String(chatId), run)
-  } else {
-    await run()
-  }
+  const instance = await ensureTelegramBotReady()
+  await ensureBotCommands(instance)
+  const update = payload as Parameters<typeof instance.handleUpdate>[0]
+  await instance.handleUpdate(update)
 }

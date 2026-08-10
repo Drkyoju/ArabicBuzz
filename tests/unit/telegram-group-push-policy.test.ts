@@ -8,10 +8,6 @@ import {
   telegramGroupPushDisabledReason,
   telegramGroupPushFlagsSnapshot,
 } from '@/lib/telegram/group-push-policy'
-import {
-  isInsideTelegramInbound,
-  runWithTelegramInbound,
-} from '@/lib/telegram/inbound-context'
 
 describe('isEnvFlagOn', () => {
   it('accepts only explicit truthy values', () => {
@@ -45,7 +41,7 @@ describe('TELEGRAM_SILENCE_UNSOLICITED — default ON', () => {
     ).toBe(true)
   })
 
-  it('blocks group sends outside inbound context', () => {
+  it('blocks group sends outside solicited meta', () => {
     const denied = maySendTelegramToChat({
       chatId: '-1003855925966',
       env: {},
@@ -62,18 +58,6 @@ describe('TELEGRAM_SILENCE_UNSOLICITED — default ON', () => {
 
     const dm = maySendTelegramToChat({ chatId: '797686181', env: {} })
     expect(dm.ok).toBe(true)
-  })
-
-  it('allows group send inside inbound ALS', async () => {
-    await runWithTelegramInbound('-1003855925966', async () => {
-      expect(isInsideTelegramInbound('-1003855925966')).toBe(true)
-      const gate = maySendTelegramToChat({
-        chatId: '-1003855925966',
-        env: {},
-      })
-      expect(gate.ok).toBe(true)
-      expect(gate.reason).toBe('inbound_context')
-    })
   })
 })
 
