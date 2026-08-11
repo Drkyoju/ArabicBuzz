@@ -165,7 +165,7 @@ import {
   installTelegramNeverDeleteGuard,
   TelegramNeverDeleteError,
 } from '@/lib/telegram/never-delete'
-import { omitTelegramPersonalCalendarTools } from '@/lib/telegram/tools-policy'
+import { omitTelegramPersonalCalendarTools, omitTelegramMailToolsUnlessAsked } from '@/lib/telegram/tools-policy'
 
 function pickToolSubset(all: ToolSet, names: readonly string[]): ToolSet {
   const out: ToolSet = {}
@@ -336,7 +336,8 @@ const TELEGRAM_AGENT_SYSTEM = `أنت وكيل Arabic Buzz عبر تيليجرا
 - إنشاء ملف من الصفر (صوت أو نص): write_file / brain_create_document / pdf_create ثم return_file.
 - بحث جوجل/ويب: web_search (DDG مجاني). موقع/خريطة: geocode + روابط الخرائط. بحث غرفة: room_search. إحاطة: owner_morning_brief.
 - أيقظ وكيل١ ثم التالي عند الانشغال؛ «أبغا للجميع» → متوازٍ. ملف مفقود بالاسم: find_storage_mesh (تيليجرام→غرفة→Drive→ماك) — ممنوع «أعد الإرسال» إن وُجدت بايتات.
-- تقويم الغرفة: room_calendar_* فقط. مهام: room_tasks_*. بريد: mail_*/gmail_*. تبليغ: notify_room_member.
+- تقويم الغرفة = مواعيد الجمعية/الفريق (room_calendar_* فقط) — ليس تقويمك الشخصي على Google. مهام: room_tasks_*. بريد: mail_*/gmail_* فقط عند طلب صريح. تبليغ: notify_room_member.
+- تحويل/OCR: إن LibreOffice أو OCR غير متاح على CranL فصرّح بالعربية — جرّب Drive أولاً أو جسر الماك إن مضبوط؛ وإلا غير متاح. ممنوع نجاح مزوّر أو طلاسم.
 - عجز: research_task_tools → نفّذ المجاني المدمج فوراً. مدفوع فقط بعد الاستنفاد.
 ${TELEGRAM_LIMITS_SYSTEM_AR}
 ${TELEGRAM_CAPABILITY_CASCADE_SYSTEM_AR}`
@@ -652,6 +653,8 @@ async function bindTelegramTools(opts: {
    * the same reply/file into this chat (final ack path delivers once).
    */
   telegramChatId?: string
+  /** Only when user explicitly asked about mail/inbox. */
+  allowMailTools?: boolean
 }): Promise<ToolSet> {
   const { parsePosture } = await import('@/lib/security/posture')
   const native = getNativeAiTools({
@@ -661,13 +664,17 @@ async function bindTelegramTools(opts: {
   })
   // Max power: full native toolset for work turns; light subset only for greetings.
   // Omit personal Google calendar_* so team agenda stays room_calendar_* only.
-  let subset = omitTelegramPersonalCalendarTools(
-    opts.fullRoom
-      ? native
-      : pickToolSubset(
-          native,
-          opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
-        )
+  // Omit mail_*/gmail_* unless the user explicitly asked about mail.
+  let subset = omitTelegramMailToolsUnlessAsked(
+    omitTelegramPersonalCalendarTools(
+      opts.fullRoom
+        ? native
+        : pickToolSubset(
+            native,
+            opts.heavy ? TELEGRAM_SITE_HEAVY_TOOLS : TELEGRAM_SITE_CHAT_TOOLS
+          )
+    ),
+    Boolean(opts.allowMailTools)
   )
 
   // MCP: on by default for full-room turns (parity with /api/chat). Opt-out: TELEGRAM_INCLUDE_MCP=0
@@ -678,7 +685,10 @@ async function bindTelegramTools(opts: {
     try {
       await connectEnvMcpServers()
       const mcpTools = await getMCPHostManager().getCombinedToolSet()
-      subset = omitTelegramPersonalCalendarTools({ ...subset, ...mcpTools })
+      subset = omitTelegramMailToolsUnlessAsked(
+        omitTelegramPersonalCalendarTools({ ...subset, ...mcpTools }),
+        Boolean(opts.allowMailTools)
+      )
     } catch {
       /* optional — native tools still run */
     }
@@ -1741,6 +1751,7 @@ async function runTelegramAgentTurn(opts: {
     heavy,
     fullRoom: useFullRoomTools,
     telegramChatId: opts.chatId,
+    allowMailTools: work.kind === 'mail',
   })
   const prepMs = Date.now() - tPrep
   const tStream = Date.now()

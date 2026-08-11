@@ -1,7 +1,11 @@
 /**
- * ~1 hour before room calendar appointments → Telegram (linked group).
+ * ~1 hour before room calendar appointments → Telegram.
  * Clear MSA copy; single send per event (claim + meta) — no spam.
  * Runs inside /api/crons/runner (GitHub Actions every ~15 min).
+ *
+ * Group push stays OFF by default (silenceUnsolicited / TELEGRAM_GROUP_PUSH).
+ * Safe fallback: owner DM only when TELEGRAM_OWNER_CHAT_ID is a private chat.
+ * Never re-enables morning digests or group spam.
  */
 import { listRoomCalendarEvents, updateRoomCalendarEvent } from '@/lib/rooms/room-calendar'
 import { emitNotification } from '@/lib/notifications/emit'
@@ -9,6 +13,8 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { appBaseUrl } from '@/lib/app-url'
 import {
   isTelegramGroupPushAllowed,
+  isTelegramOwnerReminderDmAllowed,
+  resolveTelegramOwnerDmChatId,
   telegramGroupPushDisabledReason,
 } from '@/lib/telegram/group-push-policy'
 
@@ -61,16 +67,21 @@ export function buildAppointmentReminderTextAr(opts: {
   locationAr?: string | null
   mins: number
   calendarUrl: string
+  /** When true: owner DM path (group silenced). */
+  ownerDmOnly?: boolean
 }): string {
   const mins = Math.max(1, opts.mins)
   const when = fmtWhen(opts.startsAt)
   return [
-    'تذكير موعد (مرة واحدة)',
-    `«${opts.titleAr}»`,
+    opts.ownerDmOnly
+      ? 'تذكير موعد جمعية (خاص للمدير — مرة واحدة)'
+      : 'تذكير موعد جمعية (مرة واحدة)',
+    `مواعيد الجمعية/الفريق — «${opts.titleAr}»`,
     `الوقت: ${when}`,
     'المنطقة الزمنية: توقيت السعودية',
     opts.locationAr ? `المكان: ${opts.locationAr}` : '',
     `يتبقى حوالي ${mins} دقيقة`,
+    'ليس تقويمك الشخصي على Google.',
     'لن نعيد هذا التذكير لنفس الموعد.',
     `التقويم: ${opts.calendarUrl}`,
   ]
@@ -113,7 +124,11 @@ export async function listSoonAppointmentRemindersAr(opts?: {
 export async function runAppointmentTelegramReminders(opts?: {
   now?: Date
 }): Promise<{ sent: number; skipped: number; details: string[] }> {
-  if (!isTelegramGroupPushAllowed('appointment_reminder')) {
+  const groupOk = isTelegramGroupPushAllowed('appointment_reminder')
+  const ownerOk = isTelegramOwnerReminderDmAllowed('appointment_reminder')
+  const ownerDm = resolveTelegramOwnerDmChatId()
+
+  if (!groupOk && !ownerOk) {
     return {
       sent: 0,
       skipped: 0,
@@ -121,6 +136,7 @@ export async function runAppointmentTelegramReminders(opts?: {
     }
   }
 
+  const ownerDmOnly = !groupOk && ownerOk
   const now = opts?.now || new Date()
   const t0 = now.getTime()
   const from = new Date(t0 + WINDOW_MIN_MS).toISOString()
@@ -171,21 +187,28 @@ export async function runAppointmentTelegramReminders(opts?: {
         locationAr: ev.locationAr,
         mins,
         calendarUrl: `${base}/?section=calendar`,
+        ownerDmOnly,
       })
 
       const res = await emitNotification({
         channel: 'telegram',
         textAr,
+        to: ownerDmOnly && ownerDm ? ownerDm : undefined,
         meta: {
           scopeId,
           kind: 'appointment_hour_reminder',
           eventId: ev.id,
+          ...(ownerDmOnly ? { ownerDmOnly: true } : {}),
         },
       })
 
       if (res.ok) {
         sent += 1
-        details.push(`${scopeId}:${ev.id}`)
+        details.push(
+          ownerDmOnly
+            ? `owner-dm:${scopeId}:${ev.id}`
+            : `${scopeId}:${ev.id}`
+        )
         await updateRoomCalendarEvent(ev.id, scopeId, {
           meta: {
             ...ev.meta,

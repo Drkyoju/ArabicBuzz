@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   isTelegramPersonalCalendarTool,
+  omitTelegramMailToolsUnlessAsked,
   omitTelegramPersonalCalendarTools,
+  TELEGRAM_OMIT_MAIL_UNLESS_ASKED_TOOLS,
   TELEGRAM_OMIT_PERSONAL_CALENDAR_TOOLS,
 } from '@/lib/telegram/tools-policy'
 import { mapTaskToBuiltinFreeTools } from '@/lib/agents/tools/free-execute-map'
@@ -36,6 +38,28 @@ describe('omitTelegramPersonalCalendarTools', () => {
     expect(out.calendar_create_event).toBeUndefined()
     expect(out.room_calendar_list).toBeTruthy()
     expect(out.find_storage_mesh).toBeTruthy()
+  })
+})
+
+describe('omitTelegramMailToolsUnlessAsked', () => {
+  it('drops mail tools when not asked', () => {
+    const fake = {
+      mail_search: { description: 'm' },
+      gmail_read: { description: 'g' },
+      room_calendar_list: { description: 'c' },
+    } as unknown as import('ai').ToolSet
+    const out = omitTelegramMailToolsUnlessAsked(fake, false)
+    expect(out.mail_search).toBeUndefined()
+    expect(out.gmail_read).toBeUndefined()
+    expect(out.room_calendar_list).toBeTruthy()
+    expect(TELEGRAM_OMIT_MAIL_UNLESS_ASKED_TOOLS).toContain('mail_sync')
+  })
+
+  it('keeps mail tools when allowMail=true', () => {
+    const fake = {
+      mail_search: { description: 'm' },
+    } as unknown as import('ai').ToolSet
+    expect(omitTelegramMailToolsUnlessAsked(fake, true).mail_search).toBeTruthy()
   })
 })
 

@@ -81,11 +81,12 @@ describe('telegram attachment persist + jobs', () => {
       fileName: 'المعلم الاول.pdf',
       sizeBytes: 22_000_000,
     })
-    expect(msg).toMatch(/سجّلت/)
+    expect(msg).toMatch(/بانتظار/)
     expect(msg).toMatch(/تلقائياً|Bot API|ماك|غرفة|Drive/i)
+    expect(msg).toMatch(/أصغر|لاحقاً/)
     expect(msg).not.toMatch(/أعد إرسال الملف عبر تيليجرام مراراً/)
     expect(isTelegramDownloadLimitError(new Error(msg))).toBe(true)
-    expect(telegramFileTooLargeAr({ fileName: 'x.pdf' })).toMatch(/سجّلت/)
+    expect(telegramFileTooLargeAr({ fileName: 'x.pdf' })).toMatch(/بانتظار/)
   })
 
   it('never asks resend when vault bytes exist on job', async () => {
@@ -124,7 +125,7 @@ describe('telegram attachment persist + jobs', () => {
     const first = await shouldNotifyWaitingFileOnce(job)
     expect(first.notify).toBe(false)
     expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
-      /معلّقة صامتة|بلا طلب إعادة إرسال/
+      /في انتظار|أعد المحاولة|بلا طلب إعادة إرسال|معلّقة صامتة/
     )
     expect(telegramFileNeverStoredAr('المعلم الاول.pdf')).toMatch(
       /ممنوع استبدال.*أحياء|بدون أحياء|دليل أحياء/

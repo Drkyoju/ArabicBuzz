@@ -52,6 +52,24 @@ describe('parseTelegramShortIntent', () => {
     expect(parseTelegramShortIntent('وين الملف')?.kind).toBe('mesh')
   })
 
+  it('parses association bare shortcuts محضر · خطاب · موعد · بريد · حوّل · لخّص', () => {
+    expect(parseTelegramShortIntent('محضر')?.kind).toBe('minutes')
+    expect(parseTelegramShortIntent('خطاب')?.kind).toBe('letter')
+    expect(parseTelegramShortIntent('موعد')?.kind).toBe('calendar_list')
+    expect(parseTelegramShortIntent('بريد')?.kind).toBe('mail')
+    expect(parseTelegramShortIntent('حوّل')?.kind).toBe('edit_file')
+    expect(parseTelegramShortIntent('لخّص')?.kind).toBe('edit_file')
+    expect(parseTelegramShortIntent('محضر اجتماع اللجنة')?.kind).toBe('minutes')
+    expect(shortIntentToWorkKind('minutes')).toBe('file')
+    expect(shortIntentToWorkKind('letter')).toBe('file')
+  })
+
+  it('calendar list nudge names team agenda not personal Google', () => {
+    const n = parseTelegramShortIntent('كم موعد عندنا؟')
+    expect(n?.nudgeAr).toMatch(/مواعيد الجمعية\/الفريق/)
+    expect(n?.nudgeAr).toMatch(/تقويمك الشخصي/)
+  })
+
   it('parses wiki / math / ocr / notify', () => {
     expect(parseTelegramShortIntent('ويكيبيديا الذكاء الاصطناعي')?.kind).toBe(
       'wiki'

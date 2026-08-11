@@ -128,16 +128,16 @@ export async function runTelegramFastPath(opts: {
     const active = events.filter((e) => e.status !== 'cancelled')
     if (active.length === 0) {
       return todayOnly
-        ? 'لا مواعيد مشتركة اليوم في تقويم الغرفة (توقيت السعودية).'
-        : 'تقويم الغرفة فارغ حالياً — لا مواعيد مشتركة مسجّلة.'
+        ? 'مواعيد الجمعية/الفريق: لا مواعيد مشتركة اليوم في تقويم الغرفة (توقيت السعودية) — هذا ليس تقويمك الشخصي على Google.'
+        : 'مواعيد الجمعية/الفريق: تقويم الغرفة فارغ حالياً — لا مواعيد مشتركة مسجّلة (ليس تقويمك الشخصي).'
     }
     const lines = active.slice(0, 8).map((e) => {
       const when = formatRiyadhTimeRange(e.startsAt, e.endsAt, e.allDay)
       return when ? `• ${when} — ${e.titleAr}` : `• ${e.titleAr}`
     })
     const head = todayOnly
-      ? `مواعيد اليوم: ${active.length} (توقيت السعودية).`
-      : `تقويم الغرفة: ${active.length} موعداً مشتركاً (توقيت السعودية).`
+      ? `مواعيد الجمعية/الفريق اليوم: ${active.length} (توقيت السعودية — تقويم الغرفة المشترك، ليس تقويمك الشخصي).`
+      : `مواعيد الجمعية/الفريق: ${active.length} موعداً مشتركاً (توقيت السعودية — تقويم الغرفة، ليس تقويمك الشخصي).`
     return [head, '', ...lines].join('\n')
   }
 

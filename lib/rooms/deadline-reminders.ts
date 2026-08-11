@@ -2,6 +2,9 @@
  * Push association system-deadline reminders to Telegram.
  * Fires on meta.reminderDays (default 30/14/7/1) and on due day (0).
  * Dedupes via event meta.lastTelegramReminderDaysLeft.
+ *
+ * Group push OFF by default. Safe fallback: owner DM only
+ * (TELEGRAM_OWNER_CHAT_ID private) — never association-group spam.
  */
 import {
   upcomingSystemDeadlines,
@@ -14,6 +17,8 @@ import { DEMO_SCOPES, isSharedScope } from '@/lib/scopes/manager'
 import { appBaseUrl } from '@/lib/app-url'
 import {
   isTelegramGroupPushAllowed,
+  isTelegramOwnerReminderDmAllowed,
+  resolveTelegramOwnerDmChatId,
   telegramGroupPushDisabledReason,
 } from '@/lib/telegram/group-push-policy'
 
@@ -41,7 +46,11 @@ export async function runDeadlineTelegramReminders(): Promise<{
   skipped: number
   details: string[]
 }> {
-  if (!isTelegramGroupPushAllowed('deadline_reminder')) {
+  const groupOk = isTelegramGroupPushAllowed('deadline_reminder')
+  const ownerOk = isTelegramOwnerReminderDmAllowed('deadline_reminder')
+  const ownerDm = resolveTelegramOwnerDmChatId()
+
+  if (!groupOk && !ownerOk) {
     return {
       sent: 0,
       skipped: 0,
@@ -49,6 +58,7 @@ export async function runDeadlineTelegramReminders(): Promise<{
     }
   }
 
+  const ownerDmOnly = !groupOk && ownerOk
   const details: string[] = []
   let sent = 0
   let skipped = 0
@@ -88,21 +98,34 @@ export async function runDeadlineTelegramReminders(): Promise<{
       const label =
         d.labelAr || SYSTEM_DEADLINE_LABELS_AR[kind] || d.titleAr
       const textAr = [
-        `⏰ تذكير موعد نظامي`,
-        `«${label}» — ${when}`,
+        ownerDmOnly
+          ? '⏰ تذكير موعد نظامي (خاص للمدير)'
+          : '⏰ تذكير موعد نظامي',
+        `مواعيد الجمعية/الفريق — «${label}» — ${when}`,
         `الغرفة: ${scopeId}`,
+        'ليس تقويمك الشخصي على Google.',
         `التقويم: ${base}/?section=calendar`,
       ].join('\n')
 
       const res = await emitNotification({
         channel: 'telegram',
         textAr,
-        meta: { scopeId, deadlineKind: kind, daysLeft: d.daysLeft },
+        to: ownerDmOnly && ownerDm ? ownerDm : undefined,
+        meta: {
+          scopeId,
+          deadlineKind: kind,
+          daysLeft: d.daysLeft,
+          ...(ownerDmOnly ? { ownerDmOnly: true } : {}),
+        },
       })
 
       if (res.ok) {
         sent += 1
-        details.push(`${scopeId}:${kind}:${d.daysLeft}`)
+        details.push(
+          ownerDmOnly
+            ? `owner-dm:${scopeId}:${kind}:${d.daysLeft}`
+            : `${scopeId}:${kind}:${d.daysLeft}`
+        )
         await updateRoomCalendarEvent(d.id, scopeId, {
           meta: {
             ...d.meta,

@@ -3,8 +3,10 @@ import {
   isEnvFlagOn,
   isTelegramGroupPushAllowed,
   isTelegramGroupPushMasterEnabled,
+  isTelegramOwnerReminderDmAllowed,
   isTelegramSilenceUnsolicitedEnabled,
   maySendTelegramToChat,
+  resolveTelegramOwnerDmChatId,
   telegramGroupPushDisabledReason,
   telegramGroupPushFlagsSnapshot,
 } from '@/lib/telegram/group-push-policy'
@@ -106,6 +108,28 @@ describe('telegram group push policy — default silence', () => {
     const snap = telegramGroupPushFlagsSnapshot({})
     expect(snap.masterEnabled).toBe(false)
     expect(snap.silenceUnsolicited).toBe(true)
+    expect(snap.ownerReminderDm).toBe(false)
     expect(Object.values(snap.features).every((v) => v === false)).toBe(true)
+  })
+
+  it('owner DM reminders allowed when private OWNER chat set and group silenced', () => {
+    const env = {
+      TELEGRAM_OWNER_CHAT_ID: '797686181',
+    } as NodeJS.ProcessEnv
+    expect(resolveTelegramOwnerDmChatId(env)).toBe('797686181')
+    expect(isTelegramOwnerReminderDmAllowed('appointment_reminder', env)).toBe(
+      true
+    )
+    expect(
+      isTelegramOwnerReminderDmAllowed('appointment_reminder', {
+        ...env,
+        TELEGRAM_OWNER_REMINDERS: '0',
+      })
+    ).toBe(false)
+    expect(
+      resolveTelegramOwnerDmChatId({
+        TELEGRAM_OWNER_CHAT_ID: '-1003855925966',
+      })
+    ).toBeNull()
   })
 })

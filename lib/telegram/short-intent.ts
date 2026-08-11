@@ -5,6 +5,8 @@
  *
  * Golden rule: brand-new TG attachment in the message = working copy → edit/summarize/
  * convert → return_file. Never require Drive/room/history.
+ *
+ * Association group stable shortcuts: محضر · خطاب · موعد · بريد · حوّل · لخّص
  */
 
 import {
@@ -30,6 +32,8 @@ export type TelegramShortIntentKind =
   | 'youtube'
   | 'ocr'
   | 'notify'
+  | 'minutes'
+  | 'letter'
   | null
 
 export type TelegramShortIntent = {
@@ -132,7 +136,10 @@ const CREATE_NEW_RE =
 const EDIT_RE =
   /^(?:عد[ّ]?ل|حو[ّ]?ل)\s*(?:ال)?(?:ملف|مستند|مرفق|pdf|ورد|وورد|word|لائح|عقد)?\s*(.*)$/iu
 const SUMMARIZE_FILE_RE =
-  /^(?:لخ[ّ]?ص)\s*(?:ال)?(?:ملف|مستند|مرفق|pdf)\s*(.*)$/iu
+  /^(?:لخ[ّ]?ص)\s*(?:ال)?(?:ملف|مستند|مرفق|pdf)?\s*(.*)$/iu
+/** Bare association shortcuts */
+const CONVERT_BARE_RE = /^(?:حو[ّ]?ل)[\s!.؟?…]*$/iu
+const SUMMARIZE_BARE_RE = /^(?:لخ[ّ]?ص)[\s!.؟?…]*$/iu
 
 const MAIL_RE =
   /^(?:ابحث|دور)\s*(?:لي\s*)?(?:في\s*)?(?:ال)?(?:بريد|إيميل|ايميل|gmail|inbox)\s*(?:عن|على)?\s*(.*)$/iu
@@ -140,11 +147,13 @@ const MAIL_SOFT_RE =
   /^(?:شو|وش|ماذا)\s*(?:في|عندنا\s*في)?\s*(?:ال)?(?:بريد|وارد|صندوق)[\s!.؟?…]*$/iu
 const MAIL_SEND_RE =
   /^(?:أرسل|ارسل)\s*(?:بريد|إيميل|ايميل)\s*(?:إلى|ل|الى)?\s*(.+)$/iu
+const MAIL_BARE_RE = /^(?:بريد|إيميل|ايميل)[\s!.؟?…]*$/iu
 
 const CAL_BOOK_RE =
   /^(?:احجز|احجزي|أضف|اضف|سج[ّل])\s*(?:لي\s*)?(?:موعد|اجتماع|لقاء)\s*(.*)$/iu
 const CAL_LIST_RE =
-  /^(?:كم|عدد)\s*(?:ال)?(?:موعد|مواعيد)|(?:مواعيد|أجندة|اجندة)\s*(?:اليوم|الغرفة)?[\s!.؟?…]*$|^(?:وش|شو|ماذا)\s*(?:عندنا|فيه)\s*(?:اليوم|الليلة)[\s!.؟?…]*$/iu
+  /^(?:كم|عدد)\s*(?:ال)?(?:موعد|مواعيد)|(?:مواعيد|أجندة|اجندة)\s*(?:اليوم|الغرفة|الجمعية|الفريق)?[\s!.؟?…]*$|^(?:وش|شو|ماذا)\s*(?:عندنا|فيه)\s*(?:اليوم|الليلة)[\s!.؟?…]*$/iu
+const CAL_BARE_RE = /^(?:موعد|مواعيد)[\s!.؟?…]*$/iu
 
 const TASK_RE =
   /^(?:أضف|اضف|سج[ّل]|أنشئ|انشئ)\s*(?:لي\s*)?(?:مهم[ةه]|تاسك)\s*(.*)$/iu
@@ -163,6 +172,17 @@ const OCR_RE =
 
 const NOTIFY_RE =
   /^(?:أرسل|ارسل|بل[ّ]?غ|بلغ)\s+(?:ل(?:ـ)?|إلى|الى)\s*.+/iu
+
+const MINUTES_RE =
+  /^(?:محضر|محاضر)\s*(.*)$/iu
+const LETTER_RE =
+  /^(?:خطاب|خطابات)\s*(.*)$/iu
+
+/** Shared calendar vs personal — inject into calendar nudges/replies. */
+export const TELEGRAM_TEAM_CALENDAR_LABEL_AR =
+  'مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — room_calendar_*)'
+export const TELEGRAM_PERSONAL_CALENDAR_LABEL_AR =
+  'تقويمك الشخصي على Google (ليس مصدر أجندة الفريق)'
 
 function nudgeFor(
   kind: NonNullable<TelegramShortIntentKind>,
@@ -187,7 +207,7 @@ function nudgeFor(
         labelAr: 'إحاطة صباح',
         forceHeavy: false,
         nudgeAr:
-          '[اختصار: إحاطة] نفّذ owner_morning_brief فوراً. رد موجز بالعربية — بلا مقدمة طويلة.',
+          '[اختصار: إحاطة] نفّذ owner_morning_brief فوراً. رد موجز بالعربية — بلا مقدمة طويلة. لا تستدعِ mail_* منفصلة؛ الإحاطة تكفي.',
       }
     case 'room_search':
       return {
@@ -218,26 +238,25 @@ function nudgeFor(
       return {
         labelAr: 'تعديل ملف',
         forceHeavy: true,
-        nudgeAr: `[اختصار: تعديل/تلخيص/تحويل مرفق] ${TELEGRAM_FILE_GOLDEN_RULE_AR} المرفق في هذه الرسالة أو الأخير («${p}») = نسخة العمل حتى لو أول مرة. عدّل/لخّص/حوّل ثم return_file. ممنوع اشتراط Drive/غرفة أو «أعد الإرسال».`,
+        nudgeAr: `[اختصار: تعديل/تلخيص/تحويل مرفق] ${TELEGRAM_FILE_GOLDEN_RULE_AR} المرفق في هذه الرسالة أو الأخير («${p}») = نسخة العمل حتى لو أول مرة. عدّل/لخّص/حوّل ثم return_file. إن LibreOffice/OCR غير متاح على CranL: قل صراحة — جرّب Drive أولاً أو جسر الماك إن مضبوط؛ وإلا التحويل غير متاح. ممنوع اشتراط Drive/غرفة أو «أعد الإرسال» عند وجود بايتات.`,
       }
     case 'mail':
       return {
         labelAr: 'بريد',
         forceHeavy: true,
-        nudgeAr: `[اختصار: بريد] نفّذ mail_search/mail_read (أو gmail_*) عن «${p}» فوراً. لخّص مرسل·موضوع·مقتطف — لا تختلق.`,
+        nudgeAr: `[اختصار: بريد — طلب صريح] نفّذ mail_search/mail_read (صندوق الجمعية) أو gmail_* إن طُلب الشخصي عن «${p}» فوراً. لخّص مرسل·موضوع·مقتطف — لا تختلق. ممنوع مسح البريد بلا طلب صريح.`,
       }
     case 'calendar_book':
       return {
         labelAr: 'حجز موعد',
         forceHeavy: false,
-        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً («${p}»، Asia/Riyadh). إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. أكّد العنوان·الوقت. ممنوع «هل تود؟».`,
+        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً («${p}»، Asia/Riyadh) في ${TELEGRAM_TEAM_CALENDAR_LABEL_AR}. أكّد العنوان·الوقت·أنّه مواعيد الجمعية/الفريق — ليس ${TELEGRAM_PERSONAL_CALENDAR_LABEL_AR}. إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. ممنوع «هل تود؟».`,
       }
     case 'calendar_list':
       return {
         labelAr: 'مواعيد',
         forceHeavy: false,
-        nudgeAr:
-          '[اختصار: مواعيد] room_calendar_list (اليوم إن ذُكر) بتوقيت السعودية. رد موجز بقائمة.',
+        nudgeAr: `[اختصار: مواعيد] room_calendar_list (اليوم إن ذُكر) بتوقيت السعودية. افتتح الرد بـ «مواعيد الجمعية/الفريق» — ليس تقويمك الشخصي. رد موجز بقائمة.`,
       }
     case 'task':
       return {
@@ -267,7 +286,7 @@ function nudgeFor(
       return {
         labelAr: 'OCR',
         forceHeavy: true,
-        nudgeAr: `[اختصار: OCR] ${TELEGRAM_FILE_GOLDEN_RULE_AR} arabic_ocr على مرفق تيليجرام في الرسالة/الأخير ثم أعد النص/الملف عبر return_file.`,
+        nudgeAr: `[اختصار: OCR] ${TELEGRAM_FILE_GOLDEN_RULE_AR} arabic_ocr على مرفق تيليجرام في الرسالة/الأخير ثم أعد النص/الملف عبر return_file. إن OCR غير متاح: صرّح بالعربية — جرّب Drive أو جسر الماك؛ وإلا غير متاح. ممنوع ادّعاء نجاح مزوّر أو نص طلاسم.`,
       }
     case 'notify':
       return {
@@ -275,6 +294,18 @@ function nudgeFor(
         forceHeavy: false,
         nudgeAr:
           '[اختصار: تبليغ] نفّذ notify_room_member فوراً من نص الرسالة. رد موجز بمسار التسليم.',
+      }
+    case 'minutes':
+      return {
+        labelAr: 'محضر',
+        forceHeavy: true,
+        nudgeAr: `[اختصار: محضر] نفّذ minutes_from_thread فوراً («${p}» إن وُجد سياق) ثم return_file كملف Word. رد موجز.`,
+      }
+    case 'letter':
+      return {
+        labelAr: 'خطاب',
+        forceHeavy: true,
+        nudgeAr: `[اختصار: خطاب] list_letter_templates إن لزم ثم letter_fill_template («${p}») ثم return_file. رد موجز.`,
       }
   }
 }
@@ -307,9 +338,19 @@ export function parseTelegramShortIntent(raw: string): TelegramShortIntent | nul
   if (BRIEF_RE.test(t)) return tryMatch('brief', 'إحاطة الصباح')
   if (ARCHIVE_RE.test(t)) return tryMatch('archive', 'أرشف المجموعة')
   if (OCR_RE.test(t)) return tryMatch('ocr', 'OCR')
+  if (CONVERT_BARE_RE.test(t)) return tryMatch('edit_file', 'حوّل المرفق')
+  if (SUMMARIZE_BARE_RE.test(t)) return tryMatch('edit_file', 'لخّص المرفق')
+  if (MAIL_BARE_RE.test(t)) return tryMatch('mail', 'صندوق الوارد')
+  if (CAL_BARE_RE.test(t)) return tryMatch('calendar_list', 'مواعيد الجمعية')
   if (CAL_LIST_RE.test(t)) return tryMatch('calendar_list', t)
 
   let m: RegExpMatchArray | null
+  if ((m = t.match(MINUTES_RE))) {
+    return tryMatch('minutes', clip(m[1] || 'محضر من نقاش الغرفة'))
+  }
+  if ((m = t.match(LETTER_RE))) {
+    return tryMatch('letter', clip(m[1] || 'خطاب'))
+  }
   if ((m = t.match(ROOM_SEARCH_RE))) {
     const q = clip(m[1] || '')
     if (q.length >= 2) return tryMatch('room_search', q)
@@ -394,6 +435,8 @@ export function shortIntentToWorkKind(
     case 'archive':
     case 'mesh':
     case 'ocr':
+    case 'minutes':
+    case 'letter':
       return 'file'
     case 'mail':
       return 'mail'

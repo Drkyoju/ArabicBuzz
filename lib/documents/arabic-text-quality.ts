@@ -235,7 +235,11 @@ export function structureArabicParagraphs(text: string): Array<{
 
 /** Soft refuse when Gemini→Paddle (and optional Mistral) cannot produce clean Arabic. */
 export const CONVERT_OCR_REFUSE_AR =
-  'تعذّر التحويل بنص عربي نظيف. لم نُنشئ ملفاً حتى لا يصلك طلاسم. جرّب OCR صفحة بصفحة أو اربط Google Drive من الإعدادات.'
+  'تعذّر التحويل بنص عربي نظيف. لم نُنشئ ملفاً حتى لا يصلك طلاسم. جرّب أولاً الملف عبر Drive (بعد الربط من الإعدادات)، أو جسر الماك إن كان مضبوطاً؛ وإلا التحويل غير متاح حالياً على CranL — ولن ندّعي نجاحاً مزوّراً.'
+
+/** LibreOffice missing on thin host (CranL) — honest Arabic, no fake success. */
+export const CONVERT_LIBREOFFICE_UNAVAILABLE_AR =
+  'LibreOffice غير متوفر على خادم CranL. جرّب: (١) فتح/تحويل الملف من Drive بعد الربط من الإعدادات، (٢) جسر الماك إن كان مضبوطاً. وإلا التحويل غير متاح صراحة — ممنوع ادّعاء نجاح أو تسليم طلاسم.'
 
 /** Arabic error when free rebuild would produce garbage — user-facing, no engine ids. */
 export function brokenToUnicodeErrorAr(opts?: {
@@ -247,12 +251,14 @@ export function brokenToUnicodeErrorAr(opts?: {
 }): string {
   const parts = [CONVERT_OCR_REFUSE_AR]
   if (opts?.hasGoogleHint) {
-    parts.push('مسار Drive للملفات العربية التالفة متاح بعد الربط من الإعدادات.')
+    parts.push('مسار Drive للملفات العربية متاح بعد الربط من الإعدادات.')
   }
   if (opts?.hasMac) {
-    parts.push('جسر الماك اختياري لاستخراج حرّ عند الحاجة.')
+    parts.push('جسر الماك اختياري للتحويل/OCR عند الحاجة.')
   }
-  if (opts?.hasLibreOffice) {
+  if (opts?.hasLibreOffice === false) {
+    parts.push(CONVERT_LIBREOFFICE_UNAVAILABLE_AR)
+  } else if (opts?.hasLibreOffice) {
     parts.push('LibreOffice متوفر لـ Word↔PDF عندما يكون النص نظيفاً.')
   }
   if (opts?.hasPaddle === false) {

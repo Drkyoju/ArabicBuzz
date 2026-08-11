@@ -151,6 +151,36 @@ export function telegramGroupPushDisabledReason(
   return 'allowed'
 }
 
+/**
+ * Private owner DM chat for selective reminders (never a group id).
+ * Uses TELEGRAM_OWNER_CHAT_ID only when it is a private (non-negative) chat.
+ */
+export function resolveTelegramOwnerDmChatId(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  const id = String(env.TELEGRAM_OWNER_CHAT_ID || '').trim()
+  if (!id || isTelegramGroupChatId(id)) return null
+  return id
+}
+
+export type TelegramOwnerReminderFeature =
+  | 'appointment_reminder'
+  | 'deadline_reminder'
+
+/**
+ * Safe owner-DM reminders while group push / silence blocks the association group.
+ * Default ON when a private TELEGRAM_OWNER_CHAT_ID exists; set
+ * TELEGRAM_OWNER_REMINDERS=0 to disable. Never re-enables morning digests or group spam.
+ */
+export function isTelegramOwnerReminderDmAllowed(
+  feature: TelegramOwnerReminderFeature,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (isTelegramGroupPushAllowed(feature, env)) return false
+  if (isEnvFlagExplicitlyOff(env.TELEGRAM_OWNER_REMINDERS)) return false
+  return Boolean(resolveTelegramOwnerDmChatId(env))
+}
+
 /** Public health / ops snapshot — no secrets. */
 export function telegramGroupPushFlagsSnapshot(
   env: NodeJS.ProcessEnv = process.env
@@ -158,6 +188,8 @@ export function telegramGroupPushFlagsSnapshot(
   masterEnabled: boolean
   silenceUnsolicited: boolean
   silenceDefaultOn: true
+  ownerReminderDm: boolean
+  ownerReminderDmChatConfigured: boolean
   defaultPolicyAr: string
   features: Record<TelegramGroupPushFeature, boolean>
   envKeys: Record<TelegramGroupPushFeature, string>
@@ -166,12 +198,18 @@ export function telegramGroupPushFlagsSnapshot(
   for (const f of Object.keys(FEATURE_ENV) as TelegramGroupPushFeature[]) {
     features[f] = isTelegramGroupPushAllowed(f, env)
   }
+  const ownerDm = resolveTelegramOwnerDmChatId(env)
   return {
     masterEnabled: isTelegramGroupPushMasterEnabled(env),
     silenceUnsolicited: isTelegramSilenceUnsolicitedEnabled(env),
     silenceDefaultOn: true,
+    ownerReminderDm: isTelegramOwnerReminderDmAllowed(
+      'appointment_reminder',
+      env
+    ),
+    ownerReminderDmChatConfigured: Boolean(ownerDm),
     defaultPolicyAr:
-      'صمت مطلق للمجموعة افتراضياً (TELEGRAM_SILENCE_UNSOLICITED) — لا إرسال بلا رد على تحديث وارد؛ الملخصات تحتاج أيضاً TELEGRAM_GROUP_PUSH=1',
+      'صمت مطلق للمجموعة افتراضياً (TELEGRAM_SILENCE_UNSOLICITED) — لا إرسال بلا رد على تحديث وارد؛ الملخصات تحتاج أيضاً TELEGRAM_GROUP_PUSH=1؛ تذكيرات انتقائية للمدير فقط عبر DM إن وُجد TELEGRAM_OWNER_CHAT_ID خاص',
     features,
     envKeys: { ...FEATURE_ENV },
   }

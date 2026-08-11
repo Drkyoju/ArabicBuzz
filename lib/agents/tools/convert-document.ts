@@ -24,6 +24,7 @@ import {
 import { readDocumentPages } from '@/lib/documents/read-pages'
 import {
   brokenToUnicodeErrorAr,
+  CONVERT_LIBREOFFICE_UNAVAILABLE_AR,
   CONVERT_OCR_REFUSE_AR,
   convertRefuseResult,
   hasArabicMojibake,
@@ -326,9 +327,7 @@ export async function executeConvertDocument(
       ? await libreOfficeAvailable()
       : false
   if (engine === 'libreoffice' && !loOk) {
-    return convertRefuseResult(
-      'LibreOffice (soffice) غير متوفر في هذه البيئة. اربط Google أو استخدم engine=auto لمسار OCR.'
-    )
+    return convertRefuseResult(CONVERT_LIBREOFFICE_UNAVAILABLE_AR)
   }
   if (
     loOk &&

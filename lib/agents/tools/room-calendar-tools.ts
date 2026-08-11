@@ -70,8 +70,8 @@ export async function executeRoomCalendarList(
     ),
     messageAr:
       events.length === 0
-        ? 'تقويم الغرفة فارغ — لا مواعيد مشتركة مسجّلة. لا تختلق مواعيد؛ أضف موعداً يدوياً أو عبر room_calendar_create.'
-        : `تقويم الغرفة: ${events.length} موعداً مشتركاً للفريق (توقيت السعودية ${TZ}).`,
+        ? 'مواعيد الجمعية/الفريق: تقويم الغرفة فارغ — لا مواعيد مشتركة مسجّلة (ليس تقويمك الشخصي على Google). لا تختلق مواعيد؛ أضف عبر room_calendar_create.'
+        : `مواعيد الجمعية/الفريق: ${events.length} موعداً مشتركاً في تقويم الغرفة (توقيت السعودية ${TZ}) — ليس تقويمك الشخصي.`,
   }
 }
 
@@ -104,8 +104,8 @@ export async function executeRoomCalendarCreate(
     ...result,
     messageAr:
       result.conflicts.length > 0
-        ? `تم إنشاء الموعد «${result.event.titleAr}» في تقويم الغرفة (ظاهر للفريق). تنبيه فقط: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
-        : `أُضيف «${result.event.titleAr}» إلى تقويم الغرفة المشترك وهو ظاهر للفريق الآن.`,
+        ? `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — ليس تقويمك الشخصي). تنبيه: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
+        : `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك) وهو ظاهر للفريق الآن — ليس تقويمك الشخصي على Google.`,
   }
 }
 
