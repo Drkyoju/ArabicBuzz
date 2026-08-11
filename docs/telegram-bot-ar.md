@@ -97,6 +97,11 @@
 | كم التاريخ الهجري؟ | `saudi_datetime` |
 | أرشيف الويب … | `wayback_lookup` |
 
+### OCR (تيليجرام / الجمعية)
+
+الترتيب الحر: **PaddleOCR عربي** (أساسي عبر mac-hop `/ocr/paddle` إن `health.tools.paddle=true`) → **Tesseract** → Qari → Gemini.  
+إن Paddle غير مثبت: يُتخطّى بصدق ويُستخدم Tesseract/السحابة — بلا طلاسم. التفاصيل: [mac-ocr-tesseract.md](./mac-ocr-tesseract.md).
+
 تقويم الردود: **مواعيد الجمعية/الفريق** = `room_calendar_*` / shared-demo (مصدر واحد للموقع وتيليجرام؛ مدعوون بأي بريد) · **تقويمك الشخصي** = Google calendar (مُستبعد من أدوات تيليجرام).
 
 تذكيرات المواعيد:
