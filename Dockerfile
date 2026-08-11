@@ -1,6 +1,6 @@
 # ArabicBuzz — CranL production image (Next.js standalone + Prisma)
 # Binds 0.0.0.0:$PORT (default 3000). Do not commit secrets; use CranL env.
-# build-bust: telegram-no-jari-content-dedupe-fast-ack-20260811
+# build-bust: telegram-backlog-calendar-mail-convert-owner-dm-20260811
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
