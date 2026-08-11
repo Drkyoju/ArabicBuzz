@@ -669,7 +669,8 @@ export function RoomCalendarBoard({
 
   function resolveEventTimes(): { startsAtIso: string; endsAtIso: string } {
     if (allDay) {
-      return riyadhAllDayIso(eventDate || toDateInput())
+      const bounds = riyadhAllDayIso(eventDate || toDateInput())
+      return { startsAtIso: bounds.startsAt, endsAtIso: bounds.endsAt }
     }
     const ymd = eventDate || toDateInput()
     const st = startTime || '09:00'
