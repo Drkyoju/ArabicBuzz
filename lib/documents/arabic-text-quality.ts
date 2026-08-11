@@ -239,7 +239,7 @@ export const CONVERT_OCR_REFUSE_AR =
 
 /** LibreOffice missing on thin host (CranL) — honest Arabic, no fake success. */
 export const CONVERT_LIBREOFFICE_UNAVAILABLE_AR =
-  'LibreOffice غير متوفر على خادم CranL. جرّب: (١) فتح/تحويل الملف من Drive بعد الربط من الإعدادات، (٢) جسر الماك إن كان مضبوطاً. وإلا التحويل غير متاح صراحة — ممنوع ادّعاء نجاح أو تسليم طلاسم.'
+  'LibreOffice غير متوفر على خادم CranL. جرّب: (١) جسر الماك إن كان مستيقظاً (npm run mac-hop:health)، (٢) اربط Google من https://arabicbuzz-fooc9h.cranl.net/?section=settings ثم حوّل عبر Drive. وإلا التحويل غير متاح صراحة — ممنوع ادّعاء نجاح أو تسليم طلاسم.'
 
 /** Arabic error when free rebuild would produce garbage — user-facing, no engine ids. */
 export function brokenToUnicodeErrorAr(opts?: {

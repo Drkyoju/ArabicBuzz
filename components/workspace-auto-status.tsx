@@ -371,12 +371,11 @@ export function WorkspaceAutoStatus({
 
       {showGoogleOnce && (
         <div className="rounded-xl border border-dashed border-ab-border bg-stone-50 p-4 text-xs text-stone-600">
-          <p className="font-semibold text-ab-ink">
-            Google للمالك — مرة واحدة إن لم يُحفظ توكن
-          </p>
+          <p className="font-semibold text-ab-ink">اربط Google — مرة واحدة</p>
           <p className="mt-1">
-            إن سبق دخول {DEFAULT_DIRECTOR_EMAIL} بصلاحيات التقويم/Drive، يُستخدم
-            تلقائياً بلا إعادة ربط. وإلا سجّل دخولاً واحداً فقط.
+            Gmail الشخصي والتقويم وDrive وSheets من تيليجرام تحتاج موافقة OAuth من
+            المتصفح. بريد الجمعية (IMAP) يعمل بدونه. إن سبق الربط لـ{' '}
+            {DEFAULT_DIRECTOR_EMAIL} يُستخدم تلقائياً.
           </p>
           <button
             type="button"
@@ -384,7 +383,26 @@ export function WorkspaceAutoStatus({
             onClick={() => void oneTimeGoogle()}
             className="mt-2 rounded-md bg-ab-ink px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
           >
-            {linkingGoogle ? 'جاري الفتح…' : 'تسجيل دخول Google مرة واحدة'}
+            {linkingGoogle ? 'جاري الفتح…' : 'اربط Google'}
+          </button>
+        </div>
+      )}
+
+      {isOwner && !showGoogleOnce && (
+        <div className="rounded-xl border border-ab-border bg-ab-surface p-4 text-xs text-stone-600">
+          <p className="font-semibold text-ab-ink">Google مربوط</p>
+          <p className="mt-1">
+            {data?.googleEmail
+              ? `الحساب: ${data.googleEmail} — إعادة الربط إن انتهت الصلاحيات أو أضفت نطاقاً جديداً.`
+              : 'التوكن محفوظ. أعد الربط فقط إن فشل Drive/Gmail أو طُلبت صلاحيات جديدة.'}
+          </p>
+          <button
+            type="button"
+            disabled={linkingGoogle}
+            onClick={() => void oneTimeGoogle()}
+            className="mt-2 rounded-md border border-ab-border bg-white px-3 py-1.5 text-[11px] font-semibold text-ab-ink disabled:opacity-50"
+          >
+            {linkingGoogle ? 'جاري الفتح…' : 'أعد ربط Google'}
           </button>
         </div>
       )}

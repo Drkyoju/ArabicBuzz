@@ -16,14 +16,16 @@ export function formatTelegramErrorAr(
 
   if (
     /google|drive|googleapis|invalid_grant|oauth|token/i.test(lower) ||
-    /درايف|google غير مربوط/.test(raw)
+    /درايف|google غير مربوط|اربط google|ربط google/i.test(raw)
   ) {
     return [
       '📎 يمكنني تنفيذ طلبك على مرفق تيليجرام / خزنة الغرفة بدون Drive.',
       'مرفق جديد في الرسالة = نسخة العمل فوراً — أنفّذ وأرجع الناتج بلا اشتراط Drive.',
-      'إن احتجت أدوات Drive/Gmail لاحقاً: الإعدادات → ربط Google.',
+      'إن احتجت Gmail الشخصي / التقويم الشخصي / Drive: اربط Google مرة واحدة من الموقع:',
+      'https://arabicbuzz-fooc9h.cranl.net/?section=settings',
+      'ثم من الإعدادات اضغط «اربط Google» ووافق في نافذة Google.',
+      'بعدها من الخاص: /link account <معرّف-حساب-الموقع> لربط هويتك في تيليجرام.',
       'إن كان الملف محفوظاً في الغرفة سأكمل منه تلقائياً — بدون طلب إعادة إرسال.',
-      'الموقع: https://arabicbuzz-fooc9h.cranl.net/',
     ].join('\n')
   }
 

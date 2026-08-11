@@ -12,9 +12,11 @@ export const TELEGRAM_GOOGLE_CONNECT_URL = `${TELEGRAM_SITE_URL}?section=setting
 
 export function buildTelegramGoogleConnectHintAr(): string {
   return [
-    '🔗 ربط Google (مرة واحدة من المتصفح ثم يعمل من تيليجرام):',
+    '🔗 اربط Google (مرة واحدة من المتصفح — ثم يعمل من تيليجرام):',
     TELEGRAM_GOOGLE_CONNECT_URL,
-    'بعد الربط: Drive · Gmail · Sheets · تحويل مجاني عبر Drive.',
+    'من الإعدادات اضغط «اربط Google» ووافق على Gmail/Drive/التقويم.',
+    'بريد الجمعية (IMAP) يعمل بدون Google؛ Gmail الشخصي والتقويم الشخصي وDrive يحتاجون الربط.',
+    'بعد الربط من تيليجرام الخاص: /link account <معرّف-حساب-الموقع>',
   ].join('\n')
 }
 
@@ -225,7 +227,9 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
         '• تعليق محروق: pdf_annotate (sticky/text/highlight/pen/rect)',
         '• استبدال عربي أدق: pdf_replace_text',
         '• مسح ضوئي عربي: arabic_ocr / «OCR»',
-        '• إن LibreOffice/OCR غير متاح على CranL: جرّب Drive أولاً أو جسر الماك؛ وإلا صرّح أن التحويل غير متاح — بلا نجاح مزوّر',
+        '• إن LibreOffice/OCR غير متاح على CranL: جسر الماك (LibreOffice + Tesseract) إن كان الماك مستيقظاً — أو Drive بعد «اربط Google»؛ وإلا صرّح أن التحويل غير متاح — بلا نجاح مزوّر',
+        '',
+        buildTelegramGoogleConnectHintAr(),
         '• ليس قلم PDF الحرّ في الموقع — إحداثيات أداة فقط',
       ].join('\n')
     case 'notify':

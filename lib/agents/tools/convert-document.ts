@@ -62,7 +62,10 @@ import {
   convertViaLibreOffice,
   libreOfficeAvailable,
 } from '@/lib/documents/libreoffice-convert'
-import { macSyncConfigured } from '@/lib/storage/mac-sync-client'
+import {
+  macConvertPdfDocx,
+  macSyncConfigured,
+} from '@/lib/storage/mac-sync-client'
 
 /** Free local rebuild pairs (no Drive/CloudConvert). Layout not preserved. */
 const FREE_ALLOWED: DocFormat[] = ['docx', 'pdf', 'txt', 'md', 'xlsx', 'pptx', 'csv']
@@ -319,14 +322,16 @@ export async function executeConvertDocument(
     }
   }
 
-  // ── LibreOffice (not PDF→Office Arabic) ──
-  const loOk =
-    engine === 'auto' ||
-    engine === 'free' ||
-    engine === 'libreoffice'
-      ? await libreOfficeAvailable()
-      : false
-  if (engine === 'libreoffice' && !loOk) {
+  // ── LibreOffice local, then Mac hop PDF↔DOCX (not PDF→Office Arabic) ──
+  const wantLo =
+    engine === 'auto' || engine === 'free' || engine === 'libreoffice'
+  const loOk = wantLo ? await libreOfficeAvailable() : false
+  const macPdfDocx =
+    wantLo &&
+    macSyncConfigured() &&
+    ((fromFormat === 'pdf' && toFormat === 'docx') ||
+      (fromFormat === 'docx' && toFormat === 'pdf'))
+  if (engine === 'libreoffice' && !loOk && !macPdfDocx) {
     return convertRefuseResult(CONVERT_LIBREOFFICE_UNAVAILABLE_AR)
   }
   if (
@@ -365,8 +370,53 @@ export async function executeConvertDocument(
       })
     } catch (e) {
       loFailAr = e instanceof Error ? e.message : 'فشل LibreOffice'
-      if (engine === 'libreoffice') {
+      if (engine === 'libreoffice' && !macPdfDocx) {
         return convertRefuseResult(loFailAr)
+      }
+    }
+  }
+  // CranL thin image: PDF↔DOCX via awake Mac hop (LibreOffice / visual)
+  if (macPdfDocx && !loOk) {
+    try {
+      const converted = await macConvertPdfDocx({
+        buffer: hit.buffer,
+        filename: hit.meta.originalName,
+        toFormat: toFormat as 'docx' | 'pdf',
+        mode: 'auto',
+      })
+      const filename = ensureFilename(
+        converted.filename || outputName,
+        toFormat as DocFormat
+      )
+      const saved = await saveWorkspaceFile({
+        scopeId,
+        buffer: converted.buffer,
+        originalName: filename,
+        mimeType:
+          toFormat === 'docx'
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : 'application/pdf',
+        markEdited: true,
+      })
+      return attachmentResult({
+        saved,
+        scopeId,
+        fromFormat,
+        toFormat,
+        engine: 'mac-libreoffice',
+        sourceFileId: hit.meta.id,
+        sourceName: hit.meta.originalName,
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر جسر الماك (LibreOffice). نزّل أو عاين من فقاعة الشات.`,
+        noteAr: converted.log
+          ? `محرّك: جسر الماك — ${converted.log.slice(0, 160)}`
+          : 'محرّك: جسر الماك (LibreOffice / تحويل محلي).',
+      })
+    } catch (e) {
+      loFailAr = e instanceof Error ? e.message : 'فشل تحويل جسر الماك'
+      if (engine === 'libreoffice') {
+        return convertRefuseResult(
+          `${loFailAr} — تأكد أن الماك مستيقظ: npm run mac-hop:health`
+        )
       }
     }
   }

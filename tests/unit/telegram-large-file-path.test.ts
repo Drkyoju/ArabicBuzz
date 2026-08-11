@@ -69,4 +69,19 @@ describe('telegram hop status Arabic', () => {
     expect(text).toMatch(/انتظار صامت|معلّقة|لا تُلغى/)
     expect(text).toMatch(/متوقف/)
   })
+
+  it('includes Mac LibreOffice/OCR tools when hop is up', async () => {
+    const { formatTelegramHopStatusLinesAr } = await import(
+      '@/lib/telegram/large-file-hops'
+    )
+    const lines = formatTelegramHopStatusLinesAr({
+      localBotApi: 'up',
+      macSync: 'up',
+      mtproto: 'unset',
+      macTools: { libreoffice: true, tesseract: true },
+    })
+    const text = lines.join('\n')
+    expect(text).toMatch(/LibreOffice/)
+    expect(text).toMatch(/Tesseract/)
+  })
 })

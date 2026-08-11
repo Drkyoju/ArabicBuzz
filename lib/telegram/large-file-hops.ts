@@ -20,6 +20,11 @@ export type TelegramLargeFileHopProbe = {
   localBotApi: HopReach
   macSync: HopReach
   mtproto: HopReach
+  /** When mac hop is up: LibreOffice / Tesseract from /health */
+  macTools?: {
+    libreoffice?: boolean
+    tesseract?: boolean
+  }
   /** Config flags (env present), independent of live reach */
   configured: ReturnType<typeof telegramLargeFilePathStatus>
   linesAr: string[]
@@ -55,15 +60,6 @@ async function probeLocalBotApiReach(): Promise<HopReach> {
   } finally {
     clearTimeout(t)
   }
-}
-
-async function probeMacSyncReach(): Promise<HopReach> {
-  const { macSyncConfigured, macHealth } = await import(
-    '@/lib/storage/mac-sync-client'
-  )
-  if (!macSyncConfigured()) return 'unset'
-  const h = await macHealth()
-  return h.ok ? 'up' : 'down'
 }
 
 async function probeMtprotoReach(macReach: HopReach): Promise<HopReach> {
@@ -105,20 +101,26 @@ async function probeMtprotoReach(macReach: HopReach): Promise<HopReach> {
 export function formatTelegramHopStatusLinesAr(
   probe: Pick<
     TelegramLargeFileHopProbe,
-    'localBotApi' | 'macSync' | 'mtproto'
+    'localBotApi' | 'macSync' | 'mtproto' | 'macTools'
   >
 ): string[] {
   const anyDown =
     probe.localBotApi === 'down' ||
     probe.macSync === 'down' ||
     probe.mtproto === 'down'
+  const tools = probe.macTools
+  const toolsLine =
+    probe.macSync === 'up' && tools
+      ? `${hopGlyph(tools.libreoffice ? 'up' : 'down')} LibreOffice على الماك · ${hopGlyph(tools.tesseract ? 'up' : 'down')} Tesseract ara+eng — للتحويل/OCR من تيليجرام`
+      : null
   const lines = [
     'مسار الملفات الكبيرة (مجاني — بدون إعادة إرسال):',
     `${hopGlyph(probe.localBotApi)} Local Bot API (TELEGRAM_BOT_API_URL): ${hopLabelAr(probe.localBotApi, 'غير مضبوط — للتشغيل 24/7 ضع الخادم على VPS دائماً')}`,
     `${hopGlyph(probe.macSync)} جسر الماك (MAC_SYNC_URL): ${hopLabelAr(probe.macSync, 'غير مضبوط')} — يحتاج الماك مستيقظاً + npm run mac-hop:watchdog:force`,
+    toolsLine,
     `${hopGlyph(probe.mtproto)} MTProto على الماك: ${hopLabelAr(probe.mtproto, 'غير جاهز (جلسة مستخدم)')} — ثانوي عند توفر chat/message`,
     'دائم بلا ماك: خزنة الغرفة + Drive بنفس الاسم → المهام تُستأنف تلقائياً.',
-  ]
+  ].filter((x): x is string => Boolean(x))
   if (anyDown) {
     lines.push(
       '⚠️ hop متوقف: المهام تبقى في انتظار صامت (لا تُلغى). عند عودة الجسر أو ظهور الملف في الغرفة/Drive أُكمل وأرسل الناتج.'
@@ -142,12 +144,36 @@ export function formatTelegramHopStatusLinesAr(
  */
 export async function probeTelegramLargeFileHops(): Promise<TelegramLargeFileHopProbe> {
   const configured = telegramLargeFilePathStatus()
-  const [localBotApi, macSync] = await Promise.all([
+  const { macSyncConfigured, macHealth } = await import(
+    '@/lib/storage/mac-sync-client'
+  )
+  const [localBotApi, macHealthRes] = await Promise.all([
     probeLocalBotApiReach(),
-    probeMacSyncReach(),
+    macSyncConfigured()
+      ? macHealth()
+      : Promise.resolve({ ok: false as const, tools: undefined }),
   ])
+  const macSync: HopReach = !macSyncConfigured()
+    ? 'unset'
+    : macHealthRes.ok
+      ? 'up'
+      : 'down'
+  const macTools =
+    macSync === 'up' && macHealthRes.tools
+      ? {
+          libreoffice: Boolean(macHealthRes.tools.libreoffice),
+          tesseract: Boolean(macHealthRes.tools.tesseract),
+        }
+      : undefined
   const mtproto = await probeMtprotoReach(macSync)
-  const probe = { localBotApi, macSync, mtproto, configured, linesAr: [] as string[] }
+  const probe = {
+    localBotApi,
+    macSync,
+    mtproto,
+    macTools,
+    configured,
+    linesAr: [] as string[],
+  }
   probe.linesAr = formatTelegramHopStatusLinesAr(probe)
   return probe
 }

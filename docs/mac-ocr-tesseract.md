@@ -41,7 +41,22 @@ Bottles الحديثة لـ Homebrew قد تستغرق طويلاً أو تفش�
 
 ### حالة تم التحقق منها (macOS 12.7 Monterey · آب 2026)
 
-على جهاز التطوير الحالي **لم يُحظر brew**: `tesseract 5.5.3` + `tesseract-lang 4.1.0` مثبتان عبر Homebrew، و`tesseract --list-langs` يظهر **ara** و **eng**. venv: `scripts/pdf-tools-venv` مع `pytesseract` + `pymupdf`. الوكيل: `npm run storage:sync` على المنفذ 7420.
+على جهاز التطوير الحالي **لم يُحظر brew**: `tesseract 5.5.3` + `tesseract-lang 4.1.0` مثبتان عبر Homebrew، و`tesseract --list-langs` يظهر **ara** و **eng**. **LibreOffice 26.2.5** مثبت عبر `brew install --cask libreoffice` (`soffice` → `/Applications/LibreOffice.app/...`). venv: `scripts/pdf-tools-venv` مع `pytesseract` + `pymupdf`. الوكيل: `npm run storage:sync` على المنفذ 7420 — `/health` يُظهر `tesseract:true` و`libreoffice:true`.
+
+#### متغيرات البيئة (لا تُرفع للأسرار في git)
+
+| المتغير | أين | ملاحظة |
+|---------|-----|--------|
+| `MAC_SYNC_URL` | CranL env | رابط نفق الماك العام (cloudflared / localtunnel / ngrok) بدون شرطة نهاية |
+| `MAC_SYNC_SECRET` | CranL + محلي عند تشغيل الوكيل | نفس السر في الطرفين؛ لا تُcommitt |
+| `MAC_SYNC_PORT` | محلي اختياري | افتراضي `7420` |
+| `TELEGRAM_BOT_API_URL` | CranL | نفق Local Bot API إن وُجد (ملفات كبيرة) |
+
+```bash
+npm run mac-hop:health          # hop_health=ok
+npm run mac-hop:watchdog:force  # يعيد النفق ويحدّث CranL عند الحاجة
+curl -sS "$MAC_SYNC_URL/health" | grep -E 'tesseract|libreoffice'
+```
 
 النفق العام قد يفشل حسب الشبكة:
 

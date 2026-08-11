@@ -50,10 +50,20 @@ async function macFetch(
   }
 }
 
+export type MacHopTools = {
+  tesseract?: boolean
+  libreoffice?: boolean
+  tesseractPath?: string | null
+  sofficePath?: string | null
+  pdfToolsVenv?: boolean
+  endpoints?: string[]
+}
+
 export async function macHealth(): Promise<{
   ok: boolean
   storage?: unknown
   brain?: unknown
+  tools?: MacHopTools
   error?: string
 }> {
   try {
@@ -62,6 +72,7 @@ export async function macHealth(): Promise<{
       ok?: boolean
       storage?: unknown
       brain?: unknown
+      tools?: MacHopTools
       error?: string
     }
     if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` }
@@ -69,6 +80,7 @@ export async function macHealth(): Promise<{
       ok: Boolean(data.ok),
       storage: data.storage,
       brain: data.brain,
+      tools: data.tools,
     }
   } catch (e) {
     return {

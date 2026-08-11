@@ -15,7 +15,7 @@ function requireGoogleUser(params: Record<string, unknown>) {
   const userId = String(params.userId || '').trim()
   if (!userId || userId === 'engine' || userId === 'local-owner') {
     throw new Error(
-      'يلزم ربط Google من إعدادات الموقع مرة واحدة ثم إعادة المحاولة من تيليجرام.'
+      'يلزم ربط Google من الإعدادات مرة واحدة ثم إعادة المحاولة من تيليجرام: https://arabicbuzz-fooc9h.cranl.net/?section=settings — اضغط «اربط Google».'
     )
   }
   return userId

@@ -102,6 +102,12 @@ export function TelegramConnectCard() {
           <code dir="ltr">/start</code>.
         </li>
         <li>
+          Gmail/Drive/التقويم الشخصي: «اربط Google» من الإعدادات مرة واحدة، ثم من
+          الخاص{' '}
+          <code dir="ltr">/link account &lt;معرّف-الحساب&gt;</code> (أو زر «ربط
+          حسابي للـ Gmail/Drive»).
+        </li>
+        <li>
           مجموعة رئيسية: أضف البوت كمشرف →{' '}
           <code dir="ltr">/link@alhuda14bot scope_{scopeId}</code>
         </li>
@@ -147,7 +153,7 @@ export function TelegramConnectCard() {
           ) : null}
           <a
             href={googleSettingsUrl}
-            className="inline-flex rounded-md border border-ab-border bg-white px-3 py-1.5 text-xs font-medium text-ab-ink"
+            className="inline-flex rounded-md border border-ab-accent/40 bg-ab-accent/5 px-3 py-1.5 text-xs font-semibold text-ab-accent"
           >
             اربط Google
           </a>
