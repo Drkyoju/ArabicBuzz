@@ -6,6 +6,7 @@ import {
   createRoomCalendarEvent,
   getRoomAgenda,
   ingestProposedDates,
+  parseAttendeeEmails,
   reconcileRoomCalendar,
   updateRoomCalendarEvent,
 } from '@/lib/rooms/room-calendar'
@@ -64,7 +65,8 @@ export async function POST(req: NextRequest) {
     endsAt?: string
     allDay?: boolean
     locationAr?: string
-    attendees?: string[]
+    attendees?: string[] | string
+    attendeeEmails?: string[] | string
     source?: 'manual' | 'ai' | 'email' | 'import'
     eventId?: string
     autoAdjust?: boolean
@@ -219,9 +221,10 @@ export async function POST(req: NextRequest) {
               ? null
               : String(patch.locationAr)
             : undefined,
-        attendees: Array.isArray(patch.attendees)
-          ? patch.attendees.map(String)
-          : undefined,
+        attendees:
+          patch.attendees !== undefined
+            ? parseAttendeeEmails(patch.attendees)
+            : undefined,
         status:
           patch.status === 'cancelled' ||
           patch.status === 'tentative' ||
@@ -276,7 +279,9 @@ export async function POST(req: NextRequest) {
       endsAt: String(body.endsAt || ''),
       allDay: body.allDay,
       locationAr: body.locationAr,
-      attendees: body.attendees,
+      attendees: parseAttendeeEmails(
+        body.attendees ?? body.attendeeEmails
+      ),
       source: body.source || 'manual',
       createdBy,
       createdByAr,
@@ -323,8 +328,16 @@ export async function POST(req: NextRequest) {
       created: true,
       messageAr:
         result.conflicts.length > 0
-          ? `تم إنشاء الموعد في تقويم الغرفة (ظاهر للفريق). تنبيه فقط: ${result.conflicts.length} تعارض زمني محتمل. ${result.suggestion?.messageAr || ''}${googleNote}`
-          : `أُضيف الموعد إلى تقويم الغرفة المشترك (ظاهر للفريق)${googleNote}`,
+          ? `تم إنشاء الموعد في تقويم الغرفة (ظاهر للفريق). تنبيه فقط: ${result.conflicts.length} تعارض زمني محتمل. ${result.suggestion?.messageAr || ''}${
+              result.event.attendees.length
+                ? ` · مدعوون: ${result.event.attendees.join(', ')}`
+                : ''
+            }${googleNote}`
+          : `أُضيف الموعد إلى تقويم الغرفة المشترك (مواعيد الجمعية — ظاهر للفريق)${
+              result.event.attendees.length
+                ? ` · مدعوون: ${result.event.attendees.join(', ')}`
+                : ''
+            }${googleNote}`,
     })
   } catch (e) {
     return NextResponse.json(

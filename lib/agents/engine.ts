@@ -1743,14 +1743,23 @@ export function getNativeAiTools(opts?: {
     }),
     room_calendar_create: tool({
       description:
-        'إضافة موعد إلى تقويم الغرفة المشترك (لكل الأعضاء). فضّله على calendar_create_event للعمل الجماعي الداخلي.',
+        'إضافة موعد إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — لكل الأعضاء، بلا Google OAuth). فضّله على calendar_create_event. المدعوون = أي بريد (مفصولة بفاصلة)، ليس شرطاً أن يكونوا مربوطين بـ Google.',
       inputSchema: z.object({
         titleAr: z.string(),
         startsAt: z.string().describe('ISO datetime'),
         endsAt: z.string().describe('ISO datetime'),
         descriptionAr: z.string().optional(),
         locationAr: z.string().optional(),
-        attendees: z.array(z.string()).optional(),
+        attendees: z
+          .union([z.array(z.string()), z.string()])
+          .optional()
+          .describe(
+            'بريد المدعوين — أي عنوان بريد، مفصول بفاصلة أو كمصفوفة'
+          ),
+        attendeeEmails: z
+          .union([z.array(z.string()), z.string()])
+          .optional()
+          .describe('مرادف لـ attendees'),
       }),
       execute: async (params) =>
         interceptToolExecution({
@@ -1795,13 +1804,17 @@ export function getNativeAiTools(opts?: {
         }),
     }),
     room_calendar_update: tool({
-      description: 'تعديل موعد موجود في تقويم الغرفة المشترك.',
+      description: 'تعديل موعد موجود في مواعيد الجمعية/الفريق (تقويم الغرفة المشترك).',
       inputSchema: z.object({
         eventId: z.string(),
         titleAr: z.string().optional(),
         startsAt: z.string().optional(),
         endsAt: z.string().optional(),
         descriptionAr: z.string().optional(),
+        attendees: z
+          .union([z.array(z.string()), z.string()])
+          .optional()
+          .describe('بريد المدعوين — أي عنوان'),
         status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
       }),
       execute: async (params) =>

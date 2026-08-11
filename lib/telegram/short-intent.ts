@@ -250,7 +250,7 @@ function nudgeFor(
       return {
         labelAr: 'حجز موعد',
         forceHeavy: false,
-        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً («${p}»، Asia/Riyadh) في ${TELEGRAM_TEAM_CALENDAR_LABEL_AR}. أكّد العنوان·الوقت·أنّه مواعيد الجمعية/الفريق — ليس ${TELEGRAM_PERSONAL_CALENDAR_LABEL_AR}. إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. ممنوع «هل تود؟».`,
+        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً («${p}»، Asia/Riyadh) في ${TELEGRAM_TEAM_CALENDAR_LABEL_AR}. إن وُجدت عناوين بريد أضفها في attendees (أي بريد، مفصولة بفاصلة). أكّد العنوان·الوقت·المدعوين·أنّه مواعيد الجمعية/الفريق — ليس ${TELEGRAM_PERSONAL_CALENDAR_LABEL_AR}. إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. ممنوع «هل تود؟».`,
       }
     case 'calendar_list':
       return {

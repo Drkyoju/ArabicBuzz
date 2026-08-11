@@ -6,10 +6,34 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
+import { realEmailsOnly } from '@/lib/auth/synthetic'
 import {
   filterOutTestCalendarEvents,
   isTestCalendarTitle,
 } from '@/lib/rooms/calendar-test-noise'
+
+/**
+ * Parse attendee emails from UI/Telegram/agent input.
+ * Accepts arrays, comma/semicolon/whitespace-separated strings — any mailbox
+ * (not limited to Google-linked users). Drops placeholders.
+ */
+export function parseAttendeeEmails(
+  raw: unknown
+): string[] {
+  const parts: string[] = []
+  const push = (s: string) => {
+    for (const piece of s.split(/[,;\n]+|\s+/)) {
+      const t = piece.trim()
+      if (t) parts.push(t)
+    }
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) push(String(item || ''))
+  } else if (typeof raw === 'string' && raw.trim()) {
+    push(raw)
+  }
+  return realEmailsOnly(parts)
+}
 
 export type RoomEventSource = 'manual' | 'ai' | 'email' | 'import' | 'google_sync'
 export type RoomEventStatus = 'confirmed' | 'tentative' | 'cancelled'
@@ -446,7 +470,7 @@ export async function createRoomCalendarEvent(opts: {
     endsAt,
     allDay: Boolean(opts.allDay),
     locationAr: opts.locationAr?.trim() || null,
-    attendees: (opts.attendees || []).map((e) => e.trim()).filter(Boolean),
+    attendees: parseAttendeeEmails(opts.attendees),
     source: opts.source || 'manual',
     createdBy: opts.createdBy || null,
     createdByAr: opts.createdByAr || null,
@@ -547,7 +571,10 @@ export async function updateRoomCalendarEvent(
     allDay: patch.allDay ?? current.allDay,
     locationAr:
       patch.locationAr !== undefined ? patch.locationAr : current.locationAr,
-    attendees: patch.attendees ?? current.attendees,
+    attendees:
+      patch.attendees !== undefined
+        ? parseAttendeeEmails(patch.attendees)
+        : current.attendees,
     status: patch.status ?? current.status,
     googleEventId:
       patch.googleEventId !== undefined

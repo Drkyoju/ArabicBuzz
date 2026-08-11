@@ -2,6 +2,7 @@ import {
   createRoomCalendarEvent,
   ingestProposedDates,
   listRoomCalendarEvents,
+  parseAttendeeEmails,
   reconcileRoomCalendar,
   updateRoomCalendarEvent,
   cancelRoomCalendarEvent,
@@ -56,6 +57,7 @@ export async function executeRoomCalendarList(
     endsAt: e.endsAt,
     allDay: e.allDay,
     status: e.status,
+    attendees: e.attendees,
     timeZone: TZ,
   }))
   return {
@@ -65,13 +67,19 @@ export async function executeRoomCalendarList(
     timeZone: TZ,
     events: formatted,
     /** Pre-formatted lines for the model — use whenAr as-is; do not re-convert to UTC. */
-    linesAr: formatted.map((e) =>
-      e.whenAr ? `• ${e.whenAr} — ${e.titleAr}` : `• ${e.titleAr}`
-    ),
+    linesAr: formatted.map((e) => {
+      const who =
+        e.attendees.length > 0
+          ? ` · مدعوون: ${e.attendees.join(', ')}`
+          : ''
+      return e.whenAr
+        ? `• ${e.whenAr} — ${e.titleAr}${who}`
+        : `• ${e.titleAr}${who}`
+    }),
     messageAr:
       events.length === 0
-        ? 'مواعيد الجمعية/الفريق: تقويم الغرفة فارغ — لا مواعيد مشتركة مسجّلة (ليس تقويمك الشخصي على Google). لا تختلق مواعيد؛ أضف عبر room_calendar_create.'
-        : `مواعيد الجمعية/الفريق: ${events.length} موعداً مشتركاً في تقويم الغرفة (توقيت السعودية ${TZ}) — ليس تقويمك الشخصي.`,
+        ? 'مواعيد الجمعية/الفريق: تقويم الغرفة المشترك فارغ — لا مواعيد مشتركة مسجّلة (ليس تقويمك الشخصي على Google). لا تختلق مواعيد؛ أضف عبر room_calendar_create.'
+        : `مواعيد الجمعية/الفريق: ${events.length} موعداً مشتركاً في تقويم الغرفة (توقيت السعودية ${TZ}) — ظاهر للفريق؛ ليس تقويمك الشخصي.`,
   }
 }
 
@@ -80,6 +88,9 @@ export async function executeRoomCalendarCreate(
   params: Record<string, unknown>
 ) {
   const scopeId = scopeOf(params)
+  const attendees = parseAttendeeEmails(
+    params.attendees ?? params.attendeeEmails ?? params.emails
+  )
   const result = await createRoomCalendarEvent({
     scopeId,
     titleAr: String(params.titleAr || params.title || ''),
@@ -90,13 +101,15 @@ export async function executeRoomCalendarCreate(
     endsAt: String(params.endsAt || params.end || ''),
     allDay: Boolean(params.allDay),
     locationAr: params.locationAr ? String(params.locationAr) : undefined,
-    attendees: Array.isArray(params.attendees)
-      ? params.attendees.map(String)
-      : undefined,
+    attendees,
     source: 'ai',
     createdBy: String(params.userId || 'agent'),
     createdByAr: 'الوكيل',
   })
+  const who =
+    result.event.attendees.length > 0
+      ? ` · مدعوون: ${result.event.attendees.join(', ')}`
+      : ''
   return {
     ok: true,
     created: true,
@@ -104,8 +117,8 @@ export async function executeRoomCalendarCreate(
     ...result,
     messageAr:
       result.conflicts.length > 0
-        ? `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — ليس تقويمك الشخصي). تنبيه: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
-        : `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك) وهو ظاهر للفريق الآن — ليس تقويمك الشخصي على Google.`,
+        ? `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — ليس تقويمك الشخصي).${who} تنبيه: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
+        : `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك) وهو ظاهر للفريق الآن — ليس تقويمك الشخصي على Google.${who}`,
   }
 }
 
@@ -152,6 +165,14 @@ export async function executeRoomCalendarUpdate(
     descriptionAr:
       params.descriptionAr !== undefined
         ? String(params.descriptionAr)
+        : undefined,
+    attendees:
+      params.attendees !== undefined ||
+      params.attendeeEmails !== undefined ||
+      params.emails !== undefined
+        ? parseAttendeeEmails(
+            params.attendees ?? params.attendeeEmails ?? params.emails
+          )
         : undefined,
     status:
       params.status === 'cancelled' ||

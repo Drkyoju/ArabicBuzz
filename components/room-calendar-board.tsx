@@ -844,6 +844,11 @@ export function RoomCalendarBoard({
           <p className="mt-0.5 text-[10px] text-stone-500">
             {fmtTimeOnly(e.startsAt)} → {fmtTimeOnly(e.endsAt)}
           </p>
+          {e.attendees?.length > 0 && (
+            <p className="mt-0.5 truncate text-[10px] text-ab-muted" dir="ltr">
+              مدعوون: {e.attendees.join(', ')}
+            </p>
+          )}
           <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
             <span
               className={cn(
@@ -900,8 +905,8 @@ export function RoomCalendarBoard({
           تقويم الفريق
         </h2>
         <p className="ab-subtitle !mt-0">
-          قائمة الأسبوع المشتركة — مصدر المواعيد الرسمي للغرفة والوكيل. تقويم
-          Google الشخصي منفصل (اختياري للنشر فقط).
+          مواعيد الجمعية = التقويم المشترك للغرفة — يراه الجميع ويُضاف إليه من
+          الموقع أو تيليجرام بلا ربط Google. تقويم Google الشخصي اختياري ومنفصل.
         </p>
       </div>
 
@@ -1115,14 +1120,18 @@ export function RoomCalendarBoard({
                   />
                 </label>
                 <label className="block text-xs text-stone-500 sm:col-span-2">
-                  مشاركون (بريد، اختياري)
+                  مدعوون بأي بريد (اختياري)
                   <input
                     className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
                     value={attendees}
                     onChange={(e) => setAttendees(e.target.value)}
-                    placeholder="sara@company.sa, ahmed@…"
+                    placeholder="sara@company.sa, ahmed@gmail.com — أي بريد، ليس شرطاً Google"
                     dir="ltr"
                   />
+                  <span className="mt-1 block text-[10px] text-ab-muted-soft">
+                    يُحفظ مع الموعد في التقويم المشترك ويظهر للفريق — بلا دعوة
+                    Google إجبارية.
+                  </span>
                 </label>
               </div>
               {!editingId && googleConnected && (
@@ -1371,6 +1380,14 @@ export function RoomCalendarBoard({
                             {fmtTimeOnly(e.startsAt)}
                             {conflictIds.has(e.id) ? ' · تعارض' : ''}
                           </p>
+                          {e.attendees?.length > 0 && (
+                            <p
+                              className="truncate text-[10px] text-ab-muted"
+                              dir="ltr"
+                            >
+                              {e.attendees.join(', ')}
+                            </p>
+                          )}
                         </div>
                         {signedIn === true && (
                           <div className="flex shrink-0 items-center">
