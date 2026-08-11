@@ -30,6 +30,8 @@
 
 # local PDF Python tooling (install with: python3 -m venv scripts/pdf-tools-venv && pip install pymupdf)
 /scripts/pdf-tools-venv/
+# PaddleOCR Arabic (Mac hop) — heavy; install with python3.11 venv (see docs/mac-ocr-tesseract.md)
+/scripts/paddle-ocr-venv/
 
 # debug
 npm-debug.log*
@@ -65,3 +67,6 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# local research tool venvs
+.tools/

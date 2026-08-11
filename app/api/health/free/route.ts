@@ -148,15 +148,19 @@ export async function GET() {
     libreOfficeImageFlag: process.env.AB_LIBREOFFICE_IMAGE || '0',
     paddleOcrConfigured: Boolean(
       process.env.PADDLE_OCR_URL?.trim() ||
-        process.env.ENABLE_PADDLE_OCR?.trim() === '1'
+        process.env.ENABLE_PADDLE_OCR?.trim() === '1' ||
+        process.env.INSTALL_PADDLE_OCR?.trim() === '1' ||
+        Boolean(process.env.MAC_SYNC_URL?.trim())
     ),
     mistralOcrConfigured:
       process.env.CONVERT_ALLOW_MISTRAL?.trim() === '1' &&
       Boolean(process.env.MISTRAL_API_KEY?.trim()),
     convertAllowMistral:
       process.env.CONVERT_ALLOW_MISTRAL?.trim() === '1',
+    ocrGeneralCascadeAr:
+      'PaddleOCR عربي (أساسي عند التوفر عبر mac-hop /ocr/paddle) → Tesseract ara+eng → Qari → Gemini',
     ocrConvertCascadeAr:
-      'Gemini Flash → Gemini أقوى → PaddleOCR → توقّف (Mistral فقط مع CONVERT_ALLOW_MISTRAL=1 + مفتاح؛ افتراضي OFF) → رفض بلا طلاسم',
+      'PaddleOCR → Tesseract ماك → Gemini Flash → Gemini أقوى → توقّف (Mistral فقط مع CONVERT_ALLOW_MISTRAL=1 + مفتاح؛ افتراضي OFF) → رفض بلا طلاسم',
     googleDriveConvertHintAr:
       'مجاني مع حساب Google مربوط (drive.file) — الأفضل للعربية والتخطيط',
     cloudConvertOptionalPaid: true,

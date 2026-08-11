@@ -1,15 +1,36 @@
-# OCR على الماك — Tesseract عربي+إنجليزي
+# OCR على الماك — PaddleOCR عربي أولاً، ثم Tesseract
 
 Arabic Buzz يفضّل مسار **مجاني** لقراءة PDF الممسوح / الصور:
 
-1. جسر الماك (`MAC_SYNC_URL`) → `POST /pdf-page-ocr` → PyMuPDF + **Tesseract `ara+eng`**
-2. إن تعذّر: Gemini / Qari (سحابي)
+1. **PaddleOCR عربي** (أساسي عند التوفر) — جسر الماك `POST /ocr/paddle` → `scripts/paddle-ocr.py` (PP-OCRv5 `arabic` إن وُجد، وإلا أفضل نموذج `ar`)
+2. **Tesseract `ara+eng`** — `POST /pdf-page-ocr` إن Paddle ضعيف/غائب/فشل بوابة الجودة
+3. إن تعذّر: Qari → Gemini (سحابي)
 
-الكود: `lib/documents/scanned-detect.ts` · `lib/documents/read-pages.ts` · `scripts/pdf-page-ocr.py`
+بديل بدون ماك: `PADDLE_OCR_URL` → `scripts/paddle-ocr-bridge.py` (لا تُضمَّن في صورة CranL الرقيقة).
+
+الكود: `lib/rag/ocr.ts` · `lib/documents/read-pages.ts` · `scripts/paddle-ocr.py` · `scripts/pdf-page-ocr.py`
 
 ---
 
-## تثبيت على macOS (Homebrew)
+## تثبيت PaddleOCR على macOS (موصى به)
+
+```bash
+# Python 3.11 (paddlepaddle لا يدعم 3.14 بعد)
+python3.11 -m venv scripts/paddle-ocr-venv
+scripts/paddle-ocr-venv/bin/pip install -U pip
+scripts/paddle-ocr-venv/bin/pip install paddlepaddle paddleocr pillow
+# تحقق
+scripts/paddle-ocr-venv/bin/python -c "import paddleocr; print('paddleok')"
+```
+
+ثم أعد تشغيل وكيل المزامنة (`npm run storage:sync` / hop watchdog).  
+`GET /health` يجب أن يُظهر `"paddle": true`.
+
+اختياري: `PADDLE_OCR_PYTHON=…/scripts/paddle-ocr-venv/bin/python` و`PADDLE_OCR_LANG=ar`.
+
+---
+
+## تثبيت Tesseract (احتياطي) على macOS (Homebrew)
 
 ```bash
 brew install tesseract tesseract-lang
@@ -21,7 +42,7 @@ python3 -m pip install -r scripts/pdf-tools-requirements.txt
 
 ```bash
 npm run storage:sync
-# واضبط MAC_SYNC_URL + MAC_SYNC_SECRET على Netlify
+# واضبط MAC_SYNC_URL + MAC_SYNC_SECRET على CranL
 ```
 
 ---
@@ -31,49 +52,29 @@ npm run storage:sync
 Bottles الحديثة لـ Homebrew قد تستغرق طويلاً أو تفشل على Monterey (12.x). خيارات:
 
 1. **انتظر اكتمال `brew install tesseract tesseract-lang`** — البناء من المصدر قد يستغرق 30–90 دقيقة.
-2. **ثبّت لغة عربية يدوياً** إن وُجد `tesseract` بدون `ara`:
-   ```bash
-   # بعد تثبيت tesseract الأساسي
-   brew install tesseract-lang
-   # أو انسخ ara.traineddata إلى مجلد tessdata
-   ```
-3. **بدون ماك:** اربط Google Drive للتحويل النظيف، أو اعتمد OCR السحابي (Gemini) — يعمل لكن ليس مجانياً بالكامل على الحجم الكبير.
+2. **ثبّت لغة عربية يدوياً** إن وُجد `tesseract` بدون `ara`.
+3. **بدون ماك:** اربط Google Drive للتحويل النظيف، أو اعتمد OCR السحابي (Gemini).
 
 ### حالة تم التحقق منها (macOS 12.7 Monterey · آب 2026)
 
-على جهاز التطوير الحالي **لم يُحظر brew**: `tesseract 5.5.3` + `tesseract-lang 4.1.0` مثبتان عبر Homebrew، و`tesseract --list-langs` يظهر **ara** و **eng**. **LibreOffice 26.2.5** مثبت عبر `brew install --cask libreoffice` (`soffice` → `/Applications/LibreOffice.app/...`). venv: `scripts/pdf-tools-venv` مع `pytesseract` + `pymupdf`. الوكيل: `npm run storage:sync` على المنفذ 7420 — `/health` يُظهر `tesseract:true` و`libreoffice:true`.
+`tesseract` + `ara`/`eng` عبر Homebrew · LibreOffice عبر cask · `scripts/pdf-tools-venv` · بعد `scripts/paddle-ocr-venv`: `/health` يُظهر `"paddle":true` و`"tesseract":true`.
 
 #### متغيرات البيئة (لا تُرفع للأسرار في git)
 
 | المتغير | أين | ملاحظة |
 |---------|-----|--------|
-| `MAC_SYNC_URL` | CranL env | رابط نفق الماك العام (cloudflared / localtunnel / ngrok) بدون شرطة نهاية |
-| `MAC_SYNC_SECRET` | CranL + محلي عند تشغيل الوكيل | نفس السر في الطرفين؛ لا تُcommitt |
+| `MAC_SYNC_URL` | CranL env | يكفي لـ `/ocr/paddle` و`/pdf-page-ocr` |
+| `MAC_SYNC_SECRET` | CranL + محلي | نفس السر؛ لا تُcommitt |
+| `PADDLE_OCR_URL` | CranL اختياري | sidecar منفصل إن لم يُستخدم mac-hop |
+| `PADDLE_OCR_SECRET` | اختياري | Bearer للـ sidecar |
+| `ENABLE_PADDLE_OCR` | اختياري | `1` لتشغيل `paddle-ocr.py` محلياً |
+| `PADDLE_OCR_LANG` | اختياري | افتراضي `ar` (يجرب `arabic` ثم `ar`) |
+| `PADDLE_OCR_SKIP_MAC` | اختياري | `1` لتعطيل hop الماك لـ Paddle |
 | `MAC_SYNC_PORT` | محلي اختياري | افتراضي `7420` |
-| `TELEGRAM_BOT_API_URL` | CranL | نفق Local Bot API إن وُجد (ملفات كبيرة) |
 
 ```bash
-npm run mac-hop:health          # hop_health=ok
-npm run mac-hop:watchdog:force  # يعيد النفق ويحدّث CranL عند الحاجة
-curl -sS "$MAC_SYNC_URL/health" | grep -E 'tesseract|libreoffice'
-```
-
-النفق العام قد يفشل حسب الشبكة:
-
-| النفق | ملاحظة |
-|--------|---------|
-| `cloudflared` quick tunnel | قد يفشل إن حُظر QUIC/TCP إلى Cloudflare (منفذ 7844) |
-| `npx localtunnel --port 7420` | يعمل غالباً؛ انسخ الرابط إلى `MAC_SYNC_URL` + نفس `MAC_SYNC_SECRET` على Netlify ثم Redeploy |
-| `npx ngrok http 7420` | يحتاج حساب/توكن ngrok إن طُلب |
-
-تحقق سريع:
-
-```bash
-which tesseract
-tesseract --list-langs | grep -E 'ara|eng'
-# صورة اختبار عبر Python (stdin النصي لـ tesseract غير موثوق على كل الإصدارات):
-scripts/pdf-tools-venv/bin/python -c "from PIL import Image,ImageDraw; import pytesseract; i=Image.new('RGB',(120,40),'white'); ImageDraw.Draw(i).text((5,10),'hi'); print(pytesseract.image_to_string(i, lang='eng'))"
-curl -sS http://127.0.0.1:7420/health | grep -o '"tesseract":true'
+npm run mac-hop:health
+curl -sS http://127.0.0.1:7420/health | grep -E 'paddle|tesseract|libreoffice'
 ```
 
 ---
@@ -83,7 +84,6 @@ curl -sS http://127.0.0.1:7420/health | grep -o '"tesseract":true'
 | الحالة | النتيجة |
 |--------|---------|
 | PDF بنص قابل للنسخ | قراءة مباشرة (بدون OCR) |
-| PDF ممسوح / صورة صفحات | كشف تلقائي → OCR صفحة بصفحة (حتى 8 صفحات/طلب) |
-| صورة مرفقة | OCR عبر الماك ثم السحابة |
-
-لا يُحذف أرشيف «ملفات الفريق» مع تنظيف الشات — OCR يعمل على الملفات المخزّنة في الخزنة.
+| PDF ممسوح / صورة صفحات | Paddle ثم Tesseract |
+| صورة مرفقة | نفس السلسلة عبر الماك ثم السحابة |
+| Paddle غير مثبت | تخطٍّ صادق → Tesseract ثم Qari/Gemini — بلا اختلاق نص |

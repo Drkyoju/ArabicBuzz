@@ -16,11 +16,11 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 
 | الغرض | الأداة | أين تعمل | ملاحظة |
 |-------|--------|----------|--------|
-| OCR صفحات PDF + صور | **Tesseract `ara+eng`** + PyMuPDF | جسر الماك `POST /pdf-page-ocr` | مجاني — يحتاج brew على الماك |
+| OCR صفحات PDF + صور | **PaddleOCR عربي** أولاً ثم **Tesseract `ara+eng`** | جسر الماك `POST /ocr/paddle` → `/pdf-page-ocr` | مجاني — Paddle عبر `scripts/paddle-ocr-venv`؛ Tesseract عبر brew |
 | كشف PDF ممسوح | `lib/documents/scanned-detect.ts` | Netlify | صفحات فارغة/قصيرة أو ToUnicode معطوب |
 | قراءة وكيل صفحة بصفحة | `read_document` → `readDocumentPages` | Netlify + ماك | حتى 8 صفحات OCR لكل استدعاء ثم `nextPageStart` |
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
-| PDF→DOCX عربي | `convert_document`: Gemini → Paddle → توقّف (Mistral opt-in) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
+| PDF→DOCX عربي | `convert_document`: Paddle → Tesseract → Gemini → توقّف (Mistral opt-in) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
 | Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
@@ -36,11 +36,12 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 1. يستخرج طبقة النص (pdfjs / mammoth / …).
 2. إن كانت الصورة أو معظم صفحات PDF فارغة/قصيرة/معطوبة → يُعلَّم «ممسوح».
 3. يشغّل OCR للتحويل النظيف (PDF→Office):
-   - Gemini Flash أولاً → Gemini أقوى إن ضعف النص
-   - ثم **PaddleOCR** إن وُجد (`PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`)
+   - **PaddleOCR عربي** أولاً إن وُجد (mac-hop `/ocr/paddle` أو `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR`)
+   - ثم **Tesseract** على الماك إن ضعف/غاب Paddle
+   - ثم Gemini Flash → Gemini أقوى إن ضعف النص
    - ثم **توقّف** — لا Mistral تلقائي. Mistral فقط مع `CONVERT_ALLOW_MISTRAL=1` و`MISTRAL_API_KEY` (افتراضي OFF)
    - وإلا رفض عربي صريح بلا ملف طلاسم (يعرض خيار تجربة Mistral لاحقاً أو إيقاف الملف)
-   - للقراءة العامة: جسر الماك Tesseract → Qari → Gemini
+   - للقراءة العامة: Paddle → Tesseract → Qari → Gemini
 4. يعيد النص مع `ocrUsed=true` و`warningAr` إن لزم.
 5. للمستندات الطويلة: كرّر `read_document(pageStart=nextPageStart)` حتى `hasMore=false`.
 
@@ -49,7 +50,11 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 ## تثبيت على ماك المستخدم (مرة واحدة)
 
 ```bash
-# 1) محرك OCR عربي+إنجليزي
+# 1) PaddleOCR عربي (أساسي) — Python 3.11
+python3.11 -m venv scripts/paddle-ocr-venv
+scripts/paddle-ocr-venv/bin/pip install paddlepaddle paddleocr pillow
+
+# 2) Tesseract احتياطي عربي+إنجليزي
 brew install tesseract tesseract-lang
 
 # اختياري: تحويل Office محلي + طبقة OCR في PDF
@@ -57,13 +62,13 @@ brew install pandoc ghostscript
 # LibreOffice (كبير): من الموقع أو
 # brew install --cask libreoffice
 
-# 2) بيئة بايثون لأدوات المشروع
+# 3) بيئة بايثون لأدوات المشروع (PyMuPDF / tesseract)
 cd /path/to/ArabicBuzz
 python3 -m venv scripts/pdf-tools-venv
 scripts/pdf-tools-venv/bin/pip install -r scripts/pdf-tools-requirements.txt
 
-# 3) تشغيل جسر الماك + نفق (ngrok/cloudflared) وضبط Netlify:
-#    MAC_SYNC_URL=https://….ngrok-free.app
+# 4) تشغيل جسر الماك + نفق (ngrok/cloudflared) وضبط CranL:
+#    MAC_SYNC_URL=https://….trycloudflare.com
 #    MAC_SYNC_SECRET=…
 npm run storage:sync
 ```
@@ -72,19 +77,20 @@ npm run storage:sync
 
 ```bash
 tesseract --list-langs   # يجب أن تظهر ara و eng
+scripts/paddle-ocr-venv/bin/python -c "import paddleocr; print('ok')"
 curl -s http://127.0.0.1:7420/health | jq .tools
 ```
 
-`tools.tesseract: true` يعني جاهز لـ OCR المجاني عبر الجسر.
+`tools.paddle: true` = Paddle أساسي جاهز · `tools.tesseract: true` = احتياطي Tesseract جاهز.
 
 ## متغيرات البيئة
 
 | متغير | إلزامي؟ | الدور |
 |-------|---------|--------|
-| `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك |
-| `GEMINI_API_KEY` | عادة موجود | Gemini Flash ثم نموذج أقوى في سلسلة التحويل |
-| `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | PaddleOCR بعد فشل بوابة Gemini. لا يُضمَّن في صورة CranL الرقيقة — انظر `deploy/paddle-ocr/` |
-| `CONVERT_ALLOW_MISTRAL` | اختياري — افتراضي OFF | يجب `=1` مع `MISTRAL_API_KEY` لتشغيل Mistral بعد Paddle؛ بدونها نتوقّف ونرفض بلا طلاسم |
+| `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك (`/ocr/paddle` + `/pdf-page-ocr`) |
+| `GEMINI_API_KEY` | عادة موجود | احتياطي سحابي بعد Paddle/Tesseract |
+| `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | sidecar أو محلي إن لم يُستخدم mac-hop. لا يُضمَّن في صورة CranL — انظر `deploy/paddle-ocr/` و`docs/mac-ocr-tesseract.md` |
+| `CONVERT_ALLOW_MISTRAL` | اختياري — افتراضي OFF | يجب `=1` مع `MISTRAL_API_KEY` لتشغيل Mistral بعد السلسلة المجانية؛ بدونها نتوقّف ونرفض بلا طلاسم |
 | `MISTRAL_API_KEY` | اختياري مدفوع | لا يُستدعى تلقائياً — يحتاج أيضاً `CONVERT_ALLOW_MISTRAL=1` |
 | `QARI_OCR_URL` | اختياري | Qari محلي |
 | Google OAuth (ربط المستخدم) | لمسار Drive | لا مفتاح تحويل إضافي — يستخدم `drive.file` بعد الربط |

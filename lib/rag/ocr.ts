@@ -5,23 +5,24 @@
  * - OCR = قراءة النص من صورة أو PDF ممسوح (لا طبقة نص للنسخ)
  * - RAG = تخزين ذلك النص والبحث فيه لاحقاً عند سؤال الوكيل
  *
- * General cascade (free-first when Mac bridge is up):
- * 1) Mac sync POST /pdf-page-ocr — PyMuPDF + Tesseract ara+eng (brew)
- * 2) QARI_OCR_URL — local Manazir/Qari HTTP
- * 3) Hugging Face Inference (HF_TOKEN) — Qari model
- * 4) Gemini vision (GEMINI_API_KEY) — strong Arabic OCR fallback on Netlify
+ * General cascade (free-first; Paddle primary when available):
+ * 1) PaddleOCR Arabic — mac-hop POST /ocr/paddle, or PADDLE_OCR_URL, or ENABLE_PADDLE_OCR
+ * 2) Mac Tesseract — POST /pdf-page-ocr (ara+eng) if Paddle missing / weak / fails quality
+ * 3) QARI_OCR_URL — local Manazir/Qari HTTP
+ * 4) Hugging Face Inference (HF_TOKEN) — Qari model
+ * 5) Gemini vision (GEMINI_API_KEY) — cloud fallback
  *
- * Convert PDF→Office cascade (honest clean-or-refuse):
- * Gemini leads OCR Arena (https://www.ocrarena.ai/leaderboard) — primary, not a last resort.
- * 1) Gemini Flash OCR/vision
- * 2) Stronger Gemini if Flash fails quality gate (project max, e.g. 3.1 Pro)
- * 3) PaddleOCR when available (PADDLE_OCR_URL / ENABLE_PADDLE_OCR) — after Gemini gate fails
- * 4) STOP — do NOT auto-call Mistral. Opt-in only:
+ * Convert PDF→Office cascade (honest clean-or-refuse; free Paddle first):
+ * 1) PaddleOCR when available (mac-hop / PADDLE_OCR_URL / ENABLE_PADDLE_OCR)
+ * 2) Mac Tesseract if Paddle weak/unavailable
+ * 3) Gemini Flash OCR/vision
+ * 4) Stronger Gemini if Flash fails quality gate
+ * 5) STOP — do NOT auto-call Mistral. Opt-in only:
  *    CONVERT_ALLOW_MISTRAL=1 AND MISTRAL_API_KEY (default OFF)
- * 5) Else refuse — never return mojibake / طلاسم
+ * 6) Else refuse — never return mojibake / طلاسم
  *
  * Note: Paddle is NOT baked into the thin CranL image by default (too heavy).
- * Prefer a sidecar via PADDLE_OCR_URL, or ENABLE_PADDLE_OCR=1 where paddleocr is installed.
+ * Prefer Mac hop /ocr/paddle, or a sidecar via PADDLE_OCR_URL.
  */
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
@@ -36,6 +37,7 @@ import {
 } from '@/lib/documents/arabic-text-quality'
 import {
   macPageOcr,
+  macPaddleOcr,
   macSyncConfigured,
 } from '@/lib/storage/mac-sync-client'
 
@@ -66,14 +68,44 @@ export function mistralOcrConfigured(): boolean {
   )
 }
 
-/** Sidecar URL and/or local ENABLE_PADDLE_OCR — never invent keys. */
+/** Sidecar URL, local ENABLE_PADDLE_OCR, and/or Mac hop (POST /ocr/paddle). */
 export function paddleOcrConfigured(): boolean {
   if (IS_AIR_GAPPED_MODE) return false
   if (process.env.PADDLE_OCR_URL?.trim()) return true
   const enable =
     process.env.ENABLE_PADDLE_OCR?.trim() === '1' ||
     process.env.INSTALL_PADDLE_OCR?.trim() === '1'
-  return enable
+  if (enable) return true
+  // Mac hop may expose /ocr/paddle — probe at runtime via health.tools.paddle.
+  if (
+    macSyncConfigured() &&
+    process.env.PADDLE_OCR_SKIP_MAC?.trim() !== '1'
+  ) {
+    return true
+  }
+  return false
+}
+
+let macPaddleHealthCache: { at: number; ok: boolean } | null = null
+
+/** Cached GET /health → tools.paddle (skip hop when paddleocr not installed). */
+async function macPaddleReady(): Promise<boolean> {
+  if (!macSyncConfigured()) return false
+  if (process.env.PADDLE_OCR_SKIP_MAC?.trim() === '1') return false
+  const now = Date.now()
+  if (macPaddleHealthCache && now - macPaddleHealthCache.at < 60_000) {
+    return macPaddleHealthCache.ok
+  }
+  try {
+    const { macHealth } = await import('@/lib/storage/mac-sync-client')
+    const h = await macHealth()
+    const ok = Boolean(h.ok && h.tools?.paddle)
+    macPaddleHealthCache = { at: now, ok }
+    return ok
+  } catch {
+    macPaddleHealthCache = { at: now, ok: false }
+    return false
+  }
 }
 
 function geminiFlashModelId(): string {
@@ -550,9 +582,37 @@ async function ocrViaPaddleLocal(
   }
 }
 
+async function ocrViaMacPaddle(
+  buffer: Buffer,
+  mime: string,
+  filename: string
+): Promise<ArabicOcrResult | null> {
+  if (!macSyncConfigured()) return null
+  if (process.env.PADDLE_OCR_SKIP_MAC?.trim() === '1') return null
+  if (!(await macPaddleReady())) return null
+  try {
+    const mac = await macPaddleOcr({
+      buffer,
+      filename,
+      mimeType: mime,
+      lang: process.env.PADDLE_OCR_LANG?.trim() || 'ar',
+    })
+    if (mac.text?.trim()) {
+      return { text: mac.text.trim(), provider: 'paddle' }
+    }
+  } catch (e) {
+    return {
+      text: '',
+      provider: 'paddle',
+      error: e instanceof Error ? e.message : 'mac paddle failed',
+    }
+  }
+  return null
+}
+
 /**
- * PaddleOCR: prefer HTTP sidecar (thin CranL), else local python when enabled.
- * Cheaper than Mistral (self-hosted / free) — quality is not always stronger.
+ * PaddleOCR: Mac hop /ocr/paddle first, then HTTP sidecar, then local python.
+ * Apache-2.0 self-hosted — preferred primary when available.
  */
 async function ocrViaPaddle(
   buffer: Buffer,
@@ -560,11 +620,17 @@ async function ocrViaPaddle(
   filename: string
 ): Promise<ArabicOcrResult | null> {
   if (!paddleOcrConfigured()) return null
+
+  const mac = await ocrViaMacPaddle(buffer, mime, filename)
+  if (mac?.text?.trim()) return mac
+
   const http = await ocrViaPaddleHttp(buffer, mime, filename)
   if (http?.text?.trim()) return http
+
   const local = await ocrViaPaddleLocal(buffer, mime, filename)
   if (local?.text?.trim()) return local
-  return local || http
+
+  return local || http || mac
 }
 
 async function ocrViaMacFree(
@@ -600,6 +666,15 @@ function ocrPassesConvertGate(text: string): boolean {
   return true
 }
 
+/** Softer gate for general read/OCR (images, short labels). */
+function ocrPassesGeneralGate(text: string): boolean {
+  const t = String(text || '').trim()
+  if (t.length < 8) return false
+  if (hasArabicMojibake(t)) return false
+  if (assessArabicTextQuality(t).broken) return false
+  return true
+}
+
 function pushAttempt(
   attempts: Array<{ provider: string; ok: boolean; detailAr: string }>,
   provider: string,
@@ -627,7 +702,7 @@ function pushAttempt(
 
 /**
  * Convert PDF→Office OCR cascade (strict honesty):
- * Gemini Flash → Gemini stronger → PaddleOCR → STOP
+ * Paddle (primary when available) → Tesseract mac → Gemini Flash → stronger → STOP
  * (Mistral only if CONVERT_ALLOW_MISTRAL=1 + MISTRAL_API_KEY — default OFF).
  * Never returns mojibake — caller must refuse if null.
  */
@@ -644,7 +719,47 @@ export async function runConvertOcrCascade(opts: {
   const attempts: Array<{ provider: string; ok: boolean; detailAr: string }> =
     []
 
-  // 1) Gemini Flash
+  // 1) PaddleOCR Arabic first (mac-hop / sidecar / local)
+  if (paddleOcrConfigured()) {
+    const paddle = await ocrViaPaddle(opts.buffer, mime, filename)
+    if (paddle?.text?.trim() && ocrPassesConvertGate(paddle.text)) {
+      pushAttempt(attempts, 'paddle', paddle)
+      return {
+        best: { text: paddle.text.trim(), source: 'ocr-paddle' },
+        attempts,
+      }
+    }
+    pushAttempt(attempts, 'paddle', paddle)
+  } else {
+    pushAttempt(
+      attempts,
+      'paddle',
+      null,
+      'PaddleOCR: غير مضبوط (MAC_SYNC /ocr/paddle أو PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي.'
+    )
+  }
+
+  // 2) Mac Tesseract if Paddle missing / weak
+  if (macSyncConfigured()) {
+    const tess = await ocrViaMacFree(opts.buffer, mime, filename)
+    if (tess?.text?.trim() && ocrPassesConvertGate(tess.text)) {
+      pushAttempt(attempts, 'tesseract-mac', tess)
+      return {
+        best: { text: tess.text.trim(), source: 'ocr-tesseract-mac' },
+        attempts,
+      }
+    }
+    pushAttempt(attempts, 'tesseract-mac', tess)
+  } else {
+    pushAttempt(
+      attempts,
+      'tesseract-mac',
+      null,
+      'Tesseract: MAC_SYNC_URL غير مضبوط — تُخطّي.'
+    )
+  }
+
+  // 3) Gemini Flash
   const flashId = geminiFlashModelId()
   const flash = await ocrViaGeminiModel(
     opts.buffer,
@@ -662,7 +777,7 @@ export async function runConvertOcrCascade(opts: {
   }
   pushAttempt(attempts, 'gemini-flash', flash)
 
-  // 2) Stronger Gemini if Flash was weak / empty
+  // 4) Stronger Gemini if Flash was weak / empty
   const strongId = geminiStrongModelId()
   if (strongId !== flashId) {
     const strong = await ocrViaGeminiModel(
@@ -689,27 +804,7 @@ export async function runConvertOcrCascade(opts: {
     )
   }
 
-  // 3) PaddleOCR after Gemini quality gate fails
-  if (paddleOcrConfigured()) {
-    const paddle = await ocrViaPaddle(opts.buffer, mime, filename)
-    if (paddle?.text?.trim() && ocrPassesConvertGate(paddle.text)) {
-      pushAttempt(attempts, 'paddle', paddle)
-      return {
-        best: { text: paddle.text.trim(), source: 'ocr-paddle' },
-        attempts,
-      }
-    }
-    pushAttempt(attempts, 'paddle', paddle)
-  } else {
-    pushAttempt(
-      attempts,
-      'paddle',
-      null,
-      'PaddleOCR: غير مضبوط (PADDLE_OCR_URL أو ENABLE_PADDLE_OCR=1) — تُخطّي.'
-    )
-  }
-
-  // 4) Mistral ONLY if explicitly enabled (CONVERT_ALLOW_MISTRAL=1 + key). Default: STOP.
+  // 5) Mistral ONLY if explicitly enabled (CONVERT_ALLOW_MISTRAL=1 + key). Default: STOP.
   if (mistralOcrConfigured()) {
     const mistral = await ocrViaMistral(opts.buffer, mime, filename)
     if (mistral?.text?.trim() && ocrPassesConvertGate(mistral.text)) {
@@ -725,7 +820,7 @@ export async function runConvertOcrCascade(opts: {
       attempts,
       'mistral',
       null,
-      'Mistral: معطّل افتراضياً — يتطلّب CONVERT_ALLOW_MISTRAL=1 وMISTRAL_API_KEY. توقّفنا بعد Gemini وPaddle (لا استدعاء تلقائي).'
+      'Mistral: معطّل افتراضياً — يتطلّب CONVERT_ALLOW_MISTRAL=1 وMISTRAL_API_KEY. توقّفنا بعد Paddle وTesseract وGemini (لا استدعاء تلقائي).'
     )
   }
 
@@ -741,21 +836,32 @@ export async function runArabicOcr(opts: {
   const mime = opts.mimeType || 'application/octet-stream'
   const filename = opts.filename || 'document.bin'
 
-  // Free local path: Mac Tesseract ara+eng (images + PDF pages)
-  const mac = await ocrViaMacFree(opts.buffer, mime, filename)
-  if (mac?.text) return mac
-
-  const local = await ocrViaLocalQari(opts.buffer, mime, filename)
-  if (local && local.text) return local
-
-  const hf = await ocrViaHuggingFaceQari(opts.buffer, mime)
-  if (hf && hf.text) return hf
-
+  // 1) PaddleOCR Arabic first when available (mac-hop / URL / local)
   if (paddleOcrConfigured()) {
     const paddle = await ocrViaPaddle(opts.buffer, mime, filename)
-    if (paddle?.text?.trim()) return paddle
+    if (paddle?.text?.trim() && ocrPassesGeneralGate(paddle.text)) {
+      return paddle
+    }
   }
 
+  // 2) Tesseract on Mac if Paddle unavailable / weak / failed
+  const mac = await ocrViaMacFree(opts.buffer, mime, filename)
+  if (mac?.text?.trim() && ocrPassesGeneralGate(mac.text)) {
+    return mac
+  }
+  // Accept non-empty Tesseract even if gate soft-fails only on length for tiny labels
+  if (mac?.text?.trim() && !hasArabicMojibake(mac.text) && !assessArabicTextQuality(mac.text).broken) {
+    return mac
+  }
+
+  // 3) Qari local → HF
+  const local = await ocrViaLocalQari(opts.buffer, mime, filename)
+  if (local?.text?.trim()) return local
+
+  const hf = await ocrViaHuggingFaceQari(opts.buffer, mime)
+  if (hf?.text?.trim()) return hf
+
+  // 4) Gemini cloud fallback
   return ocrViaGemini(opts.buffer, mime, filename)
 }
 

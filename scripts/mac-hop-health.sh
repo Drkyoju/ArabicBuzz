@@ -37,6 +37,19 @@ port_up "$PORT_SYNC" && sync_ok=1
 echo "  :$PORT_BOTAPI → $([ "$bot_ok" -eq 1 ] && echo up || echo down)"
 echo "  :$PORT_SYNC → $([ "$sync_ok" -eq 1 ] && echo up || echo down)"
 
+if [[ "$sync_ok" -eq 1 ]]; then
+  health_json="$(curl -fsS --max-time 5 "http://127.0.0.1:${PORT_SYNC}/health" 2>/dev/null || true)"
+  if [[ -n "$health_json" ]]; then
+    echo "$health_json" | grep -oE '"paddle":(true|false)|"tesseract":(true|false)|"libreoffice":(true|false)' | tr '\n' ' ' || true
+    echo
+    if echo "$health_json" | grep -q '"paddle":true'; then
+      echo "paddle: available (POST /ocr/paddle primary)"
+    else
+      echo "paddle: unavailable — OCR falls back to Tesseract/Qari/Gemini (install scripts/paddle-ocr-venv)"
+    fi
+  fi
+fi
+
 if [[ "$QUICK" -eq 1 ]]; then
   if [[ "$bot_ok" -eq 1 && "$sync_ok" -eq 1 ]]; then
     echo "hop_health=ok"

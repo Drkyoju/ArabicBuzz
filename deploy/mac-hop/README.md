@@ -12,6 +12,17 @@ Cloudflared quick-tunnel logs default to `~/Library/Logs/ArabicBuzz/ab-cloudflar
 
 Optional separate agent plist: `com.arabicbuzz.mac-sync.plist` (usually unused — watchdog already starts the agent to avoid port conflicts).
 
+## OCR on this hop
+
+| Endpoint | Engine | Role |
+|----------|--------|------|
+| `POST /ocr/paddle` | PaddleOCR Arabic (PP-OCRv5 `arabic` if available) | **Primary** when `health.tools.paddle=true` |
+| `POST /pdf-page-ocr` | Tesseract `ara+eng` | Fallback if Paddle missing/weak |
+
+Install Paddle: see [docs/mac-ocr-tesseract.md](../../docs/mac-ocr-tesseract.md). Verify: `curl -sS http://127.0.0.1:7420/health | grep paddle`.
+
+CranL needs only `MAC_SYNC_URL` (+ secret) for both; optional `PADDLE_OCR_URL` for a separate sidecar.
+
 ## Install (once) — أمر واحد
 
 ```bash

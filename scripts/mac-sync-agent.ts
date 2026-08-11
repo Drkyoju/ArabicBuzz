@@ -127,6 +127,35 @@ const server = createServer(async (req, res) => {
     ].filter(Boolean) as string[]
     const sofficePath = sofficeCandidates.find((p) => existsSync(p)) || null
     const venvPy = join(root, 'scripts/pdf-tools-venv/bin/python')
+    const paddleVenvPy = join(root, 'scripts/paddle-ocr-venv/bin/python')
+    const paddleScript = join(root, 'scripts/paddle-ocr.py')
+    const paddlePyCandidates = [
+      process.env.PADDLE_OCR_PYTHON?.trim(),
+      paddleVenvPy,
+      venvPy,
+      which('python3.11'),
+      which('python3'),
+    ].filter(Boolean) as string[]
+    let paddle = false
+    let paddlePython: string | null = null
+    for (const py of paddlePyCandidates) {
+      if (!existsSync(py)) continue
+      try {
+        execFileSync(
+          py,
+          [
+            '-c',
+            'import paddleocr; print("ok")',
+          ],
+          { encoding: 'utf8', timeout: 15_000 }
+        )
+        paddle = true
+        paddlePython = py
+        break
+      } catch {
+        /* try next */
+      }
+    }
     json(res, 200, {
       ok: true,
       agent: 'arabic-buzz-mac-sync',
@@ -139,7 +168,11 @@ const server = createServer(async (req, res) => {
         libreoffice: Boolean(sofficePath),
         sofficePath,
         pdfToolsVenv: existsSync(venvPy),
+        paddle,
+        paddlePython,
+        paddleScript: existsSync(paddleScript),
         endpoints: [
+          '/ocr/paddle',
           '/pdf-page-ocr',
           '/pdf-docx-convert',
           '/pdf-replace',
@@ -799,6 +832,175 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       json(res, 500, {
         error: e instanceof Error ? e.message : 'convert failed',
+      })
+    }
+    return
+  }
+
+  // PaddleOCR Arabic (primary when tools.paddle) — same auth as other Mac hops
+  if (
+    req.method === 'POST' &&
+    (url.pathname === '/ocr/paddle' || url.pathname === '/paddle-ocr')
+  ) {
+    if (!checkAuth(req)) {
+      json(res, 401, { error: 'unauthorized' })
+      return
+    }
+    try {
+      const raw = await readBody(req)
+      const body = JSON.parse(raw.toString('utf8') || '{}') as {
+        filename?: string
+        mimeType?: string
+        contentBase64?: string
+        lang?: string
+      }
+      const b64 = String(body.contentBase64 || '')
+      if (!b64) {
+        json(res, 400, { error: 'contentBase64 required' })
+        return
+      }
+      const {
+        writeFileSync,
+        unlinkSync,
+        mkdtempSync,
+        existsSync,
+        rmSync,
+      } = await import('node:fs')
+      const { join } = await import('node:path')
+      const { tmpdir } = await import('node:os')
+      const { spawn } = await import('node:child_process')
+      const { fileURLToPath } = await import('node:url')
+      const { execFileSync } = await import('node:child_process')
+
+      const here = fileURLToPath(new URL('.', import.meta.url))
+      const root = join(here, '..')
+      const script = join(root, 'scripts/paddle-ocr.py')
+      const paddleVenvPy = join(root, 'scripts/paddle-ocr-venv/bin/python')
+      const pdfVenvPy = join(root, 'scripts/pdf-tools-venv/bin/python')
+      const which = (cmd: string): string | null => {
+        try {
+          return (
+            execFileSync('/bin/sh', ['-c', `command -v ${cmd}`], {
+              encoding: 'utf8',
+            }).trim() || null
+          )
+        } catch {
+          return null
+        }
+      }
+      const pyCandidates = [
+        process.env.PADDLE_OCR_PYTHON?.trim(),
+        paddleVenvPy,
+        pdfVenvPy,
+        which('python3.11'),
+        which('python3'),
+      ].filter(Boolean) as string[]
+      const py =
+        pyCandidates.find((p) => existsSync(p)) || 'python3'
+
+      if (!existsSync(script)) {
+        json(res, 501, {
+          ok: false,
+          paddle: false,
+          error:
+            'scripts/paddle-ocr.py غير موجود — PaddleOCR غير متاح على هذا الماك.',
+        })
+        return
+      }
+
+      const fname = (body.filename || 'doc.bin').replace(
+        /[^\w.\u0600-\u06FF-]+/g,
+        '_'
+      )
+      const mime = String(body.mimeType || '')
+      const lower = fname.toLowerCase()
+      let suffix = '.png'
+      if (mime.includes('pdf') || lower.endsWith('.pdf')) suffix = '.pdf'
+      else {
+        const m = lower.match(/\.(png|jpe?g|webp|tif{1,2}|bmp|gif)$/)
+        if (m) suffix = m[0]
+      }
+
+      const dir = mkdtempSync(join(tmpdir(), 'ab-paddle-ocr-'))
+      const inPath = join(dir, `input${suffix}`)
+      writeFileSync(inPath, Buffer.from(b64, 'base64'))
+
+      const lang = String(
+        body.lang || process.env.PADDLE_OCR_LANG || 'ar'
+      )
+      const timeoutMs = Number(process.env.PADDLE_OCR_TIMEOUT_MS || 180_000)
+
+      const result: { ok: boolean; out: string; err: string } = await new Promise(
+        (resolve) => {
+          const child = spawn(py, [script, inPath, '--lang', lang], {
+            env: process.env,
+            timeout: timeoutMs,
+          })
+          let out = ''
+          let err = ''
+          child.stdout?.on('data', (d) => {
+            out += String(d)
+          })
+          child.stderr?.on('data', (d) => {
+            err += String(d)
+          })
+          child.on('close', (code) => {
+            resolve({ ok: code === 0, out, err })
+          })
+          child.on('error', (e) => {
+            resolve({ ok: false, out: '', err: e.message })
+          })
+        }
+      )
+
+      try {
+        unlinkSync(inPath)
+        rmSync(dir, { recursive: true, force: true })
+      } catch {
+        /* ignore */
+      }
+
+      let parsed: {
+        ok?: boolean
+        text?: string
+        provider?: string
+        lang?: string
+        error?: string
+      } = {}
+      try {
+        parsed = JSON.parse(result.out || '{}') as typeof parsed
+      } catch {
+        parsed = { ok: false, error: result.err || result.out || 'bad json' }
+      }
+
+      if (parsed.ok && parsed.text?.trim()) {
+        json(res, 200, {
+          ok: true,
+          text: parsed.text.trim(),
+          provider: parsed.provider || 'paddleocr',
+          lang: parsed.lang || lang,
+          paddle: true,
+        })
+        return
+      }
+
+      const missing =
+        /not installed|No module named|paddleocr missing/i.test(
+          String(parsed.error || result.err || '')
+        )
+      json(res, missing ? 501 : 200, {
+        ok: false,
+        paddle: !missing,
+        text: '',
+        error:
+          parsed.error ||
+          result.err?.slice(0, 400) ||
+          'PaddleOCR فشل. ثبّت: python3.11 -m venv scripts/paddle-ocr-venv && scripts/paddle-ocr-venv/bin/pip install paddlepaddle paddleocr pillow',
+      })
+    } catch (e) {
+      json(res, 500, {
+        ok: false,
+        error: e instanceof Error ? e.message : 'paddle-ocr failed',
       })
     }
     return
@@ -1529,7 +1731,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  POST /task       (Playwright / browser-use RPA)`)
   console.log(`  POST /pdf-replace (Arabic PDF find/replace via PyMuPDF)`)
   console.log(`  POST /pdf-docx-convert (PDF↔DOCX local quality path)`)
-  console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng)`)
+  console.log(`  POST /ocr/paddle (PaddleOCR Arabic — primary when installed)`)
+  console.log(`  POST /pdf-page-ocr (PyMuPDF + Tesseract ara+eng — fallback)`)
   console.log(`  POST /markitdown (PDF/Office → Markdown)`)
   console.log(`  POST /telegram/fetch-file (large TG via local Bot API)`)
   console.log(`  POST /telegram/run-pending-pdf (empty-page / dup on Mac)`)

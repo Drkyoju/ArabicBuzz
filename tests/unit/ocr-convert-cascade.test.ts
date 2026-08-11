@@ -15,6 +15,8 @@ describe('convert OCR cascade config', () => {
     'PADDLE_OCR_URL',
     'ENABLE_PADDLE_OCR',
     'INSTALL_PADDLE_OCR',
+    'MAC_SYNC_URL',
+    'PADDLE_OCR_SKIP_MAC',
     'AIRGAP_MODE',
   ] as const
   const prev: Record<string, string | undefined> = {}
@@ -47,8 +49,22 @@ describe('convert OCR cascade config', () => {
   it('treats Paddle as configured via ENABLE_PADDLE_OCR=1', () => {
     snap('PADDLE_OCR_URL')
     snap('ENABLE_PADDLE_OCR')
+    snap('MAC_SYNC_URL')
     delete process.env.PADDLE_OCR_URL
+    delete process.env.MAC_SYNC_URL
     process.env.ENABLE_PADDLE_OCR = '1'
+    expect(paddleOcrConfigured()).toBe(true)
+  })
+
+  it('treats Paddle as configured when MAC_SYNC_URL set (mac-hop /ocr/paddle)', () => {
+    snap('PADDLE_OCR_URL')
+    snap('ENABLE_PADDLE_OCR')
+    snap('MAC_SYNC_URL')
+    snap('PADDLE_OCR_SKIP_MAC')
+    delete process.env.PADDLE_OCR_URL
+    delete process.env.ENABLE_PADDLE_OCR
+    delete process.env.PADDLE_OCR_SKIP_MAC
+    process.env.MAC_SYNC_URL = 'https://mac.example'
     expect(paddleOcrConfigured()).toBe(true)
   })
 

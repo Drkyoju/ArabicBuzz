@@ -1,19 +1,20 @@
 # PaddleOCR sidecar (optional)
 
-PaddleOCR is an optional self-hosted step after Gemini fails the convert quality gate. Models are heavy — do **not** bake them into the thin CranL app image.
+PaddleOCR Arabic is the **primary** free OCR when available (Apache-2.0). Prefer the **Mac hop** path — do **not** bake models into the thin CranL app image.
 
-## Wire-up
+## Preferred: Mac hop
 
-1. Build/run this sidecar (or any host with `scripts/paddle-ocr-bridge.py`).
+1. Install on the Mac: `scripts/paddle-ocr-venv` (see [docs/mac-ocr-tesseract.md](../../docs/mac-ocr-tesseract.md)).
+2. Ensure `MAC_SYNC_URL` (+ secret) on CranL — agent exposes `POST /ocr/paddle`.
+3. `GET $MAC_SYNC_URL/health` → `"paddle": true`.
+
+## Alternate: dedicated sidecar
+
+1. Build/run this image (or `scripts/paddle-ocr-bridge.py`).
 2. Set on CranL: `PADDLE_OCR_URL=https://…` (optional `PADDLE_OCR_SECRET`).
-3. Convert cascade uses it after Gemini Flash → stronger Gemini, then **STOP** (no auto-Mistral).
 
 ## Cascade (live)
 
-1. Gemini Flash  
-2. Stronger Gemini if weak  
-3. PaddleOCR (when URL / `ENABLE_PADDLE_OCR=1`)  
-4. **STOP** — refuse with Arabic honesty (never ship mojibake)  
-5. Mistral only if `CONVERT_ALLOW_MISTRAL=1` **and** `MISTRAL_API_KEY` (default OFF)
+**قراءة عامة:** PaddleOCR → Tesseract (ماك) → Qari → Gemini
 
-When Gemini + Paddle both fail, tell the user in MSA that no file was created, and they may later enable Mistral or stop converting that file.
+**تحويل PDF→Office:** Paddle → Tesseract → Gemini Flash → stronger Gemini → **STOP** (no auto-Mistral; opt-in `CONVERT_ALLOW_MISTRAL=1` + key) → refuse mojibake in MSA.

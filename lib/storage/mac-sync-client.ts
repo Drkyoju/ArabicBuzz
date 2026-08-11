@@ -53,6 +53,9 @@ async function macFetch(
 export type MacHopTools = {
   tesseract?: boolean
   libreoffice?: boolean
+  paddle?: boolean
+  paddlePython?: string | null
+  paddleScript?: boolean
   tesseractPath?: string | null
   sofficePath?: string | null
   pdfToolsVenv?: boolean
@@ -333,6 +336,56 @@ export async function macPageOcr(opts: {
     page: Number(data.page || page),
     pages: data.pages != null ? Number(data.pages) : undefined,
     provider: String(data.provider || 'tesseract-mac'),
+  }
+}
+
+/**
+ * PaddleOCR Arabic via Mac hop (primary free path when tools.paddle=true).
+ * POST /ocr/paddle — uses scripts/paddle-ocr.py (PP-OCRv5 arabic if available).
+ */
+export async function macPaddleOcr(opts: {
+  buffer: Buffer
+  filename: string
+  mimeType?: string
+  lang?: string
+}): Promise<{
+  text: string
+  provider: string
+  lang?: string
+  paddle: boolean
+}> {
+  if (!macSyncConfigured()) {
+    throw new Error('MAC_SYNC_URL غير مضبوط لـ PaddleOCR.')
+  }
+  const res = await macFetch('/ocr/paddle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: opts.filename,
+      mimeType: opts.mimeType || 'application/octet-stream',
+      contentBase64: opts.buffer.toString('base64'),
+      lang: opts.lang || process.env.PADDLE_OCR_LANG?.trim() || 'ar',
+    }),
+    timeoutMs: Number(process.env.PADDLE_OCR_TIMEOUT_MS || 180_000),
+  })
+  const data = (await res.json()) as {
+    ok?: boolean
+    text?: string
+    provider?: string
+    lang?: string
+    paddle?: boolean
+    error?: string
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(
+      data.error || `فشل PaddleOCR على الماك (HTTP ${res.status})`
+    )
+  }
+  return {
+    text: String(data.text || ''),
+    provider: String(data.provider || 'paddleocr'),
+    lang: data.lang,
+    paddle: data.paddle !== false,
   }
 }
 
