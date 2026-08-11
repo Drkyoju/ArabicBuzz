@@ -39,19 +39,22 @@ describe('association tone', () => {
 })
 
 describe('appointment reminder copy', () => {
-  it('is clear once-only MSA without spammy emoji stack', () => {
+  it('is short MSA with title time guests — once only', () => {
     const text = buildAppointmentReminderTextAr({
       titleAr: 'اجتماع اللجنة',
       startsAt: '2026-08-10T14:00:00+03:00',
       locationAr: 'قاعة الاجتماعات',
+      attendees: ['a@x.sa', 'b@y.sa'],
       mins: 60,
       calendarUrl: 'https://arabicbuzz-fooc9h.cranl.net/?section=calendar',
     })
-    expect(text).toMatch(/تذكير موعد \(مرة واحدة\)/)
+    expect(text).toMatch(/^تذكير موعد/)
     expect(text).toMatch(/اجتماع اللجنة/)
-    expect(text).toMatch(/توقيت السعودية/)
-    expect(text).toMatch(/لن نعيد هذا التذكير/)
+    expect(text).toMatch(/الوقت:/)
     expect(text).toMatch(/قاعة الاجتماعات/)
+    expect(text).toMatch(/المدعوون:/)
+    expect(text).toMatch(/ساعة/)
+    expect(text).not.toMatch(/جاري/)
     expect(text).not.toMatch(/⏰⏰/)
   })
 })

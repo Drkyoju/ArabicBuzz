@@ -76,7 +76,11 @@
 
 تقويم الردود: **مواعيد الجمعية/الفريق** = `room_calendar_*` / shared-demo (مصدر واحد للموقع وتيليجرام؛ مدعوون بأي بريد) · **تقويمك الشخصي** = Google calendar (مُستبعد من أدوات تيليجرام).
 
-تذكيرات المواعيد: لا تُرسل للمجموعة أثناء `TELEGRAM_SILENCE_UNSOLICITED`؛ مسار آمن = خاص المدير (`TELEGRAM_OWNER_CHAT_ID`) فقط — عطّله بـ `TELEGRAM_OWNER_REMINDERS=0`.
+تذكيرات المواعيد:
+- **مسار ضيق للمجموعة (موصى به):** `TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1` على CranL — رسالة واحدة قرب الموعد للمجموعة المرتبطة، **بدون** تعطيل `TELEGRAM_SILENCE_UNSOLICITED` و**بدون** `TELEGRAM_GROUP_PUSH` (الملخصات تبقى صامتة).
+- **مسار آمن للمدير:** خاص (`TELEGRAM_OWNER_CHAT_ID` غير سالب) — عطّله بـ `TELEGRAM_OWNER_REMINDERS=0`.
+- كرون ضيق: GitHub Actions `Appointment reminders` → `POST /api/crons/appointment-reminders` كل ~١٥ د (لا يشغّل ملخصات الصباح/الأسبوع).
+- الإزاحة من حقل الموعد (`meta.reminderMinutes`: ٣٠ / ٦٠ / ١٤٤٠) — افتراضي ساعة.
 
 ## السياسة (مهم)
 
@@ -99,7 +103,7 @@
 | --- | --- | --- |
 | ملخص صباحي | `lib/digest/morning-room.ts` | يُرسل للمجموعة في نافذة الصباح |
 | ملخص أسبوعي للمجموعة | `lib/digest/weekly-group-chat.ts` | خميس الرياض |
-| تذكير مواعيد (~ساعة) | `lib/rooms/appointment-reminders.ts` | يتكرر مع كل نافذة موعد |
+| تذكير مواعيد (~قبل الموعد) | `lib/rooms/appointment-reminders.ts` | رسالة واحدة لكل موعد؛ مسار ضيق `TELEGRAM_GROUP_APPOINTMENT_REMINDERS` |
 | تذكير مواعيد نظامية | `lib/rooms/deadline-reminders.ts` | 30/14/7/1 يوم |
 | تذكير مهام متأخرة | `lib/digest/overdue-nudge.ts` | مع نافذة الصباح |
 | ملخص المدير تيليجرام | `lib/digest/director-weekly.ts` | خميس (بريد منفصل) |
@@ -109,12 +113,13 @@
 **القرار:** الصمت أفضل من السبام. كل ما سبق **معطّل افتراضياً** ولا يُرسل للمجموعة إلا بعد تفعيل صريح:
 
 0. **صمت مطلق (افتراضي):** `TELEGRAM_SILENCE_UNSOLICITED` = مفعّل عند عدم التعيين — يمنع أي `sendMessage`/`sendDocument` للمجموعة خارج سياق رد على تحديث وارد (ويب هوك). عطّله بـ `=0` فقط إن أردت الملخصات لاحقاً.
-1. المفتاح الرئيسي: `TELEGRAM_GROUP_PUSH=1`
+1. المفتاح الرئيسي للملخصات/النشرات: `TELEGRAM_GROUP_PUSH=1`
 2. ومفتاح الميزة المطلوبة، مثلاً `TELEGRAM_MORNING_DIGEST=1`
+3. **استثناء ضيق فقط للمواعيد:** `TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1` — يسمح بتذكير موعد واحد للمجموعة حتى مع بقاء الصمت، **دون** إعادة تفعيل الملخصات.
 
-بدون إيقاف الصمت + المفتاحين معاً → لا إرسال كرون. القفل اليومي/الأسبوعي (`claimDigestDayKey`) يبقى موجوداً عند التفعيل لاحقاً.
+بدون إيقاف الصمت + المفتاحين معاً → لا ملخصات كرون. تذكير الموعد يحتاج فقط المفتاح الضيّق (أو DM المدير). القفل (`claimDigestDayKey`) يمنع التكرار.
 
-فحص الحي: `GET /api/health/free` → حقل `telegramGroupPush` (`silenceUnsolicited: true`، وكل `features` = `false`).
+فحص الحي: `GET /api/health/free` → حقل `telegramGroupPush` (`silenceUnsolicited: true`، `groupAppointmentReminders` حسب env، و`features.morning_digest` = `false`).
 
 **مسار كان يفلت من البوابة السابقة:** كرون GitHub يستدعي `runReadyTelegramFileJobs` + `resolveAndRunPendingPdfJob` فيرسل `sendDocument` للمجموعة بلا `TELEGRAM_GROUP_PUSH`. أُغلق: صمت في `emit*` + تخطي كرون + إيقاف جدول GitHub Actions.
 

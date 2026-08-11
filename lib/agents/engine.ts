@@ -1743,13 +1743,18 @@ export function getNativeAiTools(opts?: {
     }),
     room_calendar_create: tool({
       description:
-        'إضافة موعد إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — لكل الأعضاء، بلا Google OAuth). فضّله على calendar_create_event. المدعوون = أي بريد (مفصولة بفاصلة)، ليس شرطاً أن يكونوا مربوطين بـ Google.',
+        'إضافة موعد إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — لكل الأعضاء، بلا Google OAuth). فضّله على calendar_create_event. الحقول: عنوان، بداية/نهاية (أو طوال اليوم)، مكان/وصف اختياري، مدعوون بأي بريد، تذكير بالدقائق قبل الموعد (30/60/1440).',
       inputSchema: z.object({
         titleAr: z.string(),
         startsAt: z.string().describe('ISO datetime'),
         endsAt: z.string().describe('ISO datetime'),
+        allDay: z.boolean().optional(),
         descriptionAr: z.string().optional(),
         locationAr: z.string().optional(),
+        reminderMinutes: z
+          .number()
+          .optional()
+          .describe('دقائق قبل الموعد للتذكير — 30 أو 60 أو 1440'),
         attendees: z
           .union([z.array(z.string()), z.string()])
           .optional()

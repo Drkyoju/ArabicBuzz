@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     endsAt?: string
     allDay?: boolean
     locationAr?: string
+    reminderMinutes?: number
     attendees?: string[] | string
     attendeeEmails?: string[] | string
     source?: 'manual' | 'ai' | 'email' | 'import'
@@ -202,6 +203,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'يلزم eventId' }, { status: 400 })
       }
       const patch = body.patch || {}
+      const { normalizeReminderMinutes } = await import(
+        '@/lib/rooms/appointment-reminders'
+      )
+      const { listRoomCalendarEvents } = await import(
+        '@/lib/rooms/room-calendar'
+      )
+      let nextMeta: Record<string, unknown> | undefined
+      if (patch.reminderMinutes !== undefined || patch.meta !== undefined) {
+        const current = (
+          await listRoomCalendarEvents({
+            scopeId,
+            includeCancelled: true,
+            hideTestTitles: false,
+          })
+        ).find((e) => e.id === eventId)
+        const baseMeta = {
+          ...(current?.meta || {}),
+          ...(patch.meta && typeof patch.meta === 'object'
+            ? (patch.meta as Record<string, unknown>)
+            : {}),
+        }
+        if (patch.reminderMinutes !== undefined) {
+          baseMeta.reminderMinutes = normalizeReminderMinutes(
+            patch.reminderMinutes
+          )
+        }
+        nextMeta = baseMeta
+      }
       const result = await updateRoomCalendarEvent(eventId, scopeId, {
         titleAr: patch.titleAr != null ? String(patch.titleAr) : undefined,
         descriptionAr:
@@ -231,6 +260,7 @@ export async function POST(req: NextRequest) {
           patch.status === 'confirmed'
             ? patch.status
             : undefined,
+        meta: nextMeta,
       })
       return NextResponse.json({
         ...result,
@@ -271,6 +301,12 @@ export async function POST(req: NextRequest) {
     }
 
     // create
+    const { normalizeReminderMinutes } = await import(
+      '@/lib/rooms/appointment-reminders'
+    )
+    const reminderMinutes = normalizeReminderMinutes(
+      body.reminderMinutes ?? 60
+    )
     const result = await createRoomCalendarEvent({
       scopeId,
       titleAr: String(body.titleAr || ''),
@@ -285,6 +321,7 @@ export async function POST(req: NextRequest) {
       source: body.source || 'manual',
       createdBy,
       createdByAr,
+      meta: { reminderMinutes },
     })
 
     // Opt-in only: copy to the *acting user's* Google — never the room owner's

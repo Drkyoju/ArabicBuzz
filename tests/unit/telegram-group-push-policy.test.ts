@@ -61,6 +61,27 @@ describe('TELEGRAM_SILENCE_UNSOLICITED — default ON', () => {
     const dm = maySendTelegramToChat({ chatId: '797686181', env: {} })
     expect(dm.ok).toBe(true)
   })
+
+  it('allows narrow appointment reminder to group without silence off', () => {
+    const env = {
+      TELEGRAM_GROUP_APPOINTMENT_REMINDERS: '1',
+    } as NodeJS.ProcessEnv
+    expect(isTelegramSilenceUnsolicitedEnabled(env)).toBe(true)
+    const deniedDigest = maySendTelegramToChat({
+      chatId: '-1003855925966',
+      meta: { kind: 'morning_digest' },
+      env,
+    })
+    expect(deniedDigest.ok).toBe(false)
+
+    const allowedAppt = maySendTelegramToChat({
+      chatId: '-1003855925966',
+      meta: { kind: 'appointment_hour_reminder' },
+      env,
+    })
+    expect(allowedAppt.ok).toBe(true)
+    expect(allowedAppt.reason).toBe('group_appointment_reminders_opt_in')
+  })
 })
 
 describe('telegram group push policy — default silence', () => {
@@ -80,6 +101,21 @@ describe('telegram group push policy — default silence', () => {
     expect(telegramGroupPushDisabledReason('morning_digest', env)).toBe(
       'telegram_silence_unsolicited'
     )
+  })
+
+  it('narrow TELEGRAM_GROUP_APPOINTMENT_REMINDERS enables appointment only', () => {
+    const env = {
+      TELEGRAM_GROUP_APPOINTMENT_REMINDERS: '1',
+    } as NodeJS.ProcessEnv
+    expect(isTelegramSilenceUnsolicitedEnabled(env)).toBe(true)
+    expect(isTelegramGroupPushMasterEnabled(env)).toBe(false)
+    expect(isTelegramGroupPushAllowed('appointment_reminder', env)).toBe(true)
+    expect(isTelegramGroupPushAllowed('morning_digest', env)).toBe(false)
+    expect(isTelegramGroupPushAllowed('weekly_group_digest', env)).toBe(false)
+    const snap = telegramGroupPushFlagsSnapshot(env)
+    expect(snap.groupAppointmentReminders).toBe(true)
+    expect(snap.silenceUnsolicited).toBe(true)
+    expect(snap.features.morning_digest).toBe(false)
   })
 
   it('requires silence OFF + master AND feature flag', () => {
@@ -108,6 +144,7 @@ describe('telegram group push policy — default silence', () => {
     const snap = telegramGroupPushFlagsSnapshot({})
     expect(snap.masterEnabled).toBe(false)
     expect(snap.silenceUnsolicited).toBe(true)
+    expect(snap.groupAppointmentReminders).toBe(false)
     expect(snap.ownerReminderDm).toBe(false)
     expect(Object.values(snap.features).every((v) => v === false)).toBe(true)
   })

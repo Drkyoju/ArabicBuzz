@@ -27,11 +27,14 @@ type RoomEvent = {
   descriptionAr: string | null
   startsAt: string
   endsAt: string
+  allDay?: boolean
+  locationAr?: string | null
   attendees: string[]
   source: string
   createdByAr: string | null
   status: string
   googleEventId?: string | null
+  meta?: Record<string, unknown>
 }
 
 type ConflictInfo = {
@@ -90,10 +93,34 @@ function fmtTimeOnly(iso: string) {
   }
 }
 
-function toLocalInput(d = new Date()) {
+function toDateInput(d = new Date()) {
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+function toTimeInput(d = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Combine local date + time into ISO (browser local → ISO). */
+function combineLocalDateTime(dateYmd: string, hm: string) {
+  return new Date(`${dateYmd}T${hm}:00`).toISOString()
+}
+
+function riyadhAllDayIso(ymd: string) {
+  return {
+    startsAt: new Date(`${ymd}T00:00:00+03:00`).toISOString(),
+    endsAt: new Date(`${ymd}T23:59:00+03:00`).toISOString(),
+  }
+}
+
+const REMINDER_OPTIONS: Array<{ value: number; labelAr: string }> = [
+  { value: 30, labelAr: 'قبل ٣٠ دقيقة' },
+  { value: 60, labelAr: 'قبل ساعة' },
+  { value: 120, labelAr: 'قبل ساعتين' },
+  { value: 1440, labelAr: 'قبل يوم' },
+]
 
 function riyadhYmd(iso: string) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -164,12 +191,17 @@ export function RoomCalendarBoard({
   const [suggestionAr, setSuggestionAr] = useState('')
   const [busy, setBusy] = useState(false)
   const [titleAr, setTitleAr] = useState('')
-  const [startsAt, setStartsAt] = useState(() => toLocalInput())
-  const [endsAt, setEndsAt] = useState(() => {
+  const [eventDate, setEventDate] = useState(() => toDateInput())
+  const [startTime, setStartTime] = useState(() => toTimeInput())
+  const [endTime, setEndTime] = useState(() => {
     const d = new Date()
     d.setHours(d.getHours() + 1)
-    return toLocalInput(d)
+    return toTimeInput(d)
   })
+  const [allDay, setAllDay] = useState(false)
+  const [locationAr, setLocationAr] = useState('')
+  const [descriptionAr, setDescriptionAr] = useState('')
+  const [reminderMinutes, setReminderMinutes] = useState(60)
   const [attendees, setAttendees] = useState('')
   const [bulk, setBulk] = useState('')
   const [formOpen, setFormOpen] = useState(true)
@@ -271,6 +303,18 @@ export function RoomCalendarBoard({
     setSlotMsg('')
     setFreeSlots([])
     try {
+      const range = allDay
+        ? riyadhAllDayIso(eventDate || toDateInput())
+        : {
+            startsAt: combineLocalDateTime(
+              eventDate || toDateInput(),
+              startTime || '09:00'
+            ),
+            endsAt: combineLocalDateTime(
+              eventDate || toDateInput(),
+              endTime || '10:00'
+            ),
+          }
       // Prefer room whiteboard slots (always available); Google FreeBusy when linked.
       const roomRes = await fetch('/api/rooms/calendar', {
         method: 'POST',
@@ -278,8 +322,8 @@ export function RoomCalendarBoard({
         body: JSON.stringify({
           action: 'suggest_slots',
           scopeId,
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
+          startsAt: range.startsAt,
+          endsAt: range.endsAt,
           eventId: editingId || undefined,
         }),
       })
@@ -354,7 +398,16 @@ export function RoomCalendarBoard({
     } finally {
       setSlotBusy(false)
     }
-  }, [signedIn, googleConnected, scopeId, startsAt, endsAt, editingId])
+  }, [
+    signedIn,
+    googleConnected,
+    scopeId,
+    eventDate,
+    startTime,
+    endTime,
+    allDay,
+    editingId,
+  ])
 
   const loadDeadlinesPreview = useCallback(async () => {
     if (signedIn !== true) {
@@ -580,23 +633,51 @@ export function RoomCalendarBoard({
     setEditingId(null)
     setTitleAr('')
     setAttendees('')
+    setLocationAr('')
+    setDescriptionAr('')
+    setAllDay(false)
+    setReminderMinutes(60)
     setCopyToGoogle(false)
     const now = new Date()
-    setStartsAt(toLocalInput(now))
+    setEventDate(toDateInput(now))
+    setStartTime(toTimeInput(now))
     const end = new Date(now)
     end.setHours(end.getHours() + 1)
-    setEndsAt(toLocalInput(end))
+    setEndTime(toTimeInput(end))
   }
 
   function startEdit(e: RoomEvent) {
     setEditingId(e.id)
     setTitleAr(e.titleAr)
-    setStartsAt(toLocalInput(new Date(e.startsAt)))
-    setEndsAt(toLocalInput(new Date(e.endsAt)))
+    const s = new Date(e.startsAt)
+    const en = new Date(e.endsAt)
+    setEventDate(toDateInput(s))
+    setStartTime(toTimeInput(s))
+    setEndTime(toTimeInput(en))
+    setAllDay(Boolean(e.allDay))
+    setLocationAr(e.locationAr || '')
+    setDescriptionAr(e.descriptionAr || '')
+    const rem = e.meta?.reminderMinutes
+    setReminderMinutes(
+      typeof rem === 'number' && rem > 0 ? rem : 60
+    )
     setAttendees((e.attendees || []).join(', '))
     setFormOpen(true)
     setMsg('')
     setErr('')
+  }
+
+  function resolveEventTimes(): { startsAtIso: string; endsAtIso: string } {
+    if (allDay) {
+      return riyadhAllDayIso(eventDate || toDateInput())
+    }
+    const ymd = eventDate || toDateInput()
+    const st = startTime || '09:00'
+    const et = endTime || '10:00'
+    return {
+      startsAtIso: combineLocalDateTime(ymd, st),
+      endsAtIso: combineLocalDateTime(ymd, et),
+    }
   }
 
   async function saveEvent() {
@@ -607,6 +688,11 @@ export function RoomCalendarBoard({
     setConflicts([])
     setSuggestionAr('')
     try {
+      const { startsAtIso, endsAtIso } = resolveEventTimes()
+      const attendeeList = attendees
+        .split(/[,;\s]+/)
+        .map((e) => e.trim())
+        .filter((e) => e.includes('@'))
       if (editingId) {
         const res = await fetch('/api/rooms/calendar', {
           method: 'POST',
@@ -617,12 +703,13 @@ export function RoomCalendarBoard({
             eventId: editingId,
             patch: {
               titleAr: titleAr.trim(),
-              startsAt: new Date(startsAt).toISOString(),
-              endsAt: new Date(endsAt).toISOString(),
-              attendees: attendees
-                .split(/[,;\s]+/)
-                .map((e) => e.trim())
-                .filter((e) => e.includes('@')),
+              startsAt: startsAtIso,
+              endsAt: endsAtIso,
+              allDay,
+              locationAr: locationAr.trim() || null,
+              descriptionAr: descriptionAr.trim() || null,
+              reminderMinutes,
+              attendees: attendeeList,
             },
           }),
         })
@@ -643,12 +730,13 @@ export function RoomCalendarBoard({
             action: 'create',
             scopeId,
             titleAr: titleAr.trim(),
-            startsAt: new Date(startsAt).toISOString(),
-            endsAt: new Date(endsAt).toISOString(),
-            attendees: attendees
-              .split(/[,;\s]+/)
-              .map((e) => e.trim())
-              .filter((e) => e.includes('@')),
+            startsAt: startsAtIso,
+            endsAt: endsAtIso,
+            allDay,
+            locationAr: locationAr.trim() || undefined,
+            descriptionAr: descriptionAr.trim() || undefined,
+            reminderMinutes,
+            attendees: attendeeList,
             source: 'manual',
             copyToGoogle: copyToGoogle && googleConnected,
           }),
@@ -1000,8 +1088,16 @@ export function RoomCalendarBoard({
                   <button
                     type="button"
                     onClick={() => {
-                      if (s.start) setStartsAt(toLocalInput(new Date(s.start)))
-                      if (s.end) setEndsAt(toLocalInput(new Date(s.end)))
+                      if (s.start) {
+                        const d = new Date(s.start)
+                        setEventDate(toDateInput(d))
+                        setStartTime(toTimeInput(d))
+                      }
+                      if (s.end) {
+                        const d = new Date(s.end)
+                        setEndTime(toTimeInput(d))
+                      }
+                      setAllDay(false)
                       setFormOpen(true)
                       setMsg('تم تعبئة وقت مقترح — أكمل العنوان واحفظ.')
                     }}
@@ -1065,7 +1161,7 @@ export function RoomCalendarBoard({
         <div className="rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-ab-ink">
-              {editingId ? 'تعديل موعد' : 'أضف موعد'}
+              {editingId ? 'تعديل موعد' : 'إضافة موعد'}
             </h3>
             <div className="flex items-center gap-2">
               {editingId && (
@@ -1096,27 +1192,70 @@ export function RoomCalendarBoard({
                     className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
                     value={titleAr}
                     onChange={(e) => setTitleAr(e.target.value)}
-                    placeholder="اجتماع تشغيل · تسليم تقرير…"
+                    placeholder="أضف عنواناً"
+                    autoComplete="off"
                   />
                 </label>
                 <label className="block text-xs text-stone-500">
-                  البداية
+                  التاريخ
                   <input
-                    type="datetime-local"
+                    type="date"
                     className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
-                    value={startsAt}
-                    onChange={(e) => setStartsAt(e.target.value)}
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
                     dir="ltr"
                   />
                 </label>
-                <label className="block text-xs text-stone-500">
-                  النهاية
+                <label className="flex items-end gap-2 pb-2 text-xs text-stone-700">
                   <input
-                    type="datetime-local"
+                    type="checkbox"
+                    checked={allDay}
+                    onChange={(e) => setAllDay(e.target.checked)}
+                    className="rounded border-ab-border"
+                  />
+                  طوال اليوم
+                </label>
+                {!allDay && (
+                  <>
+                    <label className="block text-xs text-stone-500">
+                      من
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        dir="ltr"
+                      />
+                    </label>
+                    <label className="block text-xs text-stone-500">
+                      إلى
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        dir="ltr"
+                      />
+                    </label>
+                  </>
+                )}
+                <label className="block text-xs text-stone-500 sm:col-span-2">
+                  المكان (اختياري)
+                  <input
                     className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
-                    value={endsAt}
-                    onChange={(e) => setEndsAt(e.target.value)}
-                    dir="ltr"
+                    value={locationAr}
+                    onChange={(e) => setLocationAr(e.target.value)}
+                    placeholder="قاعة الاجتماعات · رابط Zoom…"
+                  />
+                </label>
+                <label className="block text-xs text-stone-500 sm:col-span-2">
+                  الوصف (اختياري)
+                  <textarea
+                    className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
+                    value={descriptionAr}
+                    onChange={(e) => setDescriptionAr(e.target.value)}
+                    rows={2}
+                    placeholder="أجندة مختصرة أو ملاحظات للفريق"
                   />
                 </label>
                 <label className="block text-xs text-stone-500 sm:col-span-2">
@@ -1125,12 +1264,35 @@ export function RoomCalendarBoard({
                     className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
                     value={attendees}
                     onChange={(e) => setAttendees(e.target.value)}
-                    placeholder="sara@company.sa, ahmed@gmail.com — أي بريد، ليس شرطاً Google"
+                    placeholder="sara@company.sa, ahmed@gmail.com"
                     dir="ltr"
                   />
                   <span className="mt-1 block text-[10px] text-ab-muted-soft">
                     يُحفظ مع الموعد في التقويم المشترك ويظهر للفريق — بلا دعوة
                     Google إجبارية.
+                  </span>
+                </label>
+                <label className="block text-xs text-stone-500 sm:col-span-2">
+                  تذكير تيليجرام قبل الموعد
+                  <select
+                    className="mt-1 w-full rounded-md border border-ab-border bg-white px-3 py-2 text-sm"
+                    value={reminderMinutes}
+                    onChange={(e) =>
+                      setReminderMinutes(Number(e.target.value) || 60)
+                    }
+                  >
+                    {REMINDER_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.labelAr}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[10px] text-ab-muted-soft">
+                    يُرسل للمجموعة عند تفعيل{' '}
+                    <span dir="ltr" className="font-mono">
+                      TELEGRAM_GROUP_APPOINTMENT_REMINDERS
+                    </span>{' '}
+                    — رسالة واحدة لكل موعد.
                   </span>
                 </label>
               </div>
@@ -1172,7 +1334,7 @@ export function RoomCalendarBoard({
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    أضف موعد
+                    حفظ
                   </>
                 )}
               </button>

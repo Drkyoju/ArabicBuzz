@@ -91,6 +91,13 @@ export async function executeRoomCalendarCreate(
   const attendees = parseAttendeeEmails(
     params.attendees ?? params.attendeeEmails ?? params.emails
   )
+  const { normalizeReminderMinutes } = await import(
+    '@/lib/rooms/appointment-reminders'
+  )
+  const reminderMinutes =
+    params.reminderMinutes !== undefined
+      ? normalizeReminderMinutes(params.reminderMinutes)
+      : normalizeReminderMinutes(60)
   const result = await createRoomCalendarEvent({
     scopeId,
     titleAr: String(params.titleAr || params.title || ''),
@@ -105,6 +112,7 @@ export async function executeRoomCalendarCreate(
     source: 'ai',
     createdBy: String(params.userId || 'agent'),
     createdByAr: 'الوكيل',
+    meta: { reminderMinutes },
   })
   const who =
     result.event.attendees.length > 0

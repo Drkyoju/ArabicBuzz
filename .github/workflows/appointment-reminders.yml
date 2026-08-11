@@ -1,0 +1,54 @@
+# Narrow cron: appointment Telegram reminders ONLY.
+# Does NOT re-enable morning digests, weekly summaries, or full TELEGRAM_GROUP_PUSH.
+# Safe while TELEGRAM_SILENCE_UNSOLICITED stays ON — emit gate allows only
+# meta.kind=appointment_hour_reminder when TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1.
+name: Appointment reminders
+
+on:
+  schedule:
+    - cron: '5,20,35,50 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Gate + POST appointment-reminders
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: https://arabicbuzz-fooc9h.cranl.net
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "CRON_SECRET secret is missing in this repo."
+            exit 1
+          fi
+          health=$(curl -sS --max-time 30 "${APP_URL}/api/health/free" || true)
+          echo "$health" | head -c 1600
+          echo
+          if ! echo "$health" | grep -q '"telegramGroupPush"'; then
+            echo "SKIP: live build lacks telegramGroupPush — refusing."
+            exit 0
+          fi
+          # Run when narrow group flag OR owner DM path is live.
+          # Prefer groupAppointmentReminders; also allow if features.appointment_reminder true.
+          will=0
+          if echo "$health" | grep -q '"groupAppointmentReminders":true'; then will=1; fi
+          if echo "$health" | grep -q '"appointment_reminder":true'; then will=1; fi
+          if echo "$health" | grep -q '"ownerReminderDm":true'; then will=1; fi
+          if [ "$will" != "1" ]; then
+            echo "SKIP: no appointment reminder path enabled on CranL (set TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1 or owner DM)."
+            exit 0
+          fi
+          # Refuse if silence is somehow off AND we would hit full runner — this job is appointment-only endpoint.
+          code=$(curl -sS -o /tmp/appt-rem.json -w '%{http_code}' \
+            -X POST "${APP_URL}/api/crons/appointment-reminders" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --max-time 60 \
+            -d '{}')
+          echo "HTTP ${code}"
+          head -c 2000 /tmp/appt-rem.json || true
+          echo
+          test "$code" = "200"

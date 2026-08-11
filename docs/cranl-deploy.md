@@ -41,7 +41,12 @@ cranl apps env set <app-id> KEY=VALUE   # may also 405; prefer dashboard/API PUT
 #
 # Cron (mail snooze / schedule send / reminders + digests): set CRON_SECRET on CranL
 # to the same value as the GitHub Actions repo secret CRON_SECRET.
-# Workflow: .github/workflows/cron-runner.yml → POST /api/crons/runner every ~15 min.
+# Full suite workflow DISABLED by default: .github/workflows/cron-runner.yml
+# Narrow appointment reminders (group opt-in, digests stay silent):
+#   TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1
+#   Workflow: .github/workflows/appointment-reminders.yml
+#     → POST /api/crons/appointment-reminders every ~15 min
+# Optional owner DM while silence stays on: TELEGRAM_OWNER_CHAT_ID=<private chat id>
 #
 # Staff roles (no secrets):
 # OWNER_EMAIL=ryodan71@gmail.com   # sole admin UI — optional if default

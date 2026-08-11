@@ -4,13 +4,19 @@
  * Cron digests/reminders/nudges must not post to «عمل الجمعية» unless the
  * owner explicitly opts in via env. Silence is better than spam.
  *
- * Master: TELEGRAM_GROUP_PUSH=1 required for ANY scheduled group push.
+ * Master: TELEGRAM_GROUP_PUSH=1 required for ANY scheduled group push
+ * (except the narrow appointment-reminder path below).
  * Per-feature flags (also default OFF) further narrow what may fire.
  *
  * Absolute kill-switch: TELEGRAM_SILENCE_UNSOLICITED defaults ON when unset.
  * Group sendMessage/sendDocument blocked unless meta.inboundReply / meta.solicited
  * (set by server emit path when inside inbound webhook ALS).
  * Set TELEGRAM_SILENCE_UNSOLICITED=0 to allow opted-in group push features again.
+ *
+ * Narrow exception (appointment only): TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1
+ * allows one pre-appointment group message without TELEGRAM_GROUP_PUSH and
+ * without turning silence off for digests/file-jobs. Does NOT re-enable morning
+ * digests, weekly summaries, or the full push suite.
  */
 
 export type TelegramGroupPushFeature =
@@ -79,8 +85,31 @@ export function isTelegramGroupChatId(
 }
 
 /**
+ * Narrow opt-in: group appointment reminders only.
+ * Independent of TELEGRAM_GROUP_PUSH / silence master — digests stay silent.
+ */
+export function isTelegramGroupAppointmentRemindersAllowed(
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  return isEnvFlagOn(env.TELEGRAM_GROUP_APPOINTMENT_REMINDERS)
+}
+
+/** Meta.kind values that may use the narrow appointment group path. */
+export function isAppointmentReminderMetaKind(
+  kind: unknown
+): boolean {
+  const k = String(kind || '')
+  return (
+    k === 'appointment_hour_reminder' ||
+    k === 'appointment_reminder' ||
+    k === 'group_appointment_reminder'
+  )
+}
+
+/**
  * May we send to this chat without an inbound update?
- * Groups: blocked while silence kill-switch is on, unless meta marks solicited.
+ * Groups: blocked while silence kill-switch is on, unless meta marks solicited
+ * or narrow appointment-reminder flag + matching meta.kind.
  * Private chats: allowed (owner DM digests still gated by TELEGRAM_GROUP_PUSH).
  *
  * Note: inbound webhook ALS is applied in server emit helpers (not here) so this
@@ -104,6 +133,12 @@ export function maySendTelegramToChat(opts: {
   if (meta.inboundReply === true || meta.solicited === true) {
     return { ok: true, reason: 'meta_solicited' }
   }
+  if (
+    isTelegramGroupAppointmentRemindersAllowed(env) &&
+    isAppointmentReminderMetaKind(meta.kind)
+  ) {
+    return { ok: true, reason: 'group_appointment_reminders_opt_in' }
+  }
   return { ok: false, reason: 'telegram_silence_unsolicited' }
 }
 
@@ -125,11 +160,20 @@ export function isTelegramGroupPushFeatureEnabled(
 /**
  * May this feature send unsolicited text to a Telegram group/chat?
  * Default: false (silence ON and/or master OFF and/or feature OFF).
+ *
+ * Appointment reminders: also allowed via TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1
+ * without master / silence-off (narrow path only).
  */
 export function isTelegramGroupPushAllowed(
   feature: TelegramGroupPushFeature,
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
+  if (
+    feature === 'appointment_reminder' &&
+    isTelegramGroupAppointmentRemindersAllowed(env)
+  ) {
+    return true
+  }
   if (isTelegramSilenceUnsolicitedEnabled(env)) return false
   if (!isTelegramGroupPushMasterEnabled(env)) return false
   return isTelegramGroupPushFeatureEnabled(feature, env)
@@ -139,6 +183,12 @@ export function telegramGroupPushDisabledReason(
   feature: TelegramGroupPushFeature,
   env: NodeJS.ProcessEnv = process.env
 ): string {
+  if (
+    feature === 'appointment_reminder' &&
+    isTelegramGroupAppointmentRemindersAllowed(env)
+  ) {
+    return 'allowed'
+  }
   if (isTelegramSilenceUnsolicitedEnabled(env)) {
     return 'telegram_silence_unsolicited'
   }
@@ -188,6 +238,8 @@ export function telegramGroupPushFlagsSnapshot(
   masterEnabled: boolean
   silenceUnsolicited: boolean
   silenceDefaultOn: true
+  groupAppointmentReminders: boolean
+  groupAppointmentRemindersEnvKey: 'TELEGRAM_GROUP_APPOINTMENT_REMINDERS'
   ownerReminderDm: boolean
   ownerReminderDmChatConfigured: boolean
   defaultPolicyAr: string
@@ -199,17 +251,20 @@ export function telegramGroupPushFlagsSnapshot(
     features[f] = isTelegramGroupPushAllowed(f, env)
   }
   const ownerDm = resolveTelegramOwnerDmChatId(env)
+  const groupAppt = isTelegramGroupAppointmentRemindersAllowed(env)
   return {
     masterEnabled: isTelegramGroupPushMasterEnabled(env),
     silenceUnsolicited: isTelegramSilenceUnsolicitedEnabled(env),
     silenceDefaultOn: true,
+    groupAppointmentReminders: groupAppt,
+    groupAppointmentRemindersEnvKey: 'TELEGRAM_GROUP_APPOINTMENT_REMINDERS',
     ownerReminderDm: isTelegramOwnerReminderDmAllowed(
       'appointment_reminder',
       env
     ),
     ownerReminderDmChatConfigured: Boolean(ownerDm),
     defaultPolicyAr:
-      'صمت مطلق للمجموعة افتراضياً (TELEGRAM_SILENCE_UNSOLICITED) — لا إرسال بلا رد على تحديث وارد؛ الملخصات تحتاج أيضاً TELEGRAM_GROUP_PUSH=1؛ تذكيرات انتقائية للمدير فقط عبر DM إن وُجد TELEGRAM_OWNER_CHAT_ID خاص',
+      'صمت مطلق للمجموعة افتراضياً (TELEGRAM_SILENCE_UNSOLICITED) — لا ملخصات/نشرات بلا TELEGRAM_GROUP_PUSH=1؛ مسار ضيق فقط: TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1 لتذكير موعد واحد للمجموعة؛ تذكيرات المدير عبر DM إن وُجد TELEGRAM_OWNER_CHAT_ID خاص',
     features,
     envKeys: { ...FEATURE_ENV },
   }
