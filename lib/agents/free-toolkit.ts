@@ -103,6 +103,22 @@ export const EXCELLENT_FREE_TOOLKIT: FreeToolkitItem[] = [
     noteAr: 'هيرميس عبر بحث ويب؛ البوت أداة مخصصة',
   },
   {
+    id: 'saudi_datetime',
+    labelAr: 'تاريخ/وقت السعودية + هجري',
+    bot: 'saudi_datetime',
+    hermes: 'MCP time + Intl / مهارة maps',
+    bothReady: true,
+    noteAr: 'توقيت Asia/Riyadh ميلادي+هجري محلياً بلا مفتاح',
+  },
+  {
+    id: 'wayback',
+    labelAr: 'أرشيف الويب (Wayback)',
+    bot: 'wayback_lookup',
+    hermes: 'MCP fetch → archive.org/wayback',
+    bothReady: true,
+    noteAr: 'لقطات مجانية لصفحات gov.sa/لوائح',
+  },
+  {
     id: 'drive_search',
     labelAr: 'بحث/قائمة Drive',
     bot: 'drive_search_files / drive_list_files',

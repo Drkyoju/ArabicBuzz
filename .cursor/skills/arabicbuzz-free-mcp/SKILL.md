@@ -20,6 +20,8 @@ description: Prefer free no-key ArabicBuzz builtins and wired MCPs (DDG, fetch/J
 | Geocode | `geocode` (Nominatim) | Paid maps APIs |
 | English dictionary | `dictionary_lookup` | — |
 | Hacker News | `hn_search` | — |
+| Riyadh + Hijri datetime | `saudi_datetime` | Paid calendar APIs |
+| Wayback snapshot | `wayback_lookup` | Paid archive APIs |
 | PDF ops | `pdf_*` via pdf-lib | Remote PDF MCP |
 | Drive / Gmail | Native OAuth tools | Separate Workspace MCP |
 | Telegram | grammy bot + `return_file` | Telegram userbot MCP |
@@ -45,7 +47,7 @@ Local WA/Drive skills: `wa-archive`, `wa-file-read`, `wa-storage-mesh`, `wa-pdf-
 
 Parity checklist: `lib/agents/free-toolkit.ts` — **same excellent free set, separate runtimes** (no WA↔TG coupling).
 
-Product (CranL / `@alhuda14bot`) — **independent** free builtins (not wired to Hermes): `wikipedia_lookup`, `youtube_transcript`, `math_eval`, `domain_intel`, `arxiv_search`, `fx_rate`, `geocode`, `dictionary_lookup`, `hn_search` + `find_storage_mesh` / `pdf_duplicate_page` / Drive / OCR.
+Product (CranL / `@alhuda14bot`) — **independent** free builtins (not wired to Hermes): `wikipedia_lookup`, `youtube_transcript`, `math_eval`, `domain_intel`, `arxiv_search`, `fx_rate`, `geocode`, `dictionary_lookup`, `hn_search`, `saudi_datetime`, `wayback_lookup` + `find_storage_mesh` / `pdf_duplicate_page` / Drive / OCR.
 
 Monterey note: prefer **npx** MCP packages; `uvx` Python MCP wrappers need `~/.hermes/bin/realpath` shim. PDF/OCR via `~/.hermes/docs-venv` (pymupdf/pypdf/pillow/pytesseract) — not marker-pdf (~5GB) / pdfplumber / pypdfium2. Skip `youtube-transcript-mcp` (needs bun) and broken `mcp-server-wikipedia`.
 

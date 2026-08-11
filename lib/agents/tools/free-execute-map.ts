@@ -272,6 +272,30 @@ const RULES: Rule[] = [
     ],
   },
   {
+    re: /(?:هجري|ميلادي|توقيت\s*(?:ال)?(?:سعود|رياض)|كم\s*(?:ال)?(?:ساع|تاريخ)|saudi[\s_-]?datetime|riyadh\s*time)/iu,
+    hints: [
+      {
+        toolName: 'saudi_datetime',
+        libAr: 'Intl Asia/Riyadh (محلي)',
+        whyAr: 'تاريخ/وقت السعودية ميلادي+هجري بلا مفتاح',
+        instructionAr:
+          'نفّذ saudi_datetime فوراً وانشر الميلادي والهجري بتوقيت الرياض.',
+      },
+    ],
+  },
+  {
+    re: /(?:wayback|أرشيف\s*(?:ال)?ويب|archive\.org|لقط[ةه]\s*(?:أرشيف|قديمة)|نسخ[ةه]\s*مؤرشف)/iu,
+    hints: [
+      {
+        toolName: 'wayback_lookup',
+        libAr: 'Internet Archive Wayback (مجاني)',
+        whyAr: 'لقطة أرشيف بلا مفتاح لصفحات تغيّرت أو اختفت',
+        instructionAr:
+          'نفّذ wayback_lookup مع الرابط ثم انشر snapshotUrl إن وُجد. إن لم توجد لقطة: web_fetch للصفحة الحية.',
+      },
+    ],
+  },
+  {
     re: /(?:جلب|افتح|اقرأ).{0,40}(?:رابط|url|صفحة|موقع)|web[\s_-]?fetch|ingest_url|jina/iu,
     hints: [
       {

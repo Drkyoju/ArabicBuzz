@@ -78,6 +78,8 @@ export const TOOL_LABEL_AR: Record<string, string> = {
   geocode: 'ترميز جغرافي',
   dictionary_lookup: 'قاموس',
   hn_search: 'Hacker News',
+  saudi_datetime: 'تاريخ/وقت السعودية',
+  wayback_lookup: 'أرشيف الويب',
   research_task_tools: 'بحث أدوات/مهارات',
   drive_upload: 'رفع إلى Drive',
   drive_upload_file: 'رفع إلى Drive',

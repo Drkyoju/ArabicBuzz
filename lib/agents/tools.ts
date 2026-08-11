@@ -120,6 +120,8 @@ import {
   executeGeocode,
   executeHnSearch,
   executeMathEval,
+  executeSaudiDatetime,
+  executeWaybackLookup,
   executeWikipediaLookup,
   executeYoutubeTranscript,
 } from '@/lib/agents/tools/knowledge-tools'
@@ -345,6 +347,8 @@ export const toolRegistry: Record<string, ToolExecutor> = {
   geocode: executeGeocode,
   dictionary_lookup: executeDictionaryLookup,
   hn_search: executeHnSearch,
+  saudi_datetime: executeSaudiDatetime,
+  wayback_lookup: executeWaybackLookup,
   research_task_tools: executeResearchTaskTools,
   drive_sync_brain: async (_n, params) => {
     const userId = String(params.userId || '')

@@ -26,6 +26,8 @@ export const EMPLOYEE_SAFE_TOOLS = [
   'geocode',
   'dictionary_lookup',
   'hn_search',
+  'saudi_datetime',
+  'wayback_lookup',
   'research_task_tools',
   'ingest_url_to_brain',
   // Vault / knowledge

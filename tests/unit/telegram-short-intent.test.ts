@@ -64,6 +64,40 @@ describe('parseTelegramShortIntent', () => {
     expect(shortIntentToWorkKind('letter')).toBe('file')
   })
 
+  it('parses Gulf/MSA variants: ذكّرني · وريني المواعيد · ابحث عن · ايميلنا · هجري', () => {
+    expect(parseTelegramShortIntent('ذكّرني بمتابعة التقرير غداً')?.kind).toBe(
+      'reminder'
+    )
+    expect(parseTelegramShortIntent('ذكرني بالاجتماع')?.kind).toBe('reminder')
+    expect(shortIntentToWorkKind('reminder')).toBe('task')
+    expect(parseTelegramShortIntent('وريني المواعيد')?.kind).toBe(
+      'calendar_list'
+    )
+    expect(parseTelegramShortIntent('أبي موعد غداً ١٠ص')?.kind).toBe(
+      'calendar_book'
+    )
+    expect(parseTelegramShortIntent('ابحث عن رؤية 2030')?.kind).toBe(
+      'web_search'
+    )
+    expect(parseTelegramShortIntent('ايميلنا')?.kind).toBe('mail')
+    expect(parseTelegramShortIntent('كم التاريخ الهجري؟')?.kind).toBe(
+      'datetime'
+    )
+    expect(
+      parseTelegramShortIntent('أرشيف الويب https://www.vision2030.gov.sa')
+        ?.kind
+    ).toBe('wayback')
+  })
+
+  it('does not steal room/mail queries into soft web search', () => {
+    expect(parseTelegramShortIntent('ابحث في الغرفة عن اللائحة')?.kind).toBe(
+      'room_search'
+    )
+    expect(parseTelegramShortIntent('ابحث في البريد عن الفاتورة')?.kind).toBe(
+      'mail'
+    )
+  })
+
   it('calendar list nudge names team agenda not personal Google', () => {
     const n = parseTelegramShortIntent('كم موعد عندنا؟')
     expect(n?.nudgeAr).toMatch(/مواعيد الجمعية\/الفريق/)

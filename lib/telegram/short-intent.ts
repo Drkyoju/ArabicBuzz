@@ -27,6 +27,7 @@ export type TelegramShortIntentKind =
   | 'calendar_book'
   | 'calendar_list'
   | 'task'
+  | 'reminder'
   | 'wiki'
   | 'math'
   | 'youtube'
@@ -34,6 +35,8 @@ export type TelegramShortIntentKind =
   | 'notify'
   | 'minutes'
   | 'letter'
+  | 'datetime'
+  | 'wayback'
   | null
 
 export type TelegramShortIntent = {
@@ -106,13 +109,16 @@ const WEB_RE =
   /^(?:ابحث|دور|بحث)\s*(?:لي\s*)?(?:في|عبر|على)?\s*(?:ال)?(?:جوجل|google|ويب|انترنت|الإنترنت|duckduckgo)\s*(?:عن|على)?\s*(.+)$/iu
 const WEB_SOFT_RE =
   /^(?:جوجل|google)\s*[:：]?\s*(.+)$/iu
+/** Soft web when no room/mail/mesh keyword — Gulf/MSA «ابحث عن …» / «دور لي عن …». */
+const WEB_ABOUT_RE =
+  /^(?:ابحث|دور|بحث)\s*(?:لي\s*)?(?:عن|على)\s*(.+)$/iu
 
 const MAPS_RE =
   /^(?:أين|وين)\s*(?:تقع|موقع)?\s*(.+)$/iu
 const MAPS_MAP_RE =
   /^(?:خريط[ةه]|موقع|إحداثي(?:ات)?|geocode)\s*(?:ل|عن|على)?\s*(.+)$/iu
 const MAPS_SEND_RE =
-  /^(?:أرسل|ارسل|أعطني|عطني|ور[ّ]?يني)\s*(?:موقع|خريط[ةه])\s*(?:ل|عن)?\s*(.+)$/iu
+  /^(?:أرسل|ارسل|أعطني|عطني|ور[ّ]?يني|أبي|ابي|أبغى|ابغى)\s*(?:موقع|خريط[ةه])\s*(?:ل|عن)?\s*(.+)$/iu
 
 const BRIEF_RE =
   /^(?:إحاطة|احاطة)(?:\s*(?:ال)?(?:صباح|يوم|اليوم))?[\s!.؟?…]*$|^(?:ملخص|تقرير)\s*(?:ال)?(?:صباح|يوم|اليوم)[\s!.؟?…]*$|^(?:morning\s*brief)[\s!.؟?…]*$/iu
@@ -129,7 +135,7 @@ const ARCHIVE_RE =
   /^(?:أرشف|ارشف|أرشفة|ارشفة)\s*(?:ال)?(?:مجموعة|قروب|شات)?[\s!.؟?…]*$/iu
 
 const CREATE_RE =
-  /^(?:أنشئ|انشئ|اكتب|سو[يّ]|جه[ّ]?ز|حض[ّ]?ر)\s*(?:لي\s*)?(?:ملف|مستند|وثيق|مذكرة|ملاحظة|نص|ورد|وورد|word|pdf|docx)\s*(.*)$/iu
+  /^(?:أنشئ|انشئ|اكتب|سو[يّ]|جه[ّ]?ز|حض[ّ]?ر|أبي|ابي|أبغى|ابغى)\s*(?:لي\s*)?(?:ملف|مستند|وثيق|مذكرة|ملاحظة|نص|ورد|وورد|word|pdf|docx)\s*(.*)$/iu
 const CREATE_NEW_RE =
   /^(?:ملف|مستند)\s*جديد\s*(.*)$/iu
 
@@ -144,19 +150,22 @@ const SUMMARIZE_BARE_RE = /^(?:لخ[ّ]?ص)[\s!.؟?…]*$/iu
 const MAIL_RE =
   /^(?:ابحث|دور)\s*(?:لي\s*)?(?:في\s*)?(?:ال)?(?:بريد|إيميل|ايميل|gmail|inbox)\s*(?:عن|على)?\s*(.*)$/iu
 const MAIL_SOFT_RE =
-  /^(?:شو|وش|ماذا)\s*(?:في|عندنا\s*في)?\s*(?:ال)?(?:بريد|وارد|صندوق)[\s!.؟?…]*$/iu
+  /^(?:شو|وش|ماذا)\s*(?:في|عندنا\s*في)?\s*(?:ال)?(?:بريد|وارد|صندوق|ايميل|إيميل)[\s!.؟?…]*$/iu
 const MAIL_SEND_RE =
   /^(?:أرسل|ارسل)\s*(?:بريد|إيميل|ايميل)\s*(?:إلى|ل|الى)?\s*(.+)$/iu
-const MAIL_BARE_RE = /^(?:بريد|إيميل|ايميل)[\s!.؟?…]*$/iu
+const MAIL_BARE_RE =
+  /^(?:بريد|إيميل|ايميل|ايميلنا|إيميلنا|صندوق\s*(?:ال)?وارد)[\s!.؟?…]*$/iu
 
 const CAL_BOOK_RE =
-  /^(?:احجز|احجزي|أضف|اضف|سج[ّل])\s*(?:لي\s*)?(?:موعد|اجتماع|لقاء)\s*(.*)$/iu
+  /^(?:احجز|احجزي|أضف|اضف|سج[ّل]|سو[يّ]|أبي|ابي|أبغى|ابغى)\s*(?:لي\s*)?(?:موعد|اجتماع|لقاء)\s*(.*)$/iu
 const CAL_LIST_RE =
-  /^(?:كم|عدد)\s*(?:ال)?(?:موعد|مواعيد)|(?:مواعيد|أجندة|اجندة)\s*(?:اليوم|الغرفة|الجمعية|الفريق)?[\s!.؟?…]*$|^(?:وش|شو|ماذا)\s*(?:عندنا|فيه)\s*(?:اليوم|الليلة)[\s!.؟?…]*$/iu
-const CAL_BARE_RE = /^(?:موعد|مواعيد)[\s!.؟?…]*$/iu
+  /^(?:كم|عدد)\s*(?:ال)?(?:موعد|مواعيد)|(?:مواعيد|أجندة|اجندة|جدول)\s*(?:اليوم|الغرفة|الجمعية|الفريق)?[\s!.؟?…]*$|^(?:وش|شو|ماذا)\s*(?:عندنا|فيه)\s*(?:اليوم|الليلة)[\s!.؟?…]*$|^(?:ور[ّ]?يني|عطني|أعطني|أبي|ابي|أبغى|ابغى)\s*(?:ال)?(?:مواعيد|أجندة|اجندة|جدول)[\s!.؟?…]*$/iu
+const CAL_BARE_RE = /^(?:موعد|مواعيد|أجندة|اجندة)[\s!.؟?…]*$/iu
 
 const TASK_RE =
   /^(?:أضف|اضف|سج[ّل]|أنشئ|انشئ)\s*(?:لي\s*)?(?:مهم[ةه]|تاسك)\s*(.*)$/iu
+const REMIND_RE =
+  /^(?:ذك[ّ]?رني|ذكرني|تذكير(?:ني)?)\s*(?:ب|عن|ل|على)?\s*(.*)$/iu
 
 const WIKI_RE =
   /^(?:ويكيبيديا|wikipedia)\s*(?:عن)?\s*(.+)$/iu
@@ -177,6 +186,12 @@ const MINUTES_RE =
   /^(?:محضر|محاضر)\s*(.*)$/iu
 const LETTER_RE =
   /^(?:خطاب|خطابات)\s*(.*)$/iu
+
+const DATETIME_RE =
+  /^(?:كم\s*(?:ال)?(?:ساع[ةه]|تاريخ)(?:\s*(?:ال)?(?:هجري|ميلادي))?|(?:ال)?تاريخ\s*(?:ال)?(?:هجري|ميلادي)?|هجري(?:اً|ا)?|ميلادي(?:اً|ا)?|توقيت\s*(?:ال)?(?:سعود|رياض)|الآن\s*(?:بتوقيت\s*)?(?:ال)?رياض)[\s!.؟?…]*$/iu
+
+const WAYBACK_RE =
+  /^(?:أرشيف\s*(?:ال)?ويب|wayback|لقط[ةه]\s*(?:أرشيف|قديمة))\s*(.*)$/iu
 
 /** Shared calendar vs personal — inject into calendar nudges/replies. */
 export const TELEGRAM_TEAM_CALENDAR_LABEL_AR =
@@ -264,6 +279,12 @@ function nudgeFor(
         forceHeavy: false,
         nudgeAr: `[اختصار: مهمة] room_tasks_create فوراً («${p}»). سطر تأكيد واحد.`,
       }
+    case 'reminder':
+      return {
+        labelAr: 'تذكير',
+        forceHeavy: false,
+        nudgeAr: `[اختصار: ذكّرني] أنشئ مهمة/تذكير عبر room_tasks_create فوراً («${p}») مع due إن وُجد وقت. إن كان موعد اجتماع واضح استخدم room_calendar_create في مواعيد الجمعية بدل التقويم الشخصي. سطر تأكيد واحد.`,
+      }
     case 'wiki':
       return {
         labelAr: 'ويكيبيديا',
@@ -307,6 +328,19 @@ function nudgeFor(
         forceHeavy: true,
         nudgeAr: `[اختصار: خطاب] list_letter_templates إن لزم ثم letter_fill_template («${p}») ثم return_file. رد موجز.`,
       }
+    case 'datetime':
+      return {
+        labelAr: 'تاريخ/وقت',
+        forceHeavy: false,
+        nudgeAr:
+          '[اختصار: تاريخ السعودية] نفّذ saudi_datetime فوراً. انشر الميلادي والهجري بتوقيت الرياض — سطرين كحد أقصى.',
+      }
+    case 'wayback':
+      return {
+        labelAr: 'أرشيف ويب',
+        forceHeavy: false,
+        nudgeAr: `[اختصار: أرشيف ويب] wayback_lookup لـ «${p}». انشر رابط اللقطة إن وُجدت؛ وإلا web_fetch للصفحة الحية.`,
+      }
   }
 }
 
@@ -338,6 +372,7 @@ export function parseTelegramShortIntent(raw: string): TelegramShortIntent | nul
   if (BRIEF_RE.test(t)) return tryMatch('brief', 'إحاطة الصباح')
   if (ARCHIVE_RE.test(t)) return tryMatch('archive', 'أرشف المجموعة')
   if (OCR_RE.test(t)) return tryMatch('ocr', 'OCR')
+  if (DATETIME_RE.test(t)) return tryMatch('datetime', 'الآن')
   if (CONVERT_BARE_RE.test(t)) return tryMatch('edit_file', 'حوّل المرفق')
   if (SUMMARIZE_BARE_RE.test(t)) return tryMatch('edit_file', 'لخّص المرفق')
   if (MAIL_BARE_RE.test(t)) return tryMatch('mail', 'صندوق الوارد')
@@ -345,6 +380,13 @@ export function parseTelegramShortIntent(raw: string): TelegramShortIntent | nul
   if (CAL_LIST_RE.test(t)) return tryMatch('calendar_list', t)
 
   let m: RegExpMatchArray | null
+  if ((m = t.match(REMIND_RE))) {
+    return tryMatch('reminder', clip(m[1] || t))
+  }
+  if ((m = t.match(WAYBACK_RE))) {
+    const q = clip(m[1] || '')
+    if (q.length >= 8) return tryMatch('wayback', q)
+  }
   if ((m = t.match(MINUTES_RE))) {
     return tryMatch('minutes', clip(m[1] || 'محضر من نقاش الغرفة'))
   }
@@ -363,6 +405,18 @@ export function parseTelegramShortIntent(raw: string): TelegramShortIntent | nul
   if ((m = t.match(WEB_RE)) || (m = t.match(WEB_SOFT_RE))) {
     const q = clip(m[1] || '')
     if (q.length >= 2) return tryMatch('web_search', q)
+  }
+  // Soft «ابحث عن …» after room/mesh — default web (DDG), not personal Google.
+  if ((m = t.match(WEB_ABOUT_RE))) {
+    const q = clip(m[1] || '')
+    if (
+      q.length >= 2 &&
+      !/(?:ال)?(?:غرفة|موقع|جمعية|بريد|إيميل|ايميل|شبكة|درايف|drive|موعد|مواعيد|اجتماع|مهم[ةه]|محضر|خطاب)/iu.test(
+        q
+      )
+    ) {
+      return tryMatch('web_search', q)
+    }
   }
   if (
     (m = t.match(MAPS_RE)) ||
@@ -429,6 +483,7 @@ export function shortIntentToWorkKind(
       // Keep as question so fast-path calendar_count can answer without full agent.
       return 'question'
     case 'task':
+    case 'reminder':
       return 'task'
     case 'create_file':
     case 'edit_file':

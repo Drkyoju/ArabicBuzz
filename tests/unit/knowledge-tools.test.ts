@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   evaluateMathExpression,
   extractYoutubeVideoId,
+  normalizeWaybackUrl,
 } from '@/lib/agents/tools/knowledge-tools'
 import { mapTaskToBuiltinFreeTools } from '@/lib/agents/tools/free-execute-map'
 import { buildTelegramHelpDomainAr } from '@/lib/telegram/help-copy'
@@ -33,6 +34,13 @@ describe('knowledge-tools pure helpers', () => {
     expect(evaluateMathExpression('2^10')).toBe(1024)
     expect(evaluateMathExpression('min(3,1,2)')).toBe(1)
     expect(() => evaluateMathExpression('process.exit(1)')).toThrow()
+  })
+
+  it('normalizes wayback urls', () => {
+    expect(normalizeWaybackUrl('https://example.com/a')).toMatch(/^https:\/\//)
+    expect(normalizeWaybackUrl('example.com')).toMatch(/^https:\/\/example\.com/)
+    expect(normalizeWaybackUrl('')).toBeNull()
+    expect(normalizeWaybackUrl('ftp://x')).toBeNull()
   })
 })
 
@@ -78,6 +86,8 @@ describe('telegram / role surfaces include knowledge tools', () => {
     expect(search).toMatch(/geocode/)
     expect(search).toMatch(/dictionary_lookup/)
     expect(search).toMatch(/hn_search/)
+    expect(search).toMatch(/saudi_datetime/)
+    expect(search).toMatch(/wayback_lookup/)
 
     for (const name of [
       'wikipedia_lookup',
@@ -89,6 +99,8 @@ describe('telegram / role surfaces include knowledge tools', () => {
       'geocode',
       'dictionary_lookup',
       'hn_search',
+      'saudi_datetime',
+      'wayback_lookup',
     ] as const) {
       expect(EMPLOYEE_SAFE_TOOLS).toContain(name)
       expect(TELEGRAM_SITE_CHAT_TOOLS).toContain(name)
@@ -97,7 +109,7 @@ describe('telegram / role surfaces include knowledge tools', () => {
 })
 
 describe('free-execute-map extra public tools', () => {
-  it('maps fx / geocode / dictionary / hn', () => {
+  it('maps fx / geocode / dictionary / hn / saudi_datetime / wayback', () => {
     expect(
       mapTaskToBuiltinFreeTools('حوّل 100 دولار لريال').some(
         (h) => h.toolName === 'fx_rate'
@@ -128,6 +140,16 @@ describe('free-execute-map extra public tools', () => {
         (h) => h.toolName === 'hn_search'
       )
     ).toBe(true)
+    expect(
+      mapTaskToBuiltinFreeTools('كم التاريخ الهجري بتوقيت الرياض').some(
+        (h) => h.toolName === 'saudi_datetime'
+      )
+    ).toBe(true)
+    expect(
+      mapTaskToBuiltinFreeTools('wayback أرشيف الويب للرابط').some(
+        (h) => h.toolName === 'wayback_lookup'
+      )
+    ).toBe(true)
   })
 })
 
@@ -145,6 +167,8 @@ describe('excellent free toolkit checklist', () => {
       'geocode',
       'dictionary',
       'hn',
+      'saudi_datetime',
+      'wayback',
       'pdf_read_ocr',
     ]) {
       expect(ready.has(id)).toBe(true)

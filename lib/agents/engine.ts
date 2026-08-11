@@ -231,6 +231,41 @@ export function getNativeAiTools(opts?: {
           execute: getToolExecutor('hn_search'),
         }),
     }),
+    saudi_datetime: tool({
+      description:
+        'تاريخ/وقت السعودية (Asia/Riyadh) ميلادي + هجري عبر Intl محلياً — بلا مفتاح. للجمعية: «كم التاريخ الهجري؟» / «الآن بتوقيت الرياض».',
+      inputSchema: z.object({
+        when: z
+          .string()
+          .optional()
+          .describe('ISO أو فارغ/الآن/اليوم — افتراضي الآن'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'saudi_datetime',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('saudi_datetime'),
+        }),
+    }),
+    wayback_lookup: tool({
+      description:
+        'لقطة أرشيف الويب (Internet Archive Wayback) لرابط — مجاني بلا مفتاح. مفيد لصفحات gov.sa/لوائح تغيّرت أو اختفت.',
+      inputSchema: z.object({
+        url: z.string().describe('رابط الصفحة المراد أرشفتها/استرجاع لقطتها'),
+      }),
+      execute: async (params) =>
+        interceptToolExecution({
+          toolName: 'wayback_lookup',
+          params,
+          mode,
+          requesterId,
+          scopeId,
+          execute: getToolExecutor('wayback_lookup'),
+        }),
+    }),
     research_task_tools: tool({
       description:
         'عجز القدرة: ابحث مجاناً (ويب+GitHub) واربط بقدرات مدمجة (pdf-lib/convert/OCR…). إن canExecuteFree=true نفّذ executeNext فوراً وreturn_file — لا تقترح فقط. فقط إن blocked انشر messageAr (بوابة دفع بعد استنفاد المجاني). ممنوع تشغيل كود MCP بعيد غير موثوق. ممنوع ادّعاء النجاح أو الصمت أو «هل تريد؟».',

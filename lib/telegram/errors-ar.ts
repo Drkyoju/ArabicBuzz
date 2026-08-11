@@ -79,6 +79,37 @@ export function formatTelegramErrorAr(
     ].join('\n')
   }
 
+  if (
+    /libreoffice|soffice|convert|تحويل|ocr|tesseract|paddle/i.test(
+      lower + raw
+    ) &&
+    /(?:unavailable|not\s*available|غير\s*متاح|فشل|failed|missing)/i.test(
+      lower + raw
+    )
+  ) {
+    return [
+      '🔄 التحويل/OCR غير متاح على السحابة حالياً.',
+      'الخطوة التالية:',
+      '1) ارفع الملف إلى Drive بعد ربط Google من الإعدادات ثم أعد الطلب، أو',
+      '2) أيقظ جسر الماك (LibreOffice + OCR) إن كان جهاز الماك مستيقظاً، أو',
+      '3) أرسل ملفاً أصغر/نصاً إن أمكن.',
+      'المهمة تُستأنف تلقائياً عند توفر المسار — بلا إعادة إرسال إن بقيت البايتات.',
+    ].join('\n')
+  }
+
+  if (
+    /mac.?sync|mac.?hop|bot\s*api|mtproto|نفق|cloudflare|hop/i.test(
+      lower + raw
+    )
+  ) {
+    return [
+      '🌉 مسار الملفات الكبيرة (hop) غير جاهز الآن.',
+      'الخطوة التالية: انتظر عودة الجسر، أو ارفع عبر Drive، أو أرسل ملفاً أصغر.',
+      'افحص /status لمعرفة أي hop حي (Local Bot API · جسر الماك · MTProto).',
+      'المهمة تبقى معلّقة صامتة وتُستأنف تلقائياً.',
+    ].join('\n')
+  }
+
   if (opts?.inGroup && /permission|can't send|not enough rights/i.test(lower)) {
     return [
       '👮 البوت لا يملك صلاحية الإرسال في المجموعة.',

@@ -954,3 +954,139 @@ export async function executeHnSearch(
     }
   }
 }
+
+/**
+ * Riyadh wall-clock + dual Gregorian/Hijri labels (local Intl — no paid key).
+ * Association ops often need «اليوم هجري/ميلادي» without leaving Telegram.
+ */
+export async function executeSaudiDatetime(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const rawWhen = String(params.when || params.date || params.at || '').trim()
+  let when: Date
+  if (!rawWhen || /^(?:الآن|الان|اليوم|now|today)$/iu.test(rawWhen)) {
+    when = new Date()
+  } else {
+    const parsed = new Date(rawWhen)
+    if (Number.isNaN(parsed.getTime())) {
+      return {
+        ok: false,
+        messageAr:
+          'تعذّر قراءة التاريخ. مرّر ISO مثل 2026-08-11 أو اتركه فارغاً لـ«الآن».',
+      }
+    }
+    when = parsed
+  }
+
+  const tz = 'Asia/Riyadh'
+  const gregorian = new Intl.DateTimeFormat('ar-SA', {
+    timeZone: tz,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(when)
+  const hijri = new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
+    timeZone: tz,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(when)
+  const isoRiyadh = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(when)
+
+  return {
+    ok: true,
+    timeZone: tz,
+    isoUtc: when.toISOString(),
+    isoRiyadh,
+    gregorianAr: gregorian,
+    hijriAr: hijri,
+    messageAr: `توقيت السعودية (Asia/Riyadh): ${gregorian} · هجري: ${hijri}`,
+  }
+}
+
+/** Normalize URL for Wayback lookup. */
+export function normalizeWaybackUrl(input: string): string | null {
+  const s = String(input || '').trim()
+  if (!s) return null
+  if (/^(?:javascript|data|file|ftp|blob):/i.test(s)) return null
+  try {
+    const u = new URL(s.startsWith('http') ? s : `https://${s}`)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Internet Archive Wayback availability (free, no key) — useful for gov.sa /
+ * association docs that change or go offline.
+ */
+export async function executeWaybackLookup(
+  _n: string,
+  params: Record<string, unknown>
+) {
+  const raw = String(params.url || params.link || params.query || '').trim()
+  const target = normalizeWaybackUrl(raw)
+  if (!target) throw new Error('يلزم رابط http(s) صالح لأرشيف الويب.')
+  if (IS_AIR_GAPPED_MODE) return airgapBlock()
+
+  const url = `https://archive.org/wayback/available?url=${encodeURIComponent(target)}`
+  validateNetworkAccess(url)
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': UA },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) {
+      return {
+        ok: false,
+        url: target,
+        messageAr: `فشل أرشيف الويب (HTTP ${res.status}).`,
+      }
+    }
+    const data = (await res.json()) as {
+      archived_snapshots?: {
+        closest?: {
+          available?: boolean
+          url?: string
+          timestamp?: string
+          status?: string
+        }
+      }
+    }
+    const closest = data.archived_snapshots?.closest
+    const available = Boolean(closest?.available && closest?.url)
+    return {
+      ok: available,
+      url: target,
+      snapshotUrl: closest?.url || '',
+      timestamp: closest?.timestamp || '',
+      status: closest?.status || '',
+      provider: 'archive.org/wayback',
+      messageAr: available
+        ? `لقطة أرشيف متاحة: ${closest!.url}`
+        : `لا لقطة أرشيف متاحة حالياً لـ ${target}. جرّب web_fetch للصفحة الحية.`,
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      messageAr: e instanceof Error ? e.message : 'تعذّر أرشيف الويب.',
+    }
+  }
+}

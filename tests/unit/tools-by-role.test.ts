@@ -58,6 +58,8 @@ describe('tools-by-role', () => {
       'geocode',
       'dictionary_lookup',
       'hn_search',
+      'saudi_datetime',
+      'wayback_lookup',
     ]) {
       expect(set.has(t)).toBe(true)
     }
