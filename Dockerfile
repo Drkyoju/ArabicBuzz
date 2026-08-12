@@ -1,6 +1,6 @@
 # ArabicBuzz — CranL production image (Next.js standalone + Prisma)
 # Binds 0.0.0.0:$PORT (default 3000). Do not commit secrets; use CranL env.
-# build-bust: gcal-add-ux-group-appt-reminders-20260811
+# build-bust: room-webhook-ingress-20260812
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
