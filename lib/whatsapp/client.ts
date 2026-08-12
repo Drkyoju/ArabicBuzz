@@ -11,17 +11,26 @@ import {
 export async function sendWhatsAppText(to: string, body: string) {
   const transport = resolveWhatsAppTransport()
   if (transport === 'bridge') {
-    await sendViaWhatsAppBridge(to, body)
+    const result = await sendViaWhatsAppBridge(to, body)
+    if (!result.ok) {
+      throw new Error(result.error || 'فشل إرسال واتساب عبر الجسر')
+    }
     return
   }
-  if (transport !== 'meta_cloud') return
+  if (transport !== 'meta_cloud') {
+    throw new Error(
+      'واتساب غير مضبوط — عيّن WHATSAPP_BRIDGE_URL (جسر مجاني) أو مسار Meta Cloud صراحة'
+    )
+  }
 
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  if (!token || !phoneId) return
+  if (!token || !phoneId) {
+    throw new Error('WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID ناقص')
+  }
   const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`
   validateNetworkAccess(url)
-  await fetch(url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -34,6 +43,10 @@ export async function sendWhatsAppText(to: string, body: string) {
       text: { body },
     }),
   })
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`Meta WhatsApp HTTP ${res.status}: ${t.slice(0, 120)}`)
+  }
 }
 
 export async function sendWhatsAppAudio(to: string, mediaId: string) {

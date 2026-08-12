@@ -22,7 +22,7 @@ CloudConvert يبقى **اختياري بمفتاح**. Google Drive (ربط مج
 | OCR صورة مفردة | `arabic_ocr` / `read_document` | نفسه | png/jpg/webp/tiff |
 | PDF→DOCX عربي | `convert_document`: Paddle → Tesseract → Gemini → توقّف (Mistral opt-in) → محلي نظيف أو ارفض | **معطّل:** Drive طلاسم، pdf2docx عربي، pdf-lib عربي |
 | PDF→XLSX / XLSX→DOCX | CloudConvert أو rebuild منظّم (جداول) | CranL | Drive لا يعبر عائلات Docs↔Sheets |
-| Office↔PDF محلي | **LibreOffice** `soffice --headless` | Docker اختياري / الماك | مجاني — CranL رقيق حالياً؛ فعّل `INSTALL_LIBREOFFICE=1` إن سمح الحجم |
+| Office↔PDF دائم | **LibreOffice sidecar** (`CONVERT_SERVICE_URL`) | VPS / Fly / `docker-compose.convert.yml` | مجاني — أولاً في السلسلة؛ CranL يبقى رقيقاً |
 | طبقة نص قابلة للبحث | **OCRmyPDF** (اختياري) | venv الماك | يحتاج ghostscript + tesseract |
 | DOCX/PPTX/XLSX | python-docx · python-pptx · openpyxl + JS (docx/exceljs) | venv / Netlify | تعديل واستخراج |
 | قرارات طويلة → Markdown | **MarkItDown** | `POST /markitdown` + MCP | `pip install "markitdown[all]"` |
@@ -89,6 +89,7 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 |-------|---------|--------|
 | `MAC_SYNC_URL` + `MAC_SYNC_SECRET` | لجودة OCR مجانية عالية | جسر الماك (`/ocr/paddle` + `/pdf-page-ocr`) |
 | `GEMINI_API_KEY` | عادة موجود | احتياطي سحابي بعد Paddle/Tesseract |
+| `CONVERT_SERVICE_URL` / `LIBREOFFICE_URL` + `CONVERT_SECRET` | مُستحسن للتحويل بلا ماك | sidecar LibreOffice — `deploy/libreoffice-convert/` و`docker-compose.convert.yml` |
 | `PADDLE_OCR_URL` / `ENABLE_PADDLE_OCR` | اختياري | sidecar أو محلي إن لم يُستخدم mac-hop. لا يُضمَّن في صورة CranL — انظر `deploy/paddle-ocr/` و`docs/mac-ocr-tesseract.md` |
 | `CONVERT_ALLOW_MISTRAL` | اختياري — افتراضي OFF | يجب `=1` مع `MISTRAL_API_KEY` لتشغيل Mistral بعد السلسلة المجانية؛ بدونها نتوقّف ونرفض بلا طلاسم |
 | `MISTRAL_API_KEY` | اختياري مدفوع | لا يُستدعى تلقائياً — يحتاج أيضاً `CONVERT_ALLOW_MISTRAL=1` |
@@ -114,6 +115,6 @@ curl -s http://127.0.0.1:7420/health | jq .tools
 - مسح ضبابي / مائل / دقة منخفضة → أخطاء OCR متوقعة.
 - PDF فيه نص معطوب (ToUnicode) يبدو صحيحاً بصرياً لكن النسخ يعطي طلاسم — نفضّل OCR أو Google Drive لا rebuild نصّي أعمى.
 - بدون جسر ماك ولا Gemini: OCR المحلي غير متاح على Netlify (لا Tesseract في الدالة).
-- LibreOffice غير مثبت على Netlify. على CranL الصورة رقيقة حالياً (بناء LO فشل/غير مستقر على المضيف) — المسار المجاني القوي = **Google Drive** بعد الربط. لتفعيل LO: `INSTALL_LIBREOFFICE=1` عند البناء إن سمح الحجم.
+- LibreOffice غير مثبت على Netlify/CranL (صورة رقيقة). المسار المجاني بلا ماك: **`CONVERT_SERVICE_URL`** → sidecar (`docker-compose.convert.yml`) ثم Drive بعد الربط. جسر الماك احتياطي فقط.
 
 انظر أيضاً: [file-edit-engines.md](./file-edit-engines.md) · مهارة `document_ocr_workflow`.

@@ -10,7 +10,7 @@
 |---|---|
 | **هيرميس** | وقف واتساب فقط على الماك (`~/.hermes`) — لا تيليجرام |
 | **الجمعية** | تيليجرام `@alhuda14bot` + الموقع (CranL) + الوكلاء — **لا Slack** |
-| **واتساب (اختياري)** | جسر مجاني فقط (`WHATSAPP_BRIDGE_URL` / Evolution·Baileys) — **لا Meta Cloud مدفوع** إلا إذا عيّنته صراحة |
+| **واتساب (اختياري)** | جسر مجاني فقط (`WHATSAPP_BRIDGE_URL` / Evolution) — انظر `docs/whatsapp-ar.md` و`deploy/whatsapp-bridge/` — **لا Meta Cloud مدفوع** إلا إذا عيّنته صراحة |
 
 لا تلصق `TELEGRAM_BOT_TOKEN` في `~/.hermes/.env`. لا تربط ويب هوك واتساب الموقع برقم هيرميس.
 

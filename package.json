@@ -64,6 +64,9 @@
     "test:evals:arabic-fc": "tsx scripts/run-arabic-fc-evals.ts",
     "test:promptfoo": "npx --yes promptfoo@0.118.14 eval -c promptfooconfig.yaml --no-cache",
     "evals:fetch-arabic-fc": "tsx scripts/fetch-arabic-fc-subset.ts",
+    "convert:sidecar": "docker compose -f docker-compose.convert.yml up -d --build",
+    "convert:sidecar:logs": "docker compose -f docker-compose.convert.yml logs -f --tail=80",
+    "whatsapp:bridge": "docker compose -f deploy/whatsapp-bridge/docker-compose.yml --env-file deploy/whatsapp-bridge/.env up -d",
     "ops:bridge": "node packages/ops-bridge/bin/ab-ops-bridge.mjs",
     "ops:health": "node packages/ops-bridge/bin/healthcheck.mjs"
   },

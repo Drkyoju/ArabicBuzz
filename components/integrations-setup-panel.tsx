@@ -153,12 +153,12 @@ export function IntegrationsSetupPanel() {
             {libreOfficeStatusAr ||
               (libreOfficeConfigured
                 ? 'مجاني · مفعّل'
-                : 'اختياري — INSTALL_LIBREOFFICE=1 عند البناء · أو اربط Google')}
+                : 'عيّن CONVERT_SERVICE_URL · أو اربط Google')}
           </span>
         </p>
         <p className="mb-1 text-[11px]">
-          محرّك مجاني/مفتوح المصدر على حاوية CranL لـ Word↔PDF وصيغ Office
-          الشائعة. لا يحتاج مفتاح API. الأفضل مع Drive للعربية والملفات الممسوحة.
+          محرّك مجاني عبر sidecar (`docker-compose.convert.yml`) أو soffice محلي —
+          Word↔PDF دون ماك. الأفضل مع Drive للعربية والملفات الممسوحة.
         </p>
       </div>
 

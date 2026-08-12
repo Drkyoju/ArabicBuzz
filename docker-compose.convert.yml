@@ -1,0 +1,32 @@
+# LibreOffice convert sidecar (free, always-on on your VPS / Fly / Railway / Docker Desktop).
+# From repo root:
+#   docker compose -f docker-compose.convert.yml up -d --build
+# Then set on CranL:
+#   CONVERT_SERVICE_URL=https://your-public-url
+#   CONVERT_SECRET=<same as below>
+
+services:
+  libreoffice-convert:
+    build:
+      context: ./deploy/libreoffice-convert
+      dockerfile: Dockerfile
+    image: ab-libreoffice-convert:local
+    ports:
+      - "${CONVERT_HOST_PORT:-8100}:8100"
+    environment:
+      CONVERT_PORT: "8100"
+      CONVERT_SECRET: "${CONVERT_SECRET:-}"
+      LIBREOFFICE_PATH: /usr/bin/soffice
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s

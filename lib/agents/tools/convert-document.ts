@@ -10,7 +10,8 @@
  *  5) Local clean extract ONLY if quality gate passes
  *  6) Else refuse with MSA { ok: false, reason_ar } — never attach a bad file
  *
- * Other pairs (engine=auto): gated Google Drive → LibreOffice → optional CloudConvert
+ * Other pairs (engine=auto): gated Google Drive → remote LO (CONVERT_SERVICE_URL)
+ * → local soffice → mac-hop PDF↔DOCX → optional CloudConvert
  *
  * Hard-disabled: Drive mojibake export, pdf2docx for Arabic, pdf-lib Arabic body,
  * forceBrokenRebuild shipping طلاسم, silent visual “success” without warning.
@@ -322,7 +323,8 @@ export async function executeConvertDocument(
     }
   }
 
-  // ── LibreOffice local, then Mac hop PDF↔DOCX (not PDF→Office Arabic) ──
+  // ── LibreOffice remote/local, then Mac hop PDF↔DOCX (not PDF→Office Arabic) ──
+  // Chain: CONVERT_SERVICE_URL → local soffice → mac-hop → honest refuse
   const wantLo =
     engine === 'auto' || engine === 'free' || engine === 'libreoffice'
   const loOk = wantLo ? await libreOfficeAvailable() : false
@@ -357,16 +359,19 @@ export async function executeConvertDocument(
         mimeType: converted.mimeType,
         markEdited: true,
       })
+      const remoteEngine = converted.engine === 'libreoffice-remote'
       return attachmentResult({
         saved,
         scopeId,
         fromFormat,
         toFormat,
-        engine: 'libreoffice',
+        engine: converted.engine,
         sourceFileId: hit.meta.id,
         sourceName: hit.meta.originalName,
-        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر LibreOffice. نزّل أو عاين من فقاعة الشات.`,
-        noteAr: 'محرّك: LibreOffice محلي (مجاني/مفتوح المصدر).',
+        messageAr: `حُوّل «${hit.meta.originalName}» من ${fromFormat} إلى ${toFormat} عبر LibreOffice${remoteEngine ? ' (خدمة بعيدة)' : ''}. نزّل أو عاين من فقاعة الشات.`,
+        noteAr: remoteEngine
+          ? 'محرّك: LibreOffice عبر CONVERT_SERVICE_URL (مجاني/مفتوح المصدر).'
+          : 'محرّك: LibreOffice محلي (مجاني/مفتوح المصدر).',
       })
     } catch (e) {
       loFailAr = e instanceof Error ? e.message : 'فشل LibreOffice'
@@ -375,8 +380,8 @@ export async function executeConvertDocument(
       }
     }
   }
-  // CranL thin image: PDF↔DOCX via awake Mac hop (LibreOffice / visual)
-  if (macPdfDocx && !loOk) {
+  // Mac hop PDF↔DOCX when remote/local LO missing or failed
+  if (macPdfDocx && (!loOk || loFailAr)) {
     try {
       const converted = await macConvertPdfDocx({
         buffer: hit.buffer,
@@ -412,10 +417,11 @@ export async function executeConvertDocument(
           : 'محرّك: جسر الماك (LibreOffice / تحويل محلي).',
       })
     } catch (e) {
-      loFailAr = e instanceof Error ? e.message : 'فشل تحويل جسر الماك'
+      const macFail = e instanceof Error ? e.message : 'فشل تحويل جسر الماك'
+      loFailAr = loFailAr ? `${loFailAr} · ماك: ${macFail}` : macFail
       if (engine === 'libreoffice') {
         return convertRefuseResult(
-          `${loFailAr} — تأكد أن الماك مستيقظ: npm run mac-hop:health`
+          `${loFailAr} — عيّن CONVERT_SERVICE_URL أو تأكد أن الماك مستيقظ: npm run mac-hop:health`
         )
       }
     }

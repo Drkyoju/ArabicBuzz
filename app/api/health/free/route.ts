@@ -89,8 +89,10 @@ export async function GET() {
 
   let libreOfficeOk = false
   let libreOfficeStatusAr = 'غير مفحوص'
+  let convertServiceConfigured = false
   try {
     const lo = await import('@/lib/documents/libreoffice-convert')
+    convertServiceConfigured = Boolean(lo.libreOfficeRemoteUrl())
     libreOfficeOk = await lo.libreOfficeAvailable()
     libreOfficeStatusAr = await lo.libreOfficeStatusAr()
   } catch {
@@ -145,6 +147,7 @@ export async function GET() {
     officeConvertFreePath: true,
     libreOfficeOk,
     libreOfficeStatusAr,
+    convertServiceConfigured,
     libreOfficeImageFlag: process.env.AB_LIBREOFFICE_IMAGE || '0',
     paddleOcrConfigured: Boolean(
       process.env.PADDLE_OCR_URL?.trim() ||

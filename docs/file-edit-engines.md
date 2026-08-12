@@ -5,7 +5,7 @@
 | المرتبة | المحرّك | التكلفة | الجودة | متى يُستخدم |
 |--------|---------|---------|--------|-------------|
 | **1** | **Google Drive** (استيراد → Docs/Sheets/Slides → تصدير) | **مجاني** مع حساب Google مربوط | ممتاز / فوق الممتاز للتخطيط والصور داخل عائلات Office | `convert_document` تلقائياً إن مربوط |
-| **2** | **LibreOffice** `soffice` | **مجاني** عند تثبيته (`INSTALL_LIBREOFFICE=1`) | ممتاز لـ Word↔PDF وصيغ Office | عند توفر soffice؛ يسبق أي API مدفوع |
+| **2** | **LibreOffice** (sidecar `CONVERT_SERVICE_URL` أو `soffice`) | **مجاني** | ممتاز لـ Word↔PDF وصيغ Office | أولاً عند ضبط URL؛ يسبق الماك وCloudConvert |
 | **3** | **CloudConvert** | اختياري مدفوع (`CLOUDCONVERT_API_KEY`) — **لا يُشترى تلقائياً** | ممتاز عبر العائلات والصيغ القديمة (doc/ppt/xls) | فقط إن وُجد المفتاح بعد موافقة |
 | **4** | **مسار مجاني محلي** (docx / exceljs / pdf-lib / pptxgenjs / JSZip) | مجاني دائماً | ممتاز للتعديل الموضعي؛ تحويل نصّي فقط لـ pdf↔docx | تعديل بدون تحويل؛ أو احتياطي تحويل |
 | — | LibreOffice / Tesseract عبر جسر الماك | مجاني محلياً | ممتاز إن وُجد على الماك | OCR صفحات + تحويل مرئي |
@@ -65,7 +65,7 @@ Sakkal Majalla غالباً مضمّن كمجموعة فرعية داخل لوا
 5. **استخراج محلي نظيف** — `pdf-parse-safe` / صفحات **فقط** إن اجتاز بوابة الجودة.
 6. وإلا **`{ ok: false, reason_ar }`** — بلا مرفق. لا طلاسم، لا كذب.
 
-أزواج غير PDF→Office: Google Drive (بوابة) → LibreOffice → CloudConvert اختياري.
+أزواج غير PDF→Office: Google Drive (بوابة) → LibreOffice بعيد/محلي → جسر الماك → CloudConvert اختياري.
 
 فرض المحرّك: `engine: "google" | "libreoffice" | "cloudconvert" | "free" | "auto"`.
 

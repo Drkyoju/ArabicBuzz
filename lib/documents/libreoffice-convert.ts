@@ -1,12 +1,15 @@
 /**
- * High-fidelity Office conversion via LibreOffice `soffice` when available.
- * CranL ships a thin image by default (INSTALL_LIBREOFFICE=0) after LO builds
- * failed on the host; opt in with INSTALL_LIBREOFFICE=1. Prefer Google Drive.
+ * High-fidelity Office conversion via LibreOffice.
+ *
+ * Prefer remote always-on sidecar (CONVERT_SERVICE_URL / LIBREOFFICE_URL) so CranL
+ * stays thin (INSTALL_LIBREOFFICE=0). Fall back to local soffice, then callers may
+ * try mac-hop. Prefer Google Drive for Arabic layout / broken ToUnicode PDFs.
  */
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { validateNetworkAccess } from '@/lib/security/airgap'
 
 const SOFFICE_CANDIDATES = [
   process.env.LIBREOFFICE_PATH,
@@ -47,6 +50,23 @@ async function which(cmd: string): Promise<string | null> {
   })
 }
 
+/** Remote LibreOffice sidecar — CONVERT_SERVICE_URL preferred, LIBREOFFICE_URL alias. */
+export function libreOfficeRemoteUrl(): string | null {
+  const raw =
+    process.env.CONVERT_SERVICE_URL?.trim() ||
+    process.env.LIBREOFFICE_URL?.trim() ||
+    ''
+  return raw.replace(/\/$/, '') || null
+}
+
+export function libreOfficeRemoteSecret(): string | null {
+  return (
+    process.env.CONVERT_SECRET?.trim() ||
+    process.env.LIBREOFFICE_SECRET?.trim() ||
+    null
+  )
+}
+
 /** Resolve soffice binary once per process. */
 export async function resolveLibreOfficeBinary(): Promise<string | null> {
   if (cachedSoffice !== undefined) return cachedSoffice
@@ -62,18 +82,22 @@ export async function resolveLibreOfficeBinary(): Promise<string | null> {
 }
 
 export async function libreOfficeAvailable(): Promise<boolean> {
+  if (libreOfficeRemoteUrl()) return true
   return Boolean(await resolveLibreOfficeBinary())
 }
 
 /** Arabic status for integrations / health (no secrets). */
 export async function libreOfficeStatusAr(): Promise<string> {
-  if (await libreOfficeAvailable()) {
+  if (libreOfficeRemoteUrl()) {
+    return 'مجاني · خدمة تحويل بعيدة مضبوطة (CONVERT_SERVICE_URL / LIBREOFFICE_URL)'
+  }
+  if (await resolveLibreOfficeBinary()) {
     return 'مجاني · مفعّل (LibreOffice soffice على الخادم)'
   }
   if (process.env.AB_LIBREOFFICE_IMAGE === '1') {
-    return 'متوقع في الصورة لكن soffice غير موجود — راجع بناء Docker'
+    return 'متوقع في الصورة لكن soffice غير موجود — راجع بناء Docker أو عيّن CONVERT_SERVICE_URL'
   }
-  return 'غير مثبت — الصورة الرقيقة أو INSTALL_LIBREOFFICE=0 · اربط Google أو أعد البناء بـ INSTALL_LIBREOFFICE=1'
+  return 'غير مثبت — شغّل sidecar (docker-compose.convert.yml) وعيّن CONVERT_SERVICE_URL · أو اربط Google'
 }
 
 const LO_PAIRS = new Set([
@@ -154,8 +178,76 @@ const MIME: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 }
 
+async function convertViaRemoteLibreOffice(opts: {
+  buffer: Buffer
+  filename: string
+  inputFormat: string
+  outputFormat: string
+  timeoutMs?: number
+}): Promise<{
+  buffer: Buffer
+  filename: string
+  mimeType: string
+  engine: 'libreoffice-remote'
+}> {
+  const base = libreOfficeRemoteUrl()
+  if (!base) {
+    throw new Error('CONVERT_SERVICE_URL / LIBREOFFICE_URL غير مضبوط')
+  }
+  const url = `${base}/convert`
+  validateNetworkAccess(url)
+  const secret = libreOfficeRemoteSecret()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (secret) {
+    headers.Authorization = `Bearer ${secret}`
+    headers.apikey = secret
+    headers['x-convert-secret'] = secret
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      contentBase64: opts.buffer.toString('base64'),
+      filename: opts.filename,
+      inputFormat: opts.inputFormat.toLowerCase(),
+      outputFormat: opts.outputFormat.toLowerCase(),
+      timeoutMs: opts.timeoutMs ?? 90_000,
+    }),
+  })
+  const raw = await res.text().catch(() => '')
+  let parsed: {
+    ok?: boolean
+    contentBase64?: string
+    filename?: string
+    mimeType?: string
+    messageAr?: string
+    error?: string
+  } = {}
+  try {
+    parsed = raw ? JSON.parse(raw) : {}
+  } catch {
+    parsed = {}
+  }
+  if (!res.ok || !parsed.ok || !parsed.contentBase64) {
+    throw new Error(
+      parsed.messageAr ||
+        parsed.error ||
+        `خدمة التحويل البعيدة HTTP ${res.status}: ${raw.slice(0, 160)}`
+    )
+  }
+  const to = opts.outputFormat.toLowerCase()
+  return {
+    buffer: Buffer.from(parsed.contentBase64, 'base64'),
+    filename: parsed.filename || `${path.basename(opts.filename, path.extname(opts.filename))}.${to}`,
+    mimeType: parsed.mimeType || MIME[to] || 'application/octet-stream',
+    engine: 'libreoffice-remote',
+  }
+}
+
 /**
- * Convert via LibreOffice headless. Best for Word↔PDF when soffice is installed.
+ * Convert via remote sidecar first, then local soffice.
  * Not a substitute for Drive OCR on broken ToUnicode PDFs.
  */
 export async function convertViaLibreOffice(opts: {
@@ -164,15 +256,34 @@ export async function convertViaLibreOffice(opts: {
   inputFormat: string
   outputFormat: string
   timeoutMs?: number
-}): Promise<{ buffer: Buffer; filename: string; mimeType: string; engine: 'libreoffice' }> {
-  const bin = await resolveLibreOfficeBinary()
-  if (!bin) {
-    throw new Error('LibreOffice (soffice) غير متوفر في بيئة التشغيل.')
-  }
+}): Promise<{
+  buffer: Buffer
+  filename: string
+  mimeType: string
+  engine: 'libreoffice' | 'libreoffice-remote'
+}> {
   const from = opts.inputFormat.toLowerCase()
   const to = opts.outputFormat.toLowerCase()
   if (!canConvertViaLibreOffice(from, to)) {
     throw new Error(`LibreOffice لا يدعم ${from} → ${to} في هذا المسار.`)
+  }
+
+  let remoteFail: string | null = null
+  if (libreOfficeRemoteUrl()) {
+    try {
+      return await convertViaRemoteLibreOffice(opts)
+    } catch (e) {
+      remoteFail = e instanceof Error ? e.message : 'فشل التحويل البعيد'
+    }
+  }
+
+  const bin = await resolveLibreOfficeBinary()
+  if (!bin) {
+    throw new Error(
+      remoteFail
+        ? `LibreOffice المحلي غير متوفر بعد فشل الخدمة البعيدة: ${remoteFail}`
+        : 'LibreOffice (soffice) غير متوفر — عيّن CONVERT_SERVICE_URL أو ثبّت soffice.'
+    )
   }
 
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ab-lo-'))
@@ -180,19 +291,6 @@ export async function convertViaLibreOffice(opts: {
   const inPath = path.join(tmpRoot, inName)
   try {
     await fs.writeFile(inPath, opts.buffer)
-    const filter =
-      to === 'pdf'
-        ? 'pdf:writer_pdf_Export'
-        : to === 'docx'
-          ? 'docx:Office Open XML Text'
-          : to === 'xlsx'
-            ? 'xlsx:Calc MS Excel 2007 XML'
-            : to === 'pptx'
-              ? 'pptx:Impress MS PowerPoint 2007 XML'
-              : to === 'csv'
-                ? 'csv:Text - txt - csv (StarCalc)'
-                : to
-
     const { code, stderr } = await runSoffice(
       bin,
       [
@@ -201,7 +299,7 @@ export async function convertViaLibreOffice(opts: {
         '--nofirststartwizard',
         '--norestore',
         '--convert-to',
-        filter.includes(':') ? filter.split(':')[0]! : to,
+        to,
         '--outdir',
         tmpRoot,
         inPath,
@@ -210,7 +308,9 @@ export async function convertViaLibreOffice(opts: {
     )
     if (code !== 0) {
       throw new Error(
-        `فشل LibreOffice (${code}): ${stderr.slice(0, 240) || 'بدون تفاصيل'}`
+        `فشل LibreOffice (${code}): ${stderr.slice(0, 240) || 'بدون تفاصيل'}${
+          remoteFail ? ` · بعيد: ${remoteFail}` : ''
+        }`
       )
     }
     const files = await fs.readdir(tmpRoot)
