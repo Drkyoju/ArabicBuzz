@@ -41,7 +41,7 @@ function getUpstashLimiter(limit: number, windowMs: number) {
 
 export async function enforceWebhookRateLimit(opts: {
   req: Request
-  channel: 'telegram' | 'whatsapp'
+  channel: 'telegram' | 'whatsapp' | 'room-webhook'
 }) {
   const limit = Number(process.env.WEBHOOK_RATE_LIMIT_PER_MIN || 60)
   const windowMs = 60_000

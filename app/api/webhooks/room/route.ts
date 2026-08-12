@@ -160,8 +160,6 @@ export async function POST(req: NextRequest) {
     userId: 'room-webhook',
     message: `[${trigger}] ${prompt}`,
     assistantId: destructive ? 'agent-compliance' : 'agent-cron',
-    assistantNameAr: destructive ? 'وكيل٢ · ويب هوك' : 'وكيل٣ · ويب هوك',
-    matchedBy: 'room-webhook',
   })
 
   return NextResponse.json({
