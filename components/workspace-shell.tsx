@@ -67,15 +67,15 @@ type CalendarTab =
   | 'export'
 
 const CALENDAR_TABS: Array<{ id: CalendarTab; labelAr: string }> = [
-  { id: 'schedule', labelAr: 'أسبوع / قائمة · مشترك' },
-  { id: 'full', labelAr: 'التقويم الكامل · مشترك' },
+  { id: 'schedule', labelAr: 'مواعيد الجمعية · مشترك' },
+  { id: 'full', labelAr: 'تقويم شهري · مشترك' },
   { id: 'tasks', labelAr: 'المهام' },
   { id: 'meetings', labelAr: 'Zoom والاجتماعات' },
-  { id: 'external', labelAr: 'Google · شخصي' },
+  { id: 'external', labelAr: 'تقويمي الشخصي · Google' },
   { id: 'export', labelAr: 'تصدير' },
 ]
 
-/** Guests: schedule+tasks. Employees: + meetings. Ops: all. */
+/** Guests: shared schedule. Members: shared + personal Google. Ops: + export. */
 function visibleCalendarTabs(
   signedIn: boolean | null,
   canAccessOpsUi: boolean
@@ -86,7 +86,7 @@ function visibleCalendarTabs(
     )
   }
   if (!canAccessOpsUi) {
-    return CALENDAR_TABS.filter((t) => t.id !== 'export' && t.id !== 'external')
+    return CALENDAR_TABS.filter((t) => t.id !== 'export')
   }
   return CALENDAR_TABS
 }
@@ -585,11 +585,11 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
           <section className="ab-page" dir="rtl">
             <header className="ab-page-head">
               <div className="min-w-0">
-                <h2 className="ab-title">تقويم الفريق</h2>
+                <h2 className="ab-title">مواعيد الجمعية</h2>
                 <p className="ab-subtitle">
-                  مواعيد الجمعية = التقويم المشترك — المصدر الرسمي. أي عضو يضيف
-                  أو يعدّل يراه الجميع؛ المدعوون بأي بريد. تقويم Google اختياري
-                  للدعوات الشخصية الخارجية فقط.
+                  التقويم المشترك للغرفة — المصدر الرسمي. أي عضو مسجّل يضيف
+                  يدوياً أو ينسخ من Google الشخصي؛ الجميع يراه. تبويب «تقويمي
+                  الشخصي · Google» منفصل ولا يستبدل مواعيد الجمعية.
                 </p>
               </div>
             </header>
@@ -651,14 +651,14 @@ export function WorkspaceShell({ airGapped }: { airGapped: boolean }) {
               )}
 
               {calendarTab === 'external' && (
-                <div className="rounded-xl border border-ab-border bg-ab-surface p-4">
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/40 p-4">
                   <h3 className="mb-1 text-sm font-semibold text-ab-ink">
-                    ربط بريد Google Workspace (Gmail)
+                    تقويمي الشخصي · Google (ليس مواعيد الجمعية)
                   </h3>
                   <p className="mb-3 text-xs text-ab-muted">
-                    هذا تقويمك الشخصي / دعوات خارجية — ليس أجندة الفريق. مواعيد
-                    الغرفة المشتركة تُدار من «أسبوع / قائمة · مشترك» و«التقويم
-                    الكامل · مشترك» وتظهر لكل الأعضاء.
+                    هذا حسابك الشخصي فقط. لإظهار موعد للفريق: انسخه إلى «مواعيد
+                    الجمعية · مشترك»، أو أضفه يدوياً من ذلك التبويب. المصدر
+                    الرسمي للجمعية يبقى التقويم المشترك — لا Google الشخصي.
                   </p>
                   <GoogleCalendarPanel hideTitle />
                 </div>

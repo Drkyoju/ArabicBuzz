@@ -254,10 +254,11 @@ export function RoomFullCalendar({
         <div>
           <h3 className="flex items-center gap-1.5 text-lg font-bold text-ab-ink">
             <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-            التقويم الكامل
+            التقويم الشهري · مواعيد الجمعية
           </h3>
           <p className="mt-0.5 text-[12px] text-stone-500">
             كل مواعيد الغرفة المشتركة — تنقّل بين الأشهر أو اعرض القائمة كاملة.
+            هذا ليس تقويمك الشخصي على Google.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

@@ -5,11 +5,13 @@ import {
   setMemberCalendarSync,
 } from '@/lib/rooms/persist'
 import {
+  copyGoogleEventsToRoom,
   syncAllOptedInGoogleToRooms,
   syncCurrentUserGoogleToRoom,
   syncGoogleCalendarToRoom,
 } from '@/lib/rooms/room-calendar-google-sync'
 import { displayNameFromUser } from '@/lib/auth/display-name'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +27,9 @@ function authorizeCron(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const auth = await requireSessionUser(req)
   if (!auth.ok) return auth.response
-  const scopeId = req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  const scopeId = teamCalendarScopeId(
+    req.nextUrl.searchParams.get('scopeId') || 'shared-demo'
+  )
   const { members } = await listRoomMembers(scopeId)
   const member =
     members.find((m) => m.userId === auth.user.id) ||
@@ -53,9 +57,10 @@ export async function POST(req: NextRequest) {
     scopeId?: string
     enabled?: boolean
     acknowledged?: boolean
+    googleEventIds?: string[]
   }
   const action = String(body.action || 'sync_now')
-  const scopeId = String(body.scopeId || 'shared-demo')
+  const scopeId = teamCalendarScopeId(String(body.scopeId || 'shared-demo'))
 
   if (action === 'cron') {
     if (!authorizeCron(req)) {
@@ -140,6 +145,37 @@ export async function POST(req: NextRequest) {
       )
     }
     return NextResponse.json({ ok: true, ...result })
+  }
+
+  /** One-shot: copy selected personal Google events → shared room (no continuous opt-in). */
+  if (action === 'copy_selected' || action === 'copy_from_google') {
+    const { assertRoomCanEdit } = await import('@/lib/rooms/persist')
+    const gate = await assertRoomCanEdit(scopeId, user.id, user.email)
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: 403 })
+    }
+    const ids = Array.isArray(body.googleEventIds)
+      ? body.googleEventIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+    const result = await copyGoogleEventsToRoom({
+      scopeId,
+      userId: user.id,
+      displayNameAr,
+      googleEventIds: ids,
+    })
+    if (result.error && result.created + result.updated === 0) {
+      return NextResponse.json(
+        { error: result.error, ...result },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      messageAr:
+        result.messageAr ||
+        'نُسخت المواعيد المحددة إلى مواعيد الجمعية (التقويم المشترك).',
+    })
   }
 
   return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })

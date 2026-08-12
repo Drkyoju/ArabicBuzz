@@ -211,6 +211,17 @@ export function RoomCalendarBoard({
   const [publishGoogle, setPublishGoogle] = useState(false)
   const [publishAck, setPublishAck] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
+  const [personalEvents, setPersonalEvents] = useState<
+    Array<{
+      id: string
+      summary: string
+      start?: string
+      end?: string
+      location?: string
+    }>
+  >([])
+  const [selectedGoogleIds, setSelectedGoogleIds] = useState<string[]>([])
+  const [personalBusy, setPersonalBusy] = useState(false)
   const [slotBusy, setSlotBusy] = useState(false)
   const [freeSlots, setFreeSlots] = useState<
     Array<{ start: string; end: string; labelAr?: string }>
@@ -296,6 +307,72 @@ export function RoomCalendarBoard({
       setSyncBusy(false)
     }
   }, [scopeId, signedIn, load])
+
+  const loadPersonalGoogle = useCallback(async () => {
+    if (signedIn !== true || !googleConnected) {
+      setPersonalEvents([])
+      setSelectedGoogleIds([])
+      return
+    }
+    setPersonalBusy(true)
+    try {
+      const res = await fetch('/api/google/calendar?action=events&max=24', {
+        headers: await authHeaders(),
+      })
+      const data = (await res.json()) as {
+        events?: Array<{
+          id: string
+          summary: string
+          start?: string
+          end?: string
+          location?: string
+        }>
+        error?: string
+      }
+      if (res.ok) {
+        setPersonalEvents(data.events || [])
+      } else {
+        setPersonalEvents([])
+      }
+    } catch {
+      setPersonalEvents([])
+    } finally {
+      setPersonalBusy(false)
+    }
+  }, [signedIn, googleConnected])
+
+  const copySelectedFromGoogle = useCallback(async () => {
+    if (signedIn !== true || selectedGoogleIds.length === 0) {
+      setErr('اختر موعداً واحداً على الأقل من تقويمك الشخصي.')
+      return
+    }
+    setSyncBusy(true)
+    setErr('')
+    setMsg('')
+    try {
+      const res = await fetch('/api/rooms/calendar/sync', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'copy_selected',
+          scopeId,
+          googleEventIds: selectedGoogleIds,
+        }),
+      })
+      const data = (await res.json()) as {
+        messageAr?: string
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error || 'تعذّر النسخ')
+      setMsg(data.messageAr || 'نُسخت المواعيد إلى مواعيد الجمعية')
+      setSelectedGoogleIds([])
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'فشل النسخ')
+    } finally {
+      setSyncBusy(false)
+    }
+  }, [signedIn, selectedGoogleIds, scopeId, load])
 
   const suggestFreeSlots = useCallback(async () => {
     if (signedIn !== true) return
@@ -524,6 +601,10 @@ export function RoomCalendarBoard({
       cancelled = true
     }
   }, [signedIn, loadSyncPref])
+
+  useEffect(() => {
+    void loadPersonalGoogle()
+  }, [loadPersonalGoogle])
 
   useEffect(() => {
     if (signedIn !== true || !publishGoogle || !googleConnected) return
@@ -991,73 +1072,161 @@ export function RoomCalendarBoard({
       <div>
         <h2 className="mb-1 flex items-center gap-2 text-xl font-bold text-ab-ink">
           <CalendarDays className="h-5 w-5 text-ab-accent" aria-hidden />
-          تقويم الفريق
+          مواعيد الجمعية · مشترك
         </h2>
         <p className="ab-subtitle !mt-0">
-          مواعيد الجمعية = التقويم المشترك للغرفة — يراه الجميع ويُضاف إليه من
-          الموقع أو تيليجرام بلا ربط Google. تقويم Google الشخصي اختياري ومنفصل.
+          هذا تقويم الغرفة المشترك — يراه كل الأعضاء. أضف يدوياً أدناه، أو من
+          تيليجرام («احجز موعد»)، أو انسخ مواعيد محددة من Google الشخصي. تقويمك
+          الشخصي على Google منفصل ولا يستبدل هذا المصدر.
         </p>
       </div>
 
       {signedIn === true && googleConnected && (
-        <div className="rounded-xl border border-ab-border bg-ab-accent/10 px-4 py-3">
-          <p className="text-sm font-semibold text-ab-ink">
-            انشر مواعيدي من Google في تقويم الفريق
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-ab-muted">
-            اختياري ومتوقف افتراضياً. عند التفعيل تُنسَخ مواعيدك القادمة (حوالي
-            ٣ أسابيع من التقويم الرئيسي) إلى تقويم الغرفة ويراها الأعضاء — مع
-            وسم «من Google · اسمك». التعديل أو الإلغاء في Google يُحدَّث هنا في
-            المزامنة التالية.
-          </p>
-          {!publishGoogle && (
-            <label className="mt-2 flex items-start gap-2 text-[11px] text-ab-ink">
-              <input
-                type="checkbox"
-                checked={publishAck}
-                onChange={(e) => setPublishAck(e.target.checked)}
-                className="mt-0.5 rounded border-ab-border"
-              />
-              <span>
-                أوافق على مشاركة مواعيدي القادمة من Google مع فريق هذه الغرفة.
-              </span>
-            </label>
+        <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-ab-ink">
+              انسخ من تقويمي الشخصي إلى المشترك
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-ab-muted">
+              اختر مواعيد من Google ثم انسخها إلى مواعيد الجمعية. لا يلزم تفعيل
+              النشر المستمر — والنسخ لا يجعل Google مصدر الحقيقة للجمعية.
+            </p>
+          </div>
+          {personalBusy ? (
+            <p className="text-[11px] text-stone-500">جاري جلب مواعيدك…</p>
+          ) : personalEvents.length === 0 ? (
+            <p className="text-[11px] text-stone-500">
+              لا مواعيد قادمة ظاهرة في تقويمك الشخصي — أو حدّث بعد الربط.
+            </p>
+          ) : (
+            <ul className="max-h-48 space-y-1.5 overflow-y-auto">
+              {personalEvents.map((ev) => {
+                const checked = selectedGoogleIds.includes(ev.id)
+                return (
+                  <li key={ev.id}>
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border border-sky-100 bg-white px-2.5 py-1.5 text-[11px]">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-ab-border"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedGoogleIds((prev) =>
+                            checked
+                              ? prev.filter((id) => id !== ev.id)
+                              : [...prev, ev.id]
+                          )
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-ab-ink">
+                          {ev.summary || '(بدون عنوان)'}
+                        </span>
+                        <span className="text-stone-500" dir="ltr">
+                          {ev.start
+                            ? new Date(ev.start).toLocaleString('ar-SA', {
+                                timeZone: TZ,
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '—'}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
           )}
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={syncBusy || (!publishGoogle && !publishAck)}
-              onClick={() => void setPublishPreference(!publishGoogle)}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40',
-                publishGoogle
-                  ? 'border border-sky-300 bg-white text-sky-900'
-                  : 'bg-sky-800 text-white'
-              )}
+              disabled={
+                syncBusy || personalBusy || selectedGoogleIds.length === 0
+              }
+              onClick={() => void copySelectedFromGoogle()}
+              className="rounded-md bg-sky-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >
-              {publishGoogle ? 'إيقاف النشر من Google' : 'تفعيل النشر من Google'}
+              انسخ المحدد إلى مواعيد الجمعية
+              {selectedGoogleIds.length > 0
+                ? ` (${selectedGoogleIds.length})`
+                : ''}
             </button>
-            {publishGoogle && (
+            <button
+              type="button"
+              disabled={personalBusy}
+              onClick={() => void loadPersonalGoogle()}
+              className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] text-sky-900 disabled:opacity-40"
+            >
+              <RefreshCw
+                className={cn('h-3 w-3', personalBusy && 'animate-spin')}
+              />
+              تحديث قائمة Google
+            </button>
+          </div>
+
+          <details className="rounded-md border border-dashed border-sky-200 bg-white/70 px-3 py-2">
+            <summary className="cursor-pointer text-[11px] font-semibold text-sky-950">
+              خيار متقدم: نشر مستمر لكل المواعيد القادمة
+            </summary>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-ab-muted">
+              عند التفعيل تُنسَخ مواعيدك القادمة (~٣ أسابيع) تلقائياً إلى التقويم
+              المشترك مع وسم «من Google». اختياري ومتوقف افتراضياً.
+            </p>
+            {!publishGoogle && (
+              <label className="mt-2 flex items-start gap-2 text-[11px] text-ab-ink">
+                <input
+                  type="checkbox"
+                  checked={publishAck}
+                  onChange={(e) => setPublishAck(e.target.checked)}
+                  className="mt-0.5 rounded border-ab-border"
+                />
+                <span>
+                  أوافق على مشاركة مواعيدي القادمة من Google مع فريق هذه الغرفة.
+                </span>
+              </label>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={syncBusy}
-                onClick={() => void runGoogleSync()}
-                className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] text-sky-900 disabled:opacity-40"
+                disabled={syncBusy || (!publishGoogle && !publishAck)}
+                onClick={() => void setPublishPreference(!publishGoogle)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40',
+                  publishGoogle
+                    ? 'border border-sky-300 bg-white text-sky-900'
+                    : 'bg-sky-800 text-white'
+                )}
               >
-                <RefreshCw
-                  className={cn('h-3 w-3', syncBusy && 'animate-spin')}
-                />
-                مزامنة الآن
+                {publishGoogle
+                  ? 'إيقاف النشر المستمر'
+                  : 'تفعيل النشر المستمر من Google'}
               </button>
-            )}
-          </div>
+              {publishGoogle && (
+                <button
+                  type="button"
+                  disabled={syncBusy}
+                  onClick={() => void runGoogleSync()}
+                  className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] text-sky-900 disabled:opacity-40"
+                >
+                  <RefreshCw
+                    className={cn('h-3 w-3', syncBusy && 'animate-spin')}
+                  />
+                  مزامنة الآن
+                </button>
+              )}
+            </div>
+          </details>
         </div>
       )}
 
       {signedIn === true && !googleConnected && (
         <p className="rounded-xl border border-dashed border-ab-border bg-white px-4 py-3 text-[11px] text-stone-500">
-          لربط Google ونشر مواعيدك اختيارياً في تقويم الفريق، افتح تبويب «خارجي
-          (Google)» واربط حسابك أولاً.
+          للإضافة اليدوية لا تحتاج Google. لربط حسابك ونسخ مواعيد منه: افتح
+          تبويب «تقويمي الشخصي · Google» واربط الحساب، ثم ارجع هنا وانسخ
+          المحدد.
         </p>
       )}
 
@@ -1145,11 +1314,11 @@ export function RoomCalendarBoard({
       ) : isGuest ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-5 text-center">
           <p className="text-sm font-semibold text-ab-ink">
-            سجّل الدخول لإضافة مواعيد لتقويم الفريق
+            سجّل الدخول لإضافة مواعيد إلى مواعيد الجمعية
           </p>
           <p className="mt-1 text-xs text-stone-600">
-            الزائر يرى الواجهة فقط — لا مواعيد وهمية. بعد الدخول يظهر تقويم
-            الغرفة المشترك ويمكنك الضغط «أضف موعد».
+            الزائر يرى الواجهة فقط. بعد الدخول أي عضو يضيف للتقويم المشترك
+            (يدوياً أو نسخاً من Google) ويراه الجميع.
           </p>
           <Link
             href="/auth/login"
@@ -1162,7 +1331,7 @@ export function RoomCalendarBoard({
         <div className="rounded-xl border border-ab-accent/25 bg-ab-accent/5 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-ab-ink">
-              {editingId ? 'تعديل موعد' : 'إضافة موعد'}
+              {editingId ? 'تعديل موعد في مواعيد الجمعية' : 'إضافة موعد إلى مواعيد الجمعية'}
             </h3>
             <div className="flex items-center gap-2">
               {editingId && (
@@ -1641,8 +1810,8 @@ export function RoomCalendarBoard({
 
       <p className="flex items-start gap-1.5 text-[11px] text-ab-muted-soft">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        المصدر الرسمي لمواعيد الفريق هو تقويم الغرفة المشترك أعلاه. Google
-        اختياري فقط كنسخة خاصة لمن يفعّلها — ولا يُكتب في تقويم شخص آخر.
+        مواعيد الجمعية = التقويم المشترك أعلاه (مصدر الحقيقة). Google الشخصي
+        اختياري للنسخ أو لنسخة خاصة عند الحفظ — ولا يُكتب في تقويم عضو آخر.
       </p>
     </section>
   )

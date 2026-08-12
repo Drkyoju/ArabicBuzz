@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Unlink,
   Users,
+  CopyPlus,
 } from 'lucide-react'
 import {
   authHeaders,
@@ -19,6 +20,8 @@ import {
 import { realEmailsOnly } from '@/lib/auth/synthetic'
 import { useTeamCalendarStore } from '@/lib/rooms/team-calendar-store'
 import { useWorkspaceStore } from '@/lib/scopes/workspace-store'
+import { PRIMARY_TEAM_SCOPE_ID } from '@/lib/scopes/primary-room'
+import { teamCalendarScopeId } from '@/lib/scopes/team-calendar-scope'
 
 type CalStatus = {
   connected?: boolean
@@ -98,7 +101,11 @@ export function GoogleCalendarPanel({
   const addEmail = useTeamCalendarStore((s) => s.addEmail)
   const removeEmail = useTeamCalendarStore((s) => s.removeEmail)
   const setEmails = useTeamCalendarStore((s) => s.setEmails)
-  const scopeId = useWorkspaceStore((s) => s.activeScopeId)
+  const scopeId = teamCalendarScopeId(
+    useWorkspaceStore((s) => s.activeScopeId) || PRIMARY_TEAM_SCOPE_ID
+  )
+  const [copyBusyId, setCopyBusyId] = useState<string | null>(null)
+  const [alsoAddToShared, setAlsoAddToShared] = useState(true)
 
   const refresh = useCallback(async () => {
     setBusy(true)
@@ -345,11 +352,42 @@ export function GoogleCalendarPanel({
       })
       const data = (await res.json()) as {
         error?: string
-        event?: { htmlLink?: string; summary?: string }
+        event?: { id?: string; htmlLink?: string; summary?: string }
       }
       if (!res.ok) throw new Error(data.error || 'فشل الحجز')
+
+      let sharedNote = ''
+      if (alsoAddToShared) {
+        try {
+          const roomRes = await fetch('/api/rooms/calendar', {
+            method: 'POST',
+            headers: await authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+              action: 'create',
+              scopeId,
+              titleAr: title,
+              startsAt: startIso,
+              endsAt: endIso,
+              locationAr: zoomUrl.trim() || undefined,
+              attendees: memberEmails,
+              source: 'import',
+              reminderMinutes: 60,
+            }),
+          })
+          const roomData = (await roomRes.json()) as {
+            messageAr?: string
+            error?: string
+          }
+          sharedNote = roomRes.ok
+            ? ' · وأُضيف أيضاً إلى مواعيد الجمعية المشتركة'
+            : ` · تعذّرت الإضافة للمشترك: ${roomData.error || ''}`
+        } catch {
+          sharedNote = ' · تعذّرت الإضافة لمواعيد الجمعية'
+        }
+      }
+
       setNote(
-        `أُنشئ «${data.event?.summary || 'موعد'}» وأُرسلت دعوات لـ ${memberEmails.length} بريد.`
+        `أُنشئ «${data.event?.summary || 'موعد'}» وأُرسلت دعوات لـ ${memberEmails.length} بريد.${sharedNote}`
       )
       await refresh()
     } catch (e) {
@@ -387,6 +425,36 @@ export function GoogleCalendarPanel({
     }
     const end = new Date(start.getTime() + Math.max(15, meetMinutes) * 60_000)
     await bookSlot(start.toISOString(), end.toISOString())
+  }
+
+  async function copyEventToShared(ev: EventRow) {
+    if (!ev.id) return
+    setCopyBusyId(ev.id)
+    setNote('')
+    try {
+      const res = await fetch('/api/rooms/calendar/sync', {
+        method: 'POST',
+        headers: await authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'copy_selected',
+          scopeId,
+          googleEventIds: [ev.id],
+        }),
+      })
+      const data = (await res.json()) as {
+        messageAr?: string
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error || 'تعذّر النسخ')
+      setNote(
+        data.messageAr ||
+          `نُسخ «${ev.summary}» إلى مواعيد الجمعية (التقويم المشترك).`
+      )
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'فشل النسخ إلى المشترك')
+    } finally {
+      setCopyBusyId(null)
+    }
   }
 
   useEffect(() => {
@@ -642,6 +710,18 @@ export function GoogleCalendarPanel({
               إنشاء وإرسال دعوات
             </button>
           </div>
+          <label className="flex items-start gap-2 text-[11px] text-stone-700">
+            <input
+              type="checkbox"
+              checked={alsoAddToShared}
+              onChange={(e) => setAlsoAddToShared(e.target.checked)}
+              className="mt-0.5 rounded border-ab-border"
+            />
+            <span>
+              أضف أيضاً إلى <strong>مواعيد الجمعية</strong> (التقويم المشترك)
+              — مُفعّل افتراضياً حتى يظهر الموعد للفريق وليس في Google فقط.
+            </span>
+          </label>
         </div>
       )}
 
@@ -733,17 +813,30 @@ export function GoogleCalendarPanel({
                 {e.start || '—'}
                 {e.location ? ` · ${e.location}` : ''}
               </p>
-              {e.htmlLink && (
-                <a
-                  href={e.htmlLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-ab-accent underline"
-                  dir="ltr"
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy || copyBusyId === e.id}
+                  onClick={() => void copyEventToShared(e)}
+                  className="inline-flex items-center gap-1 rounded border border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-900 disabled:opacity-40"
                 >
-                  فتح في Google Calendar
-                </a>
-              )}
+                  <CopyPlus className="h-3 w-3" />
+                  {copyBusyId === e.id
+                    ? 'جاري النسخ…'
+                    : 'انسخ إلى مواعيد الجمعية'}
+                </button>
+                {e.htmlLink && (
+                  <a
+                    href={e.htmlLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-ab-accent underline"
+                    dir="ltr"
+                  >
+                    فتح في Google Calendar
+                  </a>
+                )}
+              </div>
             </li>
           ))}
         </ul>

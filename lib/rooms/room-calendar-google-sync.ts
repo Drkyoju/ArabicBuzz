@@ -1,9 +1,16 @@
 /**
  * Google Calendar → shared room calendar (opt-in per member).
  * Room DB remains the display source of truth; mirrored rows use source=google_sync.
+ *
+ * Also supports one-shot selective copy (`copyGoogleEventsToRoom`) without
+ * enabling continuous publish — personal Google is never the association SoT.
  */
 
-import { listPrimaryEventsInWindow } from '@/lib/google/calendar'
+import {
+  listPrimaryEventsInWindow,
+  listUpcomingEvents,
+  type CalendarEventSummary,
+} from '@/lib/google/calendar'
 import {
   listCalendarSyncEnabledMembers,
   listRoomMembers,
@@ -88,6 +95,196 @@ function needsUpdate(
     (room.locationAr || '') !== (next.locationAr || '') ||
     room.status !== next.status
   )
+}
+
+type UpsertOutcome = 'created' | 'updated' | 'cancelled' | 'skipped'
+
+/**
+ * Upsert one Google event into the shared room calendar.
+ * One-shot copies use source=import (editable team row); continuous sync uses google_sync.
+ */
+async function upsertGoogleEventIntoRoom(opts: {
+  scopeId: string
+  userId: string
+  nameAr: string
+  g: CalendarEventSummary
+  source: 'google_sync' | 'import'
+  metaExtra?: Record<string, unknown>
+}): Promise<UpsertOutcome> {
+  const { scopeId, userId, nameAr, g, source } = opts
+  if (!g.id) return 'skipped'
+  const times = googleTimes(g)
+  if (!times) return 'skipped'
+
+  const isCancelled = g.status === 'cancelled'
+  const status = isCancelled
+    ? ('cancelled' as const)
+    : g.status === 'tentative'
+      ? ('tentative' as const)
+      : ('confirmed' as const)
+
+  const titleAr = (g.summary || '(بدون عنوان)').trim() || '(بدون عنوان)'
+  const descriptionAr = g.description?.trim() || null
+  const locationAr = g.location?.trim() || null
+  const meta = {
+    googleSync: source === 'google_sync',
+    copiedFromGoogle: source === 'import',
+    googleAccountEmail: g.accountEmail || null,
+    googleHtmlLink: g.htmlLink || null,
+    syncedAt: new Date().toISOString(),
+    ...(opts.metaExtra || {}),
+  }
+
+  const existing = await findRoomEventByGoogleId(scopeId, g.id)
+  if (existing) {
+    // Don't overwrite site-created events that already store this google_event_id (copy-out).
+    if (existing.source !== 'google_sync' && existing.source !== 'import') {
+      return 'skipped'
+    }
+    if (
+      needsUpdate(existing, {
+        titleAr,
+        descriptionAr,
+        startsAt: times.startsAt,
+        endsAt: times.endsAt,
+        allDay: times.allDay,
+        locationAr,
+        status,
+      })
+    ) {
+      await updateRoomCalendarEvent(existing.id, scopeId, {
+        titleAr,
+        descriptionAr,
+        startsAt: times.startsAt,
+        endsAt: times.endsAt,
+        allDay: times.allDay,
+        locationAr,
+        status,
+        meta: { ...existing.meta, ...meta },
+      })
+      return status === 'cancelled' ? 'cancelled' : 'updated'
+    }
+    return 'skipped'
+  }
+
+  if (isCancelled) return 'skipped'
+
+  try {
+    await createRoomCalendarEvent({
+      scopeId,
+      titleAr,
+      descriptionAr: descriptionAr || undefined,
+      startsAt: times.startsAt,
+      endsAt: times.endsAt,
+      allDay: times.allDay,
+      locationAr: locationAr || undefined,
+      source,
+      createdBy: userId,
+      createdByAr: nameAr,
+      status,
+      googleEventId: g.id,
+      meta,
+      quiet: true,
+    })
+    return 'created'
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ''
+    if (/duplicate|unique|23505/i.test(msg)) return 'skipped'
+    console.warn('[google→room] create failed', msg)
+    return 'skipped'
+  }
+}
+
+/**
+ * One-shot: copy selected personal Google events into the shared room calendar.
+ * Does NOT require continuous publish opt-in. Room DB remains SoT.
+ */
+export async function copyGoogleEventsToRoom(opts: {
+  scopeId: string
+  userId: string
+  displayNameAr?: string | null
+  googleEventIds: string[]
+}): Promise<GoogleRoomSyncResult> {
+  const scopeId = opts.scopeId
+  const userId = opts.userId
+  const nameAr = opts.displayNameAr?.trim() || 'عضو'
+  const wanted = new Set(
+    opts.googleEventIds.map((id) => String(id || '').trim()).filter(Boolean)
+  )
+  const empty: GoogleRoomSyncResult = {
+    scopeId,
+    userId,
+    created: 0,
+    updated: 0,
+    cancelled: 0,
+    skipped: 0,
+    scanned: 0,
+    messageAr: '',
+  }
+  if (wanted.size === 0) {
+    return {
+      ...empty,
+      error: 'اختر موعداً واحداً على الأقل من تقويمك الشخصي',
+      messageAr: 'لم يُحدَّد أي موعد للنسخ.',
+    }
+  }
+
+  let googleEvents: CalendarEventSummary[]
+  try {
+    googleEvents = await listUpcomingEvents(userId, {
+      maxResults: 80,
+    })
+  } catch (e) {
+    return {
+      ...empty,
+      error: e instanceof Error ? e.message : 'فشل جلب تقويم Google',
+      messageAr: 'تعذّر جلب مواعيدك من Google — تأكد من الربط.',
+    }
+  }
+
+  const selected = googleEvents.filter((g) => g.id && wanted.has(g.id))
+  let created = 0
+  let updated = 0
+  let cancelled = 0
+  let skipped = 0
+
+  for (const g of selected) {
+    const outcome = await upsertGoogleEventIntoRoom({
+      scopeId,
+      userId,
+      nameAr,
+      g,
+      source: 'import',
+      metaExtra: { oneShotCopy: true },
+    })
+    if (outcome === 'created') created++
+    else if (outcome === 'updated') updated++
+    else if (outcome === 'cancelled') cancelled++
+    else skipped++
+  }
+
+  const missing = wanted.size - selected.length
+  if (missing > 0) skipped += missing
+
+  const messageAr =
+    created + updated === 0
+      ? missing === wanted.size
+        ? 'لم يُعثر على المواعيد المحددة في تقويمك الشخصي القادم.'
+        : `لا تغييرات — ربما كانت منسوخة مسبقاً (${skipped} تخطّي).`
+      : `نُسخ إلى مواعيد الجمعية: أُضيف ${created} · حُدّث ${updated}${
+          skipped ? ` · تُخطّي ${skipped}` : ''
+        }.`
+
+  return {
+    scopeId,
+    userId,
+    created,
+    updated,
+    cancelled,
+    skipped,
+    scanned: selected.length,
+    messageAr,
+  }
 }
 
 /**
