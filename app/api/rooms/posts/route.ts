@@ -19,7 +19,9 @@ import {
 } from '@/lib/rooms/member-mentions'
 import { findAgentByMention } from '@/lib/rooms/agents'
 import {
-  roomChatRetentionDays,
+  roomChatRetentionDaysForScope,
+  roomChatRetentionLabelAr,
+  isRoomChatRetentionUnlimited,
   riyadhTodayPostBoundsIso,
 } from '@/lib/rooms/chat-retention'
 import { displayNameFromUser } from '@/lib/auth/display-name'
@@ -55,7 +57,9 @@ export async function GET(req: Request) {
   }
   return Response.json({
     posts: result.posts,
-    retentionDays: roomChatRetentionDays(),
+    retentionDays: roomChatRetentionDaysForScope(scopeId),
+    retentionUnlimited: isRoomChatRetentionUnlimited(scopeId),
+    retentionLabelAr: roomChatRetentionLabelAr(scopeId),
   })
 }
 
@@ -88,6 +92,7 @@ export async function POST(req: Request) {
     postKind?: 'chat' | 'decision' | 'minutes'
     postId?: string
     id?: string
+    parentPostId?: string
   }
   const scopeId = body.scopeId || 'shared-demo'
 
@@ -226,6 +231,7 @@ export async function POST(req: Request) {
     mentionAgentId: body.mentionAgentId,
     mentionUserIds,
     postKind,
+    parentPostId: body.parentPostId ? String(body.parentPostId) : undefined,
   })
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 500 })

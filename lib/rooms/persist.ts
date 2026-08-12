@@ -19,6 +19,7 @@ export type DbRoomPost = {
   created_at: string
   post_kind?: string | null
   mention_user_ids?: string | null
+  parent_post_id?: string | null
 }
 
 export function rowToRoomPost(row: DbRoomPost): RoomPost {
@@ -59,6 +60,7 @@ export function rowToRoomPost(row: DbRoomPost): RoomPost {
     postKind,
     mentionUserIds,
     channel: row.channel ?? null,
+    parentPostId: row.parent_post_id ?? null,
   }
 }
 
@@ -81,7 +83,11 @@ export async function listRoomPosts(scopeId: string, limit = 100) {
       .filter(
         (p) =>
           !isNoiseRoomPost(p.content) &&
-          shouldShowInRoomChat({ channel: p.channel, content: p.content })
+          shouldShowInRoomChat({
+            channel: p.channel,
+            content: p.content,
+            scopeId,
+          })
       )
       .slice(-limit),
   }
@@ -99,6 +105,7 @@ export async function insertRoomPost(opts: {
   postKind?: 'chat' | 'decision' | 'minutes'
   channel?: string
   externalId?: string
+  parentPostId?: string
 }): Promise<{ ok: boolean; post?: RoomPost; error?: string }> {
   const sb = getSupabaseAdmin()
   if (!sb) return { ok: false, error: 'no supabase' }
@@ -123,16 +130,23 @@ export async function insertRoomPost(opts: {
   if (opts.mentionUserIds?.length) {
     row.mention_user_ids = JSON.stringify(opts.mentionUserIds)
   }
+  if (opts.parentPostId) {
+    row.parent_post_id = opts.parentPostId
+  }
   let { data, error } = await sb
     .from('room_posts')
     .insert(row)
     .select('*')
     .single()
-  // Fallback if post_kind / mention_user_ids columns missing
-  if (error && /post_kind|mention_user_ids/i.test(error.message)) {
+  // Fallback if optional columns missing
+  if (
+    error &&
+    /post_kind|mention_user_ids|parent_post_id/i.test(error.message)
+  ) {
     const legacy = { ...row }
     delete legacy.post_kind
     delete legacy.mention_user_ids
+    delete legacy.parent_post_id
     const retry = await sb.from('room_posts').insert(legacy).select('*').single()
     data = retry.data
     error = retry.error
@@ -209,6 +223,7 @@ export async function deleteRoomPostsInRange(opts: {
 export async function deleteRoomPostsOlderThan(opts: {
   beforeIso: string
   scopeId?: string
+  excludeScopeIds?: string[]
   /** Safety cap per call (Supabase/PostgREST). */
   limit?: number
 }): Promise<{ ok: boolean; deleted: number; error?: string }> {
@@ -218,14 +233,21 @@ export async function deleteRoomPostsOlderThan(opts: {
   // Select ids first so we can limit batch size, then delete by id.
   let q = sb
     .from('room_posts')
-    .select('id')
+    .select('id, scope_id')
     .lt('created_at', opts.beforeIso)
     .order('created_at', { ascending: true })
     .limit(limit)
   if (opts.scopeId) q = q.eq('scope_id', opts.scopeId)
   const { data: rows, error: selErr } = await q
   if (selErr) return { ok: false, deleted: 0, error: selErr.message }
-  const ids = (rows || []).map((r) => String((r as { id: string }).id))
+  const exclude = new Set(opts.excludeScopeIds || [])
+  const ids = (rows || [])
+    .filter((r) => {
+      if (!exclude.size) return true
+      const sid = String((r as { scope_id?: string }).scope_id || '')
+      return !exclude.has(sid)
+    })
+    .map((r) => String((r as { id: string }).id))
   if (!ids.length) return { ok: true, deleted: 0 }
   const { data, error } = await sb
     .from('room_posts')
@@ -240,15 +262,36 @@ export async function deleteRoomPostsOlderThan(opts: {
 export async function pruneExpiredRoomPosts(opts?: {
   scopeId?: string
   days?: number
-}): Promise<{ ok: boolean; deleted: number; days: number; error?: string }> {
-  const { roomChatRetentionDays, roomChatRetentionCutoffIso } = await import(
-    '@/lib/rooms/chat-retention'
-  )
-  const days = roomChatRetentionDays(opts?.days)
+}): Promise<{
+  ok: boolean
+  deleted: number
+  days: number
+  unlimited?: boolean
+  error?: string
+}> {
+  const {
+    roomChatRetentionDaysForScope,
+    roomChatRetentionCutoffIso,
+    roomChatUnlimitedScopes,
+    isRoomChatRetentionUnlimited,
+  } = await import('@/lib/rooms/chat-retention')
+  if (opts?.scopeId && isRoomChatRetentionUnlimited(opts.scopeId)) {
+    return { ok: true, deleted: 0, days: 0, unlimited: true }
+  }
+  const days = opts?.scopeId
+    ? roomChatRetentionDaysForScope(opts.scopeId, opts?.days)
+    : roomChatRetentionDaysForScope('__global__', opts?.days)
+  if (days <= 0) {
+    return { ok: true, deleted: 0, days: 0, unlimited: true }
+  }
   const beforeIso = roomChatRetentionCutoffIso(days)
+  if (!beforeIso) {
+    return { ok: true, deleted: 0, days: 0, unlimited: true }
+  }
   const result = await deleteRoomPostsOlderThan({
     beforeIso,
     scopeId: opts?.scopeId,
+    excludeScopeIds: opts?.scopeId ? undefined : roomChatUnlimitedScopes(),
   })
   return { ...result, days }
 }

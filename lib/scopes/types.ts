@@ -88,4 +88,6 @@ export type RoomPost = {
    * not duplicated into غرفة الفريق chat (see telegram-chat-policy).
    */
   channel?: string | null
+  /** One-level reply thread — parent message id in same scope. */
+  parentPostId?: string | null
 }

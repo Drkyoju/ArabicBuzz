@@ -14,11 +14,13 @@ import {
 } from 'lucide-react'
 import {
   isPostInRiyadhToday,
-  roomChatRetentionDays,
+  roomChatRetentionLabelAr,
 } from '@/lib/rooms/chat-retention'
 import { isNoiseRoomPost } from '@/lib/rooms/noise'
 import { shouldShowInRoomChat } from '@/lib/rooms/telegram-chat-policy'
+import { groupRoomPostsWithReplies } from '@/lib/rooms/post-threads'
 import { RoomPostCard } from '@/components/room-post'
+import { RoomJobsPanel } from '@/components/room-jobs-panel'
 import { CanvasWorkspace } from '@/components/canvas/canvas-workspace'
 import { FilePreviewPane } from '@/components/file-preview-pane'
 import { ComposerMicButton } from '@/components/composer-mic-button'
@@ -223,6 +225,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
   const posts = useMemo(
     () => postsByScope[activeScopeId] || EMPTY_POSTS,
     [postsByScope, activeScopeId]
+  )
+  const threadedPosts = useMemo(
+    () => groupRoomPostsWithReplies(posts),
+    [posts]
+  )
+  const [replyToPost, setReplyToPost] = useState<RoomPost | null>(null)
+  const [retentionLabelAr, setRetentionLabelAr] = useState(() =>
+    roomChatRetentionLabelAr(activeScopeId)
   )
   const appendPost = useWorkspaceStore((s) => s.appendPost)
   const updatePost = useWorkspaceStore((s) => s.updatePost)
@@ -565,6 +575,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setComposerFiles([])
     setConfirmDeleteToday(false)
     setDeleteTodayNote('')
+    setReplyToPost(null)
+    setRetentionLabelAr(roomChatRetentionLabelAr(activeScopeId))
     // Canvas store is global — hide cross-room artifacts when switching desks
     useCanvasStore.setState({ artifacts: [], activeId: null })
   }, [activeScopeId])
@@ -630,7 +642,13 @@ export function RoomWorkspace({ className }: { className?: string }) {
       ])
       if (cancelled) return
       if (res.ok) {
-        const data = (await res.json()) as { posts?: RoomPost[] }
+        const data = (await res.json()) as {
+          posts?: RoomPost[]
+          retentionLabelAr?: string
+        }
+        if (typeof data.retentionLabelAr === 'string') {
+          setRetentionLabelAr(data.retentionLabelAr)
+        }
         if (Array.isArray(data.posts)) {
           const cleaned = data.posts.filter(
             (p) =>
@@ -638,6 +656,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
               shouldShowInRoomChat({
                 channel: p.channel,
                 content: p.content,
+                scopeId: activeScopeId,
               })
           )
           setPostsForScope(activeScopeId, cleaned)
@@ -694,6 +713,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
             !shouldShowInRoomChat({
               channel: row.channel,
               content: row.content,
+              scopeId: activeScopeId,
             })
           ) {
             return
@@ -718,6 +738,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 ? row.post_kind
                 : 'chat',
             channel: row.channel || null,
+            parentPostId: row.parent_post_id || null,
           })
         }
       )
@@ -1364,6 +1385,8 @@ export function RoomWorkspace({ className }: { className?: string }) {
     setSendBlockedAr('')
     setInput('')
     setComposerFiles([])
+    const parentPostId = replyToPost?.id
+    if (replyToPost) setReplyToPost(null)
 
     const headers = await authHeaders({
       'Content-Type': 'application/json',
@@ -1451,6 +1474,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
         scopeId: activeScopeId,
         content: humanContent,
         authorNameAr: displayName,
+        parentPostId,
         mentionAgentId:
           agentsWorking && !runTeam && !runMultiMentions
             ? agentsToRun[0]?.id
@@ -1484,6 +1508,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
       authorNameAr: displayName,
       content: humanContent,
       createdAt: Date.now(),
+      parentPostId: parentPostId || null,
       attachments: filesForSend.map((f) => ({
         fileId: f.fileId,
         name: f.name,
@@ -2017,7 +2042,7 @@ export function RoomWorkspace({ className }: { className?: string }) {
                 </>
               ) : null}
               <span className="ms-auto text-[10px] text-ab-muted-soft">
-                الشات {roomChatRetentionDays()} أيام · الأرشيف يبقى
+                {retentionLabelAr} · ملفات الفريق تبقى
               </span>
             </div>
             ) : (
@@ -2302,6 +2327,9 @@ export function RoomWorkspace({ className }: { className?: string }) {
             ref={feedRef}
             className="ab-room-feed relative z-0 min-h-0 flex-1 overflow-y-auto px-2.5 py-3 pb-36 sm:px-3 lg:px-4"
           >
+            {!focusMode && shared ? (
+              <RoomJobsPanel scopeId={activeScopeId} className="mb-3" />
+            ) : null}
             {/* Full column width — avoid hollow side gutters on wide desktops */}
             <div className="mx-auto w-full max-w-none">
               {posts.length === 0 ? (
@@ -2364,7 +2392,14 @@ export function RoomWorkspace({ className }: { className?: string }) {
                   )}
                 </div>
               ) : (
-                posts.map((post) => <RoomPostCard key={post.id} post={post} />)
+                threadedPosts.map(({ post, replies }) => (
+                  <RoomPostCard
+                    key={post.id}
+                    post={post}
+                    replies={replies}
+                    onReply={isGuest ? undefined : setReplyToPost}
+                  />
+                ))
               )}
             </div>
           </div>
@@ -2381,6 +2416,21 @@ export function RoomWorkspace({ className }: { className?: string }) {
             )}
             aria-hidden={showMore && shared ? true : undefined}
           >
+            {replyToPost ? (
+              <div className="mb-1.5 flex items-center justify-between gap-2 rounded-md border border-ab-accent/30 bg-ab-accent/5 px-2 py-1.5 text-[11px]">
+                <span className="min-w-0 truncate text-ab-ink">
+                  رد على {replyToPost.authorNameAr}:{' '}
+                  {(replyToPost.content || '').slice(0, 64)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReplyToPost(null)}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-ab-muted-soft hover:bg-white"
+                >
+                  إلغاء
+                </button>
+              </div>
+            ) : null}
             {mentionPreviewAgents.length > 1 ? (
               <p className="mb-1.5 text-[11px] text-ab-accent">
                 سيتم توجيه الرد إلى{' '}

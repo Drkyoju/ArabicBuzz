@@ -7,6 +7,7 @@ import {
   Bot,
   BookmarkPlus,
   CheckCheck,
+  CornerDownRight,
   Download,
   Eye,
   FileText,
@@ -293,7 +294,18 @@ function PostTime({ createdAt }: { createdAt: number }) {
 }
 
 /** Single peer post in a humans+agents room timeline. */
-export function RoomPostCard({ post }: { post: RoomPost }) {
+export function RoomPostCard({
+  post,
+  replies = [],
+  onReply,
+  compact,
+}: {
+  post: RoomPost
+  replies?: RoomPost[]
+  onReply?: (post: RoomPost) => void
+  /** Nested reply styling */
+  compact?: boolean
+}) {
   const isAgent = post.authorKind === 'agent'
   const isChannel =
     post.authorKind === 'channel' || post.authorKind === 'system'
@@ -423,7 +435,8 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
     <article
       id={`room-post-${post.id}`}
       className={cn(
-        'mb-3 scroll-mt-24 px-1 py-1.5',
+        compact ? 'mb-2 ms-4 border-s-2 border-ab-border/60 ps-2' : 'mb-3',
+        'scroll-mt-24 px-1 py-1.5',
         isAgent
           ? 'border-e-2 border-ab-accent/40 pe-2.5'
           : isChannel
@@ -827,6 +840,26 @@ export function RoomPostCard({ post }: { post: RoomPost }) {
         <p className="mt-2 rounded-md border border-ab-warn/30 bg-ab-warn/10 px-2 py-1.5 text-[11px] text-ab-warn">
           إجراء معلّق بانتظار موافقة بشرية — سيظهر تنبيه أعلى الصفحة عند الحاجة.
         </p>
+      )}
+      {!post.streaming && onReply && !compact && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onReply(post)}
+            className="inline-flex items-center gap-1 text-[10px] text-ab-muted-soft hover:text-ab-accent"
+          >
+            <CornerDownRight className="h-3 w-3" aria-hidden />
+            رد
+            {replies.length > 0 ? ` (${replies.length})` : ''}
+          </button>
+        </div>
+      )}
+      {replies.length > 0 && (
+        <div className="mt-2 space-y-0">
+          {replies.map((r) => (
+            <RoomPostCard key={r.id} post={r} compact />
+          ))}
+        </div>
       )}
       <QualityFlagBanner show={Boolean(post.qualityWarning)} />
     </article>
