@@ -328,12 +328,18 @@ export async function listDriveBrainPreview(
 /**
  * Push a room vault file into Drive «عقل الشركة» and re-index RAG.
  * Room file stays in place; Drive sync is the mandatory company-brain path.
+ *
+ * Idempotent: same name+size already on Drive → reuse (no new copy). Same name
+ * different size → update newest. This stops cron/group-archive from flooding
+ * the association folder with identical duplicates.
  */
 export async function uploadRoomFileToCompanyBrain(opts: {
   userId: string
   /** Room scope where the file was saved. */
   scopeId: string
   localFileId: string
+  /** Force a brand-new Drive object (rare; default dedupes). */
+  forceNew?: boolean
 }): Promise<{
   ok: true
   driveFileId: string
@@ -341,40 +347,70 @@ export async function uploadRoomFileToCompanyBrain(opts: {
   driveUrl: string | null
   brainChunks: number
   folderUrl: string
+  deduped: 'reused' | 'updated' | 'created'
   messageAr: string
 }> {
   const { readWorkspaceFile } = await import('@/lib/documents/workspace')
-  const { uploadDriveBinaryFile } = await import('@/lib/google/drive')
+  const { uploadDriveBinaryFileDeduped } = await import('@/lib/google/drive')
+  const { getSupabaseAdmin } = await import('@/lib/supabase/server')
 
   const hit = await readWorkspaceFile(opts.scopeId, opts.localFileId)
-  const driveMeta = await uploadDriveBinaryFile(opts.userId, {
+  const driveMeta = await uploadDriveBinaryFileDeduped(opts.userId, {
     name: hit.meta.originalName,
     buffer: hit.buffer,
     mimeType: hit.meta.mimeType,
+    forceNew: opts.forceNew,
   })
 
   const sourceFileId = `gdrive:${driveMeta.id}`
   const folderId = getDriveBrainFolderId()
   const folderUrl = `https://drive.google.com/drive/folders/${folderId}`
-  await deleteKnowledgeBySource(sourceFileId)
 
-  const extracted = await extractDocumentText({
-    buffer: hit.buffer,
-    filename: driveMeta.name,
-    mimeType: driveMeta.mimeType || hit.meta.mimeType,
-    enableOcr: true,
-  })
   let chunks = 0
-  if (extracted.text.trim()) {
-    const result = await ingestArabicDocument({
-      scopeId: COMPANY_BRAIN_SCOPE_ID,
-      titleAr: driveMeta.name,
-      content: extracted.text,
-      sourceFileId,
-      sourcePath: folderUrl,
-    })
-    chunks = result.chunks
+  let skipReindex = false
+  if (driveMeta.deduped === 'reused') {
+    const sb = getSupabaseAdmin()
+    if (sb) {
+      try {
+        const { count } = await sb
+          .from('knowledge_documents')
+          .select('id', { count: 'exact', head: true })
+          .eq('source_file_id', sourceFileId)
+        if ((count || 0) > 0) {
+          chunks = count || 0
+          skipReindex = true
+        }
+      } catch {
+        /* fall through to reindex */
+      }
+    }
   }
+
+  if (!skipReindex) {
+    await deleteKnowledgeBySource(sourceFileId)
+    const extracted = await extractDocumentText({
+      buffer: hit.buffer,
+      filename: driveMeta.name,
+      mimeType: driveMeta.mimeType || hit.meta.mimeType,
+      enableOcr: true,
+    })
+    if (extracted.text.trim()) {
+      const result = await ingestArabicDocument({
+        scopeId: COMPANY_BRAIN_SCOPE_ID,
+        titleAr: driveMeta.name,
+        content: extracted.text,
+        sourceFileId,
+        sourcePath: folderUrl,
+      })
+      chunks = result.chunks
+    }
+  }
+
+  const msgByDedup = {
+    reused: `«${driveMeta.name}» موجود مسبقاً على Drive بنفس الحجم — لم يُنشأ نسخة مكررة (مفهرس: ${chunks}).`,
+    updated: `حُدّث «${driveMeta.name}» على Drive (نسخة أحدث) وفُهرس (${chunks} مقطعاً).`,
+    created: `رُفع «${driveMeta.name}» إلى عقل الشركة (Drive) وفُهرس (${chunks} مقطعاً).`,
+  } as const
 
   return {
     ok: true,
@@ -383,6 +419,7 @@ export async function uploadRoomFileToCompanyBrain(opts: {
     driveUrl: driveMeta.webViewLink || null,
     brainChunks: chunks,
     folderUrl,
-    messageAr: `رُفع «${driveMeta.name}» إلى عقل الشركة (Drive) وفُهرس (${chunks} مقطعاً).`,
+    deduped: driveMeta.deduped,
+    messageAr: msgByDedup[driveMeta.deduped],
   }
 }

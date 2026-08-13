@@ -9,7 +9,6 @@ import {
   findDriveBrainFile,
   getDriveBrainFolderId,
   updateDriveFileMedia,
-  uploadDriveBinaryFile,
   trashDriveFile,
 } from '@/lib/google/drive'
 import {
@@ -163,12 +162,17 @@ export async function executeBrainSaveDocument(
   const outputName = String(params.outputName || hit.meta.originalName).trim()
 
   let driveMeta
+  let uploadedAsNew = false
   if (asNew || !driveFileId) {
-    driveMeta = await uploadDriveBinaryFile(userId, {
+    const { uploadDriveBinaryFileDeduped } = await import('@/lib/google/drive')
+    const deduped = await uploadDriveBinaryFileDeduped(userId, {
       name: outputName,
       buffer: hit.buffer,
       mimeType: hit.meta.mimeType,
+      forceNew: Boolean(params.forceNew),
     })
+    driveMeta = deduped
+    uploadedAsNew = deduped.deduped === 'created'
   } else {
     driveMeta = await updateDriveFileMedia(userId, {
       fileId: driveFileId,
@@ -197,7 +201,7 @@ export async function executeBrainSaveDocument(
     fileId: hit.meta.id,
     name: hit.meta.originalName,
     mimeType: hit.meta.mimeType,
-    uploadedAsNew: asNew || !driveFileId,
+    uploadedAsNew,
     brainChunks: index.chunks,
     downloadPath,
     attachments: [
@@ -209,9 +213,9 @@ export async function executeBrainSaveDocument(
         downloadPath,
       },
     ],
-    messageAr: asNew || !driveFileId
+    messageAr: uploadedAsNew
       ? `رُفع «${driveMeta.name}» إلى مجلد ملفات الجمعية وأُعيدت فهرسته (${index.chunks} مقطعاً). يمكن تنزيله من الشات أيضاً.`
-      : `حُدّث الملف على Drive وأُعيدت فهرسة العقل (${index.chunks} مقطعاً). يمكن تنزيل النسخة من الشات.`,
+      : `حُدّث/أُعيد استخدام الملف على Drive وأُعيدت فهرسة العقل (${index.chunks} مقطعاً). يمكن تنزيل النسخة من الشات.`,
   }
 }
 

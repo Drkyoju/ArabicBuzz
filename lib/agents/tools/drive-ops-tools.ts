@@ -7,7 +7,6 @@ import {
   classifyDriveAccessError,
   findDriveBrainFile,
   listDriveFolderFiles,
-  uploadDriveBinaryFile,
 } from '@/lib/google/drive'
 import { readWorkspaceFile } from '@/lib/documents/workspace'
 
@@ -120,18 +119,49 @@ export async function executeDriveUploadFile(
   if (!found) throw new Error('الملف غير موجود في خزنة الغرفة.')
 
   try {
-    const meta = await uploadDriveBinaryFile(userId, {
+    // Prefer company-brain path (name+size dedupe) unless a custom folder is set.
+    if (!params.folderId) {
+      const { uploadRoomFileToCompanyBrain } = await import(
+        '@/lib/google/drive-brain'
+      )
+      const result = await uploadRoomFileToCompanyBrain({
+        userId,
+        scopeId,
+        localFileId: fileId,
+        forceNew: Boolean(params.forceNew),
+      })
+      return {
+        ok: true,
+        driveFileId: result.driveFileId,
+        name: result.driveName,
+        webViewLink: result.driveUrl,
+        deduped: result.deduped,
+        messageAr: result.messageAr,
+        shareNoteAr:
+          'لمشاركة أوسع: افتح الرابط من Drive وشارك يدوياً — البوت لا يغيّر ACL (صلاحية drive.file فقط).',
+      }
+    }
+
+    const { uploadDriveBinaryFileDeduped } = await import('@/lib/google/drive')
+    const meta = await uploadDriveBinaryFileDeduped(userId, {
       name: found.meta.originalName,
       buffer: found.buffer,
       mimeType: found.meta.mimeType || 'application/octet-stream',
-      folderId: params.folderId ? String(params.folderId) : undefined,
+      folderId: String(params.folderId),
+      forceNew: Boolean(params.forceNew),
     })
     return {
       ok: true,
       driveFileId: meta.id,
       name: meta.name,
       webViewLink: meta.webViewLink || null,
-      messageAr: `رُفع «${meta.name}» إلى مجلد ملفات الجمعية على Drive.`,
+      deduped: meta.deduped,
+      messageAr:
+        meta.deduped === 'reused'
+          ? `«${meta.name}» موجود مسبقاً على Drive بنفس الحجم — لم تُنشأ نسخة.`
+          : meta.deduped === 'updated'
+            ? `حُدّث «${meta.name}» على Drive.`
+            : `رُفع «${meta.name}» إلى مجلد ملفات الجمعية على Drive.`,
       shareNoteAr:
         'لمشاركة أوسع: افتح الرابط من Drive وشارك يدوياً — البوت لا يغيّر ACL (صلاحية drive.file فقط).',
     }

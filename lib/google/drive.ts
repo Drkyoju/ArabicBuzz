@@ -210,6 +210,92 @@ export async function uploadDriveTextFile(
   })
 }
 
+/** Escape values for Drive `files.list` `q` strings. */
+export function escapeDriveQueryValue(s: string): string {
+  return String(s || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+}
+
+/**
+ * List non-trashed files with an exact name under a folder (direct children).
+ * Used to prevent archive/cron from creating endless same-name copies.
+ */
+export async function listDriveFilesByExactName(
+  userId: string,
+  name: string,
+  opts?: { folderId?: string; pageSize?: number }
+): Promise<DriveFileMeta[]> {
+  const folderId = opts?.folderId || getDriveBrainFolderId()
+  const safeName = escapeDriveQueryValue(name.trim())
+  if (!safeName) return []
+  const out: DriveFileMeta[] = []
+  let pageToken: string | undefined
+  do {
+    const params = new URLSearchParams({
+      q: `name = '${safeName}' and '${folderId}' in parents and trashed = false`,
+      pageSize: String(opts?.pageSize || 50),
+      fields:
+        'nextPageToken, files(id,name,mimeType,modifiedTime,size,webViewLink)',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+    const res = await driveFetch(userId, `/files?${params.toString()}`)
+    const data = (await res.json()) as {
+      files?: DriveFileMeta[]
+      nextPageToken?: string
+      error?: { message?: string }
+    }
+    if (!res.ok) {
+      throw new Error(
+        data.error?.message ||
+          `Drive name lookup HTTP ${res.status} — أعد ربط Google بصلاحية Drive`
+      )
+    }
+    for (const f of data.files || []) {
+      if (f.mimeType !== 'application/vnd.google-apps.folder') out.push(f)
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+  return out
+}
+
+export type DriveUploadDedupDecision =
+  | { action: 'reuse'; file: DriveFileMeta }
+  | { action: 'update'; file: DriveFileMeta }
+  | { action: 'create' }
+
+/**
+ * Pure helper: same name+size → reuse; same name different size → update newest;
+ * else create. Prevents cron/archive from multiplying identical Drive copies.
+ */
+export function pickDriveUploadDedupTarget(
+  candidates: DriveFileMeta[],
+  sizeBytes: number
+): DriveUploadDedupDecision {
+  if (!candidates.length) return { action: 'create' }
+  const size = Number(sizeBytes)
+  const sameSize = candidates.filter(
+    (f) =>
+      Number.isFinite(size) &&
+      f.size != null &&
+      Number(f.size) === size
+  )
+  const byNewest = (a: DriveFileMeta, b: DriveFileMeta) =>
+    String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || ''))
+  if (sameSize.length) {
+    return {
+      action: 'reuse',
+      file: [...sameSize].sort(byNewest)[0]!,
+    }
+  }
+  return {
+    action: 'update',
+    file: [...candidates].sort(byNewest)[0]!,
+  }
+}
+
 /** Upload binary (docx/pdf/xlsx…) into the brain Drive folder. */
 export async function uploadDriveBinaryFile(
   userId: string,
@@ -262,6 +348,52 @@ export async function uploadDriveBinaryFile(
     )
   }
   return data
+}
+
+/**
+ * Idempotent brain upload: reuse identical name+size, else update same-name
+ * newest, else create. Stops webhook retries / cron archive from flooding Drive.
+ */
+export async function uploadDriveBinaryFileDeduped(
+  userId: string,
+  opts: {
+    name: string
+    buffer: Buffer
+    mimeType: string
+    folderId?: string
+    /** Force a brand-new Drive file (skip reuse/update). */
+    forceNew?: boolean
+  }
+): Promise<DriveFileMeta & { deduped: 'reused' | 'updated' | 'created' }> {
+  const folderId = opts.folderId || getDriveBrainFolderId()
+  if (!opts.forceNew) {
+    const candidates = await listDriveFilesByExactName(userId, opts.name, {
+      folderId,
+    })
+    const decision = pickDriveUploadDedupTarget(
+      candidates,
+      opts.buffer.length
+    )
+    if (decision.action === 'reuse') {
+      return { ...decision.file, deduped: 'reused' }
+    }
+    if (decision.action === 'update') {
+      const updated = await updateDriveFileMedia(userId, {
+        fileId: decision.file.id,
+        buffer: opts.buffer,
+        mimeType: opts.mimeType,
+        name: opts.name,
+      })
+      return { ...updated, deduped: 'updated' }
+    }
+  }
+  const created = await uploadDriveBinaryFile(userId, {
+    name: opts.name,
+    buffer: opts.buffer,
+    mimeType: opts.mimeType,
+    folderId,
+  })
+  return { ...created, deduped: 'created' }
 }
 
 /** Replace contents of an existing Drive file (keeps same file id). */
