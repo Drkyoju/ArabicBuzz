@@ -12,6 +12,33 @@ App id: `bf8cff03-49ac-4a80-bb93-298305e6617e`
 - GitHub connected to the project (`cranl github connect`)
 - Env vars copied from Netlify / `.env.local` (never commit secrets)
 
+## Reliable manual deploy (`npm run cranl:deploy`)
+
+GitHub auto-deploy on push to `main` can lag or fail silently on Basic. Prefer this after every code push:
+
+```bash
+# Typecheck → cranl apps deploy <app-id> → poll /api/health/live + /api/health/ready
+npm run cranl:deploy
+
+# Faster (skip local tsc) when you already built clean:
+npm run cranl:deploy -- --skip-build
+
+# List history (CLI bug workaround):
+npm run cranl:deployments
+```
+
+Script: `scripts/cranl-deploy.sh` · App id: `bf8cff03-49ac-4a80-bb93-298305e6617e` · Live: https://arabicbuzz-fooc9h.cranl.net/
+
+Appointment reminders (narrow, digests stay silent):
+
+```bash
+# Ensure on CranL (already documented above):
+# TELEGRAM_GROUP_APPOINTMENT_REMINDERS=1
+# GitHub Actions: .github/workflows/appointment-reminders.yml → POST /api/crons/appointment-reminders
+curl -sS https://arabicbuzz-fooc9h.cranl.net/api/crons/appointment-reminders
+# → groupAppointmentReminders:true · willRun:true · silenceUnsolicited:true
+```
+
 ## One-time create
 
 ```bash

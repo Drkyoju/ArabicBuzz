@@ -118,6 +118,32 @@ export async function executeRoomCalendarCreate(
     result.event.attendees.length > 0
       ? ` · مدعوون: ${result.event.attendees.join(', ')}`
       : ''
+  let inviteNote = ''
+  if (result.event.attendees.length > 0 && params.sendEmailInvite !== false) {
+    try {
+      const { sendRoomCalendarEmailInvites } = await import(
+        '@/lib/rooms/calendar-email-invite'
+      )
+      const invite = await sendRoomCalendarEmailInvites({
+        event: {
+          id: result.event.id,
+          titleAr: result.event.titleAr,
+          descriptionAr: result.event.descriptionAr,
+          locationAr: result.event.locationAr,
+          startsAt: result.event.startsAt,
+          endsAt: result.event.endsAt,
+          allDay: result.event.allDay,
+          attendees: result.event.attendees,
+          status: result.event.status,
+        },
+        actingUserId: String(params.userId || ''),
+        sendEmailInvite: params.sendEmailInvite,
+      })
+      if (!invite.skipped) inviteNote = ` · ${invite.messageAr}`
+    } catch {
+      inviteNote = ' · تعذّر إرسال دعوة البريد'
+    }
+  }
   return {
     ok: true,
     created: true,
@@ -125,8 +151,8 @@ export async function executeRoomCalendarCreate(
     ...result,
     messageAr:
       result.conflicts.length > 0
-        ? `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — ليس تقويمك الشخصي).${who} تنبيه: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
-        : `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك) وهو ظاهر للفريق الآن — ليس تقويمك الشخصي على Google.${who}`,
+        ? `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك — ليس تقويمك الشخصي).${who}${inviteNote} تنبيه: ${result.conflicts.length} تعارض زمني محتمل — ${result.suggestion?.messageAr || 'راجع التقويم إن لزم.'}`
+        : `أُضيف «${result.event.titleAr}» إلى مواعيد الجمعية/الفريق (تقويم الغرفة المشترك) وهو ظاهر للفريق الآن — ليس تقويمك الشخصي على Google.${who}${inviteNote}`,
   }
 }
 
@@ -189,10 +215,43 @@ export async function executeRoomCalendarUpdate(
         ? params.status
         : undefined,
   })
+  let inviteNote = ''
+  if (
+    result.event.attendees?.length > 0 &&
+    params.sendEmailInvite !== false &&
+    (params.attendees !== undefined ||
+      params.attendeeEmails !== undefined ||
+      params.emails !== undefined ||
+      params.sendEmailInvite === true)
+  ) {
+    try {
+      const { sendRoomCalendarEmailInvites } = await import(
+        '@/lib/rooms/calendar-email-invite'
+      )
+      const invite = await sendRoomCalendarEmailInvites({
+        event: {
+          id: result.event.id,
+          titleAr: result.event.titleAr,
+          descriptionAr: result.event.descriptionAr,
+          locationAr: result.event.locationAr,
+          startsAt: result.event.startsAt,
+          endsAt: result.event.endsAt,
+          allDay: result.event.allDay,
+          attendees: result.event.attendees,
+          status: result.event.status,
+        },
+        actingUserId: String(params.userId || ''),
+        sendEmailInvite: params.sendEmailInvite,
+      })
+      if (!invite.skipped) inviteNote = ` · ${invite.messageAr}`
+    } catch {
+      inviteNote = ' · تعذّر إرسال دعوة البريد'
+    }
+  }
   return {
     ok: true,
     ...result,
-    messageAr: 'حُدّث موعد تقويم الغرفة.',
+    messageAr: `حُدّث موعد تقويم الغرفة.${inviteNote}`,
   }
 }
 

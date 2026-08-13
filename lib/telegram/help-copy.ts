@@ -157,6 +157,8 @@ export function buildTelegramHelpDomainAr(domain: HelpMenuDomain): string {
       return [
         '🔎 بحث وإحاطة',
         '• «ابحث في الغرفة عن …» → room_search (بريد · ملفات · تقويم)',
+        '• «دور عن …» / «ابحث في الأرشيف عن …» → خزنة الغرفة + Drive الجمعية',
+        '• «مسودة رد» / «اكتب رد على البريد» → mail_draft_reply ثم موافقة HITL (لا إرسال تلقائي)',
         '• «إحاطة الصباح» / «ملخص اليوم» → owner_morning_brief',
         '• «ابحث في جوجل عن …» → web_search (DuckDuckGo + ويكيبيديا + site:gov.sa — بلا مفتاح)',
         '• «أين تقع …» / «خريطة …» → geocode ثم روابط OpenStreetMap وGoogle Maps',

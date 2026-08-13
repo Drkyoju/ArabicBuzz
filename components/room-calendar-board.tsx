@@ -203,6 +203,8 @@ export function RoomCalendarBoard({
   const [descriptionAr, setDescriptionAr] = useState('')
   const [reminderMinutes, setReminderMinutes] = useState(60)
   const [attendees, setAttendees] = useState('')
+  /** Default ON when emails present — user can uncheck. */
+  const [sendEmailInvite, setSendEmailInvite] = useState(true)
   const [bulk, setBulk] = useState('')
   const [formOpen, setFormOpen] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -793,6 +795,7 @@ export function RoomCalendarBoard({
               reminderMinutes,
               attendees: attendeeList,
             },
+            sendEmailInvite: sendEmailInvite && attendeeList.length > 0,
           }),
         })
         const data = (await res.json()) as {
@@ -821,6 +824,7 @@ export function RoomCalendarBoard({
             attendees: attendeeList,
             source: 'manual',
             copyToGoogle: copyToGoogle && googleConnected,
+            sendEmailInvite: sendEmailInvite && attendeeList.length > 0,
           }),
         })
         const data = (await res.json()) as {
@@ -1438,10 +1442,27 @@ export function RoomCalendarBoard({
                     dir="ltr"
                   />
                   <span className="mt-1 block text-[10px] text-ab-muted-soft">
-                    يُحفظ مع الموعد في التقويم المشترك ويظهر للفريق — بلا دعوة
-                    Google إجبارية.
+                    يُحفظ مع الموعد في التقويم المشترك. عند وجود بريد يُرسل
+                    افتراضياً دعوة ICS عبر بريد الجمعية (أو Gmail المالك).
                   </span>
                 </label>
+                {attendees.split(/[,;\s]+/).some((e) => e.includes('@')) && (
+                  <label className="flex items-start gap-2 text-xs text-stone-700 sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={sendEmailInvite}
+                      onChange={(e) => setSendEmailInvite(e.target.checked)}
+                      className="mt-0.5 rounded border-ab-border"
+                    />
+                    <span>
+                      <span className="font-semibold">إرسال دعوة بريد (ICS)</span>
+                      <span className="mt-0.5 block text-[10px] text-ab-muted-soft">
+                        مفعّل افتراضياً عند وجود مدعوين — ألغِ التحديد للحفظ
+                        بدون دعوة.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <label className="block text-xs text-stone-500 sm:col-span-2">
                   تذكير تيليجرام قبل الموعد
                   <select

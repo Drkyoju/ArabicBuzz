@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
     autoAdjust?: boolean
     notify?: boolean
     copyToGoogle?: boolean
+    /** Default ON when attendees present — set false to skip ICS/email invite. */
+    sendEmailInvite?: boolean
     proposals?: Array<{
       titleAr: string
       startsAt: string
@@ -262,12 +264,46 @@ export async function POST(req: NextRequest) {
             : undefined,
         meta: nextMeta,
       })
+      let inviteNote = ''
+      const inviteAttendees =
+        result.event.attendees?.length > 0
+          ? result.event.attendees
+          : parseAttendeeEmails(patch.attendees)
+      if (
+        inviteAttendees.length > 0 &&
+        body.sendEmailInvite !== false &&
+        (patch.attendees !== undefined || body.sendEmailInvite === true)
+      ) {
+        try {
+          const { sendRoomCalendarEmailInvites } = await import(
+            '@/lib/rooms/calendar-email-invite'
+          )
+          const invite = await sendRoomCalendarEmailInvites({
+            event: {
+              id: result.event.id,
+              titleAr: result.event.titleAr,
+              descriptionAr: result.event.descriptionAr,
+              locationAr: result.event.locationAr,
+              startsAt: result.event.startsAt,
+              endsAt: result.event.endsAt,
+              allDay: result.event.allDay,
+              attendees: inviteAttendees,
+              status: result.event.status,
+            },
+            actingUserId: user.id,
+            sendEmailInvite: body.sendEmailInvite,
+          })
+          if (!invite.skipped) inviteNote = ` · ${invite.messageAr}`
+        } catch {
+          inviteNote = ' · تعذّر إرسال دعوة البريد'
+        }
+      }
       return NextResponse.json({
         ...result,
         messageAr:
-          result.conflicts.length > 0
+          (result.conflicts.length > 0
             ? `حُدّث مع ${result.conflicts.length} تعارض محتمل`
-            : 'تم التحديث',
+            : 'تم التحديث') + inviteNote,
       })
     }
 
@@ -324,6 +360,33 @@ export async function POST(req: NextRequest) {
       meta: { reminderMinutes },
     })
 
+    let inviteNote = ''
+    if (result.event.attendees.length > 0 && body.sendEmailInvite !== false) {
+      try {
+        const { sendRoomCalendarEmailInvites } = await import(
+          '@/lib/rooms/calendar-email-invite'
+        )
+        const invite = await sendRoomCalendarEmailInvites({
+          event: {
+            id: result.event.id,
+            titleAr: result.event.titleAr,
+            descriptionAr: result.event.descriptionAr,
+            locationAr: result.event.locationAr,
+            startsAt: result.event.startsAt,
+            endsAt: result.event.endsAt,
+            allDay: result.event.allDay,
+            attendees: result.event.attendees,
+            status: result.event.status,
+          },
+          actingUserId: user.id,
+          sendEmailInvite: body.sendEmailInvite,
+        })
+        if (!invite.skipped) inviteNote = ` · ${invite.messageAr}`
+      } catch {
+        inviteNote = ' · تعذّر إرسال دعوة البريد'
+      }
+    }
+
     // Opt-in only: copy to the *acting user's* Google — never the room owner's
     // or another member's calendar. Shared room DB remains source of truth.
     let googleNote = ''
@@ -369,12 +432,12 @@ export async function POST(req: NextRequest) {
               result.event.attendees.length
                 ? ` · مدعوون: ${result.event.attendees.join(', ')}`
                 : ''
-            }${googleNote}`
+            }${inviteNote}${googleNote}`
           : `أُضيف الموعد إلى تقويم الغرفة المشترك (مواعيد الجمعية — ظاهر للفريق)${
               result.event.attendees.length
                 ? ` · مدعوون: ${result.event.attendees.join(', ')}`
                 : ''
-            }${googleNote}`,
+            }${inviteNote}${googleNote}`,
     })
   } catch (e) {
     return NextResponse.json(

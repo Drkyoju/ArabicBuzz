@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Lightweight tunnel wake monitor — heal MAC_SYNC_URL after sleep (not 24/7 convert). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.arabicbuzz.tunnel-wake</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__AB_ROOT__/scripts/mac-tunnel-wake-monitor.sh</string>
+    <string>--loop</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__AB_ROOT__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/tunnel-wake.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__AB_HOME__/Library/Logs/ArabicBuzz/tunnel-wake.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:__AB_HOME__/.orbstack/bin:/usr/bin:/bin:__AB_HOME__/bin</string>
+    <key>HOME</key>
+    <string>__AB_HOME__</string>
+  </dict>
+</dict>
+</plist>

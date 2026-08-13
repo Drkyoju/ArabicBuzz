@@ -26,6 +26,7 @@ mkdir -p "$DEST" "$HOME/bin" "$HOME/Library/Logs/ArabicBuzz"
 
 LABELS=(
   com.arabicbuzz.hop-watchdog
+  com.arabicbuzz.tunnel-wake
 )
 # Note: storage:sync is managed by the watchdog (ensure_mac_sync) to avoid
 # EADDRINUSE fights with an already-running agent. Optional separate agent:

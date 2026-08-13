@@ -582,6 +582,12 @@ function encodeHeaderUtf8(value: string): string {
   return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
 }
 
+export type GmailOutgoingAttachment = {
+  filename: string
+  content: Buffer | string
+  mimeType?: string
+}
+
 function buildRawMime(opts: {
   to: string
   subject: string
@@ -591,6 +597,7 @@ function buildRawMime(opts: {
   bcc?: string
   inReplyTo?: string
   references?: string
+  attachments?: GmailOutgoingAttachment[]
 }): string {
   const lines: string[] = [
     `To: ${opts.to}`,
@@ -604,26 +611,68 @@ function buildRawMime(opts: {
 
   const text = opts.bodyText || ''
   const html = opts.bodyHtml?.trim() || ''
+  const attachments = opts.attachments || []
 
-  if (html) {
-    const boundary = `ab_${Date.now().toString(36)}`
-    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
-    lines.push('')
-    lines.push(`--${boundary}`)
-    lines.push('Content-Type: text/plain; charset="UTF-8"')
-    lines.push('Content-Transfer-Encoding: base64')
-    lines.push('')
-    lines.push(
+  const buildAlternative = (boundary: string) => {
+    const parts: string[] = []
+    parts.push(`--${boundary}`)
+    parts.push('Content-Type: text/plain; charset="UTF-8"')
+    parts.push('Content-Transfer-Encoding: base64')
+    parts.push('')
+    parts.push(
       Buffer.from(text || html.replace(/<[^>]+>/g, ' '), 'utf8').toString(
         'base64'
       )
     )
-    lines.push(`--${boundary}`)
-    lines.push('Content-Type: text/html; charset="UTF-8"')
-    lines.push('Content-Transfer-Encoding: base64')
+    if (html) {
+      parts.push(`--${boundary}`)
+      parts.push('Content-Type: text/html; charset="UTF-8"')
+      parts.push('Content-Transfer-Encoding: base64')
+      parts.push('')
+      parts.push(Buffer.from(html, 'utf8').toString('base64'))
+    }
+    parts.push(`--${boundary}--`)
+    return parts.join('\r\n')
+  }
+
+  if (attachments.length > 0) {
+    const mixed = `ab_mix_${Date.now().toString(36)}`
+    const alt = `ab_alt_${Date.now().toString(36)}`
+    lines.push(`Content-Type: multipart/mixed; boundary="${mixed}"`)
     lines.push('')
-    lines.push(Buffer.from(html, 'utf8').toString('base64'))
-    lines.push(`--${boundary}--`)
+    lines.push(`--${mixed}`)
+    if (html) {
+      lines.push(`Content-Type: multipart/alternative; boundary="${alt}"`)
+      lines.push('')
+      lines.push(buildAlternative(alt))
+    } else {
+      lines.push('Content-Type: text/plain; charset="UTF-8"')
+      lines.push('Content-Transfer-Encoding: base64')
+      lines.push('')
+      lines.push(Buffer.from(text, 'utf8').toString('base64'))
+    }
+    for (const att of attachments) {
+      const buf = Buffer.isBuffer(att.content)
+        ? att.content
+        : Buffer.from(String(att.content), 'utf8')
+      const mime = att.mimeType || 'application/octet-stream'
+      const safeName = String(att.filename || 'attachment.bin').replace(
+        /["\r\n]/g,
+        '_'
+      )
+      lines.push(`--${mixed}`)
+      lines.push(`Content-Type: ${mime}; name="${safeName}"`)
+      lines.push('Content-Transfer-Encoding: base64')
+      lines.push(`Content-Disposition: attachment; filename="${safeName}"`)
+      lines.push('')
+      lines.push(buf.toString('base64'))
+    }
+    lines.push(`--${mixed}--`)
+  } else if (html) {
+    const boundary = `ab_${Date.now().toString(36)}`
+    lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
+    lines.push('')
+    lines.push(buildAlternative(boundary))
   } else {
     lines.push('Content-Type: text/plain; charset="UTF-8"')
     lines.push('Content-Transfer-Encoding: base64')
@@ -650,6 +699,7 @@ export async function sendGmailMessage(
     threadId?: string
     inReplyTo?: string
     references?: string
+    attachments?: GmailOutgoingAttachment[]
     /** Linked Workspace / Gmail account to send from (multi-account). */
     accountEmail?: string | null
   }
@@ -674,6 +724,7 @@ export async function sendGmailMessage(
       bcc: opts.bcc?.trim() || undefined,
       inReplyTo: opts.inReplyTo?.trim() || undefined,
       references: opts.references?.trim() || undefined,
+      attachments: opts.attachments,
     })
   )
 
@@ -704,6 +755,14 @@ export async function sendGmailMessage(
     threadId: data.threadId,
     labelIds: data.labelIds,
   }
+}
+
+/** Alias for calendar ICS / file attachments via Gmail MIME. */
+export async function sendGmailMessageWithAttachments(
+  userId: string,
+  opts: Parameters<typeof sendGmailMessage>[1]
+) {
+  return sendGmailMessage(userId, opts)
 }
 
 /** Reply in-thread to an existing message. */

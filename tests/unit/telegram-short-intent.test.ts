@@ -32,6 +32,24 @@ describe('parseTelegramShortIntent', () => {
     expect(parseTelegramShortIntent('أرشف المجموعة')?.kind).toBe('archive')
   })
 
+  it('parses archive search and mail draft (HITL path)', () => {
+    expect(parseTelegramShortIntent('ابحث في الأرشيف عن اللائحة')?.kind).toBe(
+      'archive_search'
+    )
+    expect(parseTelegramShortIntent('دور عن محضر اللجنة')?.kind).toBe(
+      'archive_search'
+    )
+    expect(parseTelegramShortIntent('ابحث عن رؤية 2030')?.kind).toBe(
+      'web_search'
+    )
+    expect(parseTelegramShortIntent('اكتب رد على البريد')?.kind).toBe(
+      'mail_draft'
+    )
+    expect(parseTelegramShortIntent('مسودة رد')?.kind).toBe('mail_draft')
+    expect(shortIntentToWorkKind('archive_search')).toBe('file')
+    expect(shortIntentToWorkKind('mail_draft')).toBe('mail')
+  })
+
   it('parses mail / calendar book / task / create / mesh', () => {
     expect(parseTelegramShortIntent('ابحث في البريد عن الفاتورة')?.kind).toBe(
       'mail'

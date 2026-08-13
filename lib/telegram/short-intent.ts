@@ -21,9 +21,11 @@ export type TelegramShortIntentKind =
   | 'room_search'
   | 'mesh'
   | 'archive'
+  | 'archive_search'
   | 'create_file'
   | 'edit_file'
   | 'mail'
+  | 'mail_draft'
   | 'calendar_book'
   | 'calendar_list'
   | 'task'
@@ -134,6 +136,13 @@ const MESH_WHERE_RE =
 const ARCHIVE_RE =
   /^(?:أرشف|ارشف|أرشفة|ارشفة)\s*(?:ال)?(?:مجموعة|قروب|شات)?[\s!.؟?…]*$/iu
 
+/** Search room vault + association Drive — not web, not re-archive. */
+const ARCHIVE_SEARCH_RE =
+  /^(?:ابحث|دور|بحث)\s*(?:لي\s*)?(?:في|عبر|على)?\s*(?:ال)?أرشيف\s*(?:عن|على)?\s*(.+)$/iu
+/** Gulf short: «دور عن …» → vault/Drive archive search (ابحث عن stays web). */
+const ARCHIVE_SEARCH_DOOR_RE =
+  /^(?:دور)\s*(?:لي\s*)?(?:عن|على)\s*(.+)$/iu
+
 const CREATE_RE =
   /^(?:أنشئ|انشئ|اكتب|سو[يّ]|جه[ّ]?ز|حض[ّ]?ر|أبي|ابي|أبغى|ابغى)\s*(?:لي\s*)?(?:ملف|مستند|وثيق|مذكرة|ملاحظة|نص|ورد|وورد|word|pdf|docx)\s*(.*)$/iu
 const CREATE_NEW_RE =
@@ -155,6 +164,11 @@ const MAIL_SEND_RE =
   /^(?:أرسل|ارسل)\s*(?:بريد|إيميل|ايميل)\s*(?:إلى|ل|الى)?\s*(.+)$/iu
 const MAIL_BARE_RE =
   /^(?:بريد|إيميل|ايميل|ايميلنا|إيميلنا|صندوق\s*(?:ال)?وارد)[\s!.؟?…]*$/iu
+/** Explicit association mail draft — HITL before send; never auto-send to group. */
+const MAIL_DRAFT_RE =
+  /^(?:اكتب|جه[ّ]?ز|حض[ّ]?ر|سو[يّ]|أبي|ابي|أبغى|ابغى)\s*(?:لي\s*)?(?:مسودة\s*)?(?:رد|ردّاً|ردا)\s*(?:على\s*)?(?:ال)?(?:بريد|إيميل|ايميل|رسالة)?\s*(.*)$/iu
+const MAIL_DRAFT_SOFT_RE =
+  /^(?:مسودة\s*(?:رد|بريد)|رد\s*(?:مسودة|مقترح)|draft\s*reply)\s*(.*)$/iu
 
 const CAL_BOOK_RE =
   /^(?:احجز|احجزي|أضف|اضف|سج[ّل]|سو[يّ]|أبي|ابي|أبغى|ابغى)\s*(?:لي\s*)?(?:موعد|اجتماع|لقاء)\s*(.*)$/iu
@@ -243,6 +257,12 @@ function nudgeFor(
         nudgeAr:
           '[اختصار: أرشفة] نفّذ archive_telegram_group فوراً. أكّد سطراً واحداً بالنتيجة.',
       }
+    case 'archive_search':
+      return {
+        labelAr: 'بحث أرشيف',
+        forceHeavy: true,
+        nudgeAr: `[اختصار: بحث أرشيف] ابحث فوراً عن «${p}» في خزنة الغرفة + مجلد الجمعية على Drive عبر find_storage_mesh ثم room_search إن لزم. رد عربي موجز بقائمة النتائج (اسم·مصدر·رابط إن وُجد). ممنوع أرشفة جديدة. ممنوع سؤال توضيحي إن الاستعلام واضح.`,
+      }
     case 'create_file':
       return {
         labelAr: 'إنشاء ملف',
@@ -259,13 +279,19 @@ function nudgeFor(
       return {
         labelAr: 'بريد',
         forceHeavy: true,
-        nudgeAr: `[اختصار: بريد — طلب صريح] نفّذ mail_search/mail_read (صندوق الجمعية) أو gmail_* إن طُلب الشخصي عن «${p}» فوراً. لخّص مرسل·موضوع·مقتطف — لا تختلق. ممنوع مسح البريد بلا طلب صريح.`,
+        nudgeAr: `[اختصار: بريد — طلب صريح] نفّذ mail_search/mail_read (صندوق الجمعية) أو gmail_* إن طُلب الشخصي عن «${p}» فوراً. لخّص مرسل·موضوع·مقتطف — لا تختلق. ممنوع مسح البريد بلا طلب صريح. للإرسال استخدم mail_send فقط بعد موافقة HITL — لا ترسل للمجموعة.`,
+      }
+    case 'mail_draft':
+      return {
+        labelAr: 'مسودة رد بريد',
+        forceHeavy: true,
+        nudgeAr: `[اختصار: مسودة رد — طلب صريح فقط] إن وُجدت رسالة: mail_draft_reply فوراً («${p}»). وإلا mail_search ثم mail_read ثم mail_draft_reply. اعرض المسودة بالعربية في الرد — لا تستدعِ mail_send/gmail_send إلا بعد موافقة HITL صريحة من المستخدم. ممنوع إرسال تلقائي للمجموعة. سياسة الصمت محفوظة.`,
       }
     case 'calendar_book':
       return {
         labelAr: 'حجز موعد',
         forceHeavy: false,
-        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً في ${TELEGRAM_TEAM_CALENDAR_LABEL_AR} من «${p}». اجمع مثل تقويم Google إن وُجدت في النص: titleAr · startsAt/endsAt (Asia/Riyadh) أو allDay · locationAr اختياري · attendees بأي بريد (فاصلة) · reminderMinutes=60 افتراضياً (أو 30/1440 إن ذُكر). أكّد سطراً: العنوان·الوقت·المدعوين·أنه مواعيد الجمعية — ليس ${TELEGRAM_PERSONAL_CALENDAR_LABEL_AR}. إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. ممنوع «هل تود؟» و«جاري…».`,
+        nudgeAr: `[اختصار: موعد] room_calendar_create فوراً في ${TELEGRAM_TEAM_CALENDAR_LABEL_AR} من «${p}». اجمع مثل تقويم Google إن وُجدت في النص: titleAr · startsAt/endsAt (Asia/Riyadh) أو allDay · locationAr اختياري · attendees بأي بريد (فاصلة) · reminderMinutes=60 افتراضياً (أو 30/1440 إن ذُكر). عند وجود attendees أرسل دعوة بريد/ICS افتراضياً (sendEmailInvite=true). أكّد سطراً: العنوان·الوقت·المدعوين·أنه مواعيد الجمعية — ليس ${TELEGRAM_PERSONAL_CALENDAR_LABEL_AR}. إن نقص الوقت افترض أقرب يوم عمل واذكر الافتراض. ممنوع «هل تود؟» و«جاري…».`,
       }
     case 'calendar_list':
       return {
@@ -397,10 +423,18 @@ export function parseTelegramShortIntent(raw: string): TelegramShortIntent | nul
     const q = clip(m[1] || '')
     if (q.length >= 2) return tryMatch('room_search', q)
   }
+  // Archive search before soft web — «في الأرشيف» / «دور عن» → vault+Drive.
+  if ((m = t.match(ARCHIVE_SEARCH_RE)) || (m = t.match(ARCHIVE_SEARCH_DOOR_RE))) {
+    const q = clip(m[1] || '')
+    if (q.length >= 2) return tryMatch('archive_search', q)
+  }
   // Mesh before web — «الشبكة» = storage mesh, not DuckDuckGo.
   if ((m = t.match(MESH_RE)) || (m = t.match(MESH_WHERE_RE))) {
     const q = clip(m[1] || 'الملف')
     return tryMatch('mesh', q || 'الملف')
+  }
+  if ((m = t.match(MAIL_DRAFT_RE)) || (m = t.match(MAIL_DRAFT_SOFT_RE))) {
+    return tryMatch('mail_draft', clip(m[1] || 'مسودة رد'))
   }
   if ((m = t.match(WEB_RE)) || (m = t.match(WEB_SOFT_RE))) {
     const q = clip(m[1] || '')
@@ -488,12 +522,14 @@ export function shortIntentToWorkKind(
     case 'create_file':
     case 'edit_file':
     case 'archive':
+    case 'archive_search':
     case 'mesh':
     case 'ocr':
     case 'minutes':
     case 'letter':
       return 'file'
     case 'mail':
+    case 'mail_draft':
       return 'mail'
     case 'notify':
       return 'message'
